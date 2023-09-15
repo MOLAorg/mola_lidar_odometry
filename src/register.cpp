@@ -15,6 +15,7 @@
  *
  */
 
+#include <erathos_slam/LidarInertialOdometry.h>
 #include <erathos_slam/OccGrid.h>
 #include <mrpt/core/initializer.h>
 #include <mrpt/rtti/CObject.h>
@@ -26,7 +27,7 @@ MRPT_INITIALIZER(do_register_erathos_slam)
     using mrpt::rtti::registerClass;
 
     // Register modules:
-    // MOLA_REGISTER_MODULE(xx);
+    MOLA_REGISTER_MODULE(LidarInertialOdometry);
 
     // and register RTTI info:
     registerClass(CLASS_ID(mola::erathos::OccGrid));

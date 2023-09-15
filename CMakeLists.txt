@@ -19,6 +19,8 @@ find_package(mola_common REQUIRED)
 # find dependencies:
 find_package(mrpt-maps REQUIRED)
 find_mola_package(mola_kernel)
+find_mola_package(mp2p_icp)
+find_mola_package(mola_imu_preintegration)
 
 # -----------------------
 # define lib:
@@ -31,10 +33,14 @@ mola_add_library(
 	PUBLIC_LINK_LIBRARIES
 		mrpt::maps
 		mola_kernel
+		mp2p_icp
+		mola_imu_preintegration
 #	PRIVATE_LINK_LIBRARIES
 #		mrpt::maps
 	CMAKE_DEPENDENCIES
 		mola_kernel
+		mp2p_icp
+		mola_imu_preintegration
 		mrpt-maps
 )
 

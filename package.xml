@@ -17,6 +17,8 @@
 
   <depend>mola_common</depend>
   <depend>mola_kernel</depend>
+  <depend>mp2p_icp</depend>
+  <depend>mola_imu_preintegration</depend>
   <depend>mrpt2</depend>
 
   <doc_depend>doxygen</doc_depend>
