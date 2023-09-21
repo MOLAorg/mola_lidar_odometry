@@ -1,0 +1,59 @@
+# mp2p_icp ICP pipeline configuration file, for use in ICP 
+# odometry and SLAM packages.
+#
+# YAML configuration file for use with the CLI tool mp2p-icp-run or
+# programmatically from function mp2p_icp::icp_pipeline_from_yaml()
+#
+class_name: mp2p_icp::ICP
+
+# See: mp2p_icp::Parameter
+params:
+  maxIterations: 100
+  minAbsStep_trans: 1e-4
+  minAbsStep_rot: 1e-4
+
+  debugPrintIterationProgress: true  # Print progress
+  #generateDebugFiles: true
+  #debugFileNameFormat: "icp-run-$LOCAL_ID$LOCAL_LABEL-to-$GLOBAL_ID$GLOBAL_LABEL.icplog"
+
+solvers:
+  - class: mp2p_icp::Solver_Horn
+    params:
+      ~
+
+# Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
+# instances to pair geometric entities between pointclouds.
+matchers:
+  - class: mp2p_icp::Matcher_Points_DistanceThreshold
+    params:
+      threshold: 0.15
+      #pairingsPerPoint: 1
+      #maxLocalPointsPerLayer: 0  # !=0 means subsample "local" point cloud
+      #runFromIteration: 0  # "from 0 to 0" means "all"
+      #runUpToIteration: 0
+      #
+      # If "pointLayerMatches" is not defined, layers will be matched against
+      # those with the same name in both maps:
+      pointLayerMatches:
+        - {global: "decimated", local: "decimated", weight: 1.0}
+
+quality:
+  - class: mp2p_icp::QualityEvaluator_PairedRatio
+    params:
+     threshold: 0.15
+
+
+# Filters:
+#
+# One filter object will be created for each entry, instancing the given class,
+# and with the given parameters. Filters are run in definition order on the
+# input metricmap_t object.
+#
+pointcloud_filter:
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      output_pointcloud_layer: 'decimated'
+      voxel_filter_resolution: 0.10  # [m]
+      use_voxel_average: true
+      bounding_box_min: [-20, -20, -5]
+      bounding_box_max: [+20, +20,  5]

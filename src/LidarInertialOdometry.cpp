@@ -12,6 +12,7 @@
 
 #include <mola_erathos_slam/LidarInertialOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
+#include <mp2p_icp/icp_pipeline_from_yaml.h>
 #include <mrpt/config/CConfigFileMemory.h>
 #include <mrpt/containers/yaml.h>
 #include <mrpt/core/initializer.h>
@@ -45,34 +46,10 @@ static void load_icp_set_of_params(
     LidarInertialOdometry::Parameters::ICP_case& out,
     const mrpt::containers::yaml&                cfg)
 {
-    using namespace std::string_literals;
+    const auto [icp, params] = mp2p_icp::icp_pipeline_from_yaml(cfg);
 
-    std::string icp_class;
-    YAML_LOAD_REQ(icp_class, std::string);
-
-    // Test that the class factory works.
-    auto ptrNew = mrpt::rtti::classFactory(icp_class);
-
-    out.icp = mrpt::ptr_cast<mp2p_icp::ICP>::from(ptrNew);
-
-    if (!out.icp)
-        THROW_EXCEPTION_FMT(
-            "icp_class=`%s` is a non-registered or incompatible class. Please, "
-            "run: `mola-cli --rtti-children-of mp2p_icp::ICP_Base` to see the "
-            "list of known classes.",
-            icp_class.c_str());
-
-    ENSURE_YAML_ENTRY_EXISTS(cfg, "params");
-    out.icpParameters.load_from(cfg["params"]);
-
-    ENSURE_YAML_ENTRY_EXISTS(cfg, "solvers");
-    out.icp->initialize_solvers(cfg["solvers"]);
-
-    ENSURE_YAML_ENTRY_EXISTS(cfg, "matchers");
-    out.icp->initialize_matchers(cfg["matchers"]);
-
-    ENSURE_YAML_ENTRY_EXISTS(cfg, "quality");
-    out.icp->initialize_quality_evaluators(cfg["quality"]);
+    out.icp           = icp;
+    out.icpParameters = params;
 }
 
 void LidarInertialOdometry::initialize(const Yaml& c)
@@ -129,6 +106,8 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     ENSURE_YAML_ENTRY_EXISTS(cfg, "icp_settings_with_vel");
     load_icp_set_of_params(
         params_.icp[AlignKind::LidarOdometry], cfg["icp_settings_with_vel"]);
+
+    ENSURE_YAML_ENTRY_EXISTS(cfg, "icp_settings_without_vel");
     load_icp_set_of_params(
         params_.icp[AlignKind::NearbyAlign], cfg["icp_settings_without_vel"]);
 
@@ -136,13 +115,29 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     {
         ProfilerEntry tle(profiler_, "filterPointCloud_initialize");
 
-        // Create, and copy my own verbosity level:
-        state_.pc_generators = mp2p_icp_filters::generators_from_yaml(
-            cfg["pointcloud_generator"], this->getMinLoggingLevel());
+        if (cfg.has("pointcloud_generator"))
+        {
+            // Create, and copy my own verbosity level:
+            state_.pc_generators = mp2p_icp_filters::generators_from_yaml(
+                cfg["pointcloud_generator"], this->getMinLoggingLevel());
+        }
+        else
+        {
+            std::cout
+                << "[warning] Using default mp2p_icp_filters::Generator "
+                   "since no YAML 'pointcloud_generator' entry was given\n";
 
-        // Create, and copy my own verbosity level:
-        state_.pc_filter = mp2p_icp_filters::filter_pipeline_from_yaml(
-            cfg["pointcloud_filter"], this->getMinLoggingLevel());
+            auto defaultGen = mp2p_icp_filters::Generator::Create();
+            defaultGen->initialize({});
+            state_.pc_generators.push_back(defaultGen);
+        }
+
+        if (cfg.has("pointcloud_filter"))
+        {
+            // Create, and copy my own verbosity level:
+            state_.pc_filter = mp2p_icp_filters::filter_pipeline_from_yaml(
+                cfg["pointcloud_filter"], this->getMinLoggingLevel());
+        }
     }
 
     MRPT_TRY_END
@@ -244,7 +239,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     mp2p_icp_filters::apply_generators(
         state_.pc_generators, *o, *this_obs_points);
 
-    // Filter/segment the point cloud:
+    // Filter/segment the point cloud (optional, but normally will be present):
     ProfilerEntry tle1(profiler_, "onLidar.1.filter_pointclouds");
 
     mp2p_icp_filters::apply_filter_pipeline(state_.pc_filter, *this_obs_points);
