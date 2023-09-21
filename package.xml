@@ -4,7 +4,7 @@
      side-by-side to ROS packages in a catkin/ament environment.
 -->
 <package format="3">
-  <name>erathos_slam</name>
+  <name>mola_erathos_slam</name>
   <version>0.2.2</version>
   <description>LIDAR-inertial odometry and SLAM system based on MOLA components</description>
 

@@ -1,4 +1,4 @@
-# `erathos_slam`
+# `mola_erathos_slam`
 
 A LIDAR-inertial odometry and SLAM system, based on the MOLA components.
 
@@ -7,7 +7,7 @@ scientiest known for his fundamental geography studies, among other achievements
 
 ## Contents
 
-This repository provides a C++ library `erathos_slam` implementing a LIDAR-inertial
+This repository provides a C++ library `mola_erathos_slam` implementing a LIDAR-inertial
 odometry. Sensor input is provided via MOLA components, and ROS 2 example launch files
 are provided in [launch](launch/).
 

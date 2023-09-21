@@ -10,19 +10,19 @@
  * @date   Jan 08, 2018
  */
 
-/** \defgroup mola_erathos_slam_grp erathos_slam
+/** \defgroup mola_mola_erathos_slam_grp mola_erathos_slam
  * MOLA module: The Erathos-SLAM system.
  *
  */
 
-#include <erathos_slam/LidarInertialOdometry.h>
-#include <erathos_slam/OccGrid.h>
+#include <mola_erathos_slam/LidarInertialOdometry.h>
+#include <mola_erathos_slam/OccGrid.h>
 #include <mrpt/core/initializer.h>
 #include <mrpt/rtti/CObject.h>
 
 using namespace mola::erathos;
 
-MRPT_INITIALIZER(do_register_erathos_slam)
+MRPT_INITIALIZER(do_register_mola_erathos_slam)
 {
     using mrpt::rtti::registerClass;
 

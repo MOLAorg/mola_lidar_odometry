@@ -10,7 +10,7 @@
  * @date   Sep 16, 2023
  */
 
-#include <erathos_slam/LidarInertialOdometry.h>
+#include <mola_erathos_slam/LidarInertialOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/config/CConfigFileMemory.h>
 #include <mrpt/containers/yaml.h>
@@ -33,7 +33,8 @@
 
 using namespace mola::erathos;
 
-static const std::string ANNOTATION_NAME_PC_LAYERS = "lidar-pointcloud-layers";
+// static const std::string ANNOTATION_NAME_PC_LAYERS =
+// "lidar-pointcloud-layers";
 
 // arguments: class_name, parent_class, class namespace
 IMPLEMENTS_MRPT_OBJECT(LidarInertialOdometry, FrontEndBase, mola::erathos)
