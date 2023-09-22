@@ -309,8 +309,9 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
                 {tw.wx, tw.wy, tw.wz}, rotParams, dt);
 
             icp_in.init_guess_to_wrt_from =
-                mrpt::poses::CPose3D::FromRotationAndTranslation(
-                    rot33, mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz))
+                (state_.current_pose +
+                 mrpt::poses::CPose3D::FromRotationAndTranslation(
+                     rot33, mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz)))
                     .asTPose();
 
             hasMotionModel = true;
@@ -333,8 +334,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             ProfilerEntry tle(profiler_, "onLidar.3.icp_latest");
             run_one_icp(icp_in, icp_out);
         }
-        const mrpt::poses::CPose3D rel_pose =
-            icp_out.found_pose_to_wrt_from.getMeanVal();
+        state_.current_pose = icp_out.found_pose_to_wrt_from.getMeanVal();
 
         // Update velocity model:
         if (dt < params_.max_time_to_use_velocity_model)
@@ -344,12 +344,12 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             state_.last_iter_twist.emplace();
             auto& tw = *state_.last_iter_twist;
 
-            tw.vx = rel_pose.x() / dt;
-            tw.vy = rel_pose.y() / dt;
-            tw.vz = rel_pose.z() / dt;
+            tw.vx = state_.current_pose.x() / dt;
+            tw.vy = state_.current_pose.y() / dt;
+            tw.vz = state_.current_pose.z() / dt;
 
-            const auto logRot =
-                mrpt::poses::Lie::SO<3>::log(rel_pose.getRotationMatrix());
+            const auto logRot = mrpt::poses::Lie::SO<3>::log(
+                state_.current_pose.getRotationMatrix());
 
             tw.wx = logRot[0] / dt;
             tw.wy = logRot[1] / dt;
@@ -369,7 +369,10 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
         // Create a new KF if the distance since the last one is large
         // enough:
-        state_.accum_since_last_kf = state_.accum_since_last_kf + rel_pose;
+        MRPT_TODO("continue here!");
+        state_.accum_since_last_kf =
+            state_.accum_since_last_kf + state_.current_pose;
+
         const double dist_eucl_since_last = state_.accum_since_last_kf.norm();
         const double rot_since_last =
             mrpt::poses::Lie::SO<3>::log(
@@ -390,8 +393,16 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     // Should we create a new KF?
     if (updateLocalMap)
     {
-        // Yes: create new KF
+        // Insert the observation in all layers:
+        // TODO: A more elegant API?
+        for (auto& map : state_.local_map->layers)
+        {
+            ASSERT_(map.second);
+            map.second->insertObservation(*o, state_.current_pose);
+        }
+
 #if 0
+        // Yes: create new KF
         // 1) New KeyFrame
         BackEndBase::ProposeKF_Input kf;
 
@@ -483,6 +494,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
     // In any case, publish to the SLAM BackEnd what's our **current**
     // vehicle pose, no matter if it's a keyframe or not:
+    if (slam_backend_)
     {
         ProfilerEntry tle(profiler_, "onLidar.5.advertiseUpdatedLocalization");
 
