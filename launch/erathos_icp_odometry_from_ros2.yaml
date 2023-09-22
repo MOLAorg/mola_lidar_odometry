@@ -17,13 +17,7 @@ modules:
     type: mola::LidarInertialOdometry
     verbosity_level: DEBUG
     raw_data_source: 'ros_input'
-    params:
-      lidar_sensor_labels: ['lidar_points']
-      imu_sensor_label: 'imu'
-      min_dist_xyz_between_keyframes: 0.5  # [m]
-      min_rotation_between_keyframes: 5.0  # [deg]
-      icp_settings_with_vel: $include{$(ros2 pkg prefix --share mola_erathos_slam)/params/icp_odom_params.yaml}
-      icp_settings_without_vel: $include{$(ros2 pkg prefix --share mola_erathos_slam)/params/icp_odom_params.yaml}
+    $include{../params/config-lidar-inertial-odometry.yaml}
 
 # Offline or online sensory data sources =====================
 # (TODO: Move to an include)
@@ -36,7 +30,7 @@ modules:
     execution_rate: 20 # Hz
     #verbosity_level: INFO
     gui_preview_sensors:
-      - raw_sensor_label: lidar_points
+      - raw_sensor_label: lidar
         decimation: 1
         win_pos: 5 5 400 400
     params:
@@ -46,7 +40,7 @@ modules:
       subscribe:
         - topic: /ouster/points
           type: PointCloud2
-          output_sensor_label: lidar_points
+          output_sensor_label: lidar
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg''
           #queue_size: 100  # QoS "history" length

@@ -22,6 +22,7 @@ find_package(mola_common REQUIRED)
 
 # find dependencies:
 find_package(mrpt-maps REQUIRED)
+find_package(mrpt-tclap REQUIRED)
 find_mola_package(mola_kernel)
 find_mola_package(mp2p_icp)
 find_mola_package(mp2p_icp_filters)
@@ -49,6 +50,17 @@ mola_add_library(
 		mp2p_icp_filters
 		mola_imu_preintegration
 		mrpt-maps
+)
+
+# CLI apps
+# ---------------------------------
+mola_add_executable(
+	TARGET  mola-erathos-lidar-inertial-odometry
+	SOURCES apps/mola-erathos-lidar-inertial-odometry.cpp
+	LINK_LIBRARIES
+		${PROJECT_NAME}
+		mrpt::core
+		mrpt::tclap
 )
 
 # -----------------------

@@ -1,0 +1,11 @@
+# This file holds parameters for mola::erathos::LidarInertialOdometry,
+# for use either programatically calling initilize(), or from a MOLA system
+# launch file. See "launch/*" examples.
+
+params:
+  lidar_sensor_labels: ['lidar']
+  imu_sensor_label: 'imu'
+  min_dist_xyz_between_keyframes: 0.5  # [m]
+  min_rotation_between_keyframes: 5.0  # [deg]
+  icp_settings_with_vel: $include{./icp_odom_params.yaml}
+  icp_settings_without_vel: $include{./icp_odom_params.yaml}
