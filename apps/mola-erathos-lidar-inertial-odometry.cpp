@@ -89,6 +89,11 @@ static int main_odometry()
                              1.0 * i / (dataset.size() - 1), 30)
                       << "\r";
         }
+
+        while (liodom.isBusy())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
     }
 
     return 0;

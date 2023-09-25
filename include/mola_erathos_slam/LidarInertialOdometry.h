@@ -57,12 +57,12 @@ class LidarInertialOdometry : public FrontEndBase
         /** List of sensor labels or regex's to be matched to input observations
          *  to be used as raw lidar observations.
          */
-        std::vector<std::regex> lidar_sensor_labels_;
+        std::vector<std::regex> lidar_sensor_labels;
 
         /** Sensor labels or regex to be matched to input observations
          *  to be used as raw IMU observations.
          */
-        std::optional<std::regex> imu_sensor_label_;
+        std::optional<std::regex> imu_sensor_label;
 
         /** Minimum time (seconds) between scans for being attempted to be
          * aligned. Scans faster than this rate will be just silently ignored.
@@ -116,6 +116,8 @@ class LidarInertialOdometry : public FrontEndBase
 
         mola::RotationIntegrationParams imu_params;
 
+        std::vector<std::string> observation_layers_to_merge_local_map;
+
         /** Generate render visualization decoration for every N keyframes */
         int   viz_decor_decimation{5};
         float viz_decor_pointsize{2.0f};
@@ -123,6 +125,8 @@ class LidarInertialOdometry : public FrontEndBase
 
     /** Algorithm parameters */
     Parameters params_;
+
+    bool isBusy() const;
 
     /** @} */
 
@@ -151,6 +155,8 @@ class LidarInertialOdometry : public FrontEndBase
     /** All variables that hold the algorithm state */
     struct MethodState
     {
+        bool busy_imu = false, busy_lidar = false;
+
         std::optional<mrpt::Clock::time_point> last_obs_tim;
         std::optional<mrpt::math::TTwist3D>    last_iter_twist;
         mrpt::poses::CPose3D                   current_pose;  //!< in local map
@@ -174,6 +180,8 @@ class LidarInertialOdometry : public FrontEndBase
     MethodState        state_;
     const MethodState& state() const { return state_; }
     MethodState        stateCopy() const { return state_; }
+
+    mutable std::mutex is_busy_mtx_;
 
     void onLidar(const CObservation::Ptr& o);
     void onLidarImpl(const CObservation::Ptr& o);

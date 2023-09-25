@@ -67,7 +67,7 @@ void LidarInertialOdometry::initialize(const Yaml& c)
         {
             const auto s = sl.as<std::string>();
             MRPT_LOG_DEBUG_STREAM("Adding as input lidar sensor label: " << s);
-            params_.lidar_sensor_labels_.emplace_back(s);
+            params_.lidar_sensor_labels.emplace_back(s);
         }
     }
     else
@@ -75,13 +75,35 @@ void LidarInertialOdometry::initialize(const Yaml& c)
         ASSERT_(cfg["lidar_sensor_labels"].isScalar());
         const auto s = cfg["lidar_sensor_labels"].as<std::string>();
         MRPT_LOG_DEBUG_STREAM("Adding as input lidar sensor label: " << s);
-        params_.lidar_sensor_labels_.emplace_back(s);
+        params_.lidar_sensor_labels.emplace_back(s);
     }
-    ASSERT_(!params_.lidar_sensor_labels_.empty());
+    ASSERT_(!params_.lidar_sensor_labels.empty());
+
+    if (cfg["observation_layers_to_merge_local_map"].isSequence())
+    {
+        for (const auto& sl :
+             cfg["observation_layers_to_merge_local_map"].asSequence())
+        {
+            const auto s = sl.as<std::string>();
+            MRPT_LOG_DEBUG_STREAM(
+                "Adding as observation_layers_to_merge_local_map: " << s);
+            params_.observation_layers_to_merge_local_map.emplace_back(s);
+        }
+    }
+    else
+    {
+        ASSERT_(cfg["observation_layers_to_merge_local_map"].isScalar());
+        const auto s =
+            cfg["observation_layers_to_merge_local_map"].as<std::string>();
+        MRPT_LOG_DEBUG_STREAM(
+            "Adding as observation_layers_to_merge_local_map: " << s);
+        params_.observation_layers_to_merge_local_map.emplace_back(s);
+    }
+    ASSERT_(!params_.observation_layers_to_merge_local_map.empty());
 
     if (cfg.has("imu_sensor_label"))
     {
-        params_.imu_sensor_label_.emplace(
+        params_.imu_sensor_label.emplace(
             cfg["imu_sensor_label"].as<std::string>());
     }
 
@@ -161,9 +183,13 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
 
     ASSERT_(o);
 
+    MRPT_LOG_DEBUG_STREAM(
+        "onNewObservation: class=" << o->GetRuntimeClass()->className
+                                   << " sensorLabel=" << o->sensorLabel);
+
     // Is it an IMU obs?
-    if (params_.imu_sensor_label_ &&
-        std::regex_match(o->sensorLabel, params_.imu_sensor_label_.value()))
+    if (params_.imu_sensor_label &&
+        std::regex_match(o->sensorLabel, params_.imu_sensor_label.value()))
     {
         // Yes, it's an IMU obs:
         auto fut = worker_imu_.enqueue(&LidarInertialOdometry::onIMU, this, o);
@@ -171,7 +197,7 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
     }
 
     // Is it a LIDAR obs?
-    for (const auto& re : params_.lidar_sensor_labels_)
+    for (const auto& re : params_.lidar_sensor_labels)
     {
         if (!std::regex_match(o->sensorLabel, re)) continue;
 
@@ -202,6 +228,10 @@ void LidarInertialOdometry::onLidar(const CObservation::Ptr& o)
 {
     // All methods that are enqueued into a thread pool should have its own
     // top-level try-catch:
+    {
+        auto lck          = mrpt::lockHelper(is_busy_mtx_);
+        state_.busy_lidar = true;
+    }
     try
     {
         onLidarImpl(o);
@@ -209,6 +239,10 @@ void LidarInertialOdometry::onLidar(const CObservation::Ptr& o)
     catch (const std::exception& e)
     {
         MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
+    }
+    {
+        auto lck          = mrpt::lockHelper(is_busy_mtx_);
+        state_.busy_lidar = false;
     }
 }
 
@@ -393,13 +427,25 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     // Should we create a new KF?
     if (updateLocalMap)
     {
-        // Insert the observation in all layers:
-        // TODO: A more elegant API?
-        for (auto& map : state_.local_map->layers)
+        std::cout << "Observation: " << this_obs_points->contents_summary()
+                  << std::endl;
+
+        // Merge "observation_layers_to_merge_local_map" in local map:
+        mp2p_icp::metric_map_t tmpMap;
+        for (const auto& layer : params_.observation_layers_to_merge_local_map)
         {
-            ASSERT_(map.second);
-            map.second->insertObservation(*o, state_.current_pose);
+            ASSERT_(this_obs_points->layers.count(layer) != 0);
+
+            tmpMap.layers[layer] = this_obs_points->layers.at(layer);
         }
+
+        std::cout << "Local map before: "
+                  << state_.local_map->contents_summary() << std::endl;
+
+        state_.local_map->merge_with(tmpMap, state_.current_pose.asTPose());
+
+        std::cout << "Local map after : "
+                  << state_.local_map->contents_summary() << std::endl;
 
 #if 0
         // Yes: create new KF
@@ -558,6 +604,10 @@ void LidarInertialOdometry::onIMU(const CObservation::Ptr& o)
 {
     // All methods that are enqueued into a thread pool should have its own
     // top-level try-catch:
+    {
+        auto lck        = mrpt::lockHelper(is_busy_mtx_);
+        state_.busy_imu = true;
+    }
     try
     {
         onIMUImpl(o);
@@ -566,6 +616,11 @@ void LidarInertialOdometry::onIMU(const CObservation::Ptr& o)
     {
         MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
     }
+
+    {
+        auto lck        = mrpt::lockHelper(is_busy_mtx_);
+        state_.busy_imu = false;
+    }
 }
 
 void LidarInertialOdometry::onIMUImpl(const CObservation::Ptr& o)
@@ -573,4 +628,15 @@ void LidarInertialOdometry::onIMUImpl(const CObservation::Ptr& o)
     ASSERT_(o);
 
     ProfilerEntry tleg(profiler_, "onIMU");
+}
+
+bool LidarInertialOdometry::isBusy() const
+{
+    bool b1, b2;
+    is_busy_mtx_.lock();
+    b1 = state_.busy_imu;
+    b2 = state_.busy_lidar;
+    is_busy_mtx_.unlock();
+    return b1 || b2 || worker_lidar_.pendingTasks() ||
+           worker_imu_.pendingTasks();
 }

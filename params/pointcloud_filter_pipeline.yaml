@@ -1,0 +1,14 @@
+# Filters:
+#
+# One filter object will be created for each entry, instancing the given class,
+# and with the given parameters. Filters are run in definition order on the
+# input metricmap_t object.
+#
+- class_name: mp2p_icp_filters::FilterDecimateVoxels
+  params:
+    input_pointcloud_layer: 'raw'
+    output_pointcloud_layer: 'decimated'
+    voxel_filter_resolution: 0.10  # [m]
+    use_voxel_average: true
+    bounding_box_min: [-20, -20, -5]
+    bounding_box_max: [+20, +20,  5]
