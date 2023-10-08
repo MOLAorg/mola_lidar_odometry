@@ -11,12 +11,12 @@
  * @date   Feb 21, 2021
  */
 
-#include <mola_erathos_slam/OccGrid.h>
+#include <mola_lidar_slam/OccGrid.h>
 #include <mrpt/serialization/CArchive.h>
 
-using namespace mola::erathos;
+using namespace mola;
 
-IMPLEMENTS_SERIALIZABLE(OccGrid, CSerializable, mola::erathos)
+IMPLEMENTS_SERIALIZABLE(OccGrid, CSerializable, mola)
 
 OccGrid::OccGrid()
 {

@@ -10,7 +10,7 @@
  * @date   Sep 16, 2023
  */
 
-#include <mola_erathos_slam/LidarInertialOdometry.h>
+#include <mola_lidar_slam/LidarInertialOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mp2p_icp/icp_pipeline_from_yaml.h>
 #include <mrpt/config/CConfigFileMemory.h>
@@ -32,13 +32,13 @@
 #include <mrpt/system/filesystem.h>
 #include <mrpt/system/string_utils.h>
 
-using namespace mola::erathos;
+using namespace mola;
 
 // static const std::string ANNOTATION_NAME_PC_LAYERS =
 // "lidar-pointcloud-layers";
 
 // arguments: class_name, parent_class, class namespace
-IMPLEMENTS_MRPT_OBJECT(LidarInertialOdometry, FrontEndBase, mola::erathos)
+IMPLEMENTS_MRPT_OBJECT(LidarInertialOdometry, FrontEndBase, mola)
 
 LidarInertialOdometry::LidarInertialOdometry() = default;
 
@@ -257,14 +257,17 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     profiler_.leave("delay_onNewObs_to_process");
 
     // Only process pointclouds that are sufficiently apart in time:
-    const auto this_obs_tim = o->timestamp;
-    if (state_.last_obs_tim &&
-        mrpt::system::timeDifference(*state_.last_obs_tim, this_obs_tim) <
-            params_.min_time_between_scans)
+    const auto this_obs_tim     = o->timestamp;
+    double     lidar_delta_time = 0;
+    if (state_.last_obs_tim && (lidar_delta_time = mrpt::system::timeDifference(
+                                    *state_.last_obs_tim, this_obs_tim)) <
+                                   params_.min_time_between_scans)
     {
         // Drop observation.
-        MRPT_LOG_DEBUG(
-            "onLidarImpl: dropping observation, for `min_time_between_scans`.");
+        MRPT_LOG_DEBUG_FMT(
+            "onLidarImpl: dropping observation, for %f< "
+            "`min_time_between_scans`=%f.",
+            lidar_delta_time, params_.min_time_between_scans);
         return;
     }
 

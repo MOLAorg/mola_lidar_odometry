@@ -17,7 +17,7 @@
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/serialization/CSerializable.h>
 
-namespace mola::erathos
+namespace mola
 {
 /**
  * @brief Extends MRPT's occupancy grid with super-resolution likelihood field.
@@ -25,7 +25,7 @@ namespace mola::erathos
  */
 class OccGrid : public mrpt::serialization::CSerializable
 {
-    DEFINE_SERIALIZABLE(OccGrid, mola::erathos)
+    DEFINE_SERIALIZABLE(OccGrid, mola)
 
    public:
     OccGrid();
@@ -135,4 +135,4 @@ class OccGrid : public mrpt::serialization::CSerializable
     mrpt::containers::CDynamicGrid<float> likelihoodCacheGrid_;
 };
 
-}  // namespace mola::erathos
+}  // namespace mola

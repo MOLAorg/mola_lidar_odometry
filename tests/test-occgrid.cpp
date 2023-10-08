@@ -11,7 +11,7 @@
  * @date   Feb 21, 2021
  */
 
-#include <mola_erathos_slam/OccGrid.h>
+#include <mola_lidar_slam/OccGrid.h>
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv)
 {

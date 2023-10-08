@@ -21,7 +21,7 @@
 
 #include <regex>
 
-namespace mola::erathos
+namespace mola
 {
 /**
  *
@@ -29,7 +29,7 @@ namespace mola::erathos
  */
 class LidarInertialOdometry : public FrontEndBase
 {
-    DEFINE_MRPT_OBJECT(LidarInertialOdometry, mola::erathos)
+    DEFINE_MRPT_OBJECT(LidarInertialOdometry, mola)
 
    public:
     LidarInertialOdometry();
@@ -190,4 +190,4 @@ class LidarInertialOdometry : public FrontEndBase
     void onIMUImpl(const CObservation::Ptr& o);
 };
 
-}  // namespace mola::erathos
+}  // namespace mola

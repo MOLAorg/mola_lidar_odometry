@@ -5,15 +5,15 @@
  * ------------------------------------------------------------------------- */
 
 /**
- * @file   mola-erathos-lidar-inertial-odometry.cpp
+ * @file   mola-lidar-inertial-odometry.cpp
  * @brief  main() for the cli app running lidar-inertial odom on offline
  * datasets
  * @author Jose Luis Blanco Claraco
  * @date   Sep 22, 2023
  */
 
-#include <mola_erathos_slam/LidarInertialOdometry.h>
 #include <mola_kernel/pretty_print_exception.h>
+#include <mola_lidar_slam/LidarInertialOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/3rdparty/tclap/CmdLine.h>
 #include <mrpt/core/exceptions.h>
@@ -27,7 +27,7 @@
 #include <string>
 
 // Declare supported cli switches ===========
-static TCLAP::CmdLine cmd("mola-erathos-lidar-inertial-odometry");
+static TCLAP::CmdLine cmd("mola-lidar-inertial-odometry");
 
 static TCLAP::ValueArg<std::string> argYAML(
     "c", "config", "Input YAML config file (required) (*.yml)", true, "",
@@ -43,7 +43,7 @@ static TCLAP::ValueArg<std::string> arg_verbosity_level(
 
 static int main_odometry()
 {
-    mola::erathos::LidarInertialOdometry liodom;
+    mola::LidarInertialOdometry liodom;
 
     // Define the verbosity level here so it affects all possible
     // commands of mola-cli:

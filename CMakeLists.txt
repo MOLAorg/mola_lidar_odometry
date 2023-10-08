@@ -15,7 +15,7 @@ if("$ENV{ROS_VERSION}" STREQUAL "2")
 endif()
 
 # Tell CMake we'll use C++ for use in its tests/flags
-project(mola_erathos_slam LANGUAGES CXX)
+project(mola_lidar_slam LANGUAGES CXX)
 
 # MOLA CMake scripts: "mola_xxx()"
 find_package(mola_common REQUIRED)
@@ -55,8 +55,8 @@ mola_add_library(
 # CLI apps
 # ---------------------------------
 mola_add_executable(
-	TARGET  mola-erathos-lidar-inertial-odometry
-	SOURCES apps/mola-erathos-lidar-inertial-odometry.cpp
+	TARGET  mola-lidar-inertial-odometry
+	SOURCES apps/mola-lidar-inertial-odometry.cpp
 	LINK_LIBRARIES
 		${PROJECT_NAME}
 		mrpt::core
