@@ -43,7 +43,7 @@ class LidarInertialOdometry : public FrontEndBase
     void spinOnce() override;
     void onNewObservation(const CObservation::Ptr& o) override;
 
-    /** Re-initializes the front-end */
+    /** Re-initializes the front-end. initialize() needs to be called again. */
     void reset();
 
     enum class AlignKind : uint8_t
@@ -155,6 +155,9 @@ class LidarInertialOdometry : public FrontEndBase
     /** All variables that hold the algorithm state */
     struct MethodState
     {
+        bool initialized = false;
+        bool fatal_error = false;
+
         bool busy_imu = false, busy_lidar = false;
 
         std::optional<mrpt::Clock::time_point> last_obs_tim;
@@ -162,8 +165,10 @@ class LidarInertialOdometry : public FrontEndBase
         mrpt::poses::CPose3D                   current_pose;  //!< in local map
         mrpt::poses::CPose3D                   accum_since_last_kf{};
 
-        mp2p_icp_filters::GeneratorSet   pc_generators;
+        mp2p_icp_filters::GeneratorSet   obs_generators;
         mp2p_icp_filters::FilterPipeline pc_filter;
+
+        mp2p_icp_filters::GeneratorSet local_map_generators;
 
         mp2p_icp::metric_map_t::Ptr local_map =
             mp2p_icp::metric_map_t::Create();

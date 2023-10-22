@@ -35,7 +35,7 @@ matchers:
       # If "pointLayerMatches" is not defined, layers will be matched against
       # those with the same name in both maps:
       pointLayerMatches:
-        - {global: "decimated", local: "decimated", weight: 1.0}
+        - {global: "voxelmap", local: "decimated", weight: 1.0}
 
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio

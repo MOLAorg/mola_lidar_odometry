@@ -10,4 +10,6 @@ params:
   observation_layers_to_merge_local_map: 'decimated'
   icp_settings_with_vel: $include{./icp_odom_params.yaml}
   icp_settings_without_vel: $include{./icp_odom_params.yaml}
-  pointcloud_filter: $include{./pointcloud_filter_pipeline.yaml}
+  observations_filter: $include{./observations_filter_pipeline.yaml}
+  observations_generator: ~
+  localmap_generator: $include{./localmap_generator.yaml}

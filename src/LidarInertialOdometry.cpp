@@ -137,30 +137,55 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     {
         ProfilerEntry tle(profiler_, "filterPointCloud_initialize");
 
-        if (cfg.has("pointcloud_generator"))
+        // Observation -> map generator:
+        if (cfg.has("observations_generator") &&
+            !cfg["observations_generator"].isNullNode())
         {
             // Create, and copy my own verbosity level:
-            state_.pc_generators = mp2p_icp_filters::generators_from_yaml(
-                cfg["pointcloud_generator"], this->getMinLoggingLevel());
+            state_.obs_generators = mp2p_icp_filters::generators_from_yaml(
+                cfg["observations_generator"], this->getMinLoggingLevel());
         }
         else
         {
             std::cout
-                << "[warning] Using default mp2p_icp_filters::Generator "
-                   "since no YAML 'pointcloud_generator' entry was given\n";
+                << "[warning] Using default mp2p_icp_filters::Generator for "
+                   "observations since no YAML 'observations_generator' entry "
+                   "was given\n";
 
             auto defaultGen = mp2p_icp_filters::Generator::Create();
             defaultGen->initialize({});
-            state_.pc_generators.push_back(defaultGen);
+            state_.obs_generators.push_back(defaultGen);
         }
 
-        if (cfg.has("pointcloud_filter"))
+        if (cfg.has("observations_filter"))
         {
             // Create, and copy my own verbosity level:
             state_.pc_filter = mp2p_icp_filters::filter_pipeline_from_yaml(
-                cfg["pointcloud_filter"], this->getMinLoggingLevel());
+                cfg["observations_filter"], this->getMinLoggingLevel());
+        }
+
+        // Local map generator:
+        if (cfg.has("localmap_generator") &&
+            !cfg["localmap_generator"].isNullNode())
+        {
+            // Create, and copy my own verbosity level:
+            state_.local_map_generators =
+                mp2p_icp_filters::generators_from_yaml(
+                    cfg["localmap_generator"], this->getMinLoggingLevel());
+        }
+        else
+        {
+            std::cout << "[warning] Using default mp2p_icp_filters::Generator "
+                         "for the local map since no YAML 'localmap_generator' "
+                         "entry was given\n";
+
+            auto defaultGen = mp2p_icp_filters::Generator::Create();
+            defaultGen->initialize({});
+            state_.local_map_generators.push_back(defaultGen);
         }
     }
+
+    state_.initialized = true;
 
     MRPT_TRY_END
 }
@@ -182,6 +207,22 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
     ProfilerEntry tleg(profiler_, "onNewObservation");
 
     ASSERT_(o);
+
+    if (!state_.initialized)
+    {
+        MRPT_LOG_THROTTLE_ERROR(
+            2.0,
+            "Discarding incoming observations: the system initialize() method "
+            "has not be called yet!");
+        return;
+    }
+    if (state_.fatal_error)
+    {
+        MRPT_LOG_THROTTLE_ERROR(
+            2.0,
+            "Discarding incoming observations: a fatal error ocurred above.");
+        return;
+    }
 
     MRPT_LOG_DEBUG_STREAM(
         "onNewObservation: class=" << o->GetRuntimeClass()->className
@@ -239,6 +280,7 @@ void LidarInertialOdometry::onLidar(const CObservation::Ptr& o)
     catch (const std::exception& e)
     {
         MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
+        state_.fatal_error = true;
     }
     {
         auto lck          = mrpt::lockHelper(is_busy_mtx_);
@@ -274,7 +316,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     // Extract points from observation:
     auto this_obs_points = mp2p_icp::metric_map_t::Create();
     mp2p_icp_filters::apply_generators(
-        state_.pc_generators, *o, *this_obs_points);
+        state_.obs_generators, *o, *this_obs_points);
 
     // Filter/segment the point cloud (optional, but normally will be present):
     ProfilerEntry tle1(profiler_, "onLidar.1.filter_pointclouds");
@@ -430,24 +472,41 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     // Should we create a new KF?
     if (updateLocalMap)
     {
-        std::cout << "Observation: " << this_obs_points->contents_summary()
-                  << std::endl;
-
-        // Merge "observation_layers_to_merge_local_map" in local map:
-        mp2p_icp::metric_map_t tmpMap;
-        for (const auto& layer : params_.observation_layers_to_merge_local_map)
+        // If the local map is empty, create it from this first observation:
+        if (state_.local_map->empty())
         {
-            ASSERT_(this_obs_points->layers.count(layer) != 0);
+            MRPT_LOG_DEBUG("Creating local map since it was empty");
 
-            tmpMap.layers[layer] = this_obs_points->layers.at(layer);
+            mp2p_icp_filters::apply_generators(
+                state_.local_map_generators, *o, *state_.local_map);
+        }
+        else
+        {
+            // Insert:
+            std::cout << "Observation: " << this_obs_points->contents_summary()
+                      << std::endl;
+
+            // Merge "observation_layers_to_merge_local_map" in local map:
+            for (const auto& layer :
+                 params_.observation_layers_to_merge_local_map)
+            {
+                ASSERT_(this_obs_points->layers.count(layer) != 0);
+
+                mrpt::obs::CObservationPointCloud obsPc;
+                obsPc.timestamp = o->timestamp;
+                obsPc.pointcloud =
+                    std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(
+                        this_obs_points->layers.at(layer));
+                ASSERT_(obsPc.pointcloud);
+
+                for (auto& lm : state_.local_map->layers)
+                {
+                    lm.second->insertObservation(obsPc, state_.current_pose);
+                }
+            }
         }
 
-        std::cout << "Local map before: "
-                  << state_.local_map->contents_summary() << std::endl;
-
-        state_.local_map->merge_with(tmpMap, state_.current_pose.asTPose());
-
-        std::cout << "Local map after : "
+        std::cout << "Updated local map: "
                   << state_.local_map->contents_summary() << std::endl;
 
 #if 0
@@ -618,6 +677,7 @@ void LidarInertialOdometry::onIMU(const CObservation::Ptr& o)
     catch (const std::exception& e)
     {
         MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
+        state_.fatal_error = true;
     }
 
     {
