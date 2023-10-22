@@ -136,10 +136,10 @@ class LidarInertialOdometry : public FrontEndBase
         using Ptr = std::shared_ptr<ICP_Input>;
 
         AlignKind                   align_kind{AlignKind::LidarOdometry};
-        id_t                        to_id{mola::INVALID_ID};
-        id_t                        from_id{mola::INVALID_ID};
-        mp2p_icp::metric_map_t::Ptr to_pc, from_pc;
-        mrpt::math::TPose3D         init_guess_to_wrt_from;
+        id_t                        global_id{mola::INVALID_ID};
+        id_t                        local_id{mola::INVALID_ID};
+        mp2p_icp::metric_map_t::Ptr global_pc, local_pc;
+        mrpt::math::TPose3D         init_guess_local_wrt_global;
         mp2p_icp::Parameters        icp_params;
 
         /** used to identity where does this request come from */

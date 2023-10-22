@@ -372,8 +372,8 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         ICP_Output icp_out;
         ICP_Input  icp_in;
 
-        icp_in.init_guess_to_wrt_from = mrpt::math::TPose3D::Identity();
-        bool hasMotionModel           = false;
+        icp_in.init_guess_local_wrt_global = mrpt::math::TPose3D::Identity();
+        bool hasMotionModel                = false;
 
         // Use velocity model, if we have one:
         if (state_.last_iter_twist &&
@@ -387,7 +387,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             const auto rot33 = mola::incremental_rotation(
                 {tw.wx, tw.wy, tw.wz}, rotParams, dt);
 
-            icp_in.init_guess_to_wrt_from =
+            icp_in.init_guess_local_wrt_global =
                 (state_.current_pose +
                  mrpt::poses::CPose3D::FromRotationAndTranslation(
                      rot33, mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz)))
@@ -396,8 +396,8 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             hasMotionModel = true;
         }
 
-        icp_in.to_pc     = this_obs_points;
-        icp_in.from_pc   = state_.local_map;
+        icp_in.local_pc  = this_obs_points;
+        icp_in.global_pc = state_.local_map;
         icp_in.debug_str = "lidar_odom";
 
         // If we don't have a valid twist estimation, use a larger ICP
@@ -625,18 +625,19 @@ void LidarInertialOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
     {
         ProfilerEntry tle(profiler_, "run_one_icp");
 
-        ASSERT_(in.from_pc);
-        ASSERT_(in.to_pc);
-        const auto& pcs_from = *in.from_pc;
-        const auto& pcs_to   = *in.to_pc;
+        ASSERT_(in.local_pc);
+        ASSERT_(in.global_pc);
+        const auto& pcs_local  = *in.local_pc;
+        const auto& pcs_global = *in.global_pc;
 
-        mrpt::math::TPose3D current_solution = in.init_guess_to_wrt_from;
+        mrpt::math::TPose3D current_solution = in.init_guess_local_wrt_global;
 
         mp2p_icp::Results icp_result;
 
         params_.icp.at(in.align_kind)
             .icp->align(
-                pcs_from, pcs_to, current_solution, in.icp_params, icp_result);
+                pcs_local, pcs_global, current_solution, in.icp_params,
+                icp_result);
 
         if (icp_result.quality > 0)
         {
