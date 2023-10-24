@@ -164,7 +164,7 @@ class LidarInertialOdometry : public FrontEndBase
         std::optional<mrpt::math::TTwist3D>    last_iter_twist;
         std::optional<mrpt::poses::CPose3D>    last_pose;  //!< in local map
         mrpt::poses::CPose3D                   current_pose;  //!< in local map
-        mrpt::poses::CPose3D                   accum_since_last_kf{};
+        mrpt::poses::CPose3D                   accum_since_last_kf;
 
         mp2p_icp_filters::GeneratorSet   obs_generators;
         mp2p_icp_filters::FilterPipeline pc_filter;

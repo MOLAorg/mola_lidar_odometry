@@ -516,95 +516,6 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         std::cout << "Updated local map: "
                   << state_.local_map->contents_summary() << std::endl;
 
-#if 0
-        // Yes: create new KF
-        // 1) New KeyFrame
-        BackEndBase::ProposeKF_Input kf;
-
-        kf.timestamp = this_obs_tim;
-        // Build simplemap
-        MRPT_TODO("re-enable this");
-        if (0)
-        {
-            mrpt::obs::CSensoryFrame& sf = kf.observations.emplace();
-            sf.push_back(o);
-        }
-
-        profiler_.enter("onLidar.3a.addKeyFrame");
-
-        std::future<BackEndBase::ProposeKF_Output> kf_out_fut;
-        kf_out_fut = slam_backend_->addKeyFrame(kf);
-
-        // Wait until it's executed:
-        auto kf_out = kf_out_fut.get();
-
-        ASSERT_(kf_out.success);
-        ASSERT_(kf_out.new_kf_id);
-
-        const mola::id_t new_kf_id = kf_out.new_kf_id.value();
-        ASSERT_(new_kf_id != mola::INVALID_ID);
-
-        profiler_.leave("onLidar.3a.addKeyFrame");
-
-        // Add point cloud to the KF annotations in the map:
-        // Also, add Rendering decorations for the map visualizer:
-        ASSERT_(worldmodel_);
-        {
-            profiler_.enter("onLidar.wait.ent.writelock");
-            worldmodel_->entities_lock_for_write();
-            profiler_.leave("onLidar.wait.ent.writelock");
-
-            ProfilerEntry tle(profiler_, "onLidar.4.writePCsToWorldModel");
-
-            worldmodel_->entity_annotations_by_id(new_kf_id).emplace(
-                std::piecewise_construct,
-                std::forward_as_tuple(ANNOTATION_NAME_PC_LAYERS),
-                std::forward_as_tuple(
-                    this_obs_points, ANNOTATION_NAME_PC_LAYERS));
-
-            MRPT_TODO("move this render stuff to a low-prio worker thread?");
-            if (state_.kf_decor_decim_cnt < 0 ||
-                ++state_.kf_decor_decim_cnt > params_.viz_decor_decimation)
-            {
-                auto obs_render = mrpt::opengl::CSetOfObjects::Create();
-
-                if (auto obs_pc =
-                        dynamic_cast<const mrpt::obs::CObservationPointCloud*>(
-                            o.get());
-                    obs_pc != nullptr && obs_pc->pointcloud)
-                {
-                    state_.kf_decor_decim_cnt = 0;
-
-                    obs_pc->pointcloud->renderOptions.point_size =
-                        params_.viz_decor_pointsize;
-                    obs_pc->pointcloud->getVisualizationInto(*obs_render);
-                }
-                else
-                {
-                    state_.kf_decor_decim_cnt = 0;
-
-                    mrpt::maps::CColouredPointsMap pm;
-                    pm.renderOptions.point_size = params_.viz_decor_pointsize;
-
-                    if (pm.insertObservationPtr(o))
-                        pm.getVisualizationInto(*obs_render);
-                }
-
-                if (obs_render)
-                    worldmodel_->entity_annotations_by_id(new_kf_id).emplace(
-                        std::piecewise_construct,
-                        std::forward_as_tuple("render_decoration"),
-                        std::forward_as_tuple(obs_render, "render_decoration"));
-            }
-
-            worldmodel_->entities_unlock_for_write();
-        }
-        MRPT_LOG_INFO_STREAM("New KF: ID=" << new_kf_id);
-
-        // Reset accumulators:
-        state_.accum_since_last_kf = mrpt::poses::CPose3D::Identity();
-
-#endif
     }  // end done add a new KF
 
     // In any case, publish to the SLAM BackEnd what's our **current**
@@ -616,7 +527,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         BackEndBase::AdvertiseUpdatedLocalization_Input new_loc;
         new_loc.timestamp = this_obs_tim;
         // new_loc.reference_kf = state_.last_kf;
-        new_loc.pose = state_.accum_since_last_kf.asTPose();
+        new_loc.pose = state_.current_pose.asTPose();
 
         std::future<void> adv_pose_fut =
             slam_backend_->advertiseUpdatedLocalization(new_loc);
