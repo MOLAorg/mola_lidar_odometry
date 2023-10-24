@@ -416,6 +416,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         state_.current_pose = icp_out.found_pose_to_wrt_from.getMeanVal();
 
         // Update velocity model:
+        mrpt::poses::CPose3D incrPose;
         if (dt < params_.max_time_to_use_velocity_model && state_.last_pose)
         {
             ASSERT_GT_(dt, .0);
@@ -423,7 +424,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             state_.last_iter_twist.emplace();
             auto& tw = *state_.last_iter_twist;
 
-            const auto incrPose = state_.current_pose - *state_.last_pose;
+            incrPose = state_.current_pose - *state_.last_pose;
 
             tw.vx = incrPose.x() / dt;
             tw.vy = incrPose.y() / dt;
@@ -453,9 +454,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
         // Create a new KF if the distance since the last one is large
         // enough:
-        MRPT_TODO("continue here!");
-        state_.accum_since_last_kf =
-            state_.accum_since_last_kf + state_.current_pose;
+        state_.accum_since_last_kf += incrPose;
 
         const double dist_eucl_since_last = state_.accum_since_last_kf.norm();
         const double rot_since_last =
@@ -471,6 +470,9 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             (icp_out.goodness > params_.min_icp_goodness &&
              (dist_eucl_since_last > params_.min_dist_xyz_between_keyframes ||
               rot_since_last > params_.min_rotation_between_keyframes));
+
+        if (updateLocalMap)
+            state_.accum_since_last_kf = mrpt::poses::CPose3D::Identity();
 
     }  // end: yes, we can do ICP
 

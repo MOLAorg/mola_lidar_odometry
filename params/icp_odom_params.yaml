@@ -12,7 +12,7 @@ params:
   minAbsStep_trans: 1e-4
   minAbsStep_rot: 1e-4
 
-  debugPrintIterationProgress: true  # Print progress
+  #debugPrintIterationProgress: true  # Print progress
   #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
   #debugFileNameFormat: "icp-run-$LOCAL_ID$LOCAL_LABEL-to-$GLOBAL_ID$GLOBAL_LABEL.icplog"
 
