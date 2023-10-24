@@ -3,8 +3,11 @@
 # launch file. See "launch/*" examples.
 
 params:
+  # LIDAR sensors to use
   lidar_sensor_labels: ['lidar']
+  # IMU sensors to process:
   imu_sensor_label: 'imu'
+  
   min_dist_xyz_between_keyframes: 0.5  # [m]
   min_rotation_between_keyframes: 15.0  # [deg]
   observation_layers_to_merge_local_map: 'filtered'
