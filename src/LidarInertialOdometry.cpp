@@ -390,7 +390,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             icp_in.init_guess_local_wrt_global =
                 (state_.current_pose +
                  mrpt::poses::CPose3D::FromRotationAndTranslation(
-                     rot33, mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz)))
+                     rot33, mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz) * dt))
                     .asTPose();
 
             hasMotionModel = true;
@@ -416,19 +416,21 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         state_.current_pose = icp_out.found_pose_to_wrt_from.getMeanVal();
 
         // Update velocity model:
-        if (dt < params_.max_time_to_use_velocity_model)
+        if (dt < params_.max_time_to_use_velocity_model && state_.last_pose)
         {
             ASSERT_GT_(dt, .0);
 
             state_.last_iter_twist.emplace();
             auto& tw = *state_.last_iter_twist;
 
-            tw.vx = state_.current_pose.x() / dt;
-            tw.vy = state_.current_pose.y() / dt;
-            tw.vz = state_.current_pose.z() / dt;
+            const auto incrPose = state_.current_pose - *state_.last_pose;
 
-            const auto logRot = mrpt::poses::Lie::SO<3>::log(
-                state_.current_pose.getRotationMatrix());
+            tw.vx = incrPose.x() / dt;
+            tw.vy = incrPose.y() / dt;
+            tw.vz = incrPose.z() / dt;
+
+            const auto logRot =
+                mrpt::poses::Lie::SO<3>::log(incrPose.getRotationMatrix());
 
             tw.wx = logRot[0] / dt;
             tw.wy = logRot[1] / dt;
@@ -438,6 +440,9 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         {
             state_.last_iter_twist.reset();
         }
+
+        // save for next iter:
+        state_.last_pose = state_.current_pose;
 
         MRPT_LOG_DEBUG_STREAM(
             "Est.twist="

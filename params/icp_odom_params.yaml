@@ -13,7 +13,7 @@ params:
   minAbsStep_rot: 1e-4
 
   debugPrintIterationProgress: true  # Print progress
-  #generateDebugFiles: true
+  #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
   #debugFileNameFormat: "icp-run-$LOCAL_ID$LOCAL_LABEL-to-$GLOBAL_ID$GLOBAL_LABEL.icplog"
 
 solvers:
@@ -26,7 +26,7 @@ solvers:
 matchers:
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
-      threshold: 0.20
+      threshold: 0.40
       #pairingsPerPoint: 1
       #maxLocalPointsPerLayer: 0  # !=0 means subsample "local" point cloud
       #runFromIteration: 0  # "from 0 to 0" means "all"
@@ -40,7 +40,7 @@ matchers:
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio
     params:
-     threshold: 0.20
+     threshold: 0.40
      pointLayerMatches:
        - {global: "voxelmap", local: "decimated", weight: 1.0}
 
