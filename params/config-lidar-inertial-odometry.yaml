@@ -6,9 +6,9 @@ params:
   lidar_sensor_labels: ['lidar']
   imu_sensor_label: 'imu'
   min_dist_xyz_between_keyframes: 0.5  # [m]
-  min_rotation_between_keyframes: 5.0  # [deg]
-  observation_layers_to_merge_local_map: 'decimated'
-  min_icp_goodness: 0.15
+  min_rotation_between_keyframes: 15.0  # [deg]
+  observation_layers_to_merge_local_map: 'filtered'
+  min_icp_goodness: 0.40
   icp_settings_with_vel: $include{./icp_odom_params.yaml}
   icp_settings_without_vel: $include{./icp_odom_params.yaml}
   observations_filter: $include{./observations_filter_pipeline.yaml}
