@@ -17,5 +17,13 @@
     output_pointcloud_layer: 'decimated'
     voxel_filter_resolution: 0.30  # [m]
     use_voxel_average: true
-    bounding_box_min: [-40, -40, -10]
-    bounding_box_max: [+40, +40,  10]
+    bounding_box_min: [-80, -80, -10]
+    bounding_box_max: [+80, +80,  10]
+
+# Remove layers to save memory and log file storage
+- class_name: mp2p_icp_filters::FilterDeleteLayer
+  params:
+    pointcloud_layer_to_remove: 'filtered'
+- class_name: mp2p_icp_filters::FilterDeleteLayer
+  params:
+    pointcloud_layer_to_remove: 'raw'

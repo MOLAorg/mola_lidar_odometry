@@ -3,17 +3,34 @@
 # launch file. See "launch/*" examples.
 
 params:
-  # LIDAR sensors to use
-  lidar_sensor_labels: ['lidar']
-  # IMU sensors to process:
+  # These sensor labels will be handled as LIDAR observations:
+  lidar_sensor_labels: ['lidar', 'Velodyne1_SCAN']
+
+  # Optionally, drop lidar data too close in time:
+  min_time_between_scans: 0.2  # [seconds]
+
+  # LIDAR observations are, first, loaded using a generator:
+  observations_generator: ~
+  
+  # then, optionally, filtered:
+  observations_filter: $include{./observations_filter_pipeline.yaml}
+
+  # These sensor labels will be handled as IMU observations:
   imu_sensor_label: 'imu'
   
   min_dist_xyz_between_keyframes: 0.5  # [m]
   min_rotation_between_keyframes: 15.0  # [deg]
-  observation_layers_to_merge_local_map: 'filtered'
-  min_icp_goodness: 0.40
+  
   icp_settings_with_vel: $include{./icp_odom_params.yaml}
   icp_settings_without_vel: $include{./icp_odom_params.yaml}
-  observations_filter: $include{./observations_filter_pipeline.yaml}
-  observations_generator: ~
+
+  # Minimum ICP quality to insert it into the map:
+  min_icp_goodness: 0.30
+  
+  # Local map updates:
+  # - First time: Using the mp2p_icp pipeline generator:
   localmap_generator: $include{./localmap_generator.yaml}
+  # - Rest of observations: use these *pointcloud* layers of the observation 
+  #   metric_map_t and *insert* them into the local map:
+  observation_layers_to_merge_local_map: 'decimated'
+

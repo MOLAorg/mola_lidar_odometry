@@ -26,7 +26,7 @@ solvers:
 matchers:
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
-      threshold: 0.40
+      threshold: 1.40
       #pairingsPerPoint: 1
       #maxLocalPointsPerLayer: 0  # !=0 means subsample "local" point cloud
       #runFromIteration: 0  # "from 0 to 0" means "all"
@@ -40,7 +40,7 @@ matchers:
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio
     params:
-     threshold: 0.40
+     threshold: 0.50
      pointLayerMatches:
        - {global: "voxelmap", local: "decimated", weight: 1.0}
 

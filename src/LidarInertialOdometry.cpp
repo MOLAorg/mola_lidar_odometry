@@ -224,9 +224,11 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
         return;
     }
 
+#if 0
     MRPT_LOG_DEBUG_STREAM(
         "onNewObservation: class=" << o->GetRuntimeClass()->className
                                    << " sensorLabel=" << o->sensorLabel);
+#endif
 
     // Is it an IMU obs?
     if (params_.imu_sensor_label &&
@@ -497,7 +499,14 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             for (const auto& layer :
                  params_.observation_layers_to_merge_local_map)
             {
-                ASSERT_(this_obs_points->layers.count(layer) != 0);
+                ASSERTMSG_(
+                    this_obs_points->layers.count(layer) != 0,
+                    mrpt::format(
+                        "Error inserting LIDAR observation into local map: "
+                        "expected a metric_map_t layer named '%s', but it was "
+                        "not found, actual contents: %s",
+                        layer.c_str(),
+                        this_obs_points->contents_summary().c_str()));
 
                 mrpt::obs::CObservationPointCloud obsPc;
                 obsPc.timestamp = o->timestamp;
