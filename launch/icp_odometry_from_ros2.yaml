@@ -17,6 +17,8 @@ modules:
     type: mola::LidarInertialOdometry
     verbosity_level: DEBUG
     raw_data_source: 'ros_input'
+    # This includes here a whole block "params: (...)"
+    # with the LIDAR-Odometry pipeline configuration:
     $include{../params/config-lidar-inertial-odometry.yaml}
 
 # Offline or online sensory data sources =====================

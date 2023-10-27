@@ -58,6 +58,9 @@ static int main_odometry()
     const auto file_yml = argYAML.getValue();
     const auto cfg      = mola::load_yaml_file(file_yml);
 
+    // Enable time profiling:
+    liodom.profiler_.enable();
+
     // liodom.initialize_common(cfg); // can be skipped for a non-MOLA system
     liodom.initialize(cfg);
 

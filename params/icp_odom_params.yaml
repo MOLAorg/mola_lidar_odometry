@@ -40,7 +40,7 @@ matchers:
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio
     params:
-     threshold: 0.50
+     threshold: 1.00
      pointLayerMatches:
        - {global: "voxelmap", local: "decimated", weight: 1.0}
 

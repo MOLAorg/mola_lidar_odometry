@@ -481,9 +481,13 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     // Should we create a new KF?
     if (updateLocalMap)
     {
+        ProfilerEntry tle2(profiler_, "onLidar.4.update_local_map");
+
         // If the local map is empty, create it from this first observation:
         if (state_.local_map->empty())
         {
+            ProfilerEntry tle3(profiler_, "onLidar.4.update_local_map.create");
+
             MRPT_LOG_DEBUG("Creating local map since it was empty");
 
             mp2p_icp_filters::apply_generators(
@@ -491,9 +495,9 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         }
         else
         {
+            ProfilerEntry tle3(profiler_, "onLidar.4.update_local_map.insert");
+
             // Insert:
-            std::cout << "Observation: " << this_obs_points->contents_summary()
-                      << std::endl;
 
             // Merge "observation_layers_to_merge_local_map" in local map:
             for (const auto& layer :
@@ -521,9 +525,6 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
                 }
             }
         }
-
-        std::cout << "Updated local map: "
-                  << state_.local_map->contents_summary() << std::endl;
 
     }  // end done add a new KF
 
