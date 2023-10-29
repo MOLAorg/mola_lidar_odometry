@@ -16,7 +16,6 @@
  */
 
 #include <mola_lidar_odometry/LidarInertialOdometry.h>
-#include <mola_lidar_odometry/OccGrid.h>
 #include <mrpt/core/initializer.h>
 #include <mrpt/rtti/CObject.h>
 
@@ -28,7 +27,4 @@ MRPT_INITIALIZER(do_register_mola_lidar_odometry)
 
     // Register modules:
     MOLA_REGISTER_MODULE(LidarInertialOdometry);
-
-    // and register RTTI info:
-    registerClass(CLASS_ID(mola::OccGrid));
 }
