@@ -2,7 +2,7 @@
 #        A Modular Optimization framework for Localization and mApping
 #                               (MOLA)
 #
-# Copyright (C) 2018-2023, Jose Luis Blanco-Claraco, contributors (AUTHORS.md)
+# Copyright (C) 2018-2023, Jose Luis Blanco-Claraco
 # All rights reserved.
 # Released under GNU GPL v3. See LICENSE file
 # ------------------------------------------------------------------------------
@@ -15,7 +15,7 @@ if("$ENV{ROS_VERSION}" STREQUAL "2")
 endif()
 
 # Tell CMake we'll use C++ for use in its tests/flags
-project(mola_lidar_slam LANGUAGES CXX)
+project(mola_lidar_odometry LANGUAGES CXX)
 
 # MOLA CMake scripts: "mola_xxx()"
 find_package(mola_common REQUIRED)
@@ -55,8 +55,8 @@ mola_add_library(
 # CLI apps
 # ---------------------------------
 mola_add_executable(
-	TARGET  mola-lidar-inertial-odometry
-	SOURCES apps/mola-lidar-inertial-odometry.cpp
+	TARGET  mola-lidar-odometry-cli
+	SOURCES apps/mola-lidar-odometry-cli.cpp
 	LINK_LIBRARIES
 		${PROJECT_NAME}
 		mrpt::core

@@ -11,7 +11,7 @@
  * @date   Feb 21, 2021
  */
 
-#include <mola_lidar_slam/OccGrid.h>
+#include <mola_lidar_odometry/OccGrid.h>
 #include <mrpt/serialization/CArchive.h>
 
 using namespace mola;

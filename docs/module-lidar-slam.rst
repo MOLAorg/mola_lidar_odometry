@@ -1,11 +1,11 @@
-.. mola_lidar_slam:
+.. mola_lidar_odometry:
 
 ========================
-Module: mola_lidar_slam
+Module: mola_lidar_odometry
 ========================
 
 (Write me!)
 
 .. index::
-   single: mola_lidar_slam
-   module: mola_lidar_slam
+   single: mola_lidar_odometry
+   module: mola_lidar_odometry

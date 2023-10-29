@@ -4,9 +4,9 @@
      side-by-side to ROS packages in a catkin/ament environment.
 -->
 <package format="3">
-  <name>mola_lidar_slam</name>
+  <name>mola_lidar_odometry</name>
   <version>0.2.2</version>
-  <description>LIDAR-inertial odometry and SLAM systems based on MOLA components</description>
+  <description>LIDAR-inertial odometry system based on MOLA components</description>
 
   <author     email="joseluisblancoc@gmail.com">Jose-Luis Blanco-Claraco</author>
   <maintainer email="joseluisblancoc@gmail.com">Jose-Luis Blanco-Claraco</maintainer>

@@ -10,19 +10,19 @@
  * @date   Jan 08, 2018
  */
 
-/** \defgroup mola_mola_slam_grp mola_lidar_slam
- * MOLA module: LIDAR-based odometry and SLAM systems.
+/** \defgroup mola_mola_slam_grp mola_lidar_odometry
+ * MOLA module: LIDAR-based odometry systems.
  *
  */
 
-#include <mola_lidar_slam/LidarInertialOdometry.h>
-#include <mola_lidar_slam/OccGrid.h>
+#include <mola_lidar_odometry/LidarInertialOdometry.h>
+#include <mola_lidar_odometry/OccGrid.h>
 #include <mrpt/core/initializer.h>
 #include <mrpt/rtti/CObject.h>
 
 using namespace mola;
 
-MRPT_INITIALIZER(do_register_mola_slam)
+MRPT_INITIALIZER(do_register_mola_lidar_odometry)
 {
     using mrpt::rtti::registerClass;
 

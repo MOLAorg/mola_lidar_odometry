@@ -10,7 +10,7 @@
  * @date   Sep 16, 2023
  */
 
-#include <mola_lidar_slam/LidarInertialOdometry.h>
+#include <mola_lidar_odometry/LidarInertialOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mp2p_icp/icp_pipeline_from_yaml.h>
 #include <mrpt/config/CConfigFileMemory.h>

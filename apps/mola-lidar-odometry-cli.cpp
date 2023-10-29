@@ -5,15 +5,15 @@
  * ------------------------------------------------------------------------- */
 
 /**
- * @file   mola-lidar-inertial-odometry.cpp
- * @brief  main() for the cli app running lidar-inertial odom on offline
- * datasets
+ * @file   mola-lidar-odometry-cli.cpp
+ * @brief  main() for the cli app running lidar-inertial odometry for
+ *         offline datasets.
  * @author Jose Luis Blanco Claraco
  * @date   Sep 22, 2023
  */
 
 #include <mola_kernel/pretty_print_exception.h>
-#include <mola_lidar_slam/LidarInertialOdometry.h>
+#include <mola_lidar_odometry/LidarInertialOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/3rdparty/tclap/CmdLine.h>
 #include <mrpt/core/exceptions.h>
@@ -27,7 +27,7 @@
 #include <string>
 
 // Declare supported cli switches ===========
-static TCLAP::CmdLine cmd("mola-lidar-inertial-odometry");
+static TCLAP::CmdLine cmd("mola-lidar-odometry-cli");
 
 static TCLAP::ValueArg<std::string> argYAML(
     "c", "config", "Input YAML config file (required) (*.yml)", true, "",
