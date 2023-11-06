@@ -7,7 +7,7 @@ params:
   lidar_sensor_labels: ['lidar', 'Velodyne1_SCAN']
 
   # Optionally, drop lidar data too close in time:
-  min_time_between_scans: 0.2  # [seconds]
+  min_time_between_scans: 0 # 0.2  # [seconds]
 
   # LIDAR observations are, first, loaded using a generator:
   observations_generator: ~
@@ -25,7 +25,7 @@ params:
   icp_settings_without_vel: $include{./icp_odom_params.yaml}
 
   # Minimum ICP quality to insert it into the map:
-  min_icp_goodness: 0.30
+  min_icp_goodness: 0.20
   
   # Local map updates:
   # - First time: Using the mp2p_icp pipeline generator:

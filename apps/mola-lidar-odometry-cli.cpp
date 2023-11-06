@@ -31,11 +31,16 @@
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/3rdparty/tclap/CmdLine.h>
 #include <mrpt/core/exceptions.h>
+#include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/rtti/CObject.h>
 #include <mrpt/system/COutputLogger.h>
 #include <mrpt/system/os.h>
 #include <mrpt/system/progress.h>
+
+#if defined(HAVE_MOLA_INPUT_KITTI)
+#include <mola_input_kitti_dataset/KittiOdometryDataset.h>
+#endif
 
 #include <cstdlib>
 #include <iostream>
@@ -48,10 +53,6 @@ static TCLAP::ValueArg<std::string> argYAML(
     "c", "config", "Input YAML config file (required) (*.yml)", true, "",
     "demo.yml", cmd);
 
-static TCLAP::ValueArg<std::string> argRawlog(
-    "r", "rawlog", "Input dataset in rawlog format (required) (*.rawlog)", true,
-    "dataset.rawlog", "dataset.rawlog", cmd);
-
 static TCLAP::ValueArg<std::string> arg_verbosity_level(
     "v", "verbosity", "Verbosity level: ERROR|WARN|INFO|DEBUG (Default: INFO)",
     false, "", "INFO", cmd);
@@ -60,6 +61,99 @@ static TCLAP::ValueArg<std::string> arg_plugins(
     "l", "load-plugins",
     "One or more (comma separated) *.so files to load as plugins", false,
     "foobar.so", "foobar.so", cmd);
+
+// Input dataset can come from one of these:
+static TCLAP::ValueArg<std::string> argRawlog(
+    "", "input-rawlog",
+    "INPUT DATASET: rawlog. Input dataset in rawlog format (*.rawlog)", false,
+    "dataset.rawlog", "dataset.rawlog", cmd);
+
+#if defined(HAVE_MOLA_INPUT_KITTI)
+static TCLAP::ValueArg<std::string> argKittiSeq(
+    "", "input-kitti-seq",
+    "INPUT DATASET: Use KITTI dataset sequence number 00|01|...", false, "00",
+    "00", cmd);
+#endif
+
+class OfflineDatasetSource
+{
+   public:
+    OfflineDatasetSource()          = default;
+    virtual ~OfflineDatasetSource() = default;
+
+    virtual size_t size() const = 0;
+
+    virtual mrpt::obs::CObservation::Ptr getObservation(size_t index) const = 0;
+};
+
+class RawlogSource : public OfflineDatasetSource
+{
+   public:
+    RawlogSource()          = default;
+    virtual ~RawlogSource() = default;
+
+    void init(const std::string& rawlogFile)
+    {
+        // Load dataset:
+        std::cout << "Loading dataset: " << rawlogFile << std::endl;
+        dataset_.loadFromRawLogFile(rawlogFile);
+        std::cout << "Dataset loaded (" << dataset_.size() << " entries)."
+                  << std::endl;
+    }
+
+    size_t size() const override { return dataset_.size(); }
+
+    mrpt::obs::CObservation::Ptr getObservation(size_t index) const override
+    {
+        const mrpt::serialization::CSerializable::Ptr obj =
+            dataset_.getAsGeneric(index);
+        const auto obs =
+            std::dynamic_pointer_cast<mrpt::obs::CObservation>(obj);
+        return obs;
+    }
+
+   private:
+    mrpt::obs::CRawlog dataset_;
+};
+
+#if defined(HAVE_MOLA_INPUT_KITTI)
+class KittiSource : public OfflineDatasetSource
+{
+   public:
+    KittiSource()          = default;
+    virtual ~KittiSource() = default;
+
+    void init(const std::string& kittiSeqNumber)
+    {
+        const auto kittiCfg =
+            mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+                R""""(
+    params:
+      base_dir: ${KITTI_BASE_DIR}
+      sequence: '%s'
+      time_warp_scale: 1.0
+      publish_lidar: true
+      publish_image_0: true
+      publish_image_1: true
+      publish_ground_truth: true
+)"""",
+                kittiSeqNumber.c_str())));
+
+        kittiDataset_.initialize(kittiCfg);
+    }
+
+    size_t size() const override { return kittiDataset_.getTimestepCount(); }
+
+    mrpt::obs::CObservation::Ptr getObservation(size_t index) const override
+    {
+        return kittiDataset_.getPointCloud(index);
+    }
+
+   private:
+    mutable mola::KittiOdometryDataset kittiDataset_;
+};
+
+#endif
 
 static int main_odometry()
 {
@@ -81,25 +175,40 @@ static int main_odometry()
     // Enable time profiling:
     liodom.profiler_.enable();
 
-    // liodom.initialize_common(cfg); // can be skipped for a non-MOLA system
+    // liodom.initialize_common(cfg); // can be skipped for a non-MOLA
+    // system
     liodom.initialize(cfg);
 
-    // Load dataset:
-    std::cout << "Loading dataset: " << argRawlog.getValue() << std::endl;
+    // Select dataset input:
+    std::shared_ptr<OfflineDatasetSource> dataset;
 
-    mrpt::obs::CRawlog dataset;
-    dataset.loadFromRawLogFile(argRawlog.getValue());
+    if (argRawlog.isSet())
+    {
+        auto ds = std::make_shared<RawlogSource>();
+        ds->init(argRawlog.getValue());
 
-    std::cout << "Dataset loaded (" << dataset.size() << " entries)."
-              << std::endl;
+        dataset = ds;
+    }
+#if defined(HAVE_MOLA_INPUT_KITTI)
+    else if (argKittiSeq.isSet())
+    {
+        auto ds = std::make_shared<KittiSource>();
+        ds->init(argKittiSeq.getValue());
+
+        dataset = ds;
+    }
+#endif
+    else
+    {
+        THROW_EXCEPTION(
+            "At least one of the dataset input CLI flags must be defined. "
+            "Use --help.");
+    }
 
     // Run:
-    for (size_t i = 0; i < dataset.size(); i++)
+    for (size_t i = 0; i < dataset->size(); i++)
     {
-        const mrpt::serialization::CSerializable::Ptr obj =
-            dataset.getAsGeneric(i);
-        const auto obs =
-            std::dynamic_pointer_cast<mrpt::obs::CObservation>(obj);
+        const auto obs = dataset->getObservation(i);
         if (!obs) continue;
 
         liodom.onNewObservation(obs);
@@ -109,7 +218,7 @@ static int main_odometry()
         {
             cnt = 0;
             std::cout << mrpt::system::progress(
-                             1.0 * i / (dataset.size() - 1), 30)
+                             1.0 * i / (dataset->size() - 1), 30)
                       << "\r";
         }
 

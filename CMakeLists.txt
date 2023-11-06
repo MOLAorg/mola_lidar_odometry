@@ -54,6 +54,8 @@ mola_add_library(
 
 # CLI apps
 # ---------------------------------
+find_package(mola_input_kitti_dataset) # optional
+
 mola_add_executable(
 	TARGET  mola-lidar-odometry-cli
 	SOURCES apps/mola-lidar-odometry-cli.cpp
@@ -62,6 +64,10 @@ mola_add_executable(
 		mrpt::core
 		mrpt::tclap
 )
+if (mola_input_kitti_dataset_FOUND)
+target_link_libraries(mola-lidar-odometry-cli mola_input_kitti_dataset)
+target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_KITTI)
+endif()
 
 # -----------------------
 # define tests:
