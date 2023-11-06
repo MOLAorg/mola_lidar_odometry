@@ -35,6 +35,7 @@
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/rtti/CObject.h>
 #include <mrpt/system/COutputLogger.h>
+#include <mrpt/system/filesystem.h>
 #include <mrpt/system/os.h>
 #include <mrpt/system/progress.h>
 
@@ -42,6 +43,7 @@
 #include <mola_input_kitti_dataset/KittiOdometryDataset.h>
 #endif
 
+#include <csignal>  // sigaction
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -62,7 +64,14 @@ static TCLAP::ValueArg<std::string> arg_plugins(
     "One or more (comma separated) *.so files to load as plugins", false,
     "foobar.so", "foobar.so", cmd);
 
+static TCLAP::ValueArg<std::string> arg_outPath(
+    "", "output-tum-path",
+    "Save the estimated path as a TXT file using the TUM file format (see evo "
+    "docs)",
+    false, "output-trajectory.txt", "output-trajectory.txt", cmd);
+
 // Input dataset can come from one of these:
+// --------------------------------------------
 static TCLAP::ValueArg<std::string> argRawlog(
     "", "input-rawlog",
     "INPUT DATASET: rawlog. Input dataset in rawlog format (*.rawlog)", false,
@@ -140,6 +149,17 @@ class KittiSource : public OfflineDatasetSource
                 kittiSeqNumber.c_str())));
 
         kittiDataset_.initialize(kittiCfg);
+
+        // Save GT, if available:
+        if (arg_outPath.isSet() && kittiDataset_.hasGroundTruthTrajectory())
+        {
+            const auto& gtPath = kittiDataset_.getGroundTruthTrajectory();
+
+            gtPath.saveToTextFile_TUM(
+                mrpt::system::fileNameChangeExtension(
+                    arg_outPath.getValue(), "") +
+                std::string("_gt.txt"));
+        }
     }
 
     size_t size() const override { return kittiDataset_.getTimestepCount(); }
@@ -154,6 +174,39 @@ class KittiSource : public OfflineDatasetSource
 };
 
 #endif
+
+void mola_signal_handler(int s);
+void mola_install_signal_handler();
+
+mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory;
+
+void save_output_path()
+{
+    if (arg_outPath.isSet())
+    {
+        std::cout << "\nSaving estimated path in TUM format to: "
+                  << arg_outPath.getValue() << std::endl;
+        lastEstimatedTrajectory.saveToTextFile_TUM(arg_outPath.getValue());
+    }
+}
+
+void mola_signal_handler(int s)
+{
+    std::cerr << "Caught signal " << s << ". Shutting down..." << std::endl;
+    save_output_path();
+    exit(0);
+}
+
+void mola_install_signal_handler()
+{
+    struct sigaction sigIntHandler;
+
+    sigIntHandler.sa_handler = &mola_signal_handler;
+    sigemptyset(&sigIntHandler.sa_mask);
+    sigIntHandler.sa_flags = 0;
+
+    sigaction(SIGINT, &sigIntHandler, nullptr);
+}
 
 static int main_odometry()
 {
@@ -226,7 +279,12 @@ static int main_odometry()
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
+
+        // save trajectory, in case the user CTRL+C at some point before the end
+        lastEstimatedTrajectory = liodom.estimatedTrajectory();
     }
+
+    save_output_path();
 
     return 0;
 }
@@ -250,6 +308,8 @@ int main(int argc, char** argv)
                 return 1;
             }
         }
+
+        mola_install_signal_handler();
 
         main_odometry();
 

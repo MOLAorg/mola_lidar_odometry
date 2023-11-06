@@ -31,6 +31,7 @@
 #include <mp2p_icp_filters/FilterBase.h>
 #include <mp2p_icp_filters/Generator.h>
 #include <mrpt/core/WorkerThreadsPool.h>
+#include <mrpt/poses/CPose3DInterpolator.h>
 #include <mrpt/serialization/CSerializable.h>
 
 #include <regex>
@@ -142,6 +143,12 @@ class LidarInertialOdometry : public FrontEndBase
 
     bool isBusy() const;
 
+    /** Returns a copy of the estimated trajectory, with timestamps for each
+     * lidar observation.
+     * Multi-thread safe to call.
+     */
+    mrpt::poses::CPose3DInterpolator estimatedTrajectory() const;
+
     /** @} */
 
    private:
@@ -187,6 +194,8 @@ class LidarInertialOdometry : public FrontEndBase
 
         mp2p_icp::metric_map_t::Ptr local_map =
             mp2p_icp::metric_map_t::Create();
+
+        mrpt::poses::CPose3DInterpolator estimatedTrajectory;
     };
 
     /** The worker thread pool with 1 thread for processing incomming scans */
@@ -202,6 +211,7 @@ class LidarInertialOdometry : public FrontEndBase
     MethodState        stateCopy() const { return state_; }
 
     mutable std::mutex is_busy_mtx_;
+    mutable std::mutex stateTrajectory_mtx_;
 
     void onLidar(const CObservation::Ptr& o);
     void onLidarImpl(const CObservation::Ptr& o);

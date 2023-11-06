@@ -371,6 +371,13 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
         // Create a first KF (at origin)
         updateLocalMap = true;
+
+        // Update trajectory too:
+        {
+            auto lck = mrpt::lockHelper(stateTrajectory_mtx_);
+            state_.estimatedTrajectory.insert(
+                this_obs_tim, state_.current_pose);
+        }
     }
     else
     {
@@ -461,6 +468,13 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
         // save for next iter:
         state_.last_pose = state_.current_pose;
+
+        // Update trajectory too:
+        {
+            auto lck = mrpt::lockHelper(stateTrajectory_mtx_);
+            state_.estimatedTrajectory.insert(
+                this_obs_tim, state_.current_pose);
+        }
 
         MRPT_LOG_DEBUG_STREAM(
             "Est.twist="
@@ -646,4 +660,11 @@ bool LidarInertialOdometry::isBusy() const
     is_busy_mtx_.unlock();
     return b1 || b2 || worker_lidar_.pendingTasks() ||
            worker_imu_.pendingTasks();
+}
+
+mrpt::poses::CPose3DInterpolator LidarInertialOdometry::estimatedTrajectory()
+    const
+{
+    auto lck = mrpt::lockHelper(stateTrajectory_mtx_);
+    return state_.estimatedTrajectory;
 }
