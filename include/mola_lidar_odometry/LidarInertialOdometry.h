@@ -62,7 +62,7 @@ class LidarInertialOdometry : public FrontEndBase
 
     enum class AlignKind : uint8_t
     {
-        LidarOdometry,
+        LidarOdometry = 0,
         NearbyAlign
     };
 

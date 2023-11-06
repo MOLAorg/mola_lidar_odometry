@@ -8,7 +8,7 @@ class_name: mp2p_icp::ICP
 
 # See: mp2p_icp::Parameter
 params:
-  maxIterations: 30
+  maxIterations: 100
   minAbsStep_trans: 1e-4
   minAbsStep_rot: 1e-4
 
@@ -26,7 +26,7 @@ solvers:
 matchers:
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
-      threshold: 0.75
+      threshold: 2.0
       #pairingsPerPoint: 1
       #maxLocalPointsPerLayer: 0  # !=0 means subsample "local" point cloud
       #runFromIteration: 0  # "from 0 to 0" means "all"
@@ -40,7 +40,7 @@ matchers:
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio
     params:
-     threshold: 0.75
+     threshold: 1.00
      pointLayerMatches:
        - {global: "voxelmap", local: "decimated", weight: 1.0}
 

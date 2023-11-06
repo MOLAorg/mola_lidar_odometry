@@ -418,9 +418,10 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
         // If we don't have a valid twist estimation, use a larger ICP
         // correspondence threshold:
-        icp_in.icp_params =
-            hasMotionModel ? params_.icp[AlignKind::LidarOdometry].icpParameters
-                           : params_.icp[AlignKind::NearbyAlign].icpParameters;
+        icp_in.align_kind =
+            hasMotionModel ? AlignKind::LidarOdometry : AlignKind::NearbyAlign;
+
+        icp_in.icp_params = params_.icp[icp_in.align_kind].icpParameters;
 
         profiler_.leave("onLidar.2c.prepare_icp_in");
 
