@@ -30,6 +30,19 @@ matchers:
       #pairingsPerPoint: 1
       #maxLocalPointsPerLayer: 0  # !=0 means subsample "local" point cloud
       #runFromIteration: 0  # "from 0 to 0" means "all"
+      runUpToIteration: 4
+      #
+      # If "pointLayerMatches" is not defined, layers will be matched against
+      # those with the same name in both maps:
+      pointLayerMatches:
+        - {global: "voxelmap", local: "decimated", weight: 1.0}
+      
+  - class: mp2p_icp::Matcher_Points_DistanceThreshold
+    params:
+      threshold: 0.40
+      #pairingsPerPoint: 1
+      #maxLocalPointsPerLayer: 0  # !=0 means subsample "local" point cloud
+      runFromIteration: 4  # "from 0 to 0" means "all"
       #runUpToIteration: 0
       #
       # If "pointLayerMatches" is not defined, layers will be matched against
