@@ -34,6 +34,7 @@
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/rtti/CObject.h>
 #include <mrpt/system/COutputLogger.h>
+#include <mrpt/system/os.h>
 #include <mrpt/system/progress.h>
 
 #include <cstdlib>
@@ -54,6 +55,11 @@ static TCLAP::ValueArg<std::string> argRawlog(
 static TCLAP::ValueArg<std::string> arg_verbosity_level(
     "v", "verbosity", "Verbosity level: ERROR|WARN|INFO|DEBUG (Default: INFO)",
     false, "", "INFO", cmd);
+
+static TCLAP::ValueArg<std::string> arg_plugins(
+    "l", "load-plugins",
+    "One or more (comma separated) *.so files to load as plugins", false,
+    "foobar.so", "foobar.so", cmd);
 
 static int main_odometry()
 {
@@ -122,6 +128,19 @@ int main(int argc, char** argv)
     {
         // Parse arguments:
         if (!cmd.parse(argc, argv)) return 1;  // should exit.
+
+        // Load plugins:
+        if (arg_plugins.isSet())
+        {
+            std::string errMsg;
+            const auto  plugins = arg_plugins.getValue();
+            std::cout << "Loading plugin(s): " << plugins << std::endl;
+            if (!mrpt::system::loadPluginModules(plugins, errMsg))
+            {
+                std::cerr << errMsg << std::endl;
+                return 1;
+            }
+        }
 
         main_odometry();
 
