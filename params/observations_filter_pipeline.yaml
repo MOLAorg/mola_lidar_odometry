@@ -11,11 +11,21 @@
     keep_bbox_contents: false  # Remove points in this bbox:
     bounding_box_min: [-3, -3, -3]
     bounding_box_max: [+3, +3, +3]
+
 - class_name: mp2p_icp_filters::FilterDecimateVoxels
   params:
     input_pointcloud_layer: 'filtered'
-    output_pointcloud_layer: 'decimated'
+    output_pointcloud_layer: 'decimated_for_icp'
     voxel_filter_resolution: 1.5  # [m]
+    use_voxel_average: false
+    bounding_box_min: [-100, -100, -10]
+    bounding_box_max: [+100, +100,  10]
+
+- class_name: mp2p_icp_filters::FilterDecimateVoxels
+  params:
+    input_pointcloud_layer: 'filtered'
+    output_pointcloud_layer: 'decimated_for_map_insert'
+    voxel_filter_resolution: 0.5  # [m]
     use_voxel_average: false
     bounding_box_min: [-100, -100, -10]
     bounding_box_max: [+100, +100,  10]
@@ -24,6 +34,7 @@
 - class_name: mp2p_icp_filters::FilterDeleteLayer
   params:
     pointcloud_layer_to_remove: 'filtered'
+
 - class_name: mp2p_icp_filters::FilterDeleteLayer
   params:
     pointcloud_layer_to_remove: 'raw'

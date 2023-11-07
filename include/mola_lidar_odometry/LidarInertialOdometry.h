@@ -102,6 +102,9 @@ class LidarInertialOdometry : public FrontEndBase
         /** Minimum ICP quality for a loop closure to be accepted */
         double min_icp_goodness_lc{0.6};
 
+        bool icp_profiler_enabled      = false;
+        bool icp_profiler_full_history = false;
+
         /** Size of the voxel filter [meters] */
         unsigned int full_pointcloud_decimation{20};
         double       voxel_filter_resolution{.5};

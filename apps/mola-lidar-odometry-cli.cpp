@@ -216,11 +216,12 @@ static int main_odometry()
 
     // Define the verbosity level here so it affects all possible
     // commands of mola-cli:
+    mrpt::system::VerbosityLevel logLevel = liodom.getMinLoggingLevel();
     if (arg_verbosity_level.isSet())
     {
-        using vl     = mrpt::typemeta::TEnumType<mrpt::system::VerbosityLevel>;
-        const auto v = vl::name2value(arg_verbosity_level.getValue());
-        liodom.setVerbosityLevel(v);
+        using vl = mrpt::typemeta::TEnumType<mrpt::system::VerbosityLevel>;
+        logLevel = vl::name2value(arg_verbosity_level.getValue());
+        liodom.setVerbosityLevel(logLevel);
     }
 
     // Initialize:
@@ -279,6 +280,8 @@ static int main_odometry()
 
             const double tNow = mrpt::Clock::nowDouble();
             const double ETA  = pc > 0 ? (tNow - tStart) * (1.0 / pc - 1) : .0;
+
+            if (logLevel == mrpt::system::LVL_DEBUG) std::cout << "\n";
 
             std::cout << mrpt::system::progress(pc, 30)
                       << mrpt::format(

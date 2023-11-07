@@ -129,6 +129,9 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     YAML_LOAD_OPT(params_, min_icp_goodness, double);
     YAML_LOAD_OPT(params_, min_icp_goodness_lc, double);
 
+    YAML_LOAD_OPT(params_, icp_profiler_enabled, bool);
+    YAML_LOAD_OPT(params_, icp_profiler_full_history, bool);
+
     YAML_LOAD_OPT(params_, min_dist_to_matching, double);
     YAML_LOAD_OPT(params_, max_dist_to_matching, double);
     YAML_LOAD_OPT(params_, max_dist_to_loop_closure, double);
@@ -146,6 +149,13 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     ENSURE_YAML_ENTRY_EXISTS(cfg, "icp_settings_without_vel");
     load_icp_set_of_params(
         params_.icp[AlignKind::NearbyAlign], cfg["icp_settings_without_vel"]);
+
+    for (auto& icp : params_.icp)
+    {
+        icp.second.icp->profiler().enable(params_.icp_profiler_enabled);
+        icp.second.icp->profiler().enableKeepWholeHistory(
+            params_.icp_profiler_full_history);
+    }
 
     // Create lidar segmentation algorithm:
     {
