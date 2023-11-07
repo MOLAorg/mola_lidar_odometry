@@ -30,11 +30,13 @@
 #include <mola_lidar_odometry/LidarInertialOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/3rdparty/tclap/CmdLine.h>
+#include <mrpt/core/Clock.h>
 #include <mrpt/core/exceptions.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/rtti/CObject.h>
 #include <mrpt/system/COutputLogger.h>
+#include <mrpt/system/datetime.h>
 #include <mrpt/system/filesystem.h>
 #include <mrpt/system/os.h>
 #include <mrpt/system/progress.h>
@@ -258,6 +260,8 @@ static int main_odometry()
             "Use --help.");
     }
 
+    const double tStart = mrpt::Clock::nowDouble();
+
     // Run:
     for (size_t i = 0; i < dataset->size(); i++)
     {
@@ -267,12 +271,20 @@ static int main_odometry()
         liodom.onNewObservation(obs);
 
         static int cnt = 0;
-        if (cnt++ % 10 == 0)
+        if (cnt++ % 20 == 0)
         {
-            cnt = 0;
-            std::cout << mrpt::system::progress(
-                             1.0 * i / (dataset->size() - 1), 30)
-                      << "\r";
+            cnt             = 0;
+            const size_t N  = (dataset->size() - 1);
+            const double pc = (1.0 * i) / N;
+
+            const double tNow = mrpt::Clock::nowDouble();
+            const double ETA  = pc > 0 ? (tNow - tStart) * (1.0 / pc - 1) : .0;
+
+            std::cout << mrpt::system::progress(pc, 30)
+                      << mrpt::format(
+                             " %6zu/%6zu (%.02f%%) ETA=%s\r", i, N, 100 * pc,
+                             mrpt::system::formatTimeInterval(ETA).c_str());
+            std::cout.flush();
         }
 
         while (liodom.isBusy())
