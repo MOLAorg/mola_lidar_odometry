@@ -13,8 +13,9 @@ params:
   minAbsStep_rot: 1e-4
 
   #debugPrintIterationProgress: true  # Print progress
-  #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
-  #debugFileNameFormat: "icp-run-$LOCAL_ID$LOCAL_LABEL-to-$GLOBAL_ID$GLOBAL_LABEL.icplog"
+  generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
+  debugFileNameFormat: "icp-logs/icp-run-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
+  decimationDebugFiles: 500
 
 solvers:
   - class: mp2p_icp::Solver_Horn

@@ -493,10 +493,6 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
                 state_.accum_since_last_kf.getRotationMatrix())
                 .norm();
 
-        MRPT_LOG_DEBUG_FMT(
-            "Since last KF: dist=%5.03f m rotation=%.01f deg",
-            dist_eucl_since_last, mrpt::RAD2DEG(rot_since_last));
-
         updateLocalMap =
             (icp_out.goodness > params_.min_icp_goodness &&
              (dist_eucl_since_last > params_.min_dist_xyz_between_keyframes ||
@@ -504,6 +500,11 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
         if (updateLocalMap)
             state_.accum_since_last_kf = mrpt::poses::CPose3D::Identity();
+
+        MRPT_LOG_DEBUG_FMT(
+            "Since last KF: dist=%5.03f m rotation=%.01f deg updateLocalMap=%s",
+            dist_eucl_since_last, mrpt::RAD2DEG(rot_since_last),
+            updateLocalMap ? "YES" : "NO");
 
     }  // end: yes, we can do ICP
 
