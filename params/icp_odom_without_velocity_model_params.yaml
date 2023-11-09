@@ -18,9 +18,14 @@ params:
   decimationDebugFiles: 500
 
 solvers:
-  - class: mp2p_icp::Solver_Horn
+#  - class: mp2p_icp::Solver_Horn
+#    params:
+#      ~
+  - class: mp2p_icp::Solver_GaussNewton
     params:
-      ~
+     maxIterations: 4
+     robustKernel: 'RobustKernel::GemanMcClure'
+     robustKernelParam: 1.0
 
 # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
 # instances to pair geometric entities between pointclouds.
@@ -53,7 +58,8 @@ matchers:
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio
     params:
-     threshold: 1.00
+     reuse_icp_pairings: true
+     threshold: 0.75 # ignored when 'reuse_icp_pairings'==true
      pointLayerMatches:
        - {global: "voxelmap", local: "decimated_for_icp", weight: 1.0}
 

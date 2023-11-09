@@ -15,12 +15,17 @@ params:
   #debugPrintIterationProgress: true  # Print progress
   generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
   debugFileNameFormat: "icp-logs/icp-run-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
-  decimationDebugFiles: 5
+  decimationDebugFiles: 100
 
 solvers:
-  - class: mp2p_icp::Solver_Horn
+#  - class: mp2p_icp::Solver_Horn
+#    params:
+#      ~
+  - class: mp2p_icp::Solver_GaussNewton
     params:
-      ~
+     maxIterations: 4
+     robustKernel: 'RobustKernel::GemanMcClure'
+     robustKernelParam: 0.30
 
 # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
 # instances to pair geometric entities between pointclouds.
@@ -41,7 +46,8 @@ matchers:
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio
     params:
-     threshold: 0.75
+     reuse_icp_pairings: true
+     threshold: 0.75 # ignored when 'reuse_icp_pairings'==true
      pointLayerMatches:
        - {global: "voxelmap", local: "decimated_for_icp", weight: 1.0}
 

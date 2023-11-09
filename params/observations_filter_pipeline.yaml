@@ -16,7 +16,7 @@
   params:
     input_pointcloud_layer: 'filtered'
     output_pointcloud_layer: 'decimated_for_icp'
-    voxel_filter_resolution: 1.5  # [m]
+    voxel_filter_resolution: 2.0  # [m]
     use_voxel_average: false
     bounding_box_min: [-100, -100, -10]
     bounding_box_max: [+100, +100,  10]
@@ -25,7 +25,7 @@
   params:
     input_pointcloud_layer: 'filtered'
     output_pointcloud_layer: 'decimated_for_map_insert'
-    voxel_filter_resolution: 0.5  # [m]
+    voxel_filter_resolution: 1.0  # [m]
     use_voxel_average: false
     bounding_box_min: [-100, -100, -10]
     bounding_box_max: [+100, +100,  10]
