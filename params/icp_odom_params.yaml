@@ -18,21 +18,35 @@ params:
   decimationDebugFiles: 100
 
 solvers:
-#  - class: mp2p_icp::Solver_Horn
-#    params:
-#      ~
+  - class: mp2p_icp::Solver_Horn
+    params:
+      enabled: false
   - class: mp2p_icp::Solver_GaussNewton
     params:
-     maxIterations: 4
-     robustKernel: 'RobustKernel::GemanMcClure'
-     robustKernelParam: 0.30
+      enabled: true
+      maxIterations: 3
+      robustKernel: 'RobustKernel::GemanMcClure'
+      robustKernelParam: 0.50
 
 # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
 # instances to pair geometric entities between pointclouds.
 matchers:
+  - class: mp2p_icp::Matcher_Point2Plane
+    params:
+      # Inliers distance threshold [meters][mandatory]
+      distanceThreshold: 2.0
+      searchRadius: 3.0
+      # Number of neighbors to look for [mandatory]
+      knn: 20
+      # maximum e0/e2 and e1/e2 ratio [mandatory]
+      planeEigenThreshold: 0.01
+      minimumPlanePoints: 5
+      pointLayerMatches:
+        - {global: "voxelmap", local: "decimated_for_icp", weight: 5.0}
+
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
-      threshold: 1.5
+      threshold: 2.0
       #pairingsPerPoint: 1
       #maxLocalPointsPerLayer: 0  # !=0 means subsample "local" point cloud
       #runFromIteration: 0  # "from 0 to 0" means "all"
