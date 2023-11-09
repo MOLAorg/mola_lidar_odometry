@@ -32,6 +32,7 @@
 #include <mrpt/3rdparty/tclap/CmdLine.h>
 #include <mrpt/core/Clock.h>
 #include <mrpt/core/exceptions.h>
+#include <mrpt/io/lazy_load_path.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/rtti/CObject.h>
@@ -107,6 +108,16 @@ class RawlogSource : public OfflineDatasetSource
     {
         // Load dataset:
         std::cout << "Loading dataset: " << rawlogFile << std::endl;
+
+        const auto imgsDir =
+            mrpt::obs::CRawlog::detectImagesDirectory(rawlogFile);
+        if (mrpt::system::directoryExists(imgsDir))
+        {
+            mrpt::io::setLazyLoadPathBase(imgsDir);
+            std::cout << "Setting rawlog external directory to: " << imgsDir
+                      << std::endl;
+        }
+
         dataset_.loadFromRawLogFile(rawlogFile);
         std::cout << "Dataset loaded (" << dataset_.size() << " entries)."
                   << std::endl;

@@ -4,7 +4,7 @@
 
 params:
   # These sensor labels will be handled as LIDAR observations:
-  lidar_sensor_labels: ['lidar', 'Velodyne1_SCAN','pandar','livox','os_sensor']
+  lidar_sensor_labels: ['lidar', 'Velodyne1_SCAN','pandar','livox','os_sensor','KINECT']
 
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 0 # 0.2  # [seconds]
