@@ -33,6 +33,7 @@ solvers:
 matchers:
   - class: mp2p_icp::Matcher_Point2Plane
     params:
+      enabled: false
       # Inliers distance threshold [meters][mandatory]
       distanceThreshold: 2.0
       searchRadius: 3.0
