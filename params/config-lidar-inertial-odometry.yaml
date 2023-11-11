@@ -19,7 +19,7 @@ params:
   # These sensor labels will be handled as IMU observations:
   imu_sensor_label: 'imu'
   
-  min_dist_xyz_between_keyframes: 1.0  # [m]
+  min_dist_xyz_between_keyframes: 5.0  # [m]
   min_rotation_between_keyframes: 15.0  # [deg]
   
   icp_settings_with_vel: $include{./icp_odom_params.yaml}
@@ -31,6 +31,8 @@ params:
   # Local map updates:
   # - First time: Using the mp2p_icp pipeline generator:
   localmap_generator: $include{./localmap_generator.yaml}
+  localmap_post_generator_filter: $include{./localmap_postgeneration_filter_pipeline.yaml}
+
   # - Rest of observations: use these *pointcloud* layers of the observation 
   #   metric_map_t and *insert* them into the local map:
   observation_layers_to_merge_local_map: 'decimated_for_map_insert'

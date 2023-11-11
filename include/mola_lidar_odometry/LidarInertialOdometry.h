@@ -193,7 +193,8 @@ class LidarInertialOdometry : public FrontEndBase
         mp2p_icp_filters::GeneratorSet   obs_generators;
         mp2p_icp_filters::FilterPipeline pc_filter;
 
-        mp2p_icp_filters::GeneratorSet local_map_generators;
+        mp2p_icp_filters::GeneratorSet   local_map_generators;
+        mp2p_icp_filters::FilterPipeline post_local_map_gen_filter;
 
         mp2p_icp::metric_map_t::Ptr local_map =
             mp2p_icp::metric_map_t::Create();

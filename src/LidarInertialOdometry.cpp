@@ -207,6 +207,15 @@ void LidarInertialOdometry::initialize(const Yaml& c)
             defaultGen->initialize({});
             state_.local_map_generators.push_back(defaultGen);
         }
+
+        if (cfg.has("localmap_post_generator_filter"))
+        {
+            // Create, and copy my own verbosity level:
+            state_.post_local_map_gen_filter =
+                mp2p_icp_filters::filter_pipeline_from_yaml(
+                    cfg["localmap_post_generator_filter"],
+                    this->getMinLoggingLevel());
+        }
     }
 
     state_.initialized = true;
@@ -532,6 +541,9 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
             mp2p_icp_filters::apply_generators(
                 state_.local_map_generators, *o, *state_.local_map);
+
+            mp2p_icp_filters::apply_filter_pipeline(
+                state_.post_local_map_gen_filter, *state_.local_map);
         }
         else
         {
