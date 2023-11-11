@@ -18,8 +18,6 @@
     output_pointcloud_layer: 'voxelmap'
     voxel_filter_resolution: 0.25  # [m]
     use_voxel_average: false
-    bounding_box_min: [-70, -70, -30]
-    bounding_box_max: [+70, +70,  30]
 
 # Remove layers to save memory and log file storage
 - class_name: mp2p_icp_filters::FilterDeleteLayer

@@ -6,27 +6,34 @@
 #
 class_name: mp2p_icp::ICP
 
+
 # See: mp2p_icp::Parameter
 params:
-  maxIterations: 100
+  maxIterations: 200
   minAbsStep_trans: 1e-4
   minAbsStep_rot: 1e-4
 
   #debugPrintIterationProgress: true  # Print progress
   generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
   debugFileNameFormat: "icp-logs/icp-run-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
-  decimationDebugFiles: 50
+  decimationDebugFiles: 100
 
 solvers:
   - class: mp2p_icp::Solver_Horn
     params:
-      enabled: false
+      enabled: true
+      runFromIteration: 0
+      runUpToIteration: 5
+
   - class: mp2p_icp::Solver_GaussNewton
     params:
       enabled: true
+      runFromIteration: 6
+      runUpToIteration: 0
       maxIterations: 3
-      robustKernel: 'RobustKernel::None' # GemanMcClure'
-      robustKernelParam: 0.50
+      robustKernel: 'RobustKernel::GemanMcClure'
+      robustKernelParam: 0.15
+
 
 # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
 # instances to pair geometric entities between pointclouds.
@@ -47,8 +54,8 @@ matchers:
 
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
-      threshold: 1.5
-      pairingsPerPoint: 3
+      threshold: 1.0
+      #pairingsPerPoint: 3
       #maxLocalPointsPerLayer: 0  # !=0 means subsample "local" point cloud
       #runFromIteration: 0  # "from 0 to 0" means "all"
       #runUpToIteration: 0
