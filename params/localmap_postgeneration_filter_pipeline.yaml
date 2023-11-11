@@ -16,7 +16,7 @@
   params:
     input_pointcloud_layer: 'filtered'
     output_pointcloud_layer: 'voxelmap'
-    voxel_filter_resolution: 0.25  # [m]
+    voxel_filter_resolution: 0.50  # [m]
     use_voxel_average: false
 
 # Remove layers to save memory and log file storage

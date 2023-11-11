@@ -485,9 +485,6 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             state_.last_iter_twist.reset();
         }
 
-        // save for next iter:
-        state_.last_pose = state_.current_pose;
-
         // Update trajectory too:
         {
             auto lck = mrpt::lockHelper(stateTrajectory_mtx_);
@@ -496,9 +493,10 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         }
 
         MRPT_LOG_DEBUG_STREAM(
-            "Est.twist="
-            << (state_.last_iter_twist ? state_.last_iter_twist->asString()
-                                       : "(none)"s));
+            "Est.twist=" << (state_.last_iter_twist
+                                 ? state_.last_iter_twist->asString()
+                                 : "(none)"s)
+                         << " dt=" << dt << " s.");
         MRPT_LOG_DEBUG_STREAM(
             "Time since last scan=" << mrpt::system::formatTimeInterval(dt));
 
@@ -526,6 +524,9 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             updateLocalMap ? "YES" : "NO");
 
     }  // end: yes, we can do ICP
+
+    // save for next iter:
+    state_.last_pose = state_.current_pose;
 
     // Should we create a new KF?
     if (updateLocalMap)
