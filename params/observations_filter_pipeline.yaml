@@ -16,14 +16,14 @@
   params:
     input_pointcloud_layer: 'filtered'
     output_pointcloud_layer: 'decimated_for_icp'
-    voxel_filter_resolution: 1.0  # [m]
+    voxel_filter_resolution: 2.0  # [m]
     use_voxel_average: false
 
 - class_name: mp2p_icp_filters::FilterDecimateVoxels
   params:
     input_pointcloud_layer: 'filtered'
     output_pointcloud_layer: 'decimated_for_map_insert'
-    voxel_filter_resolution: 0.50  # [m]
+    voxel_filter_resolution: 1.0  # [m]
     use_voxel_average: false
 
 # Remove layers to save memory and log file storage

@@ -18,6 +18,7 @@ params:
   debugFileNameFormat: "icp-logs/icp-run-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
   decimationDebugFiles: 100
 
+
 solvers:
   - class: mp2p_icp::Solver_Horn
     params:
@@ -32,38 +33,34 @@ solvers:
       runUpToIteration: 0
       maxIterations: 3
       robustKernel: 'RobustKernel::GemanMcClure'
-      robustKernelParam: 0.15
+      robustKernelParam: 0.50
 
 
 # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
 # instances to pair geometric entities between pointclouds.
 matchers:
-  - class: mp2p_icp::Matcher_Point2Plane
-    params:
-      enabled: false
-      # Inliers distance threshold [meters][mandatory]
-      distanceThreshold: 1.25
-      searchRadius: 2.0
-      # Number of neighbors to look for [mandatory]
-      knn: 10
-      # maximum e0/e2 and e1/e2 ratio [mandatory]
-      planeEigenThreshold: 0.01
-      minimumPlanePoints: 5
-      pointLayerMatches:
-        - {global: "voxelmap", local: "decimated_for_icp", weight: 5.0}
-
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
-      threshold: 1.5
+      threshold: 2.00
       #pairingsPerPoint: 3
       #maxLocalPointsPerLayer: 0  # !=0 means subsample "local" point cloud
-      #runFromIteration: 0  # "from 0 to 0" means "all"
-      #runUpToIteration: 0
-      #
-      # If "pointLayerMatches" is not defined, layers will be matched against
-      # those with the same name in both maps:
+      enabled: true
+      runFromIteration: 0  # "from 0 to 0" means "all"
+      runUpToIteration: 5
       pointLayerMatches:
         - {global: "voxelmap", local: "decimated_for_icp", weight: 1.0}
+
+  - class: mp2p_icp::Matcher_Adaptive
+    params:
+      confidenceInterval: 0.75
+      firstToSecondDistanceMax: 1.2
+      absoluteMaxSearchDistance: 1.0  # m
+      #enabled: false
+      runFromIteration: 6  # "from 0 to 0" means "all"
+      runUpToIteration: 0
+      pointLayerMatches:
+        - {global: "voxelmap", local: "decimated_for_icp", weight: 1.0}
+
 
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio
