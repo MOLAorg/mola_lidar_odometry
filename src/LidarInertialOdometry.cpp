@@ -207,15 +207,6 @@ void LidarInertialOdometry::initialize(const Yaml& c)
             defaultGen->initialize({});
             state_.local_map_generators.push_back(defaultGen);
         }
-
-        if (cfg.has("localmap_post_generator_filter"))
-        {
-            // Create, and copy my own verbosity level:
-            state_.post_local_map_gen_filter =
-                mp2p_icp_filters::filter_pipeline_from_yaml(
-                    cfg["localmap_post_generator_filter"],
-                    this->getMinLoggingLevel());
-        }
     }
 
     state_.initialized = true;
@@ -537,47 +528,44 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         if (state_.local_map->empty())
         {
             ProfilerEntry tle3(profiler_, "onLidar.4.update_local_map.create");
-
             MRPT_LOG_DEBUG("Creating local map since it was empty");
 
             mp2p_icp_filters::apply_generators(
                 state_.local_map_generators, *o, *state_.local_map);
-
-            mp2p_icp_filters::apply_filter_pipeline(
-                state_.post_local_map_gen_filter, *state_.local_map);
         }
-        else
+
+        ProfilerEntry tle3(profiler_, "onLidar.4.update_local_map.insert");
+
+        // Merge "observation_layers_to_merge_local_map" in local map:
+        for (const auto& layer : params_.observation_layers_to_merge_local_map)
         {
-            ProfilerEntry tle3(profiler_, "onLidar.4.update_local_map.insert");
+            ASSERTMSG_(
+                this_obs_points->layers.count(layer) != 0,
+                mrpt::format(
+                    "Error inserting LIDAR observation into local map: "
+                    "expected a metric_map_t layer named '%s', but it was "
+                    "not found, actual contents: %s",
+                    layer.c_str(),
+                    this_obs_points->contents_summary().c_str()));
 
-            // Insert:
+            mrpt::obs::CObservationPointCloud obsPc;
+            obsPc.timestamp = o->timestamp;
+            obsPc.pointcloud =
+                std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(
+                    this_obs_points->layers.at(layer));
+            ASSERT_(obsPc.pointcloud);
 
-            // Merge "observation_layers_to_merge_local_map" in local map:
-            for (const auto& layer :
-                 params_.observation_layers_to_merge_local_map)
+            for (auto& lm : state_.local_map->layers)
             {
-                ASSERTMSG_(
-                    this_obs_points->layers.count(layer) != 0,
-                    mrpt::format(
-                        "Error inserting LIDAR observation into local map: "
-                        "expected a metric_map_t layer named '%s', but it was "
-                        "not found, actual contents: %s",
-                        layer.c_str(),
-                        this_obs_points->contents_summary().c_str()));
+                MRPT_LOG_DEBUG_FMT(
+                    "UpdateLocalMap: Inserting local layer '%s' into "
+                    "global layer '%s'",
+                    layer.c_str(), lm.first.c_str());
 
-                mrpt::obs::CObservationPointCloud obsPc;
-                obsPc.timestamp = o->timestamp;
-                obsPc.pointcloud =
-                    std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(
-                        this_obs_points->layers.at(layer));
-                ASSERT_(obsPc.pointcloud);
-
-                for (auto& lm : state_.local_map->layers)
-                {
-                    lm.second->insertObservation(obsPc, state_.current_pose);
-                }
+                lm.second->insertObservation(obsPc, state_.current_pose);
             }
         }
+        tle3.stop();
 
     }  // end done add a new KF
 

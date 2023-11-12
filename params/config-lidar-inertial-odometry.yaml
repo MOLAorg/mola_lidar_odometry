@@ -31,7 +31,6 @@ params:
   # Local map updates:
   # - First time: Using the mp2p_icp pipeline generator:
   localmap_generator: $include{./localmap_generator.yaml}
-  localmap_post_generator_filter: $include{./localmap_postgeneration_filter_pipeline.yaml}
 
   # - Rest of observations: use these *pointcloud* layers of the observation 
   #   metric_map_t and *insert* them into the local map:

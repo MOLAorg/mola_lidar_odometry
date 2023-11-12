@@ -6,8 +6,8 @@
 #
 - class_name: mp2p_icp_filters::Generator
   params:
-    target_layer: 'raw' # 'voxelmap'
+    target_layer: 'voxelmap'
     metric_map_definition_ini_file: '${CURRENT_YAML_FILE_PATH}/localmap_multimetricmap_definition.ini'
     throw_on_unhandled_observation_class: true
-    #process_class_names_regex: '.*'
+    process_class_names_regex: ''  # NONE: don't process observations in the generator.
     #process_sensor_labels_regex: '.*'
