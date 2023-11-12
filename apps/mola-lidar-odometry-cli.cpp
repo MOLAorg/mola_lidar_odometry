@@ -73,6 +73,10 @@ static TCLAP::ValueArg<std::string> arg_outPath(
     "docs)",
     false, "output-trajectory.txt", "output-trajectory.txt", cmd);
 
+static TCLAP::ValueArg<int> arg_firstN(
+    "", "only-first-n", "Run for the first N steps only (0=default, not used)",
+    false, 0, "Number of dataset entries to run", cmd);
+
 // Input dataset can come from one of these:
 // --------------------------------------------
 static TCLAP::ValueArg<std::string> argRawlog(
@@ -274,8 +278,11 @@ static int main_odometry()
 
     const double tStart = mrpt::Clock::nowDouble();
 
+    size_t nDatasetEntriesToRun = dataset->size();
+    if (arg_firstN.isSet()) nDatasetEntriesToRun = arg_firstN.getValue();
+
     // Run:
-    for (size_t i = 0; i < dataset->size(); i++)
+    for (size_t i = 0; i < nDatasetEntriesToRun; i++)
     {
         const auto obs = dataset->getObservation(i);
         if (!obs) continue;
