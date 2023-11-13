@@ -89,6 +89,10 @@ static TCLAP::ValueArg<std::string> argKittiSeq(
     "", "input-kitti-seq",
     "INPUT DATASET: Use KITTI dataset sequence number 00|01|...", false, "00",
     "00", cmd);
+static TCLAP::ValueArg<double> argKittiAngleDeg(
+    "", "kitti-correction-angle-deg",
+    "Correction vertical angle offset (see Deschaud,2018)", false, 0.205,
+    "0.205 [degrees]", cmd);
 #endif
 
 class OfflineDatasetSource
@@ -166,6 +170,10 @@ class KittiSource : public OfflineDatasetSource
                 kittiSeqNumber.c_str())));
 
         kittiDataset_.initialize(kittiCfg);
+
+        if (argKittiAngleDeg.isSet())
+            kittiDataset_.VERTICAL_ANGLE_OFFSET =
+                mrpt::DEG2RAD(argKittiAngleDeg.getValue());
 
         // Save GT, if available:
         if (arg_outPath.isSet() && kittiDataset_.hasGroundTruthTrajectory())
@@ -265,7 +273,6 @@ static int main_odometry()
     {
         auto ds = std::make_shared<KittiSource>();
         ds->init(argKittiSeq.getValue());
-
         dataset = ds;
     }
 #endif
@@ -275,6 +282,7 @@ static int main_odometry()
             "At least one of the dataset input CLI flags must be defined. "
             "Use --help.");
     }
+    ASSERT_(dataset);
 
     const double tStart = mrpt::Clock::nowDouble();
 
