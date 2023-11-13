@@ -16,7 +16,7 @@ params:
   #debugPrintIterationProgress: true  # Print progress
   generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
   debugFileNameFormat: "icp-logs/icp-run-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
-  decimationDebugFiles: 100
+  decimationDebugFiles: 50
 
 
 solvers:
@@ -33,7 +33,7 @@ solvers:
       runUpToIteration: 0
       maxIterations: 3
       robustKernel: 'RobustKernel::GemanMcClure'
-      robustKernelParam: 0.75
+      robustKernelParam: 0.5
       #innerLoopVerbose: true
 
 
@@ -55,8 +55,8 @@ matchers:
   - class: mp2p_icp::Matcher_Adaptive
     params:
       confidenceInterval: 0.95
-      firstToSecondDistanceMax: 1.4
-      absoluteMaxSearchDistance: 1.0  # m
+      firstToSecondDistanceMax: 1.2
+      absoluteMaxSearchDistance: 0.75  # m
       allowMatchAlreadyMatchedGlobalPoints: true # faster
       #enabled: false
       runFromIteration: 6  # "from 0 to 0" means "all"
