@@ -15,7 +15,7 @@ params:
 
   #debugPrintIterationProgress: true  # Print progress
   generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
-  debugFileNameFormat: "icp-logs/icp-run-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
+  debugFileNameFormat: "icp-logs/icp-run-${KITTI_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
   decimationDebugFiles: 50
 
 
@@ -57,6 +57,12 @@ matchers:
       confidenceInterval: 0.95
       firstToSecondDistanceMax: 1.2
       absoluteMaxSearchDistance: 0.75  # m
+
+      enableDetectPlanes: false
+      planeSearchPoints: 8
+      planeMinimumFoundPoints: 4
+      planeEigenThreshold: 0.01
+      
       allowMatchAlreadyMatchedGlobalPoints: true # faster
       #enabled: false
       runFromIteration: 6  # "from 0 to 0" means "all"

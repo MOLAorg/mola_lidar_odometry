@@ -311,7 +311,8 @@ static int main_odometry()
 
             std::cout << mrpt::system::progress(pc, 30)
                       << mrpt::format(
-                             " %6zu/%6zu (%.02f%%) ETA=%s\r", i, N, 100 * pc,
+                             " %6zu/%6zu (%.02f%%) ETA=%s     \r", i, N,
+                             100 * pc,
                              mrpt::system::formatTimeInterval(ETA).c_str());
             std::cout.flush();
         }

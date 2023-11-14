@@ -12,11 +12,12 @@
     bounding_box_min: [-4, -4, -4]
     bounding_box_max: [+4, +4, +4]
 
-- class_name: mp2p_icp_filters::FilterDecimateVoxels
+- class_name: mp2p_icp_filters::FilterDecimateVoxelsQuadratic
   params:
     input_pointcloud_layer: 'filtered'
     output_pointcloud_layer: 'decimated_for_icp'
-    voxel_filter_resolution: 1.75  # [m]
+    voxel_filter_resolution: 1.5  # [m]
+    quadratic_reference_radius: 40.0
     use_voxel_average: false
     use_closest_to_voxel_average: true
     use_random_point_within_voxel: true
