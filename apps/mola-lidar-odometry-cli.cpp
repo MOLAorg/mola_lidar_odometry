@@ -203,22 +203,9 @@ class KittiSource : public OfflineDatasetSource
 void mola_signal_handler(int s);
 void mola_install_signal_handler();
 
-mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory;
-
-void save_output_path()
-{
-    if (arg_outPath.isSet())
-    {
-        std::cout << "\nSaving estimated path in TUM format to: "
-                  << arg_outPath.getValue() << std::endl;
-        lastEstimatedTrajectory.saveToTextFile_TUM(arg_outPath.getValue());
-    }
-}
-
 void mola_signal_handler(int s)
 {
     std::cerr << "Caught signal " << s << ". Shutting down..." << std::endl;
-    save_output_path();
     exit(0);
 }
 
@@ -323,10 +310,18 @@ static int main_odometry()
         }
 
         // save trajectory, in case the user CTRL+C at some point before the end
-        lastEstimatedTrajectory = liodom.estimatedTrajectory();
     }
 
-    save_output_path();
+    if (arg_outPath.isSet())
+    {
+        std::cout << "\nSaving estimated path in TUM format to: "
+                  << arg_outPath.getValue() << std::endl;
+
+        mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory =
+            liodom.estimatedTrajectory();
+
+        lastEstimatedTrajectory.saveToTextFile_TUM(arg_outPath.getValue());
+    }
 
     return 0;
 }
