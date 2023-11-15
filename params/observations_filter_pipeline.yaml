@@ -27,7 +27,7 @@
 
 - class_name: mp2p_icp_filters::FilterDecimateVoxels
   params:
-    input_pointcloud_layer: 'filtered'
+    input_pointcloud_layer: 'decimated_for_map_insert'
     output_pointcloud_layer: 'decimated_for_icp'
     voxel_filter_resolution: 1.5  # [m]
     use_voxel_average: false
