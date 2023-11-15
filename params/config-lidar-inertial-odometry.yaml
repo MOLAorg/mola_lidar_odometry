@@ -19,7 +19,7 @@ params:
   # These sensor labels will be handled as IMU observations:
   imu_sensor_label: 'imu'
   
-  min_dist_xyz_between_keyframes: 1.0  # [m]
+  min_dist_xyz_between_keyframes: 5.0  # [m]
   min_rotation_between_keyframes: 15.0  # [deg]
   
   icp_settings_with_vel: $include{./icp_odom_params.yaml}
