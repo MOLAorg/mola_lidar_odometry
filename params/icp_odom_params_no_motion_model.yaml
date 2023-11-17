@@ -19,11 +19,20 @@ params:
   decimationDebugFiles: 100
 
 solvers:
+  - class: mp2p_icp::Solver_Horn
+    params:
+      #enabled: false
+      runFromIteration: 0
+      runUpToIteration: 4
+
   - class: mp2p_icp::Solver_GaussNewton
     params:
+      enabled: true
+      runFromIteration: 5
+      runUpToIteration: 0
       maxIterations: 2
       robustKernel: 'RobustKernel::GemanMcClure'
-      robustKernelParam: 0.1
+      robustKernelParam: 0.50
       #innerLoopVerbose: true
 
 
@@ -32,12 +41,35 @@ solvers:
 matchers:
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
-      threshold: 0.50           # m
+      threshold: 2.00           # m
       thresholdAngularDeg: 1.0  # deg
       pairingsPerPoint: 1
+      #maxLocalPointsPerLayer: 0  # !=0 means subsample "local" point cloud
+      allowMatchAlreadyMatchedGlobalPoints: true # faster
+      #enabled: false
+      runFromIteration: 0  # "from 0 to 0" means "all"
+      #runUpToIteration: 4
+      pointLayerMatches:
+        - {global: "voxelmap", local: "decimated_for_icp", weight: 1.0}
+
+  - class: mp2p_icp::Matcher_Adaptive
+    params:
+      enabled: false
+      confidenceInterval: 0.80
+      firstToSecondDistanceMax: 1.5
+      absoluteMaxSearchDistance: 5.0  # m
+      minimumCorrDist: 0.10 # m
+
+      maxPt2PtCorrespondences: 1
+      enableDetectPlanes: false
+      planeSearchPoints: 4
+      planeMinimumFoundPoints: 4
+      planeEigenThreshold: 0.001
+      
       allowMatchAlreadyMatchedGlobalPoints: true # faster
       pointLayerMatches:
         - {global: "voxelmap", local: "decimated_for_icp", weight: 1.0}
+
 
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio

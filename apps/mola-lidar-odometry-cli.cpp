@@ -276,6 +276,8 @@ static int main_odometry()
     size_t nDatasetEntriesToRun = dataset->size();
     if (arg_firstN.isSet()) nDatasetEntriesToRun = arg_firstN.getValue();
 
+    std::cout << "\n";  // Needed for the VT100 codes below.
+
     // Run:
     for (size_t i = 0; i < nDatasetEntriesToRun; i++)
     {
@@ -296,7 +298,8 @@ static int main_odometry()
 
             if (logLevel == mrpt::system::LVL_DEBUG) std::cout << "\n";
 
-            std::cout << mrpt::system::progress(pc, 30)
+            std::cout << "\033[A\33[2KT\r"  // VT100 codes: up and clear line
+                      << mrpt::system::progress(pc, 30)
                       << mrpt::format(
                              " %6zu/%6zu (%.02f%%) ETA=%s     \r", i, N,
                              100 * pc,

@@ -23,7 +23,7 @@ params:
   min_rotation_between_keyframes: 15.0  # [deg]
   
   icp_settings_with_vel: $include{./icp_odom_params.yaml}
-  icp_settings_without_vel: $include{./icp_odom_params.yaml}
+  icp_settings_without_vel: $include{./icp_odom_params_no_motion_model.yaml}
 
   # Minimum ICP quality to insert it into the map:
   min_icp_goodness: 0.30

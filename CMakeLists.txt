@@ -61,7 +61,7 @@ mola_add_executable(
 	SOURCES apps/mola-lidar-odometry-cli.cpp
 	LINK_LIBRARIES
 		${PROJECT_NAME}
-		mrpt::core
+		mrpt::maps
 		mrpt::tclap
 )
 if (mola_input_kitti_dataset_FOUND)
