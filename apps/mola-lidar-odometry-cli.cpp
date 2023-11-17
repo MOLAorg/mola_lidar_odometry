@@ -295,15 +295,15 @@ static int main_odometry()
 
             const double tNow = mrpt::Clock::nowDouble();
             const double ETA  = pc > 0 ? (tNow - tStart) * (1.0 / pc - 1) : .0;
+            const double totalTime = ETA + (tNow - tStart);
 
-            if (logLevel == mrpt::system::LVL_DEBUG) std::cout << "\n";
-
-            std::cout << "\033[A\33[2KT\r"  // VT100 codes: up and clear line
-                      << mrpt::system::progress(pc, 30)
-                      << mrpt::format(
-                             " %6zu/%6zu (%.02f%%) ETA=%s     \r", i, N,
-                             100 * pc,
-                             mrpt::system::formatTimeInterval(ETA).c_str());
+            std::cout
+                << "\033[A\33[2KT\r"  // VT100 codes: up and clear line
+                << mrpt::system::progress(pc, 30)
+                << mrpt::format(
+                       " %6zu/%6zu (%.02f%%) ETA=%s / T=%s\n", i, N, 100 * pc,
+                       mrpt::system::formatTimeInterval(ETA).c_str(),
+                       mrpt::system::formatTimeInterval(totalTime).c_str());
             std::cout.flush();
         }
 

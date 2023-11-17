@@ -65,8 +65,11 @@ mola_add_executable(
 		mrpt::tclap
 )
 if (mola_input_kitti_dataset_FOUND)
+message("mola-lidar-odometry-cli: With Kitti = YES")
 target_link_libraries(mola-lidar-odometry-cli mola_input_kitti_dataset)
 target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_KITTI)
+else()
+message("mola-lidar-odometry-cli: With Kitti = NO")
 endif()
 
 # -----------------------
