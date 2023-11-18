@@ -305,7 +305,7 @@ static int main_odometry()
             const double totalTime = ETA + (tNow - tStart);
 
             std::cout
-                << "\033[A\33[2KT\r"  // VT100 codes: up and clear line
+                << "\033[A\33[2KT\r"  // VT100 codes: cursor up and clear line
                 << mrpt::system::progress(pc, 30)
                 << mrpt::format(
                        " %6zu/%6zu (%.02f%%) ETA=%s / T=%s\n", i, N, 100 * pc,
