@@ -127,20 +127,14 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     YAML_LOAD_OPT(params_, min_time_between_scans, double);
     YAML_LOAD_OPT(params_, max_time_to_use_velocity_model, double);
     YAML_LOAD_OPT(params_, min_icp_goodness, double);
-    YAML_LOAD_OPT(params_, min_icp_goodness_lc, double);
 
     YAML_LOAD_OPT(params_, icp_profiler_enabled, bool);
     YAML_LOAD_OPT(params_, icp_profiler_full_history, bool);
 
-    YAML_LOAD_OPT(params_, min_dist_to_matching, double);
-    YAML_LOAD_OPT(params_, max_dist_to_matching, double);
-    YAML_LOAD_OPT(params_, max_dist_to_loop_closure, double);
-    YAML_LOAD_OPT(params_, max_nearby_align_checks, unsigned int);
-    YAML_LOAD_OPT(params_, min_topo_dist_to_consider_loopclosure, unsigned int);
-    YAML_LOAD_OPT(params_, loop_closure_montecarlo_samples, unsigned int);
-
-    YAML_LOAD_OPT(params_, viz_decor_decimation, int);
-    YAML_LOAD_OPT(params_, viz_decor_pointsize, float);
+    YAML_LOAD_OPT(params_, simplemap.generate, bool);
+    YAML_LOAD_OPT(params_, simplemap.min_dist_xyz_between_keyframes, double);
+    YAML_LOAD_OPT_DEG(
+        params_, simplemap.min_rotation_between_keyframes, double);
 
     ENSURE_YAML_ENTRY_EXISTS(cfg, "icp_settings_with_vel");
     load_icp_set_of_params(
@@ -368,7 +362,12 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         return;
     }
 
+    // local map: used for LIDAR odometry:
     bool updateLocalMap = false;
+
+    // Simplemap: an optional map to be saved to disk at the end of the mapping
+    // session:
+    bool updateSimpleMap = false;
 
     // First time we cannot do ICP since we need at least two pointclouds:
     ASSERT_(state_.local_map);
@@ -386,7 +385,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         {
             auto lck = mrpt::lockHelper(stateTrajectory_mtx_);
             state_.estimatedTrajectory.insert(
-                this_obs_tim, state_.current_pose);
+                this_obs_tim, state_.current_pose.mean);
         }
     }
     else
@@ -421,7 +420,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
                 {tw.wx, tw.wy, tw.wz}, rotParams, dt);
 
             icp_in.init_guess_local_wrt_global =
-                (state_.current_pose +
+                (state_.current_pose.mean +
                  mrpt::poses::CPose3D::FromRotationAndTranslation(
                      rot33, mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz) * dt))
                     .asTPose();
@@ -447,7 +446,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             ProfilerEntry tle(profiler_, "onLidar.3.icp_latest");
             run_one_icp(icp_in, icp_out);
         }
-        state_.current_pose = icp_out.found_pose_to_wrt_from.getMeanVal();
+        state_.current_pose = icp_out.found_pose_to_wrt_from;
 
         // Update velocity model:
         mrpt::poses::CPose3D incrPose;
@@ -458,7 +457,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             state_.last_iter_twist.emplace();
             auto& tw = *state_.last_iter_twist;
 
-            incrPose = state_.current_pose - *state_.last_pose;
+            incrPose = state_.current_pose.mean - *state_.last_pose;
 
             tw.vx = incrPose.x() / dt;
             tw.vy = incrPose.y() / dt;
@@ -480,7 +479,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         {
             auto lck = mrpt::lockHelper(stateTrajectory_mtx_);
             state_.estimatedTrajectory.insert(
-                this_obs_tim, state_.current_pose);
+                this_obs_tim, state_.current_pose.mean);
         }
 
         MRPT_LOG_DEBUG_STREAM(
@@ -494,6 +493,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         // Create a new KF if the distance since the last one is large
         // enough:
         state_.accum_since_last_kf += incrPose;
+        state_.accum_since_last_simplemap_kf += incrPose;
 
         const double dist_eucl_since_last = state_.accum_since_last_kf.norm();
         const double rot_since_last =
@@ -509,15 +509,34 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         if (updateLocalMap)
             state_.accum_since_last_kf = mrpt::poses::CPose3D::Identity();
 
+        const double dist_eucl_since_last_sm =
+            state_.accum_since_last_simplemap_kf.norm();
+        const double rot_since_last_sm =
+            mrpt::poses::Lie::SO<3>::log(
+                state_.accum_since_last_simplemap_kf.getRotationMatrix())
+                .norm();
+
+        updateSimpleMap =
+            (icp_out.goodness > params_.min_icp_goodness &&
+             (dist_eucl_since_last_sm >
+                  params_.simplemap.min_dist_xyz_between_keyframes ||
+              rot_since_last_sm >
+                  params_.simplemap.min_rotation_between_keyframes));
+
+        if (updateSimpleMap)
+            state_.accum_since_last_simplemap_kf =
+                mrpt::poses::CPose3D::Identity();
+
         MRPT_LOG_DEBUG_FMT(
-            "Since last KF: dist=%5.03f m rotation=%.01f deg updateLocalMap=%s",
+            "Since last KF: dist=%5.03f m rotation=%.01f deg updateLocalMap=%s "
+            "updateSimpleMap=%s",
             dist_eucl_since_last, mrpt::RAD2DEG(rot_since_last),
-            updateLocalMap ? "YES" : "NO");
+            updateLocalMap ? "YES" : "NO", updateSimpleMap ? "YES" : "NO");
 
     }  // end: yes, we can do ICP
 
     // save for next iter:
-    state_.last_pose = state_.current_pose;
+    state_.last_pose = state_.current_pose.mean;
 
     // Should we create a new KF?
     if (updateLocalMap)
@@ -562,12 +581,27 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
                     "global layer '%s'",
                     layer.c_str(), lm.first.c_str());
 
-                lm.second->insertObservation(obsPc, state_.current_pose);
+                lm.second->insertObservation(obsPc, state_.current_pose.mean);
             }
         }
         tle3.stop();
 
-    }  // end done add a new KF
+    }  // end done add a new KF to local map
+
+    // Optional build simplemap:
+    if (updateSimpleMap)
+    {
+        auto lck = mrpt::lockHelper(stateSimpleMap_mtx_);
+
+        mrpt::obs::CSensoryFrame obsSF;
+        obsSF.insert(o);
+
+        state_.reconstructedMap.insert(
+            // Pose: mean + covariance
+            state_.current_pose,
+            // SensoryFrame: set of observations (only one)
+            obsSF);
+    }
 
     // In any case, publish to the SLAM BackEnd what's our **current**
     // vehicle pose, no matter if it's a keyframe or not:
@@ -578,7 +612,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         BackEndBase::AdvertiseUpdatedLocalization_Input new_loc;
         new_loc.timestamp = this_obs_tim;
         // new_loc.reference_kf = state_.last_kf;
-        new_loc.pose = state_.current_pose.asTPose();
+        new_loc.pose = state_.current_pose.mean.asTPose();
 
         std::future<void> adv_pose_fut =
             slam_backend_->advertiseUpdatedLocalization(new_loc);
@@ -624,9 +658,6 @@ void LidarInertialOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
             static_cast<unsigned int>(icp_result.nIterations),
             out.found_pose_to_wrt_from.getMeanVal().asString().c_str(),
             static_cast<unsigned int>(icp_result.terminationReason));
-
-        // Check quality of match:
-        MRPT_TODO("Impl. finite differences based Hessian check");
     }
 
     MRPT_END
@@ -679,4 +710,10 @@ mrpt::poses::CPose3DInterpolator LidarInertialOdometry::estimatedTrajectory()
 {
     auto lck = mrpt::lockHelper(stateTrajectory_mtx_);
     return state_.estimatedTrajectory;
+}
+
+mrpt::maps::CSimpleMap LidarInertialOdometry::reconstructedMap() const
+{
+    auto lck = mrpt::lockHelper(stateSimpleMap_mtx_);
+    return state_.reconstructedMap;
 }

@@ -33,7 +33,7 @@ matchers:
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
       threshold: 0.50           # m
-      thresholdAngularDeg: 1.0  # deg
+      thresholdAngularDeg: 0.0  # deg
       pairingsPerPoint: 1
       allowMatchAlreadyMatchedGlobalPoints: true # faster
       pointLayerMatches:

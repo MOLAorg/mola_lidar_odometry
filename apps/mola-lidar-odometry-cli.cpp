@@ -73,6 +73,11 @@ static TCLAP::ValueArg<std::string> arg_outPath(
     "docs)",
     false, "output-trajectory.txt", "output-trajectory.txt", cmd);
 
+static TCLAP::ValueArg<std::string> arg_outSimpleMap(
+    "", "output-simplemap",
+    "Enables building and saving the simplemap for the mapping session", false,
+    "output-map.simplemap", "output-map.simplemap", cmd);
+
 static TCLAP::ValueArg<int> arg_firstN(
     "", "only-first-n", "Run for the first N steps only (0=default, not used)",
     false, 0, "Number of dataset entries to run", cmd);
@@ -245,6 +250,8 @@ static int main_odometry()
     // system
     liodom.initialize(cfg);
 
+    if (arg_outSimpleMap.isSet()) liodom.params_.simplemap.generate = true;
+
     // Select dataset input:
     std::shared_ptr<OfflineDatasetSource> dataset;
 
@@ -317,13 +324,26 @@ static int main_odometry()
 
     if (arg_outPath.isSet())
     {
-        std::cout << "\nSaving estimated path in TUM format to: "
-                  << arg_outPath.getValue() << std::endl;
+        const auto fil = arg_outPath.getValue();
+        std::cout << "\nSaving estimated path in TUM format to: " << fil
+                  << std::endl;
 
         mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory =
             liodom.estimatedTrajectory();
 
-        lastEstimatedTrajectory.saveToTextFile_TUM(arg_outPath.getValue());
+        lastEstimatedTrajectory.saveToTextFile_TUM(fil);
+    }
+
+    if (arg_outSimpleMap.isSet())
+    {
+        const auto fil = arg_outSimpleMap.getValue();
+
+        auto sm = liodom.reconstructedMap();
+
+        std::cout << "\nSaving reconstructed map with " << sm.size()
+                  << " keyframes to: " << fil << std::endl;
+
+        sm.saveToFile(fil);
     }
 
     return 0;

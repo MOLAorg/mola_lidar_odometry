@@ -31,6 +31,7 @@
 #include <mp2p_icp_filters/FilterBase.h>
 #include <mp2p_icp_filters/Generator.h>
 #include <mrpt/core/WorkerThreadsPool.h>
+#include <mrpt/maps/CSimpleMap.h>
 #include <mrpt/poses/CPose3DInterpolator.h>
 #include <mrpt/serialization/CSerializable.h>
 
@@ -38,9 +39,7 @@
 
 namespace mola
 {
-/**
- *
- *
+/** LIDAR-inertial odometry based on ICP against a local metric map model.
  */
 class LidarInertialOdometry : public FrontEndBase
 {
@@ -82,43 +81,25 @@ class LidarInertialOdometry : public FrontEndBase
         /** Minimum time (seconds) between scans for being attempted to be
          * aligned. Scans faster than this rate will be just silently ignored.
          */
-        double min_time_between_scans{0.2};
+        double min_time_between_scans = 0.05;
 
         double max_time_to_use_velocity_model = 1.0;
 
         /** Minimum Euclidean distance (x,y,z) between keyframes inserted into
          * the map [meters]. */
-        double min_dist_xyz_between_keyframes{1.0};
+        double min_dist_xyz_between_keyframes = 1.0;
 
         /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether) between
          * keyframes inserted into
          * the map [rad here, degrees in the yaml file]. */
-        double min_rotation_between_keyframes{mrpt::DEG2RAD(30.0)};
+        double min_rotation_between_keyframes = mrpt::DEG2RAD(30.0);
 
         /** Minimum ICP "goodness" (in the range [0,1]) for a new KeyFrame to be
          * accepted during regular lidar odometry & mapping */
-        double min_icp_goodness{0.4};
-
-        /** Minimum ICP quality for a loop closure to be accepted */
-        double min_icp_goodness_lc{0.6};
+        double min_icp_goodness = 0.4;
 
         bool icp_profiler_enabled      = false;
         bool icp_profiler_full_history = false;
-
-        /** Size of the voxel filter [meters] */
-        unsigned int full_pointcloud_decimation{20};
-        double       voxel_filter_resolution{.5};
-        unsigned int voxel_filter_decimation{1};
-        float        voxel_filter_max_e2_e0{30.f}, voxel_filter_max_e1_e0{30.f};
-        float voxel_filter_min_e2_e0{100.f}, voxel_filter_min_e1_e0{100.f};
-
-        /** Distance range to check for additional SE(3) edges */
-        double       min_dist_to_matching{6.0};
-        double       max_dist_to_matching{12.0};
-        double       max_dist_to_loop_closure{30.0};
-        unsigned int loop_closure_montecarlo_samples{10};
-        unsigned int max_nearby_align_checks{2};
-        unsigned int min_topo_dist_to_consider_loopclosure{20};
 
         /** ICP parameters for the case of having, or not, a good velocity
          * model that works a good prior. Each entry in the vector is an
@@ -136,9 +117,22 @@ class LidarInertialOdometry : public FrontEndBase
 
         std::vector<std::string> observation_layers_to_merge_local_map;
 
-        /** Generate render visualization decoration for every N keyframes */
-        int   viz_decor_decimation{5};
-        float viz_decor_pointsize{2.0f};
+        // === SIMPLEMAP GENERATION ====
+        struct SimpleMapOptions
+        {
+            bool generate = false;
+
+            /** Minimum Euclidean distance (x,y,z) between keyframes inserted
+             * into the simplemap [meters]. */
+            double min_dist_xyz_between_keyframes = 1.0;
+
+            /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether)
+             * between keyframes inserted into
+             * the map [rad here, degrees in the yaml file]. */
+            double min_rotation_between_keyframes = mrpt::DEG2RAD(30.0);
+        };
+
+        SimpleMapOptions simplemap;
     };
 
     /** Algorithm parameters */
@@ -151,6 +145,11 @@ class LidarInertialOdometry : public FrontEndBase
      * Multi-thread safe to call.
      */
     mrpt::poses::CPose3DInterpolator estimatedTrajectory() const;
+
+    /** Returns a copy of the estimated simplemap.
+     * Multi-thread safe to call.
+     */
+    mrpt::maps::CSimpleMap reconstructedMap() const;
 
     /** @} */
 
@@ -187,18 +186,17 @@ class LidarInertialOdometry : public FrontEndBase
         std::optional<mrpt::Clock::time_point> last_obs_tim;
         std::optional<mrpt::math::TTwist3D>    last_iter_twist;
         std::optional<mrpt::poses::CPose3D>    last_pose;  //!< in local map
-        mrpt::poses::CPose3D                   current_pose;  //!< in local map
+        mrpt::poses::CPose3DPDFGaussian        current_pose;  //!< in local map
         mrpt::poses::CPose3D                   accum_since_last_kf;
+        mrpt::poses::CPose3D                   accum_since_last_simplemap_kf;
 
         mp2p_icp_filters::GeneratorSet   obs_generators;
         mp2p_icp_filters::FilterPipeline pc_filter;
-
-        mp2p_icp_filters::GeneratorSet local_map_generators;
-
-        mp2p_icp::metric_map_t::Ptr local_map =
-            mp2p_icp::metric_map_t::Create();
-
         mrpt::poses::CPose3DInterpolator estimatedTrajectory;
+        mrpt::maps::CSimpleMap           reconstructedMap;
+        mp2p_icp_filters::GeneratorSet   local_map_generators;
+        mp2p_icp::metric_map_t::Ptr      local_map =
+            mp2p_icp::metric_map_t::Create();
     };
 
     /** The worker thread pool with 1 thread for processing incomming scans */
@@ -215,6 +213,7 @@ class LidarInertialOdometry : public FrontEndBase
 
     mutable std::mutex is_busy_mtx_;
     mutable std::mutex stateTrajectory_mtx_;
+    mutable std::mutex stateSimpleMap_mtx_;
 
     void onLidar(const CObservation::Ptr& o);
     void onLidarImpl(const CObservation::Ptr& o);
