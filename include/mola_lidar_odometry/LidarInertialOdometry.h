@@ -115,7 +115,8 @@ class LidarInertialOdometry : public FrontEndBase
 
         mola::RotationIntegrationParams imu_params;
 
-        std::vector<std::string> observation_layers_to_merge_local_map;
+        std::vector<std::pair<mp2p_icp::layer_name_t, mp2p_icp::layer_name_t>>
+            observation_layers_to_merge_local_map;
 
         // === SIMPLEMAP GENERATION ====
         struct SimpleMapOptions

@@ -93,25 +93,26 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     }
     ASSERT_(!params_.lidar_sensor_labels.empty());
 
-    if (cfg["observation_layers_to_merge_local_map"].isSequence())
+    ASSERT_(cfg["observation_layers_to_merge_local_map"].isSequence());
+
+    for (const auto& sl :
+         cfg["observation_layers_to_merge_local_map"].asSequence())
     {
-        for (const auto& sl :
-             cfg["observation_layers_to_merge_local_map"].asSequence())
-        {
-            const auto s = sl.as<std::string>();
-            MRPT_LOG_DEBUG_STREAM(
-                "Adding as observation_layers_to_merge_local_map: " << s);
-            params_.observation_layers_to_merge_local_map.emplace_back(s);
-        }
-    }
-    else
-    {
-        ASSERT_(cfg["observation_layers_to_merge_local_map"].isScalar());
-        const auto s =
-            cfg["observation_layers_to_merge_local_map"].as<std::string>();
+        ASSERTMSG_(
+            sl.isMap(),
+            "Each entry in 'observation_layers_to_merge_local_map' must be a "
+            "dictionary/map with values 'from_obs' and 'from_obs' with layer "
+            "names");
+
+        const auto sFrom = sl.asMap().at("from_obs").as<std::string>();
+        const auto sInto = sl.asMap().at("into_map").as<std::string>();
+
         MRPT_LOG_DEBUG_STREAM(
-            "Adding as observation_layers_to_merge_local_map: " << s);
-        params_.observation_layers_to_merge_local_map.emplace_back(s);
+            "Adding as observation_layers_to_merge_local_map: from_obs="
+            << sFrom << " => into_map=" << sInto);
+
+        params_.observation_layers_to_merge_local_map.emplace_back(
+            sFrom, sInto);
     }
     ASSERT_(!params_.observation_layers_to_merge_local_map.empty());
 
@@ -334,14 +335,13 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     }
 
     // Extract points from observation:
-    auto this_obs_points = mp2p_icp::metric_map_t::Create();
-    mp2p_icp_filters::apply_generators(
-        state_.obs_generators, *o, *this_obs_points);
+    auto observation = mp2p_icp::metric_map_t::Create();
+    mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *observation);
 
     // Filter/segment the point cloud (optional, but normally will be present):
     ProfilerEntry tle1(profiler_, "onLidar.1.filter_pointclouds");
 
-    mp2p_icp_filters::apply_filter_pipeline(state_.pc_filter, *this_obs_points);
+    mp2p_icp_filters::apply_filter_pipeline(state_.pc_filter, *observation);
 
     tle1.stop();
 
@@ -353,7 +353,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
     profiler_.leave("onLidar.2.copy_vars");
 
-    if (this_obs_points->empty())
+    if (observation->empty())
     {
         MRPT_LOG_WARN_STREAM(
             "Observation of type `" << o->GetRuntimeClass()->className
@@ -428,7 +428,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             hasMotionModel = true;
         }
 
-        icp_in.local_pc  = this_obs_points;
+        icp_in.local_pc  = observation;
         icp_in.global_pc = state_.local_map;
         icp_in.debug_str = "lidar_odom";
 
@@ -556,33 +556,47 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         ProfilerEntry tle3(profiler_, "onLidar.4.update_local_map.insert");
 
         // Merge "observation_layers_to_merge_local_map" in local map:
-        for (const auto& layer : params_.observation_layers_to_merge_local_map)
+        for (const auto& [lyObs, lyMap] :
+             params_.observation_layers_to_merge_local_map)
         {
+            auto itObs = observation->layers.find(lyObs);
             ASSERTMSG_(
-                this_obs_points->layers.count(layer) != 0,
+                itObs != observation->layers.end(),
                 mrpt::format(
                     "Error inserting LIDAR observation into local map: "
-                    "expected a metric_map_t layer named '%s', but it was "
-                    "not found, actual contents: %s",
-                    layer.c_str(),
-                    this_obs_points->contents_summary().c_str()));
+                    "expected a metric_map_t layer named '%s' in the "
+                    "observation, but it was not found. Actual contents: %s",
+                    lyObs.c_str(), observation->contents_summary().c_str()));
+
+            auto itLocalMap = state_.local_map->layers.find(lyMap);
+            ASSERTMSG_(
+                itLocalMap != state_.local_map->layers.end(),
+                mrpt::format(
+                    "Error inserting LIDAR observation into local map: "
+                    "expected a metric_map_t layer named '%s' in the local "
+                    "map, but it was "
+                    "not found. Actual contents: %s",
+                    lyMap.c_str(),
+                    state_.local_map->contents_summary().c_str()));
 
             mrpt::obs::CObservationPointCloud obsPc;
             obsPc.timestamp = o->timestamp;
             obsPc.pointcloud =
                 std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(
-                    this_obs_points->layers.at(layer));
-            ASSERT_(obsPc.pointcloud);
+                    itObs->second);
+            ASSERTMSG_(
+                obsPc.pointcloud,
+                "Only observation layers of classes derived from "
+                "mrpt::maps::CPointsMap can be used to be inserted into the "
+                "local map");
 
-            for (auto& lm : state_.local_map->layers)
-            {
-                MRPT_LOG_DEBUG_FMT(
-                    "UpdateLocalMap: Inserting local layer '%s' into "
-                    "global layer '%s'",
-                    layer.c_str(), lm.first.c_str());
+            MRPT_LOG_DEBUG_FMT(
+                "UpdateLocalMap: Inserting observation layer '%s' into "
+                "local map layer '%s'",
+                lyObs.c_str(), lyMap.c_str());
 
-                lm.second->insertObservation(obsPc, state_.current_pose.mean);
-            }
+            itLocalMap->second->insertObservation(
+                obsPc, state_.current_pose.mean);
         }
         tle3.stop();
 
