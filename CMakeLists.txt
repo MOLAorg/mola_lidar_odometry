@@ -72,6 +72,20 @@ else()
 message("mola-lidar-odometry-cli: With Kitti = NO")
 endif()
 
+if (mola_input_kitti_dataset_FOUND)
+find_package(GTSAM REQUIRED)
+mola_add_executable(
+	TARGET  mola-lidar-odometry-graph-cli
+	SOURCES apps/mola-lidar-odometry-graph-cli.cpp
+	LINK_LIBRARIES
+		${PROJECT_NAME}
+		mrpt::maps
+		mrpt::tclap
+		gtsam
+		mola_input_kitti_dataset
+)
+endif()
+
 # -----------------------
 # define tests:
 enable_testing()
