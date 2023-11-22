@@ -76,8 +76,8 @@ modules:
       localmap_generator: $include{../params/localmap_generator.yaml}
       # - Rest of observations: use these *pointcloud* layers of the observation 
       #   metric_map_t and *insert* them into the local map:
-      observation_layers_to_merge_local_map: 'decimated'
-
+      observation_layers_to_merge_local_map:
+        - {from_obs: 'decimated_for_map_insert_finer', into_map: 'localmap'}
 
     # $ include{../params/config-lidar-inertial-odometry.yaml}
 

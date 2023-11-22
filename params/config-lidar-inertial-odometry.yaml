@@ -20,7 +20,7 @@ params:
   imu_sensor_label: 'imu'
   
   # How often to update the local map model:
-  min_dist_xyz_between_keyframes: 1.0  # [m]
+  min_dist_xyz_between_keyframes: 0.1  # [m]
   min_rotation_between_keyframes: 15.0  # [deg]
   
   icp_settings_with_vel: $include{./icp_odom_params.yaml}
@@ -37,7 +37,6 @@ params:
   #   metric_map_t and *insert* them into the local map:
   observation_layers_to_merge_local_map:
    - {from_obs: 'decimated_for_map_insert_finer', into_map: 'localmap'}
-#    - {from_obs: 'decimated_for_map_insert_coarser', into_map: 'localmap'}
   
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
