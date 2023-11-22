@@ -23,7 +23,7 @@ solvers:
     params:
       maxIterations: 2
       robustKernel: 'RobustKernel::GemanMcClure'
-      robustKernelParam: 0.05
+      robustKernelParam: 0.10
       #innerLoopVerbose: true
 
 
@@ -39,18 +39,17 @@ matchers:
       minimumPlanePoints: 10
       planeEigenThreshold: 1e-3
       pointLayerMatches:
-        - {global: "localmap", local: "decimated_for_icp_coarser", weight: 1.0}
+        - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
 
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
       enabled: true
-      threshold: 1.00           # m
-      thresholdAngularDeg: 0  # deg
-      pairingsPerPoint: 3
+      threshold: 0.5           # m
+      thresholdAngularDeg: 1  # deg
+      pairingsPerPoint: 1
       allowMatchAlreadyMatchedGlobalPoints: true # faster
       pointLayerMatches:
-        - {global: "localmap", local: "decimated_for_icp_finer", weight: 1.0}
-#        - {global: "localmap", local: "decimated_for_icp_coarser", weight: 1.0}
+        - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
 
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio
@@ -59,5 +58,5 @@ quality:
      threshold: 0.75 # ignored when 'reuse_icp_pairings'==true
      thresholdAngularDeg: 0
      pointLayerMatches:
-       - {global: "localmap", local: "decimated_for_icp_coarser", weight: 1.0}
+       - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
 
