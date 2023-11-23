@@ -253,6 +253,11 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
     if (params_.imu_sensor_label &&
         std::regex_match(o->sensorLabel, params_.imu_sensor_label.value()))
     {
+        {
+            auto lck        = mrpt::lockHelper(is_busy_mtx_);
+            state_.busy_imu = true;
+        }
+
         // Yes, it's an IMU obs:
         auto fut = worker_imu_.enqueue(&LidarInertialOdometry::onIMU, this, o);
         (void)fut;
@@ -276,6 +281,11 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
         }
         profiler_.enter("delay_onNewObs_to_process");
 
+        {
+            auto lck          = mrpt::lockHelper(is_busy_mtx_);
+            state_.busy_lidar = true;
+        }
+
         // Enqueue task:
         auto fut =
             worker_lidar_.enqueue(&LidarInertialOdometry::onLidar, this, o);
@@ -290,10 +300,6 @@ void LidarInertialOdometry::onLidar(const CObservation::Ptr& o)
 {
     // All methods that are enqueued into a thread pool should have its own
     // top-level try-catch:
-    {
-        auto lck          = mrpt::lockHelper(is_busy_mtx_);
-        state_.busy_lidar = true;
-    }
     try
     {
         onLidarImpl(o);
@@ -681,10 +687,6 @@ void LidarInertialOdometry::onIMU(const CObservation::Ptr& o)
 {
     // All methods that are enqueued into a thread pool should have its own
     // top-level try-catch:
-    {
-        auto lck        = mrpt::lockHelper(is_busy_mtx_);
-        state_.busy_imu = true;
-    }
     try
     {
         onIMUImpl(o);
