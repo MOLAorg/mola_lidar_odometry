@@ -20,16 +20,25 @@
   params:
     input_pointcloud_layer: 'filtered'
     output_pointcloud_layer: 'decimated_for_map_insert_finer'
-    voxel_filter_resolution: 0.25  # [m]
+    voxel_filter_resolution: 0.50  # [m]
     use_voxel_average: false
     use_closest_to_voxel_average: false
     use_random_point_within_voxel: false # => First point in voxel
+
+- class_name: mp2p_icp_filters::FilterDecimateAdaptive
+  params:
+    enabled: false
+    input_pointcloud_layer: 'filtered'
+    output_pointcloud_layer: 'decimated_for_icp'
+    desired_output_point_count: 5000
+    minimum_input_points_per_voxel: 2
+    maximum_voxel_count_per_dimension: 100
 
 - class_name: mp2p_icp_filters::FilterDecimateVoxels
   params:
     input_pointcloud_layer: 'filtered'
     output_pointcloud_layer: 'decimated_for_icp'
-    voxel_filter_resolution: 1.0  # [m]
+    voxel_filter_resolution: 1.5  # [m]
     use_voxel_average: false
     use_closest_to_voxel_average: true
     use_random_point_within_voxel: false  # => First point in voxel
