@@ -342,7 +342,12 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
     // Extract points from observation:
     auto observation = mp2p_icp::metric_map_t::Create();
+
+    ProfilerEntry tle0(profiler_, "onLidar.0.apply_generators");
+
     mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *observation);
+
+    tle0.stop();
 
     // Filter/segment the point cloud (optional, but normally will be present):
     ProfilerEntry tle1(profiler_, "onLidar.1.filter_pointclouds");

@@ -55,6 +55,7 @@ mola_add_library(
 # CLI apps
 # ---------------------------------
 find_package(mola_input_kitti_dataset) # optional
+find_package(mola_input_rawlog) # optional
 
 mola_add_executable(
 	TARGET  mola-lidar-odometry-cli
@@ -71,6 +72,15 @@ target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_KITTI
 else()
 message("mola-lidar-odometry-cli: With Kitti = NO")
 endif()
+
+if (mola_input_rawlog_FOUND)
+message("mola-lidar-odometry-cli: With Rawlog = YES")
+target_link_libraries(mola-lidar-odometry-cli mola_input_rawlog)
+target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_RAWLOG)
+else()
+message("mola-lidar-odometry-cli: With Rawlog = NO")
+endif()
+
 
 # -----------------------
 # define tests:

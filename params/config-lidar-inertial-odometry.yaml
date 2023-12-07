@@ -10,7 +10,7 @@ params:
   min_time_between_scans: 0 # 0.2  # [seconds]
 
   # LIDAR observations are, first, loaded using a generator:
-  observations_generator: ~
+  observations_generator: $include{./observations_generator.yaml}
   
   # then, optionally, filtered before being registered with ICP
   # against the local map:
@@ -41,8 +41,8 @@ params:
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
   simplemap.generate: false # Can be overriden with CLI flag --output-simplemap
-  simplemap.min_dist_xyz_between_keyframes: 5.0   # m
-  simplemap.min_rotation_between_keyframes: 30.0  # deg
+  simplemap.min_dist_xyz_between_keyframes: 0.05   # m
+  simplemap.min_rotation_between_keyframes: 3.0  # deg
 
   # To profile the internal steps of the ICP implementation:
   icp_profiler_enabled: true

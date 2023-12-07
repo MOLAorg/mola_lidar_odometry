@@ -26,14 +26,18 @@
  * @date   Sep 22, 2023
  */
 
+#include <mola_kernel/interfaces/OfflineDatasetSource.h>
 #include <mola_kernel/pretty_print_exception.h>
 #include <mola_lidar_odometry/LidarInertialOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/3rdparty/tclap/CmdLine.h>
 #include <mrpt/core/Clock.h>
 #include <mrpt/core/exceptions.h>
-#include <mrpt/io/lazy_load_path.h>
+#include <mrpt/obs/CObservation2DRangeScan.h>
+#include <mrpt/obs/CObservation3DRangeScan.h>
 #include <mrpt/obs/CObservationPointCloud.h>
+#include <mrpt/obs/CObservationRotatingScan.h>
+#include <mrpt/obs/CObservationVelodyneScan.h>
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/rtti/CObject.h>
 #include <mrpt/system/COutputLogger.h>
@@ -44,6 +48,10 @@
 
 #if defined(HAVE_MOLA_INPUT_KITTI)
 #include <mola_input_kitti_dataset/KittiOdometryDataset.h>
+#endif
+
+#if defined(HAVE_MOLA_INPUT_RAWLOG)
+#include <mola_input_rawlog/RawlogDataset.h>
 #endif
 
 #include <csignal>  // sigaction
@@ -84,10 +92,12 @@ static TCLAP::ValueArg<int> arg_firstN(
 
 // Input dataset can come from one of these:
 // --------------------------------------------
+#if defined(HAVE_MOLA_INPUT_RAWLOG)
 static TCLAP::ValueArg<std::string> argRawlog(
     "", "input-rawlog",
     "INPUT DATASET: rawlog. Input dataset in rawlog format (*.rawlog)", false,
     "dataset.rawlog", "dataset.rawlog", cmd);
+#endif
 
 #if defined(HAVE_MOLA_INPUT_KITTI)
 static TCLAP::ValueArg<std::string> argKittiSeq(
@@ -100,109 +110,63 @@ static TCLAP::ValueArg<double> argKittiAngleDeg(
     "0.205 [degrees]", cmd);
 #endif
 
-class OfflineDatasetSource
+#if defined(HAVE_MOLA_INPUT_RAWLOG)
+std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rawlog(
+    const std::string& rawlogFile)
 {
-   public:
-    OfflineDatasetSource()          = default;
-    virtual ~OfflineDatasetSource() = default;
+    auto o = std::make_shared<mola::RawlogDataset>();
 
-    virtual size_t size() const = 0;
+    const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+        R""""(
+    params:
+      rawlog_filename: '%s'
+      read_all_first: true
+)"""",
+        rawlogFile.c_str())));
 
-    virtual mrpt::obs::CObservation::Ptr getObservation(size_t index) const = 0;
-};
+    o->initialize(cfg);
 
-class RawlogSource : public OfflineDatasetSource
-{
-   public:
-    RawlogSource()          = default;
-    virtual ~RawlogSource() = default;
-
-    void init(const std::string& rawlogFile)
-    {
-        // Load dataset:
-        std::cout << "Loading dataset: " << rawlogFile << std::endl;
-
-        const auto imgsDir =
-            mrpt::obs::CRawlog::detectImagesDirectory(rawlogFile);
-        if (mrpt::system::directoryExists(imgsDir))
-        {
-            mrpt::io::setLazyLoadPathBase(imgsDir);
-            std::cout << "Setting rawlog external directory to: " << imgsDir
-                      << std::endl;
-        }
-
-        dataset_.loadFromRawLogFile(rawlogFile);
-        std::cout << "Dataset loaded (" << dataset_.size() << " entries)."
-                  << std::endl;
-    }
-
-    size_t size() const override { return dataset_.size(); }
-
-    mrpt::obs::CObservation::Ptr getObservation(size_t index) const override
-    {
-        const mrpt::serialization::CSerializable::Ptr obj =
-            dataset_.getAsGeneric(index);
-        const auto obs =
-            std::dynamic_pointer_cast<mrpt::obs::CObservation>(obj);
-        return obs;
-    }
-
-   private:
-    mrpt::obs::CRawlog dataset_;
-};
+    return o;
+}
+#endif
 
 #if defined(HAVE_MOLA_INPUT_KITTI)
-class KittiSource : public OfflineDatasetSource
+std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
+    const std::string& kittiSeqNumber)
 {
-   public:
-    KittiSource()          = default;
-    virtual ~KittiSource() = default;
+    auto o = std::make_shared<mola::KittiOdometryDataset>();
 
-    void init(const std::string& kittiSeqNumber)
-    {
-        const auto kittiCfg =
-            mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-                R""""(
+    const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+        R""""(
     params:
       base_dir: ${KITTI_BASE_DIR}
       sequence: '%s'
       time_warp_scale: 1.0
+      clouds_as_organized_points: true
       publish_lidar: true
-      publish_image_0: true
-      publish_image_1: true
+      publish_image_0: false
+      publish_image_1: false
       publish_ground_truth: true
 )"""",
-                kittiSeqNumber.c_str())));
+        kittiSeqNumber.c_str())));
 
-        kittiDataset_.initialize(kittiCfg);
+    o->initialize(cfg);
 
-        if (argKittiAngleDeg.isSet())
-            kittiDataset_.VERTICAL_ANGLE_OFFSET =
-                mrpt::DEG2RAD(argKittiAngleDeg.getValue());
+    if (argKittiAngleDeg.isSet())
+        o->VERTICAL_ANGLE_OFFSET = mrpt::DEG2RAD(argKittiAngleDeg.getValue());
 
-        // Save GT, if available:
-        if (arg_outPath.isSet() && kittiDataset_.hasGroundTruthTrajectory())
-        {
-            const auto& gtPath = kittiDataset_.getGroundTruthTrajectory();
-
-            gtPath.saveToTextFile_TUM(
-                mrpt::system::fileNameChangeExtension(
-                    arg_outPath.getValue(), "") +
-                std::string("_gt.txt"));
-        }
-    }
-
-    size_t size() const override { return kittiDataset_.getTimestepCount(); }
-
-    mrpt::obs::CObservation::Ptr getObservation(size_t index) const override
+    // Save GT, if available:
+    if (arg_outPath.isSet() && o->hasGroundTruthTrajectory())
     {
-        return kittiDataset_.getPointCloud(index);
+        const auto& gtPath = o->getGroundTruthTrajectory();
+
+        gtPath.saveToTextFile_TUM(
+            mrpt::system::fileNameChangeExtension(arg_outPath.getValue(), "") +
+            std::string("_gt.txt"));
     }
 
-   private:
-    mutable mola::KittiOdometryDataset kittiDataset_;
-};
-
+    return o;
+}
 #endif
 
 void mola_signal_handler(int s);
@@ -253,21 +217,18 @@ static int main_odometry()
     if (arg_outSimpleMap.isSet()) liodom.params_.simplemap.generate = true;
 
     // Select dataset input:
-    std::shared_ptr<OfflineDatasetSource> dataset;
+    std::shared_ptr<mola::OfflineDatasetSource> dataset;
 
+#if defined(HAVE_MOLA_INPUT_RAWLOG)
     if (argRawlog.isSet())
     {
-        auto ds = std::make_shared<RawlogSource>();
-        ds->init(argRawlog.getValue());
-
-        dataset = ds;
+        dataset = dataset_from_rawlog(argRawlog.getValue());
     }
+#endif
 #if defined(HAVE_MOLA_INPUT_KITTI)
     else if (argKittiSeq.isSet())
     {
-        auto ds = std::make_shared<KittiSource>();
-        ds->init(argKittiSeq.getValue());
-        dataset = ds;
+        dataset = dataset_from_kitti(argKittiSeq.getValue());
     }
 #endif
     else
@@ -280,7 +241,7 @@ static int main_odometry()
 
     const double tStart = mrpt::Clock::nowDouble();
 
-    size_t nDatasetEntriesToRun = dataset->size();
+    size_t nDatasetEntriesToRun = dataset->datasetSize();
     if (arg_firstN.isSet()) nDatasetEntriesToRun = arg_firstN.getValue();
 
     std::cout << "\n";  // Needed for the VT100 codes below.
@@ -288,16 +249,30 @@ static int main_odometry()
     // Run:
     for (size_t i = 0; i < nDatasetEntriesToRun; i++)
     {
-        const auto obs = dataset->getObservation(i);
+        // Get observations from the dataset:
+        using namespace mrpt::obs;
+
+        const auto sf = dataset->datasetGetObservations(i);
+        ASSERT_(!sf->empty());
+
+        CObservation::Ptr obs;
+        obs = sf->getObservationByClass<CObservationRotatingScan>();
+        if (!obs) obs = sf->getObservationByClass<CObservationPointCloud>();
+        if (!obs) obs = sf->getObservationByClass<CObservation3DRangeScan>();
+        if (!obs) obs = sf->getObservationByClass<CObservation2DRangeScan>();
+        if (!obs) obs = sf->getObservationByClass<CObservationVelodyneScan>();
+
         if (!obs) continue;
 
+        // Send it to the odometry pipeline:
         liodom.onNewObservation(obs);
 
+        // Show stats:
         static int cnt = 0;
         if (cnt++ % 20 == 0)
         {
             cnt             = 0;
-            const size_t N  = (dataset->size() - 1);
+            const size_t N  = (dataset->datasetSize() - 1);
             const double pc = (1.0 * i) / N;
 
             const double tNow = mrpt::Clock::nowDouble();
@@ -318,8 +293,6 @@ static int main_odometry()
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-
-        // save trajectory, in case the user CTRL+C at some point before the end
     }
 
     if (arg_outPath.isSet())
