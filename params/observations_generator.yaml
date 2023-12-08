@@ -4,14 +4,14 @@
 # and with the given parameters. Filters are run in definition order on the
 # incoming raw CObservation objects.
 #
-- class_name: mp2p_icp_filters::GeneratorEdgesFromCurvature
-  params:
-    target_layer: 'edges'
-    max_cosine: 0.2
-    min_point_clearance: 0.10
-    throw_on_unhandled_observation_class: true
-    process_class_names_regex: '.*'
-    process_sensor_labels_regex: '.*'
+#- class_name: mp2p_icp_filters::GeneratorEdgesFromCurvature
+#  params:
+#    target_layer: 'edges'
+#    max_cosine: 0.2
+#    min_point_clearance: 0.10
+#    throw_on_unhandled_observation_class: true
+#    process_class_names_regex: '.*'
+#    process_sensor_labels_regex: '.*'
 
 - class_name: mp2p_icp_filters::Generator
   params:

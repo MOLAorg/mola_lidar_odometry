@@ -41,7 +41,7 @@ params:
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
   simplemap.generate: false # Can be overriden with CLI flag --output-simplemap
-  simplemap.min_dist_xyz_between_keyframes: 0.05   # m
+  simplemap.min_dist_xyz_between_keyframes: 0.5   # m
   simplemap.min_rotation_between_keyframes: 3.0  # deg
 
   # To profile the internal steps of the ICP implementation:

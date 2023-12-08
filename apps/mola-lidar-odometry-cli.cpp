@@ -142,7 +142,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
       base_dir: ${KITTI_BASE_DIR}
       sequence: '%s'
       time_warp_scale: 1.0
-      clouds_as_organized_points: true
+      clouds_as_organized_points: false
       publish_lidar: true
       publish_image_0: false
       publish_image_1: false
@@ -224,14 +224,15 @@ static int main_odometry()
     {
         dataset = dataset_from_rawlog(argRawlog.getValue());
     }
+    else
 #endif
 #if defined(HAVE_MOLA_INPUT_KITTI)
-    else if (argKittiSeq.isSet())
+        if (argKittiSeq.isSet())
     {
         dataset = dataset_from_kitti(argKittiSeq.getValue());
     }
-#endif
     else
+#endif
     {
         THROW_EXCEPTION(
             "At least one of the dataset input CLI flags must be defined. "

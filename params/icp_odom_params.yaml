@@ -10,7 +10,7 @@ class_name: mp2p_icp::ICP
 params:
   maxIterations: 300
   minAbsStep_trans: 1e-4
-  minAbsStep_rot: 5e-5
+  minAbsStep_rot: 1e-5
 
   #debugPrintIterationProgress: true  # Print progress
   generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
@@ -22,7 +22,7 @@ solvers:
     params:
       maxIterations: 2
       robustKernel: 'RobustKernel::GemanMcClure'
-      robustKernelParam: 0.04
+      robustKernelParam: 0.05
       #innerLoopVerbose: true
 
 
@@ -43,9 +43,9 @@ matchers:
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
       enabled: true
-      threshold: 0.50           # m
+      threshold: 0.30           # m
       thresholdAngularDeg: 0.1  # deg
-      pairingsPerPoint: 3
+      pairingsPerPoint: 2
       allowMatchAlreadyMatchedGlobalPoints: true # faster
       pointLayerMatches:
         - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
