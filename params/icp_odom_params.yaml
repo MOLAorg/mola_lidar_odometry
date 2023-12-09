@@ -22,7 +22,7 @@ solvers:
     params:
       maxIterations: 2
       robustKernel: 'RobustKernel::GemanMcClure'
-      robustKernelParam: 0.09
+      robustKernelParam: 0.15
       #innerLoopVerbose: true
 
 
@@ -32,8 +32,8 @@ matchers:
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
       enabled: true
-      threshold: 0.80           # m
-      thresholdAngularDeg: 0.1  # deg
+      threshold: 1.00           # m
+      thresholdAngularDeg: 0  # deg
       pairingsPerPoint: 1
       allowMatchAlreadyMatchedGlobalPoints: true # faster
       pointLayerMatches:
