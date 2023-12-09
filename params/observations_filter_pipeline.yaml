@@ -13,25 +13,28 @@
     input_pointcloud_layer: 'raw'
     output_pointcloud_layer: 'filtered'
     keep_between: true # Remove points out of this range limits
-    range_min: 4.0
-    range_max: 120.0
+    range_min: 5.0
+    range_max: 100.0
 
 - class_name: mp2p_icp_filters::FilterDecimateVoxels
   params:
     input_pointcloud_layer: 'filtered'
     output_pointcloud_layer: 'decimated_for_map_insert_finer'
-    voxel_filter_resolution: 0.50  # [m]
+    voxel_filter_resolution: 0.5  # [m]
 
-- class_name: mp2p_icp_filters::FilterDecimateAdaptive
+- class_name: mp2p_icp_filters::FilterDecimateVoxels
   params:
     input_pointcloud_layer: 'filtered'
+    output_pointcloud_layer: 'decimated_coarser'
+    voxel_filter_resolution: 1.5  # [m]
+
+- class_name: mp2p_icp_filters::FilterDecimateVoxels
+  params:
+    input_pointcloud_layer: ['edges', 'decimated_coarser']
     output_pointcloud_layer: 'decimated_for_icp'
-    desired_output_point_count: 2000
-    # These are used to automatically estimate the voxel size:
-    maximum_voxel_count_per_dimension: 150
-    #assumed_minimum_pointcloud_bbox: 10.0 # [m]
+    voxel_filter_resolution: 0.25  # [m]
 
 # Remove layers to save memory and log file storage
 - class_name: mp2p_icp_filters::FilterDeleteLayer
   params:
-    pointcloud_layer_to_remove: ['raw', 'filtered']
+    pointcloud_layer_to_remove: ['raw', 'filtered', 'decimated_coarser']

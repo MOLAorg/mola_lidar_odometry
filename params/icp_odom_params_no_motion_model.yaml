@@ -41,8 +41,11 @@ matchers:
     params:
       threshold: 4.00           # m
       thresholdAngularDeg: 0.25  # deg
-      pairingsPerPoint: 3
+      pairingsPerPoint: 1
       allowMatchAlreadyMatchedGlobalPoints: true # faster
+      #enabled: false
+      runFromIteration: 0  # "from 0 to 0" means "all"
+      #runUpToIteration: 4
       pointLayerMatches:
         - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
 
