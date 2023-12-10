@@ -26,6 +26,7 @@
 
 #include <mola_lidar_odometry/LidarInertialOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
+#include <mp2p_icp/Solver_GaussNewton.h>
 #include <mp2p_icp/icp_pipeline_from_yaml.h>
 #include <mrpt/config/CConfigFileMemory.h>
 #include <mrpt/containers/yaml.h>
@@ -64,6 +65,14 @@ static void load_icp_set_of_params(
 
     out.icp           = icp;
     out.icpParameters = params;
+}
+
+void LidarInertialOdometry::Parameters::AdaptiveThreshold::initialize(
+    const Yaml& cfg)
+{
+    YAML_LOAD_REQ(enabled, bool);
+    YAML_LOAD_OPT(initial_threshold, double);
+    YAML_LOAD_OPT(min_motion, double);
 }
 
 void LidarInertialOdometry::initialize(const Yaml& c)
@@ -128,6 +137,8 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     YAML_LOAD_OPT(params_, min_time_between_scans, double);
     YAML_LOAD_OPT(params_, max_time_to_use_velocity_model, double);
     YAML_LOAD_OPT(params_, min_icp_goodness, double);
+
+    params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
 
     YAML_LOAD_OPT(params_, icp_profiler_enabled, bool);
     YAML_LOAD_OPT(params_, icp_profiler_full_history, bool);
@@ -501,6 +512,39 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         MRPT_LOG_DEBUG_STREAM(
             "Time since last scan=" << mrpt::system::formatTimeInterval(dt));
 
+        // KISS-ICP adaptive threshold method:
+        if (params_.adaptive_threshold.enabled)
+        {
+            const mrpt::poses::CPose3D motionModelError =
+                icp_out.found_pose_to_wrt_from.mean -
+                mrpt::poses::CPose3D(icp_in.init_guess_local_wrt_global);
+
+            const double sigma  = doUpdateAdaptiveThreshold(motionModelError);
+            const double th     = 3.0 * sigma;
+            const double kernel = sigma / 3.0;
+
+            // modify params:
+            auto& icp = params_.icp.at(AlignKind::LidarOdometry);
+
+            auto matcher = std::dynamic_pointer_cast<
+                mp2p_icp::Matcher_Points_DistanceThreshold>(
+                icp.icp->matchers().at(0));
+            ASSERT_(matcher);
+
+            matcher->threshold = th;
+
+            auto solver =
+                std::dynamic_pointer_cast<mp2p_icp::Solver_GaussNewton>(
+                    icp.icp->solvers().at(0));
+            ASSERT_(solver);
+            solver->robustKernelParam = kernel;
+
+            MRPT_LOG_DEBUG_STREAM(
+                "Adaptive threshold: th=" << th << " kernel=" << kernel
+                                          << " motionModelError="
+                                          << motionModelError.asString());
+        }  // end adaptive threshold
+
         // Create a new KF if the distance since the last one is large
         // enough:
         state_.accum_since_last_kf += incrPose;
@@ -737,4 +781,39 @@ mrpt::maps::CSimpleMap LidarInertialOdometry::reconstructedMap() const
 {
     auto lck = mrpt::lockHelper(stateSimpleMap_mtx_);
     return state_.reconstructedMap;
+}
+
+// KISS-ICP adaptive threshold method (MIT License; code adapted to MRPT)
+namespace
+{
+double computeModelError(
+    const mrpt::poses::CPose3D& model_deviation, double max_range)
+{
+    const double theta =
+        mrpt::poses::Lie::SO<3>::log(model_deviation.getRotationMatrix())
+            .norm();
+    const double delta_rot   = 2.0 * max_range * std::sin(theta / 2.0);
+    const double delta_trans = model_deviation.translation().norm();
+    return delta_trans + delta_rot;
+}
+}  // namespace
+
+double LidarInertialOdometry::doUpdateAdaptiveThreshold(
+    const mrpt::poses::CPose3D& lastMotionModelError)
+{
+    const double max_range = 90.0;
+
+    double model_error = computeModelError(lastMotionModelError, max_range);
+
+    if (model_error > params_.adaptive_threshold.min_motion)
+    {
+        state_.adapt_thres_sse2 += mrpt::square(model_error);
+        state_.adapt_thres_num_samples++;
+    }
+
+    if (state_.adapt_thres_num_samples < 1)
+    {
+        return params_.adaptive_threshold.initial_threshold;
+    }
+    return std::sqrt(state_.adapt_thres_sse2 / state_.adapt_thres_num_samples);
 }

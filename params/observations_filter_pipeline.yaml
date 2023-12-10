@@ -26,7 +26,7 @@
   params:
     input_pointcloud_layer: 'filtered'
     output_pointcloud_layer: 'decimated_coarser'
-    voxel_filter_resolution: 1.5  # [m]
+    voxel_filter_resolution: 1.0  # [m]
     use_closest_to_voxel_average: true
 
 - class_name: mp2p_icp_filters::FilterDecimateVoxels

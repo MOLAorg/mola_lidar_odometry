@@ -101,6 +101,17 @@ class LidarInertialOdometry : public FrontEndBase
         bool icp_profiler_enabled      = false;
         bool icp_profiler_full_history = false;
 
+        // KISS-ICP adaptive threshold method:
+        struct AdaptiveThreshold
+        {
+            bool   enabled           = true;
+            double initial_threshold = 5.0;
+            double min_motion        = 0.10;
+
+            void initialize(const Yaml& c);
+        };
+        AdaptiveThreshold adaptive_threshold;
+
         /** ICP parameters for the case of having, or not, a good velocity
          * model that works a good prior. Each entry in the vector is an
          * "ICP stage", to be run as a sequence of coarser to finer detail
@@ -191,6 +202,10 @@ class LidarInertialOdometry : public FrontEndBase
         mrpt::poses::CPose3D                   accum_since_last_kf;
         mrpt::poses::CPose3D                   accum_since_last_simplemap_kf;
 
+        // KISS-ICP adaptive threshold method:
+        double   adapt_thres_sse2        = 0;
+        uint32_t adapt_thres_num_samples = 0;
+
         mp2p_icp_filters::GeneratorSet   obs_generators;
         mp2p_icp_filters::FilterPipeline pc_filter;
         mrpt::poses::CPose3DInterpolator estimatedTrajectory;
@@ -221,6 +236,10 @@ class LidarInertialOdometry : public FrontEndBase
 
     void onIMU(const CObservation::Ptr& o);
     void onIMUImpl(const CObservation::Ptr& o);
+
+    // KISS-ICP adaptive threshold method:
+    double doUpdateAdaptiveThreshold(
+        const mrpt::poses::CPose3D& lastMotionModelError);
 };
 
 }  // namespace mola

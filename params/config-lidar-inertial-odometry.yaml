@@ -29,6 +29,11 @@ params:
   # Minimum ICP quality to insert it into the map:
   min_icp_goodness: 0.30
 
+  adaptive_threshold:
+    enabled: true
+    initial_threshold: 5.0
+    min_motion: 0.10
+
   # Local map updates:
   # - First time: Using the mp2p_icp pipeline generator:
   localmap_generator: $include{./localmap_generator.yaml}
