@@ -47,7 +47,8 @@ matchers:
       runFromIteration: 0  # "from 0 to 0" means "all"
       #runUpToIteration: 4
       pointLayerMatches:
-        - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
+        - {global: "localmap_small_curvature", local: "decimated_for_icp_smaller_curvature", weight: 1.0}
+        - {global: "localmap_large_curvature", local: "decimated_for_icp_large_curvature", weight: 1.0}
 
 
 quality:
@@ -57,5 +58,6 @@ quality:
      threshold: 0.75 # ignored when 'reuse_icp_pairings'==true
      thresholdAngularDeg: 0
      pointLayerMatches:
-       - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
+        - {global: "localmap_small_curvature", local: "decimated_for_icp_smaller_curvature", weight: 1.0}
+        - {global: "localmap_large_curvature", local: "decimated_for_icp_large_curvature", weight: 1.0}
 

@@ -37,7 +37,8 @@ matchers:
       pairingsPerPoint: 1
       allowMatchAlreadyMatchedGlobalPoints: true # faster
       pointLayerMatches:
-        - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
+        - {global: "localmap_small_curvature", local: "decimated_for_icp_smaller_curvature", weight: 1.0}
+        - {global: "localmap_large_curvature", local: "decimated_for_icp_large_curvature", weight: 1.0}
 
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio
@@ -46,5 +47,6 @@ quality:
      threshold: 0.75 # ignored when 'reuse_icp_pairings'==true
      thresholdAngularDeg: 0
      pointLayerMatches:
-       - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
+        - {global: "localmap_small_curvature", local: "decimated_for_icp_smaller_curvature", weight: 1.0}
+        - {global: "localmap_large_curvature", local: "decimated_for_icp_large_curvature", weight: 1.0}
 

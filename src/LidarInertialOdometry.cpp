@@ -558,6 +558,8 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
         updateLocalMap =
             (icp_out.goodness > params_.min_icp_goodness &&
+             hasMotionModel &&  // skip map update for the special ICP alignment
+                                // without motion model
              (dist_eucl_since_last > params_.min_dist_xyz_between_keyframes ||
               rot_since_last > params_.min_rotation_between_keyframes));
 
