@@ -41,7 +41,7 @@ matchers:
     params:
       threshold: 4.00           # m
       thresholdAngularDeg: 0.25  # deg
-      pairingsPerPoint: 1
+      pairingsPerPoint: 2
       allowMatchAlreadyMatchedGlobalPoints: true # faster
       #enabled: false
       runFromIteration: 0  # "from 0 to 0" means "all"
