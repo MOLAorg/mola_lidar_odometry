@@ -34,6 +34,7 @@
   params:
     input_pointcloud_layer: 'filtered'
     output_layer_larger_curvature: 'large_curvature'
+    output_layer_other: 'large_curvature'
     max_cosine: 0.1
     min_clearance: 0.10
     max_gap: 1.0
