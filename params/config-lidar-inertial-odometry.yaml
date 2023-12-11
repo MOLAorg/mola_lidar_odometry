@@ -31,7 +31,7 @@ params:
 
   adaptive_threshold:
     enabled: true
-    initial_threshold: 5.0
+    initial_threshold: 4.0
     min_motion: 0.10
 
   # Local map updates:
