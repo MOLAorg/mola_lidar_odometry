@@ -114,7 +114,7 @@ static TCLAP::ValueArg<double> argKittiAngleDeg(
     "0.205 [degrees]", cmd);
 #endif
 
-#if defined(HAVE_MOLA_INPUT_KITTI)
+#if defined(HAVE_MOLA_INPUT_MULRAN)
 static TCLAP::ValueArg<std::string> argMulranSeq(
     "", "input-mulran-seq",
     "INPUT DATASET: Use Mulran dataset sequence KAIST01|KAIST01|...", false,
@@ -153,7 +153,6 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
       base_dir: ${MULRAN_BASE_DIR}
       sequence: '%s'
       time_warp_scale: 1.0
-      clouds_as_organized_points: false
       publish_lidar: true
       publish_ground_truth: true
 )"""",

@@ -62,8 +62,8 @@ class LidarInertialOdometry : public FrontEndBase
 
     enum class AlignKind : uint8_t
     {
-        LidarOdometry = 0,
-        NearbyAlign
+        RegularOdometry = 0,
+        NoMotionModel
     };
 
     struct Parameters
@@ -170,7 +170,7 @@ class LidarInertialOdometry : public FrontEndBase
     {
         using Ptr = std::shared_ptr<ICP_Input>;
 
-        AlignKind                   align_kind{AlignKind::LidarOdometry};
+        AlignKind                   align_kind{AlignKind::RegularOdometry};
         id_t                        global_id{mola::INVALID_ID};
         id_t                        local_id{mola::INVALID_ID};
         mp2p_icp::metric_map_t::Ptr global_pc, local_pc;
@@ -201,6 +201,9 @@ class LidarInertialOdometry : public FrontEndBase
         mrpt::poses::CPose3DPDFGaussian        current_pose;  //!< in local map
         mrpt::poses::CPose3D                   accum_since_last_kf;
         mrpt::poses::CPose3D                   accum_since_last_simplemap_kf;
+
+        /// The source of "dynamic variables" in ICP pipelines:
+        mp2p_icp::ParameterSource icpParameterSource;
 
         // KISS-ICP adaptive threshold method:
         double   adapt_thres_sse2        = 0;
