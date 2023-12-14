@@ -385,7 +385,9 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
         state_.icpParameterSource.updateVariable(
             "ADAPTIVE_THRESHOLD_SIGMA",
-            params_.adaptive_threshold.initial_threshold);
+            state_.adapt_thres_sigma != 0
+                ? state_.adapt_thres_sigma
+                : params_.adaptive_threshold.initial_threshold);
     }
     // Make all changes effective and evaluate the variables now:
     state_.icpParameterSource.realize();
@@ -563,13 +565,12 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
                 icp_out.found_pose_to_wrt_from.mean -
                 mrpt::poses::CPose3D(icp_in.init_guess_local_wrt_global);
 
-            const double sigma = doUpdateAdaptiveThreshold(motionModelError);
-
-            state_.icpParameterSource.updateVariable(
-                "ADAPTIVE_THRESHOLD_SIGMA", sigma);
+            state_.adapt_thres_sigma =
+                doUpdateAdaptiveThreshold(motionModelError);
 
             MRPT_LOG_DEBUG_STREAM(
-                "Adaptive threshold: sigma=" << sigma << " motionModelError="
+                "Adaptive threshold: sigma=" << state_.adapt_thres_sigma
+                                             << " motionModelError="
                                              << motionModelError.asString());
         }  // end adaptive threshold
 

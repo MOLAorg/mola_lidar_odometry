@@ -208,6 +208,7 @@ class LidarInertialOdometry : public FrontEndBase
         // KISS-ICP adaptive threshold method:
         double   adapt_thres_sse2        = 0;
         uint32_t adapt_thres_num_samples = 0;
+        double   adapt_thres_sigma       = 0;  // 0: initial
 
         mp2p_icp_filters::GeneratorSet   obs_generators;
         mp2p_icp_filters::FilterPipeline pc_filter;
