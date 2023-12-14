@@ -22,22 +22,34 @@ solvers:
     params:
       maxIterations: 2
       robustKernel: 'RobustKernel::GemanMcClure'
-      robustKernelParam: '0.1*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
+      robustKernelParam: '0.05*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
       #innerLoopVerbose: true
 
 
 # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
 # instances to pair geometric entities between pointclouds.
 matchers:
+#  - class: mp2p_icp::Matcher_Point2Plane
+#    params:
+#      enabled: false
+#      distanceThreshold: 'max(0.2, 0.5*ADAPTIVE_THRESHOLD_SIGMA)'   # [m]
+#      searchRadius: 'min(2.0, 4.0*ADAPTIVE_THRESHOLD_SIGMA)'   # [m]
+#      knn: 6
+#      minimumPlanePoints: 6
+#      planeEigenThreshold: 1e-3
+#      allowMatchAlreadyMatchedGlobalPoints: true # faster
+#      pointLayerMatches:
+#        - {global: "localmap", local: "decimated_for_icp_planes", weight: 1.0}
+
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
-      enabled: true
       threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
       thresholdAngularDeg: 0  # deg
-      pairingsPerPoint: 
+      pairingsPerPoint: 1
       allowMatchAlreadyMatchedGlobalPoints: true # faster
       pointLayerMatches:
         - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
+
 
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio
