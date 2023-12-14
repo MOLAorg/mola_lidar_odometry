@@ -74,7 +74,7 @@ void LidarInertialOdometry::Parameters::AdaptiveThreshold::initialize(
     const Yaml& cfg)
 {
     YAML_LOAD_REQ(enabled, bool);
-    YAML_LOAD_OPT(initial_threshold, double);
+    YAML_LOAD_OPT(initial_sigma, double);
     YAML_LOAD_OPT(min_motion, double);
 }
 
@@ -824,10 +824,13 @@ void LidarInertialOdometry::doUpdateAdaptiveThreshold(
 
     if (state_.adapt_thres_num_samples < 1)
     {
-        state_.adapt_thres_sigma = params_.adaptive_threshold.initial_threshold;
+        state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;
     }
-    state_.adapt_thres_sigma =
-        std::sqrt(state_.adapt_thres_sse2 / state_.adapt_thres_num_samples);
+    else
+    {
+        state_.adapt_thres_sigma =
+            std::sqrt(state_.adapt_thres_sse2 / state_.adapt_thres_num_samples);
+    }
 }
 
 void LidarInertialOdometry::doUpdateEstimatedMaxSensorRange(
@@ -880,7 +883,7 @@ void LidarInertialOdometry::updatePipelineDynamicVariables()
         "ADAPTIVE_THRESHOLD_SIGMA",
         state_.adapt_thres_sigma != 0
             ? state_.adapt_thres_sigma
-            : params_.adaptive_threshold.initial_threshold);
+            : params_.adaptive_threshold.initial_sigma);
 
     state_.icpParameterSource.updateVariable(
         "ESTIMATED_SENSOR_MAX_RANGE", state_.estimated_sensor_max_range);

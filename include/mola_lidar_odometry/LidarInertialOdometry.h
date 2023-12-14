@@ -104,9 +104,9 @@ class LidarInertialOdometry : public FrontEndBase
         // KISS-ICP adaptive threshold method:
         struct AdaptiveThreshold
         {
-            bool   enabled           = true;
-            double initial_threshold = 5.0;
-            double min_motion        = 0.10;
+            bool   enabled       = true;
+            double initial_sigma = 0.5;
+            double min_motion    = 0.10;
 
             void initialize(const Yaml& c);
         };
