@@ -41,7 +41,7 @@ params:
   # - Rest of observations: use these *pointcloud* layers of the observation 
   #   metric_map_t and *insert* them into the local map:
   observation_layers_to_merge_local_map:
-   - {from_obs: 'decimated_for_map_insert_finer', into_map: 'localmap'}
+   - {from_obs: 'decimated_for_map_insert', into_map: 'localmap'}
   
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
