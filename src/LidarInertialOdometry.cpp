@@ -369,28 +369,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         return;
     }
 
-    // Set dynamic variables for twist usage within ICP pipelines
-    // (e.g. de-skew methods)
-    {
-        mrpt::math::TTwist3D twistForIcpVars = {0, 0, 0, 0, 0, 0};
-        if (state_.last_iter_twist)
-            twistForIcpVars = state_.last_iter_twist.value();
-
-        state_.icpParameterSource.updateVariable("vx", twistForIcpVars.vx);
-        state_.icpParameterSource.updateVariable("vy", twistForIcpVars.vy);
-        state_.icpParameterSource.updateVariable("vz", twistForIcpVars.vz);
-        state_.icpParameterSource.updateVariable("wx", twistForIcpVars.wx);
-        state_.icpParameterSource.updateVariable("wy", twistForIcpVars.wy);
-        state_.icpParameterSource.updateVariable("wz", twistForIcpVars.wz);
-
-        state_.icpParameterSource.updateVariable(
-            "ADAPTIVE_THRESHOLD_SIGMA",
-            state_.adapt_thres_sigma != 0
-                ? state_.adapt_thres_sigma
-                : params_.adaptive_threshold.initial_threshold);
-    }
-    // Make all changes effective and evaluate the variables now:
-    state_.icpParameterSource.realize();
+    updatePipelineDynamicVariables();
 
     MRPT_LOG_DEBUG_STREAM(
         "Dynamic variables: "
@@ -405,7 +384,11 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
     tle0.stop();
 
-    // Filter/segment the point cloud (optional, but normally will be present):
+    // Use the observation to update the estimated sensor range:
+    doUpdateEstimatedMaxSensorRange(*observation);
+
+    // Filter/segment the point cloud (optional, but normally will be
+    // present):
     ProfilerEntry tle1(profiler_, "onLidar.1.filter_pointclouds");
 
     mp2p_icp_filters::apply_filter_pipeline(state_.pc_filter, *observation);
@@ -565,8 +548,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
                 icp_out.found_pose_to_wrt_from.mean -
                 mrpt::poses::CPose3D(icp_in.init_guess_local_wrt_global);
 
-            state_.adapt_thres_sigma =
-                doUpdateAdaptiveThreshold(motionModelError);
+            doUpdateAdaptiveThreshold(motionModelError);
 
             MRPT_LOG_DEBUG_STREAM(
                 "Adaptive threshold: sigma=" << state_.adapt_thres_sigma
@@ -827,10 +809,10 @@ double computeModelError(
 }
 }  // namespace
 
-double LidarInertialOdometry::doUpdateAdaptiveThreshold(
+void LidarInertialOdometry::doUpdateAdaptiveThreshold(
     const mrpt::poses::CPose3D& lastMotionModelError)
 {
-    const double max_range = 90.0;
+    const double max_range = state_.estimated_sensor_max_range;
 
     double model_error = computeModelError(lastMotionModelError, max_range);
 
@@ -842,7 +824,67 @@ double LidarInertialOdometry::doUpdateAdaptiveThreshold(
 
     if (state_.adapt_thres_num_samples < 1)
     {
-        return params_.adaptive_threshold.initial_threshold;
+        state_.adapt_thres_sigma = params_.adaptive_threshold.initial_threshold;
     }
-    return std::sqrt(state_.adapt_thres_sse2 / state_.adapt_thres_num_samples);
+    state_.adapt_thres_sigma =
+        std::sqrt(state_.adapt_thres_sse2 / state_.adapt_thres_num_samples);
+}
+
+void LidarInertialOdometry::doUpdateEstimatedMaxSensorRange(
+    const mp2p_icp::metric_map_t& localFrame)
+{
+    constexpr double ALPHA = 0.9;
+
+    // Use the first non-empty point cloud layer to estimate maximum sensor
+    // range:
+    for (const auto& [name, map] : localFrame.layers)
+    {
+        const auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(map);
+        if (!pts) continue;
+        if (pts->empty()) continue;
+
+        const auto   bb     = pts->boundingBox();
+        const double radius = 0.5 * (bb.max - bb.min).norm();
+
+        state_.estimated_sensor_max_range =
+            state_.estimated_sensor_max_range * ALPHA + radius * (1.0 - ALPHA);
+
+        MRPT_LOG_DEBUG_STREAM(
+            "Estimated sensor max range=" << state_.estimated_sensor_max_range
+                                          << " (instantaneous=" << radius
+                                          << ")");
+        // With one layer is enough:
+        return;
+    }
+    // No way to automatically determine sensor range, do not touch it
+}
+
+void LidarInertialOdometry::updatePipelineDynamicVariables()
+{
+    // Set dynamic variables for twist usage within ICP pipelines
+    // (e.g. de-skew methods)
+    {
+        mrpt::math::TTwist3D twistForIcpVars = {0, 0, 0, 0, 0, 0};
+        if (state_.last_iter_twist)
+            twistForIcpVars = state_.last_iter_twist.value();
+
+        state_.icpParameterSource.updateVariable("VX", twistForIcpVars.vx);
+        state_.icpParameterSource.updateVariable("VY", twistForIcpVars.vy);
+        state_.icpParameterSource.updateVariable("VZ", twistForIcpVars.vz);
+        state_.icpParameterSource.updateVariable("WX", twistForIcpVars.wx);
+        state_.icpParameterSource.updateVariable("WY", twistForIcpVars.wy);
+        state_.icpParameterSource.updateVariable("WZ", twistForIcpVars.wz);
+    }
+
+    state_.icpParameterSource.updateVariable(
+        "ADAPTIVE_THRESHOLD_SIGMA",
+        state_.adapt_thres_sigma != 0
+            ? state_.adapt_thres_sigma
+            : params_.adaptive_threshold.initial_threshold);
+
+    state_.icpParameterSource.updateVariable(
+        "ESTIMATED_SENSOR_MAX_RANGE", state_.estimated_sensor_max_range);
+
+    // Make all changes effective and evaluate the variables now:
+    state_.icpParameterSource.realize();
 }

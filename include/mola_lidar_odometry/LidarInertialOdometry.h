@@ -210,6 +210,9 @@ class LidarInertialOdometry : public FrontEndBase
         uint32_t adapt_thres_num_samples = 0;
         double   adapt_thres_sigma       = 0;  // 0: initial
 
+        // Automatic estimation of max range:
+        double estimated_sensor_max_range = 90.0;
+
         mp2p_icp_filters::GeneratorSet   obs_generators;
         mp2p_icp_filters::FilterPipeline pc_filter;
         mrpt::poses::CPose3DInterpolator estimatedTrajectory;
@@ -242,8 +245,13 @@ class LidarInertialOdometry : public FrontEndBase
     void onIMUImpl(const CObservation::Ptr& o);
 
     // KISS-ICP adaptive threshold method:
-    double doUpdateAdaptiveThreshold(
+    void doUpdateAdaptiveThreshold(
         const mrpt::poses::CPose3D& lastMotionModelError);
+
+    void doUpdateEstimatedMaxSensorRange(
+        const mp2p_icp::metric_map_t& localFrame);
+
+    void updatePipelineDynamicVariables();
 };
 
 }  // namespace mola

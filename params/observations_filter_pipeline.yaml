@@ -8,37 +8,37 @@
 # Remove points too close, to prevent "noise" from the vehicle, 
 # the person next to the robot, etc. Remove too distant points since
 # the tiniest angular error projects to a large translational error.
-- class_name: mp2p_icp_filters::FilterDeskew
-  params:
-    input_pointcloud_layer: 'raw'
-    output_pointcloud_layer: 'deskewed'
-    silently_ignore_no_timestamps: true # To handle more dataset types
-    output_layer_class: 'mrpt::maps::CPointsMapXYZI'  # Keep intensity channel
+#- class_name: mp2p_icp_filters::FilterDeskew
+#  params:
+#    input_pointcloud_layer: 'raw'
+#    output_pointcloud_layer: 'deskewed'
+#    silently_ignore_no_timestamps: true # To handle more dataset types
+#    output_layer_class: 'mrpt::maps::CPointsMapXYZI'  # Keep intensity channel
     
     # These (vx,...wz) are variable names that must be defined via the
     # mp2p_icp::Parameterizable API to update them dynamically.
-    twist: [vx,vy,vz,wx,wy,wz]
+#    twist: [VX,VY,VZ,WX,WY,WZ]
 
 - class_name: mp2p_icp_filters::FilterByRange
   params:
-    input_pointcloud_layer: 'deskewed'
+    input_pointcloud_layer: 'raw'  # 'deskewed'
     output_pointcloud_layer: 'filtered'
     keep_between: true # Remove points out of this range limits
     range_min: 5.0
-    range_max: 100.0
+    range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
 
 - class_name: mp2p_icp_filters::FilterDecimateVoxels
   params:
     input_pointcloud_layer: 'filtered'
     output_pointcloud_layer: 'decimated_for_map_insert_finer'
-    voxel_filter_resolution: 0.5  # [m]
+    voxel_filter_resolution: 0.5*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
     use_closest_to_voxel_average: true
 
 - class_name: mp2p_icp_filters::FilterDecimateVoxels
   params:
     input_pointcloud_layer: 'filtered'
     output_pointcloud_layer: 'decimated_for_icp'
-    voxel_filter_resolution: 1.25  # [m]
+    voxel_filter_resolution: 1.50*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
     use_closest_to_voxel_average: true
 
 - class_name: mp2p_icp_filters::FilterCurvature
@@ -54,7 +54,7 @@
   params:
     input_pointcloud_layer: 'large_curvature'
     output_pointcloud_layer: 'decimated_for_icp'
-    voxel_filter_resolution: 2.0  # [m]
+    voxel_filter_resolution: 2.0*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
     use_closest_to_voxel_average: true
 
 
@@ -62,3 +62,4 @@
 - class_name: mp2p_icp_filters::FilterDeleteLayer
   params:
     pointcloud_layer_to_remove: ['raw', 'filtered', 'large_curvature', 'deskewed']
+    error_on_missing_input_layer: false
