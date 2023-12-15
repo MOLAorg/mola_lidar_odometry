@@ -23,6 +23,7 @@
 
   <doc_depend>doxygen</doc_depend>
 
+<!--
   <build_depend>ros_environment</build_depend>
 
   <buildtool_depend>cmake</buildtool_depend>
@@ -36,5 +37,15 @@
   <export>
     <build_type>ament_cmake</build_type>
   </export>
+-->  
+
+  <!-- Minimum entries to release non-catkin pkgs: -->
+  <buildtool_depend>cmake</buildtool_depend>
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+  <!-- End -->
+
+
 
 </package>
