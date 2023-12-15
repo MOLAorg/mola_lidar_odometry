@@ -123,9 +123,10 @@ static TCLAP::ValueArg<std::string> argMulranSeq(
 
 #if defined(HAVE_MOLA_INPUT_RAWLOG)
 std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rawlog(
-    const std::string& rawlogFile)
+    const std::string& rawlogFile, const mrpt::system::VerbosityLevel logLevel)
 {
     auto o = std::make_shared<mola::RawlogDataset>();
+    o->setMinLoggingLevel(logLevel);
 
     const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
         R""""(
@@ -143,9 +144,11 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rawlog(
 
 #if defined(HAVE_MOLA_INPUT_MULRAN)
 std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
-    const std::string& mulranSequence)
+    const std::string&                 mulranSequence,
+    const mrpt::system::VerbosityLevel logLevel)
 {
     auto o = std::make_shared<mola::MulranDataset>();
+    o->setMinLoggingLevel(logLevel);
 
     const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
         R""""(
@@ -166,9 +169,11 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
 
 #if defined(HAVE_MOLA_INPUT_KITTI)
 std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
-    const std::string& kittiSeqNumber)
+    const std::string&                 kittiSeqNumber,
+    const mrpt::system::VerbosityLevel logLevel)
 {
     auto o = std::make_shared<mola::KittiOdometryDataset>();
+    o->setMinLoggingLevel(logLevel);
 
     const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
         R""""(
@@ -188,16 +193,6 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
 
     if (argKittiAngleDeg.isSet())
         o->VERTICAL_ANGLE_OFFSET = mrpt::DEG2RAD(argKittiAngleDeg.getValue());
-
-    // Save GT, if available:
-    if (arg_outPath.isSet() && o->hasGroundTruthTrajectory())
-    {
-        const auto& gtPath = o->getGroundTruthTrajectory();
-
-        gtPath.saveToTextFile_TUM(
-            mrpt::system::fileNameChangeExtension(arg_outPath.getValue(), "") +
-            std::string("_gt.txt"));
-    }
 
     return o;
 }
@@ -227,8 +222,6 @@ static int main_odometry()
 {
     mola::LidarInertialOdometry liodom;
 
-    // Define the verbosity level here so it affects all possible
-    // commands of mola-cli:
     mrpt::system::VerbosityLevel logLevel = liodom.getMinLoggingLevel();
     if (arg_verbosity_level.isSet())
     {
@@ -256,21 +249,21 @@ static int main_odometry()
 #if defined(HAVE_MOLA_INPUT_RAWLOG)
     if (argRawlog.isSet())
     {
-        dataset = dataset_from_rawlog(argRawlog.getValue());
+        dataset = dataset_from_rawlog(argRawlog.getValue(), logLevel);
     }
     else
 #endif
 #if defined(HAVE_MOLA_INPUT_KITTI)
         if (argKittiSeq.isSet())
     {
-        dataset = dataset_from_kitti(argKittiSeq.getValue());
+        dataset = dataset_from_kitti(argKittiSeq.getValue(), logLevel);
     }
     else
 #endif
 #if defined(HAVE_MOLA_INPUT_MULRAN)
         if (argMulranSeq.isSet())
     {
-        dataset = dataset_from_mulran(argMulranSeq.getValue());
+        dataset = dataset_from_mulran(argMulranSeq.getValue(), logLevel);
     }
     else
 #endif
@@ -280,6 +273,23 @@ static int main_odometry()
             "Use --help.");
     }
     ASSERT_(dataset);
+
+    // Save GT, if available:
+    if (arg_outPath.isSet() && dataset->hasGroundTruthTrajectory())
+    {
+        using namespace std::string_literals;
+
+        const auto gtPath = dataset->getGroundTruthTrajectory();
+
+        const auto gtOutFile =
+            mrpt::system::fileNameChangeExtension(arg_outPath.getValue(), "") +
+            "_gt.txt"s;
+
+        std::cout << "Ground truth available. Saving it to: " << gtOutFile
+                  << std::endl;
+
+        gtPath.saveToTextFile_TUM(gtOutFile);
+    }
 
     const double tStart = mrpt::Clock::nowDouble();
 
