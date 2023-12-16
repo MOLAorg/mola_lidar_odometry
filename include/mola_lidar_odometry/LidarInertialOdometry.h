@@ -62,8 +62,8 @@ class LidarInertialOdometry : public FrontEndBase
 
     enum class AlignKind : uint8_t
     {
-        LidarOdometry = 0,
-        NearbyAlign
+        RegularOdometry = 0,
+        NoMotionModel
     };
 
     struct Parameters
@@ -104,9 +104,9 @@ class LidarInertialOdometry : public FrontEndBase
         // KISS-ICP adaptive threshold method:
         struct AdaptiveThreshold
         {
-            bool   enabled           = true;
-            double initial_threshold = 5.0;
-            double min_motion        = 0.10;
+            bool   enabled       = true;
+            double initial_sigma = 0.5;
+            double min_motion    = 0.10;
 
             void initialize(const Yaml& c);
         };
@@ -170,7 +170,7 @@ class LidarInertialOdometry : public FrontEndBase
     {
         using Ptr = std::shared_ptr<ICP_Input>;
 
-        AlignKind                   align_kind{AlignKind::LidarOdometry};
+        AlignKind                   align_kind{AlignKind::RegularOdometry};
         id_t                        global_id{mola::INVALID_ID};
         id_t                        local_id{mola::INVALID_ID};
         mp2p_icp::metric_map_t::Ptr global_pc, local_pc;
@@ -202,9 +202,16 @@ class LidarInertialOdometry : public FrontEndBase
         mrpt::poses::CPose3D                   accum_since_last_kf;
         mrpt::poses::CPose3D                   accum_since_last_simplemap_kf;
 
+        /// The source of "dynamic variables" in ICP pipelines:
+        mp2p_icp::ParameterSource icpParameterSource;
+
         // KISS-ICP adaptive threshold method:
         double   adapt_thres_sse2        = 0;
         uint32_t adapt_thres_num_samples = 0;
+        double   adapt_thres_sigma       = 0;  // 0: initial
+
+        // Automatic estimation of max range:
+        double estimated_sensor_max_range = 90.0;
 
         mp2p_icp_filters::GeneratorSet   obs_generators;
         mp2p_icp_filters::FilterPipeline pc_filter;
@@ -238,8 +245,13 @@ class LidarInertialOdometry : public FrontEndBase
     void onIMUImpl(const CObservation::Ptr& o);
 
     // KISS-ICP adaptive threshold method:
-    double doUpdateAdaptiveThreshold(
+    void doUpdateAdaptiveThreshold(
         const mrpt::poses::CPose3D& lastMotionModelError);
+
+    void doUpdateEstimatedMaxSensorRange(
+        const mp2p_icp::metric_map_t& localFrame);
+
+    void updatePipelineDynamicVariables();
 };
 
 }  // namespace mola

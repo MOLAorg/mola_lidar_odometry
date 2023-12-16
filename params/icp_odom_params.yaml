@@ -14,7 +14,7 @@ params:
 
   #debugPrintIterationProgress: true  # Print progress
   generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
-  debugFileNameFormat: "icp-logs/icp-run-${KITTI_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
+  debugFileNameFormat: "icp-logs/icp-run-${SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
   decimationDebugFiles: 100
 
 solvers:
@@ -22,23 +22,35 @@ solvers:
     params:
       maxIterations: 2
       robustKernel: 'RobustKernel::GemanMcClure'
-      robustKernelParam: 0.15  # (adaptive)
+      robustKernelParam: '0.05*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
       #innerLoopVerbose: true
 
 
 # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
 # instances to pair geometric entities between pointclouds.
 matchers:
+#  - class: mp2p_icp::Matcher_Point2Plane
+#    params:
+#      enabled: false
+#      distanceThreshold: 'max(0.2, 0.5*ADAPTIVE_THRESHOLD_SIGMA)'   # [m]
+#      searchRadius: 'min(2.0, 4.0*ADAPTIVE_THRESHOLD_SIGMA)'   # [m]
+#      knn: 6
+#      minimumPlanePoints: 6
+#      planeEigenThreshold: 1e-3
+#      allowMatchAlreadyMatchedGlobalPoints: true # faster
+#      pointLayerMatches:
+#        - {global: "localmap", local: "decimated_for_icp_planes", weight: 1.0}
+
   - class: mp2p_icp::Matcher_Points_DistanceThreshold
     params:
-      enabled: true
-      threshold: 1.00      # [m] (adaptive)
+      threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
       thresholdAngularDeg: 0  # deg
       pairingsPerPoint: 1
       allowMatchAlreadyMatchedGlobalPoints: true # faster
       pointLayerMatches:
         - {global: "localmap_small_curvature", local: "decimated_for_icp_smaller_curvature", weight: 1.0}
         - {global: "localmap_large_curvature", local: "decimated_for_icp_large_curvature", weight: 1.0}
+
 
 quality:
   - class: mp2p_icp::QualityEvaluator_PairedRatio
