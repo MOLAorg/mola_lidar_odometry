@@ -33,7 +33,7 @@
     output_layer_larger_curvature: 'large_curvature'
     output_layer_smaller_curvature: 'smaller_curvature'
     #output_layer_other: 'large_curvature'
-    max_cosine: 0.1
+    max_cosine: 0.2
     min_clearance: 0.10
     max_gap: 1.0
 
@@ -41,28 +41,28 @@
   params:
     input_pointcloud_layer: 'large_curvature'
     output_pointcloud_layer: 'decimated_for_icp_large_curvature'
-    voxel_filter_resolution: 1.5  # [m]
+    voxel_filter_resolution: 1.00*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
     use_closest_to_voxel_average: true
 
 - class_name: mp2p_icp_filters::FilterDecimateVoxels
   params:
     input_pointcloud_layer: 'large_curvature'
     output_pointcloud_layer: 'decimated_for_map_large_curvature'
-    voxel_filter_resolution: 1.0  # [m]
+    voxel_filter_resolution: 0.5*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
     use_closest_to_voxel_average: true
 
 - class_name: mp2p_icp_filters::FilterDecimateVoxels
   params:
     input_pointcloud_layer: 'smaller_curvature'
     output_pointcloud_layer: 'decimated_for_icp_smaller_curvature'
-    voxel_filter_resolution: 3.0  # [m]
+    voxel_filter_resolution: 1.5*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
     use_closest_to_voxel_average: true
 
 - class_name: mp2p_icp_filters::FilterDecimateVoxels
   params:
     input_pointcloud_layer: 'smaller_curvature'
     output_pointcloud_layer: 'decimated_for_map_smaller_curvature'
-    voxel_filter_resolution: 1.0  # [m]
+    voxel_filter_resolution: 0.75*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
     use_closest_to_voxel_average: true
 
 #- class_name: mp2p_icp_filters::FilterDecimateVoxels
