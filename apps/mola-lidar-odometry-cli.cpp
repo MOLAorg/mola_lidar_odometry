@@ -94,6 +94,13 @@ static TCLAP::ValueArg<int> arg_firstN(
     "", "only-first-n", "Run for the first N steps only (0=default, not used)",
     false, 0, "Number of dataset entries to run", cmd);
 
+static TCLAP::ValueArg<std::string> arg_lidarLabel(
+    "", "lidar-sensor-label",
+    "If provided, this supersedes the values in the 'lidar_sensor_labels' "
+    "entry of the odometry pipeline, defining the sensorLabel/topic name to "
+    "read LIDAR data from. It can be a regular expression (std::regex)",
+    false, "lidar1", "lidar1", cmd);
+
 // Input dataset can come from one of these:
 // --------------------------------------------
 #if defined(HAVE_MOLA_INPUT_RAWLOG)
@@ -242,6 +249,10 @@ static int main_odometry()
     liodom.initialize(cfg);
 
     if (arg_outSimpleMap.isSet()) liodom.params_.simplemap.generate = true;
+
+    if (arg_lidarLabel.isSet())
+        liodom.params_.lidar_sensor_labels.assign(
+            1, std::regex(arg_lidarLabel.getValue()));
 
     // Select dataset input:
     std::shared_ptr<mola::OfflineDatasetSource> dataset;
