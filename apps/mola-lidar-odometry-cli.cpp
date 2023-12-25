@@ -58,6 +58,10 @@
 #include <mola_input_rawlog/RawlogDataset.h>
 #endif
 
+#if defined(HAVE_MOLA_INPUT_ROSBAG2)
+#include <mola_input_rosbag2/Rosbag2Dataset.h>
+#endif
+
 #include <csignal>  // sigaction
 #include <cstdlib>
 #include <iostream>
@@ -108,6 +112,13 @@ static TCLAP::ValueArg<std::string> argRawlog(
     "", "input-rawlog",
     "INPUT DATASET: rawlog. Input dataset in rawlog format (*.rawlog)", false,
     "dataset.rawlog", "dataset.rawlog", cmd);
+#endif
+
+#if defined(HAVE_MOLA_INPUT_ROSBAG2)
+static TCLAP::ValueArg<std::string> argRosbag2(
+    "", "input-rosbag2",
+    "INPUT DATASET: rosbag2. Input dataset in rosbag2 format (*.mcap)", false,
+    "dataset.mcap", "dataset.mcap", cmd);
 #endif
 
 #if defined(HAVE_MOLA_INPUT_KITTI)
@@ -167,6 +178,37 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
       publish_ground_truth: true
 )"""",
         mulranSequence.c_str())));
+
+    o->initialize(cfg);
+
+    return o;
+}
+#endif
+
+#if defined(HAVE_MOLA_INPUT_ROSBAG2)
+std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
+    const std::string& rosbag2file, const mrpt::system::VerbosityLevel logLevel)
+{
+    ASSERTMSG_(
+        arg_lidarLabel.isSet(),
+        "Using a rosbag2 as input requires telling what is the lidar topic "
+        "with --lidar-sensor-label <TOPIC_NAME>");
+
+    auto o = std::make_shared<mola::Rosbag2Dataset>();
+    o->setMinLoggingLevel(logLevel);
+
+    const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+        R""""(
+    params:
+      rosbag_filename: '%s'
+      base_link_frame_id: 'base_footprint'
+      sensors:
+        - topic: '%s'
+          type: CObservationPointCloud
+          # If present, this will override whatever /tf tells about the sensor pose:
+          fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg'
+)"""",
+        rosbag2file.c_str(), arg_lidarLabel.getValue().c_str())));
 
     o->initialize(cfg);
 
@@ -278,6 +320,13 @@ static int main_odometry()
     }
     else
 #endif
+#if defined(HAVE_MOLA_INPUT_ROSBAG2)
+        if (argRosbag2.isSet())
+    {
+        dataset = dataset_from_rosbag2(argRosbag2.getValue(), logLevel);
+    }
+    else
+#endif
     {
         THROW_EXCEPTION(
             "At least one of the dataset input CLI flags must be defined. "
@@ -316,7 +365,7 @@ static int main_odometry()
         using namespace mrpt::obs;
 
         const auto sf = dataset->datasetGetObservations(i);
-        ASSERT_(!sf->empty());
+        ASSERT_(sf);
 
         CObservation::Ptr obs;
         obs = sf->getObservationByClass<CObservationRotatingScan>();

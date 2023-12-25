@@ -57,6 +57,7 @@ mola_add_library(
 find_package(mola_input_kitti_dataset) # optional
 find_package(mola_input_mulran_dataset) # optional
 find_package(mola_input_rawlog) # optional
+find_package(mola_input_rosbag2) # optional
 
 mola_add_executable(
 	TARGET  mola-lidar-odometry-cli
@@ -89,6 +90,15 @@ target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_RAWLO
 else()
 message("mola-lidar-odometry-cli: With Rawlog = NO")
 endif()
+
+if (mola_input_rosbag2_FOUND)
+message("mola-lidar-odometry-cli: With rosbag2 = YES")
+target_link_libraries(mola-lidar-odometry-cli mola_input_rosbag2)
+target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_ROSBAG2)
+else()
+message("mola-lidar-odometry-cli: With rosbag2 = NO")
+endif()
+
 
 
 
