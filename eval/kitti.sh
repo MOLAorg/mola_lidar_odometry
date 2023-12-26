@@ -10,7 +10,7 @@ parallel -j3 --lb \
 
 # Eval kitti metrics for each sequence alone:
 for d in 00 01 02 03 04 05 06 07 08 09 10 11; do
-  kitti-metrics-eval -r estim_${d}.txt -s ${d} --no-figures
+  kitti-metrics-eval -r results/estim_${d}.txt -s ${d} --no-figures
 done
 
 # Eval overall kitti metrics:

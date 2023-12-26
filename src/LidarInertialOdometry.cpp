@@ -175,12 +175,12 @@ void LidarInertialOdometry::initialize(const Yaml& c)
         ProfilerEntry tle(profiler_, "filterPointCloud_initialize");
 
         // Observation -> map generator:
-        if (cfg.has("observations_generator") &&
-            !cfg["observations_generator"].isNullNode())
+        if (c.has("observations_generator") &&
+            !c["observations_generator"].isNullNode())
         {
             // Create, and copy my own verbosity level:
             state_.obs_generators = mp2p_icp_filters::generators_from_yaml(
-                cfg["observations_generator"], this->getMinLoggingLevel());
+                c["observations_generator"], this->getMinLoggingLevel());
         }
         else
         {
@@ -198,11 +198,11 @@ void LidarInertialOdometry::initialize(const Yaml& c)
         mp2p_icp::AttachToParameterSource(
             state_.obs_generators, state_.icpParameterSource);
 
-        if (cfg.has("observations_filter"))
+        if (c.has("observations_filter"))
         {
             // Create, and copy my own verbosity level:
             state_.pc_filter = mp2p_icp_filters::filter_pipeline_from_yaml(
-                cfg["observations_filter"], this->getMinLoggingLevel());
+                c["observations_filter"], this->getMinLoggingLevel());
 
             // Attach to the parameter source for dynamic parameters:
             mp2p_icp::AttachToParameterSource(
@@ -210,13 +210,13 @@ void LidarInertialOdometry::initialize(const Yaml& c)
         }
 
         // Local map generator:
-        if (cfg.has("localmap_generator") &&
-            !cfg["localmap_generator"].isNullNode())
+        if (c.has("localmap_generator") &&
+            !c["localmap_generator"].isNullNode())
         {
             // Create, and copy my own verbosity level:
             state_.local_map_generators =
                 mp2p_icp_filters::generators_from_yaml(
-                    cfg["localmap_generator"], this->getMinLoggingLevel());
+                    c["localmap_generator"], this->getMinLoggingLevel());
         }
         else
         {

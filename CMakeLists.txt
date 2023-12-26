@@ -111,7 +111,7 @@ add_subdirectory(tests)
 
 # Install files:
 install(DIRECTORY
-  launch
+  mola-cli-launchs
   params
   DESTINATION
     share/${PROJECT_NAME}

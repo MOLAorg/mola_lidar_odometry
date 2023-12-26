@@ -1,0 +1,47 @@
+# -----------------------------------------------------------------------------
+#                        SLAM system definition for MOLA
+# This file defines:
+# An input sensor from a ROS 2 topic, and the MOLA Visualizer.
+# -----------------------------------------------------------------------------
+
+modules:
+  # =====================
+  # MolaViz
+  # =====================
+  - name: viz
+    type: mola::MolaViz
+    #verbosity_level: DEBUG
+    params: ~ # none
+
+# Offline or online sensory data sources =====================
+  # =====================
+  # KittiOdometryDataset
+  # =====================
+  - name: kitti_input
+    type: mola::KittiOdometryDataset
+    execution_rate: 20 # Hz
+    #verbosity_level: INFO
+    gui_preview_sensors:
+      - raw_sensor_label: lidar
+        decimation: 1
+        win_pos: 5 70 400 400
+      - raw_sensor_label: image_0
+        decimation: 1
+        win_pos: 5 370 600 200
+    params:
+      base_dir: ${KITTI_BASE_DIR}
+      sequence: ${KITTI_SEQ}
+      time_warp_scale: 1.0
+      publish_lidar: true
+      publish_image_0: true
+      publish_image_1: false
+      publish_ground_truth: true
+
+  - name: lidar_odom
+    type: mola::LidarInertialOdometry
+    verbosity_level: DEBUG
+    raw_data_source: 'kitti_input'
+    # This includes here a whole block "params: (...)"
+    # with the LIDAR-Odometry pipeline configuration:
+    params: '../params/lidar-inertial-pipeline.yaml'
+
