@@ -74,8 +74,8 @@ void LidarInertialOdometry::Parameters::AdaptiveThreshold::initialize(
     const Yaml& cfg)
 {
     YAML_LOAD_REQ(enabled, bool);
-    YAML_LOAD_OPT(initial_sigma, double);
-    YAML_LOAD_OPT(min_motion, double);
+    YAML_LOAD_REQ(initial_sigma, double);
+    YAML_LOAD_REQ(min_motion, double);
 }
 
 void LidarInertialOdometry::initialize(const Yaml& c)
@@ -680,9 +680,11 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
         state_.reconstructedMap.insert(
             // Pose: mean + covariance
-            state_.current_pose,
+            mrpt::poses::CPose3DPDFGaussian::Create(state_.current_pose),
             // SensoryFrame: set of observations (only one)
-            obsSF);
+            mrpt::obs::CSensoryFrame::Create(obsSF),
+            // twist
+            state_.last_iter_twist);
     }
 
     // In any case, publish to the SLAM BackEnd what's our **current**
