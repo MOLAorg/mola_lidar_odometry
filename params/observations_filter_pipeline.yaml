@@ -5,9 +5,6 @@
 # input metric_map_t object.
 #
 
-# Remove points too close, to prevent "noise" from the vehicle, 
-# the person next to the robot, etc. Remove too distant points since
-# the tiniest angular error projects to a large translational error.
 #- class_name: mp2p_icp_filters::FilterDeskew
 #  params:
 #    input_pointcloud_layer: 'raw'
@@ -19,6 +16,9 @@
     # mp2p_icp::Parameterizable API to update them dynamically.
 #    twist: [VX,VY,VZ,WX,WY,WZ]
 
+# Remove points too close, to prevent "noise" from the vehicle, 
+# the person next to the robot, etc. Remove too distant points since
+# the tiniest angular error projects to a large translational error.
 - class_name: mp2p_icp_filters::FilterByRange
   params:
     input_pointcloud_layer: 'raw'  # 'deskewed'
