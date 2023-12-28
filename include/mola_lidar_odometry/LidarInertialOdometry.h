@@ -98,6 +98,7 @@ class LidarInertialOdometry : public FrontEndBase
          * accepted during regular lidar odometry & mapping */
         double min_icp_goodness = 0.4;
 
+        bool pipeline_profiler_enabled = false;
         bool icp_profiler_enabled      = false;
         bool icp_profiler_full_history = false;
 
@@ -224,11 +225,12 @@ class LidarInertialOdometry : public FrontEndBase
 
     /** The worker thread pool with 1 thread for processing incomming scans */
     mrpt::WorkerThreadsPool worker_lidar_{
-        1, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_lidar"};
+        1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO,
+        "worker_lidar"};
 
     /** The worker thread pool with 1 thread for processing incomming IMU */
     mrpt::WorkerThreadsPool worker_imu_{
-        1, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_imu"};
+        1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_imu"};
 
     MethodState        state_;
     const MethodState& state() const { return state_; }
@@ -252,6 +254,10 @@ class LidarInertialOdometry : public FrontEndBase
         const mp2p_icp::metric_map_t& localFrame);
 
     void updatePipelineDynamicVariables();
+
+    void updateVisualization();
+
+    mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame_, glLocalMap_;
 };
 
 }  // namespace mola

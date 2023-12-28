@@ -143,6 +143,7 @@ void LidarInertialOdometry::initialize(const Yaml& c)
 
     params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
 
+    YAML_LOAD_OPT(params_, pipeline_profiler_enabled, bool);
     YAML_LOAD_OPT(params_, icp_profiler_enabled, bool);
     YAML_LOAD_OPT(params_, icp_profiler_full_history, bool);
 
@@ -169,6 +170,8 @@ void LidarInertialOdometry::initialize(const Yaml& c)
         // parameters:
         icpCase.icp->attachToParameterSource(state_.icpParameterSource);
     }
+    // system-wide profiler:
+    profiler_.enable(params_.pipeline_profiler_enabled);
 
     // Create lidar segmentation algorithm:
     {
@@ -300,7 +303,7 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
         // Yes, it's a LIDAR obs:
         const auto queued = worker_lidar_.pendingTasks();
         profiler_.registerUserMeasure("onNewObservation.queue_length", queued);
-        if (queued > 10)
+        if (queued > 100)
         {
             MRPT_LOG_THROTTLE_ERROR(
                 1.0, "Dropping observation due to worker threads too busy.");
@@ -701,6 +704,9 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         std::future<void> adv_pose_fut =
             slam_backend_->advertiseUpdatedLocalization(new_loc);
     }
+
+    // Optional real-time GUI via MOLA VizInterface:
+    if (visualizer_) updateVisualization();
 }
 
 void LidarInertialOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
@@ -728,7 +734,7 @@ void LidarInertialOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
 
         if (icp_result.quality > 0)
         {
-            // Keep as init value for next stage:
+            // Accept it:
             current_solution = icp_result.optimal_tf.mean.asTPose();
         }
 
@@ -736,12 +742,12 @@ void LidarInertialOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
         out.goodness               = icp_result.quality;
 
         MRPT_LOG_DEBUG_FMT(
-            "ICP (kind=%u): goodness=%.03f iters=%u rel_pose=%s "
-            "termReason=%u",
-            static_cast<unsigned int>(in.align_kind), out.goodness,
+            "ICP (kind=%u): goodness=%.02f%% iters=%u pose=%s "
+            "termReason=%s",
+            static_cast<unsigned int>(in.align_kind), 100.0 * out.goodness,
             static_cast<unsigned int>(icp_result.nIterations),
             out.found_pose_to_wrt_from.getMeanVal().asString().c_str(),
-            static_cast<unsigned int>(icp_result.terminationReason));
+            mrpt::typemeta::enum2str(icp_result.terminationReason).c_str());
     }
 
     MRPT_END
@@ -894,4 +900,41 @@ void LidarInertialOdometry::updatePipelineDynamicVariables()
 
     // Make all changes effective and evaluate the variables now:
     state_.icpParameterSource.realize();
+}
+
+void LidarInertialOdometry::updateVisualization()
+{
+    // In this point, we are called by the LIDAR worker thread, so it's safe
+    // to read the state without mutexes.
+    ASSERT_(visualizer_);
+
+    // Vehicle pose:
+    // ---------------------------
+    if (!glVehicleFrame_)
+    {
+        glVehicleFrame_ = mrpt::opengl::CSetOfObjects::Create();
+        auto glCorner   = mrpt::opengl::stock_objects::CornerXYZ(1.5f);
+        glVehicleFrame_->insert(glCorner);
+    }
+    glVehicleFrame_->setPose(state_.current_pose.mean);
+    visualizer_->update_3d_object("liodom/vehicle", glVehicleFrame_);
+
+    // Local map:
+    // -----------------------------
+    if (!glLocalMap_)
+    {
+        //
+        glLocalMap_ = mrpt::opengl::CSetOfObjects::Create();
+    }
+    const int  VIZ_MAP_UPDATE_DECIMATION = 10;
+    static int mapUpdateCnt              = VIZ_MAP_UPDATE_DECIMATION;
+    if (++mapUpdateCnt > VIZ_MAP_UPDATE_DECIMATION)
+    {
+        mapUpdateCnt = 0;
+        glLocalMap_->clear();
+        auto glMap = state_.local_map->get_visualization();
+        for (auto& o : *glMap) glLocalMap_->insert(o);
+
+        visualizer_->update_3d_object("liodom/localmap", glLocalMap_);
+    }
 }
