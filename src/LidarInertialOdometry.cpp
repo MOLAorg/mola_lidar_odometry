@@ -57,6 +57,24 @@ IMPLEMENTS_MRPT_OBJECT(LidarInertialOdometry, FrontEndBase, mola)
 
 LidarInertialOdometry::LidarInertialOdometry() = default;
 
+LidarInertialOdometry::~LidarInertialOdometry()
+{
+    if (params_.simplemap.generate &&
+        !params_.simplemap.save_final_map_to_file.empty())
+    {
+        const auto fil = params_.simplemap.save_final_map_to_file;
+
+        MRPT_LOG_INFO_STREAM(
+            "Saving final simplemap with " << state_.reconstructedMap.size()
+                                           << " keyframes to file '" << fil
+                                           << "'...");
+
+        state_.reconstructedMap.saveToFile(fil);
+
+        MRPT_LOG_INFO("Final simplemap saved.");
+    }
+}
+
 namespace
 {
 void load_icp_set_of_params(
@@ -151,6 +169,7 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     YAML_LOAD_OPT(params_, simplemap.min_dist_xyz_between_keyframes, double);
     YAML_LOAD_OPT_DEG(
         params_, simplemap.min_rotation_between_keyframes, double);
+    YAML_LOAD_OPT(params_, simplemap.save_final_map_to_file, std::string);
 
     ENSURE_YAML_ENTRY_EXISTS(cfg, "icp_settings_with_vel");
     load_icp_set_of_params(
@@ -588,6 +607,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
                 .norm();
 
         updateSimpleMap =
+            (params_.simplemap.generate) &&
             (icp_out.goodness > params_.min_icp_goodness &&
              (dist_eucl_since_last_sm >
                   params_.simplemap.min_dist_xyz_between_keyframes ||

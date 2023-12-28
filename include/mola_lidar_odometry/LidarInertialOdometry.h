@@ -47,7 +47,7 @@ class LidarInertialOdometry : public FrontEndBase
 
    public:
     LidarInertialOdometry();
-    ~LidarInertialOdometry() = default;
+    ~LidarInertialOdometry();
 
     /** @name Main API
      * @{ */
@@ -143,6 +143,10 @@ class LidarInertialOdometry : public FrontEndBase
              * between keyframes inserted into
              * the map [rad here, degrees in the yaml file]. */
             double min_rotation_between_keyframes = mrpt::DEG2RAD(30.0);
+
+            /** If not empty, the final simple map will be dumped to a file at
+             * destruction time */
+            std::string save_final_map_to_file;
         };
 
         SimpleMapOptions simplemap;
