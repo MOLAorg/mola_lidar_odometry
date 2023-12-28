@@ -40,7 +40,9 @@ params:
   simplemap.min_dist_xyz_between_keyframes: 0.05   # m
   simplemap.min_rotation_between_keyframes: 3.0  # deg
 
-  # To profile the internal steps of the ICP implementation:
+  # Profile the main steps of the odometry pipeline:
+  pipeline_profiler_enabled: true
+  # Profile the internal steps of the ICP implementation:
   icp_profiler_enabled: true
 
 
@@ -109,7 +111,7 @@ observations_filter:
       input_pointcloud_layer: 'raw'  # 'deskewed'
       output_pointcloud_layer: 'filtered'
       keep_between: true # Remove points out of this range limits
-      range_min: 5.0
+      range_min: max(1.0, 0.05*ESTIMATED_SENSOR_MAX_RANGE)
       range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels

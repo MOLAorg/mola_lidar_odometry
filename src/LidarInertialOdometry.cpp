@@ -919,6 +919,11 @@ void LidarInertialOdometry::updateVisualization()
     glVehicleFrame_->setPose(state_.current_pose.mean);
     visualizer_->update_3d_object("liodom/vehicle", glVehicleFrame_);
 
+    // GUI follow vehicle:
+    // ---------------------------
+    visualizer_->update_viewport_look_at(
+        state_.current_pose.mean.translation());
+
     // Local map:
     // -----------------------------
     if (!glLocalMap_)

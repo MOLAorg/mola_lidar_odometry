@@ -19,10 +19,9 @@ modules:
     raw_data_source: 'ros_input'
     # This includes here a whole block "params: (...)"
     # with the LIDAR-Odometry pipeline configuration:
-    $include{../params/config-lidar-inertial-odometry.yaml}
+    params: '${MOLA_ODOMETRY_PIPELINE_YAML|../params/lidar-inertial-pipeline.yaml}'
 
 # Offline or online sensory data sources =====================
-# (TODO: Move to an include)
   - type: mola::InputROS2
     name: ros_input
     # In InputROS2, this execution rate (Hz) determines the
@@ -32,7 +31,7 @@ modules:
     execution_rate: 20 # Hz
     #verbosity_level: INFO
     gui_preview_sensors:
-      - raw_sensor_label: lidar
+      - raw_sensor_label: ${MOLA_LIDAR_NAME|lidar}
         decimation: 1
         win_pos: 5 5 400 400
     params:
@@ -40,9 +39,9 @@ modules:
       odom_frame: odom
       publish_odometry_from_tf: false
       subscribe:
-        - topic: /ouster/points
+        - topic: ${MOLA_LIDAR_TOPIC|/ouster/points}
           type: PointCloud2
-          output_sensor_label: lidar
+          output_sensor_label: ${MOLA_LIDAR_NAME|lidar}
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg''
           #queue_size: 100  # QoS "history" length
