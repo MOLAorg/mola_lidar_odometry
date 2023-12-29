@@ -342,6 +342,8 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
             worker_lidar_.enqueue(&LidarInertialOdometry::onLidar, this, o);
 
         (void)fut;
+
+        break;  // do not keep processing the list
     }
 
     MRPT_TRY_END
