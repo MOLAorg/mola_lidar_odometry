@@ -96,6 +96,21 @@ void LidarInertialOdometry::Parameters::AdaptiveThreshold::initialize(
     YAML_LOAD_REQ(min_motion, double);
 }
 
+void LidarInertialOdometry::Parameters::Visualization::initialize(
+    const Yaml& cfg)
+{
+    YAML_LOAD_OPT(map_update_decimation, int);
+}
+
+void LidarInertialOdometry::Parameters::SimpleMapOptions::initialize(
+    const Yaml& cfg)
+{
+    YAML_LOAD_REQ(generate, bool);
+    YAML_LOAD_OPT(min_dist_xyz_between_keyframes, double);
+    YAML_LOAD_OPT_DEG(min_rotation_between_keyframes, double);
+    YAML_LOAD_OPT(save_final_map_to_file, std::string);
+}
+
 void LidarInertialOdometry::initialize(const Yaml& c)
 {
     MRPT_TRY_START
@@ -159,17 +174,17 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     YAML_LOAD_OPT(params_, max_time_to_use_velocity_model, double);
     YAML_LOAD_OPT(params_, min_icp_goodness, double);
 
-    params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
+    if (cfg.has("adaptive_threshold"))
+        params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
+
+    if (cfg.has("visualization"))
+        params_.visualization.initialize(cfg["visualization"]);
 
     YAML_LOAD_OPT(params_, pipeline_profiler_enabled, bool);
     YAML_LOAD_OPT(params_, icp_profiler_enabled, bool);
     YAML_LOAD_OPT(params_, icp_profiler_full_history, bool);
 
-    YAML_LOAD_OPT(params_, simplemap.generate, bool);
-    YAML_LOAD_OPT(params_, simplemap.min_dist_xyz_between_keyframes, double);
-    YAML_LOAD_OPT_DEG(
-        params_, simplemap.min_rotation_between_keyframes, double);
-    YAML_LOAD_OPT(params_, simplemap.save_final_map_to_file, std::string);
+    if (cfg.has("simplemap")) params_.simplemap.initialize(cfg["simplemap"]);
 
     ENSURE_YAML_ENTRY_EXISTS(cfg, "icp_settings_with_vel");
     load_icp_set_of_params(
@@ -728,7 +743,12 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     }
 
     // Optional real-time GUI via MOLA VizInterface:
-    if (visualizer_) updateVisualization();
+    if (visualizer_)
+    {
+        ProfilerEntry tle(profiler_, "onLidar.6.updateVisualization");
+
+        updateVisualization();
+    }
 }
 
 void LidarInertialOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
@@ -932,14 +952,14 @@ void LidarInertialOdometry::updateVisualization()
 
     // Vehicle pose:
     // ---------------------------
-    if (!glVehicleFrame_)
+    if (!state_.glVehicleFrame)
     {
-        glVehicleFrame_ = mrpt::opengl::CSetOfObjects::Create();
-        auto glCorner   = mrpt::opengl::stock_objects::CornerXYZ(1.5f);
-        glVehicleFrame_->insert(glCorner);
+        state_.glVehicleFrame = mrpt::opengl::CSetOfObjects::Create();
+        auto glCorner         = mrpt::opengl::stock_objects::CornerXYZ(1.5f);
+        state_.glVehicleFrame->insert(glCorner);
     }
-    glVehicleFrame_->setPose(state_.current_pose.mean);
-    visualizer_->update_3d_object("liodom/vehicle", glVehicleFrame_);
+    state_.glVehicleFrame->setPose(state_.current_pose.mean);
+    visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame);
 
     // GUI follow vehicle:
     // ---------------------------
@@ -948,20 +968,16 @@ void LidarInertialOdometry::updateVisualization()
 
     // Local map:
     // -----------------------------
-    if (!glLocalMap_)
-    {
-        //
-        glLocalMap_ = mrpt::opengl::CSetOfObjects::Create();
-    }
-    const int  VIZ_MAP_UPDATE_DECIMATION = 10;
-    static int mapUpdateCnt              = VIZ_MAP_UPDATE_DECIMATION;
-    if (++mapUpdateCnt > VIZ_MAP_UPDATE_DECIMATION)
-    {
-        mapUpdateCnt = 0;
-        glLocalMap_->clear();
-        auto glMap = state_.local_map->get_visualization();
-        for (auto& o : *glMap) glLocalMap_->insert(o);
+    if (!state_.glLocalMap)  //
+        state_.glLocalMap = mrpt::opengl::CSetOfObjects::Create();
 
-        visualizer_->update_3d_object("liodom/localmap", glLocalMap_);
+    if (state_.mapUpdateCnt++ > params_.visualization.map_update_decimation)
+    {
+        state_.mapUpdateCnt = 0;
+        state_.glLocalMap->clear();
+        auto glMap = state_.local_map->get_visualization();
+        for (auto& o : *glMap) state_.glLocalMap->insert(o);
+
+        visualizer_->update_3d_object("liodom/localmap", state_.glLocalMap);
     }
 }

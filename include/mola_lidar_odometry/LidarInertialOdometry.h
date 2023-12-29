@@ -102,6 +102,14 @@ class LidarInertialOdometry : public FrontEndBase
         bool icp_profiler_enabled      = false;
         bool icp_profiler_full_history = false;
 
+        struct Visualization
+        {
+            int map_update_decimation = 10;
+
+            void initialize(const Yaml& c);
+        };
+        Visualization visualization;
+
         // KISS-ICP adaptive threshold method:
         struct AdaptiveThreshold
         {
@@ -147,6 +155,8 @@ class LidarInertialOdometry : public FrontEndBase
             /** If not empty, the final simple map will be dumped to a file at
              * destruction time */
             std::string save_final_map_to_file;
+
+            void initialize(const Yaml& c);
         };
 
         SimpleMapOptions simplemap;
@@ -225,6 +235,10 @@ class LidarInertialOdometry : public FrontEndBase
         mp2p_icp_filters::GeneratorSet   local_map_generators;
         mp2p_icp::metric_map_t::Ptr      local_map =
             mp2p_icp::metric_map_t::Create();
+
+        // Visualization:
+        mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap;
+        int mapUpdateCnt = std::numeric_limits<int>::max();
     };
 
     /** The worker thread pool with 1 thread for processing incomming scans */
@@ -260,8 +274,6 @@ class LidarInertialOdometry : public FrontEndBase
     void updatePipelineDynamicVariables();
 
     void updateVisualization();
-
-    mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame_, glLocalMap_;
 };
 
 }  // namespace mola

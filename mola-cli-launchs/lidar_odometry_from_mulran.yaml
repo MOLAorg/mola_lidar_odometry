@@ -1,0 +1,43 @@
+# -----------------------------------------------------------------------------
+#                        SLAM system definition for MOLA
+# This file defines:
+# An input sensor from a ROS 2 topic, and the MOLA Visualizer.
+# -----------------------------------------------------------------------------
+
+modules:
+  # =====================
+  # MolaViz
+  # =====================
+  - name: viz
+    type: mola::MolaViz
+    #verbosity_level: DEBUG
+    params: ~ # none
+
+# Offline or online sensory data sources =====================
+  # =====================
+  # MulranDataset
+  # =====================
+  - type: mola::MulranDataset
+    name: mulran_input
+    execution_rate: 20 # Hz
+    #export_to_rawlog: mulran_${MULRAN_SEQ}.rawlog
+    #verbosity_level: INFO
+    gui_preview_sensors:
+      - raw_sensor_label: lidar
+        decimation: 1
+        win_pos: 5 70 400 400
+    params:
+      base_dir: ${MULRAN_BASE_DIR}
+      sequence: ${MULRAN_SEQ}
+      time_warp_scale: 1.9 #1.0
+      publish_lidar: true
+      publish_ground_truth: true
+
+  - name: lidar_odom
+    type: mola::LidarInertialOdometry
+    #verbosity_level: DEBUG
+    raw_data_source: 'mulran_input'
+    # This includes here a whole block "params: (...)"
+    # with the LIDAR-Odometry pipeline configuration:
+    params: '${MOLA_ODOMETRY_PIPELINE_YAML|../params/lidar-inertial-pipeline.yaml}'
+

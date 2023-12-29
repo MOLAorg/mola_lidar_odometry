@@ -37,9 +37,16 @@ params:
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
-  simplemap.generate: false # Can be overriden with CLI flag --output-simplemap
-  simplemap.min_dist_xyz_between_keyframes: 0.05   # m
-  simplemap.min_rotation_between_keyframes: 3.0  # deg
+  simplemap:
+    generate: ${MOLA_GENERATE_SIMPLEMAP|false}   # Can be overriden with CLI flag --output-simplemap
+    min_dist_xyz_between_keyframes: 0.05   # m
+    min_rotation_between_keyframes: 3.0  # deg
+    save_final_map_to_file: 'final_map.simplemap'
+
+  # If run within a mola-cli container, and mola_viz is present, use these options 
+  # to show live progress:
+  visualization:
+    map_update_decimation: 20
 
   # Profile the main steps of the odometry pipeline:
   pipeline_profiler_enabled: true
