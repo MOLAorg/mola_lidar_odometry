@@ -98,6 +98,11 @@ static TCLAP::ValueArg<int> arg_firstN(
     "", "only-first-n", "Run for the first N steps only (0=default, not used)",
     false, 0, "Number of dataset entries to run", cmd);
 
+static TCLAP::ValueArg<int> arg_skipFirstN(
+    "", "skip-first-n",
+    "Skip the first N dataset entries (0=default, not used)", false, 0,
+    "Number of dataset entries to skip", cmd);
+
 static TCLAP::ValueArg<std::string> arg_lidarLabel(
     "", "lidar-sensor-label",
     "If provided, this supersedes the values in the 'lidar_sensor_labels' "
@@ -353,13 +358,20 @@ static int main_odometry()
 
     const double tStart = mrpt::Clock::nowDouble();
 
-    size_t nDatasetEntriesToRun = dataset->datasetSize();
-    if (arg_firstN.isSet()) nDatasetEntriesToRun = arg_firstN.getValue();
+    size_t lastDatasetEntry  = dataset->datasetSize();
+    size_t firstDatasetEntry = 0;
+
+    if (arg_skipFirstN.isSet()) firstDatasetEntry = arg_skipFirstN.getValue();
+
+    if (arg_firstN.isSet())
+        lastDatasetEntry = firstDatasetEntry + arg_firstN.getValue();
+
+    mrpt::keep_min(lastDatasetEntry, dataset->datasetSize());
 
     std::cout << "\n";  // Needed for the VT100 codes below.
 
     // Run:
-    for (size_t i = 0; i < nDatasetEntriesToRun; i++)
+    for (size_t i = firstDatasetEntry; i < lastDatasetEntry; i++)
     {
         // Get observations from the dataset:
         using namespace mrpt::obs;
