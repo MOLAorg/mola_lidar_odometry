@@ -38,10 +38,10 @@ mola_add_library(
 	SOURCES ${LIB_SRCS} ${LIB_PUBLIC_HDRS}
 	PUBLIC_LINK_LIBRARIES
 		mrpt::maps
-		mola_kernel
-		mp2p_icp
-		mp2p_icp_filters
-		mola_imu_preintegration
+		mola::mola_kernel
+		mola::mp2p_icp
+		mola::mp2p_icp_filters
+		mola::mola_imu_preintegration
 #	PRIVATE_LINK_LIBRARIES
 #		mrpt::maps
 	CMAKE_DEPENDENCIES
@@ -69,7 +69,7 @@ mola_add_executable(
 )
 if (mola_input_kitti_dataset_FOUND)
 message("mola-lidar-odometry-cli: With Kitti = YES")
-target_link_libraries(mola-lidar-odometry-cli mola_input_kitti_dataset)
+target_link_libraries(mola-lidar-odometry-cli mola::mola_input_kitti_dataset)
 target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_KITTI)
 else()
 message("mola-lidar-odometry-cli: With Kitti = NO")
@@ -77,7 +77,7 @@ endif()
 
 if (mola_input_mulran_dataset_FOUND)
 message("mola-lidar-odometry-cli: With Mulran = YES")
-target_link_libraries(mola-lidar-odometry-cli mola_input_mulran_dataset)
+target_link_libraries(mola-lidar-odometry-cli mola::mola_input_mulran_dataset)
 target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_MULRAN)
 else()
 message("mola-lidar-odometry-cli: With Mulran = NO")
@@ -85,7 +85,7 @@ endif()
 
 if (mola_input_rawlog_FOUND)
 message("mola-lidar-odometry-cli: With Rawlog = YES")
-target_link_libraries(mola-lidar-odometry-cli mola_input_rawlog)
+target_link_libraries(mola-lidar-odometry-cli mola::mola_input_rawlog)
 target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_RAWLOG)
 else()
 message("mola-lidar-odometry-cli: With Rawlog = NO")
@@ -93,7 +93,7 @@ endif()
 
 if (mola_input_rosbag2_FOUND)
 message("mola-lidar-odometry-cli: With rosbag2 = YES")
-target_link_libraries(mola-lidar-odometry-cli mola_input_rosbag2)
+target_link_libraries(mola-lidar-odometry-cli mola::mola_input_rosbag2)
 target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_ROSBAG2)
 else()
 message("mola-lidar-odometry-cli: With rosbag2 = NO")
