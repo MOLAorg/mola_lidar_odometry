@@ -83,7 +83,7 @@ class LidarInertialOdometry : public FrontEndBase
          */
         double min_time_between_scans = 0.05;
 
-        double max_time_to_use_velocity_model = 1.0;
+        double max_time_to_use_velocity_model = 2.0;
 
         /** Minimum Euclidean distance (x,y,z) between keyframes inserted into
          * the map [meters]. */

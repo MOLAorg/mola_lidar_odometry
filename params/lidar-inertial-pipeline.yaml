@@ -9,6 +9,8 @@ params:
 
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 0 # 0.2  # [seconds]
+  # Maximum time between two scans to consider the validity of the velocity model:
+  max_time_to_use_velocity_model: 2.0 # [seconds]
 
   # These sensor labels will be handled as IMU observations:
   imu_sensor_label: 'imu'
@@ -116,23 +118,23 @@ observations_filter:
   # input metric_map_t object.
   #
 
-  #- class_name: mp2p_icp_filters::FilterDeskew
-  #  params:
-  #    input_pointcloud_layer: 'raw'
-  #    output_pointcloud_layer: 'deskewed'
-  #    silently_ignore_no_timestamps: true # To handle more dataset types
-  #    output_layer_class: 'mrpt::maps::CPointsMapXYZI'  # Keep intensity channel
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      input_pointcloud_layer: 'raw'
+      output_pointcloud_layer: 'deskewed'
+      silently_ignore_no_timestamps: true # To handle more dataset types
+      output_layer_class: 'mrpt::maps::CPointsMapXYZI'  # Keep intensity channel
       
       # These (vx,...wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
-  #    twist: [VX,VY,VZ,WX,WY,WZ]
+      twist: [VX,VY,VZ,WX,WY,WZ]
 
   # Remove points too close, to prevent "noise" from the vehicle, 
   # the person next to the robot, etc. Remove too distant points since
   # the tiniest angular error projects to a large translational error.
   - class_name: mp2p_icp_filters::FilterByRange
     params:
-      input_pointcloud_layer: 'raw'  # 'deskewed'
+      input_pointcloud_layer: 'deskewed'
       output_pointcloud_layer: 'filtered'
       keep_between: true # Remove points out of this range limits
       range_min: 5.0
@@ -186,5 +188,5 @@ observations_filter:
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ['raw', 'filtered', 'large_curvature', 'smaller_curvature']
+      pointcloud_layer_to_remove: ['raw', 'deskewed', 'filtered', 'large_curvature', 'smaller_curvature']
 
