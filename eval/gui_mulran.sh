@@ -1,15 +1,21 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-if [ "$#" -ne 1 ]; then
-    echo "Error: Exactly 1 argument is required."
-    echo "Usage: $0 <MULRAN_SEQ>"
-    echo "With <MULRAN_SEQ> KAIST01 or DCC01 or..."
+if [ "$#" -eq 0 ]; then
+    echo "Error: At least 1 argument is required."
+    echo "Usage: $0 <MULRAN_SEQ> [additional flags for mola-cli]"
+    echo "With <KITTI_SEQ> 00 or 01 or 02..."
     exit 1
 fi
 
-PIPELINE_YAML="${PIPELINE_YAML:-$HOME/ros2_ws/src/mola_lidar_odometry/params/lidar-inertial-pipeline-simple.yaml}"
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-MULRAN_SEQ=$1 \
+PIPELINE_YAML="${PIPELINE_YAML:-$SCRIPT_DIR/../params/lidar-inertial-pipeline-simple.yaml}"
+
+SEQ=$1
+shift 1
+
+MULRAN_SEQ=$SEQ \
 MOLA_ODOMETRY_PIPELINE_YAML=$PIPELINE_YAML \
   mola-cli \
-    -c $HOME/ros2_ws/src/mola_lidar_odometry/mola-cli-launchs/lidar_odometry_from_mulran.yaml
+    -c $SCRIPT_DIR/../mola-cli-launchs/lidar_odometry_from_mulran.yaml \
+    $@

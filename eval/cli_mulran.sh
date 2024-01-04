@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Default pipeline YAML file:
 PIPELINE_YAML="${PIPELINE_YAML:-src/mola_lidar_odometry/params/lidar-inertial-pipeline-simple.yaml}"

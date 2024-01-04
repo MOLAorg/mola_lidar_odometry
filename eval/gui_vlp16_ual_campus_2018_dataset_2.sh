@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 MOLA_INPUT_RAWLOG=/mnt/storage/ual-datasets/ecarm_2018_02_26_velodyne_rtk_campus/dataset_2018-02-26_merged.rawlog \
 MOLA_ODOMETRY_PIPELINE_YAML=$HOME/ros2_ws/src/mola_lidar_odometry/params/lidar-inertial-pipeline-simple.yaml \
