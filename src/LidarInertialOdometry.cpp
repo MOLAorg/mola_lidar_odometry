@@ -536,7 +536,8 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             ProfilerEntry tle(profiler_, "onLidar.3.icp_latest");
             run_one_icp(icp_in, icp_out);
         }
-        const bool icpIsGood = icp_out.goodness >= params_.min_icp_goodness;
+        const bool icpIsGood     = icp_out.goodness >= params_.min_icp_goodness;
+        state_.last_icp_was_good = icpIsGood;
 
         if (icpIsGood) state_.current_pose = icp_out.found_pose_to_wrt_from;
 
@@ -647,6 +648,20 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
     }  // end: yes, we can do ICP
 
+    // If this was a bad ICP, and we just started with an empty map, re-start
+    // again:
+    if (!state_.last_icp_was_good && state_.estimatedTrajectory.size() == 1)
+    {
+        // Re-start the local map:
+        state_.local_map->clear();
+        state_.estimatedTrajectory.clear();
+        updateLocalMap           = false;
+        state_.last_icp_was_good = true;
+
+        MRPT_LOG_WARN(
+            "Bad first ICP, re-starting from scratch with a new local map");
+    }
+
     // save for next iter:
     state_.last_pose = state_.current_pose.mean;
 
@@ -747,7 +762,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     }
 
     // Optional real-time GUI via MOLA VizInterface:
-    if (visualizer_)
+    if (visualizer_ && state_.local_map)
     {
         ProfilerEntry tle(profiler_, "onLidar.6.updateVisualization");
 

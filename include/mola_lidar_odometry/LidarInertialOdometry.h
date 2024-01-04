@@ -213,6 +213,7 @@ class LidarInertialOdometry : public FrontEndBase
         std::optional<mrpt::Clock::time_point> last_obs_tim;
         std::optional<mrpt::math::TTwist3D>    last_iter_twist;
         std::optional<mrpt::poses::CPose3D>    last_pose;  //!< in local map
+        bool                                   last_icp_was_good = true;
         mrpt::poses::CPose3DPDFGaussian        current_pose;  //!< in local map
         mrpt::poses::CPose3D                   accum_since_last_kf;
         mrpt::poses::CPose3D                   accum_since_last_simplemap_kf;
