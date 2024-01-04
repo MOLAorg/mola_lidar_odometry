@@ -536,11 +536,14 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             ProfilerEntry tle(profiler_, "onLidar.3.icp_latest");
             run_one_icp(icp_in, icp_out);
         }
-        state_.current_pose = icp_out.found_pose_to_wrt_from;
+        const bool icpIsGood = icp_out.goodness >= params_.min_icp_goodness;
+
+        if (icpIsGood) state_.current_pose = icp_out.found_pose_to_wrt_from;
 
         // Update velocity model:
         mrpt::poses::CPose3D incrPose;
-        if (dt < params_.max_time_to_use_velocity_model && state_.last_pose)
+        if (dt < params_.max_time_to_use_velocity_model && state_.last_pose &&
+            icpIsGood)
         {
             ASSERT_GT_(dt, .0);
 
@@ -566,6 +569,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         }
 
         // Update trajectory too:
+        if (icpIsGood)
         {
             auto lck = mrpt::lockHelper(stateTrajectory_mtx_);
             state_.estimatedTrajectory.insert(
@@ -581,7 +585,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             "Time since last scan=" << mrpt::system::formatTimeInterval(dt));
 
         // KISS-ICP adaptive threshold method:
-        if (params_.adaptive_threshold.enabled)
+        if (params_.adaptive_threshold.enabled && icpIsGood)
         {
             const mrpt::poses::CPose3D motionModelError =
                 icp_out.found_pose_to_wrt_from.mean -
@@ -607,7 +611,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
                 .norm();
 
         updateLocalMap =
-            (icp_out.goodness > params_.min_icp_goodness &&
+            (icpIsGood &&
              hasMotionModel &&  // skip map update for the special ICP alignment
                                 // without motion model
              (dist_eucl_since_last > params_.min_dist_xyz_between_keyframes ||
@@ -625,7 +629,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
 
         updateSimpleMap =
             (params_.simplemap.generate) &&
-            (icp_out.goodness > params_.min_icp_goodness &&
+            (icpIsGood &&
              (dist_eucl_since_last_sm >
                   params_.simplemap.min_dist_xyz_between_keyframes ||
               rot_since_last_sm >
