@@ -327,12 +327,13 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
         std::regex_match(o->sensorLabel, params_.imu_sensor_label.value()))
     {
         {
-            auto lck        = mrpt::lockHelper(is_busy_mtx_);
-            state_.busy_imu = true;
+            auto lck = mrpt::lockHelper(is_busy_mtx_);
+            state_.worker_tasks++;
         }
 
         // Yes, it's an IMU obs:
-        auto fut = worker_imu_.enqueue(&LidarInertialOdometry::onIMU, this, o);
+        auto fut =
+            worker_lidar_imu_.enqueue(&LidarInertialOdometry::onIMU, this, o);
         (void)fut;
     }
 
@@ -342,9 +343,9 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
         if (!std::regex_match(o->sensorLabel, re)) continue;
 
         // Yes, it's a LIDAR obs:
-        const auto queued = worker_lidar_.pendingTasks();
+        const auto queued = worker_lidar_imu_.pendingTasks();
         profiler_.registerUserMeasure("onNewObservation.queue_length", queued);
-        if (queued > 100)
+        if (queued > 500)
         {
             MRPT_LOG_THROTTLE_ERROR(
                 1.0, "Dropping observation due to worker threads too busy.");
@@ -355,13 +356,13 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
         profiler_.enter("delay_onNewObs_to_process");
 
         {
-            auto lck          = mrpt::lockHelper(is_busy_mtx_);
-            state_.busy_lidar = true;
+            auto lck = mrpt::lockHelper(is_busy_mtx_);
+            state_.worker_tasks++;
         }
 
         // Enqueue task:
         auto fut =
-            worker_lidar_.enqueue(&LidarInertialOdometry::onLidar, this, o);
+            worker_lidar_imu_.enqueue(&LidarInertialOdometry::onLidar, this, o);
 
         (void)fut;
 
@@ -385,8 +386,8 @@ void LidarInertialOdometry::onLidar(const CObservation::Ptr& o)
         state_.fatal_error = true;
     }
     {
-        auto lck          = mrpt::lockHelper(is_busy_mtx_);
-        state_.busy_lidar = false;
+        auto lck = mrpt::lockHelper(is_busy_mtx_);
+        state_.worker_tasks--;
     }
 }
 
@@ -838,8 +839,8 @@ void LidarInertialOdometry::onIMU(const CObservation::Ptr& o)
     }
 
     {
-        auto lck        = mrpt::lockHelper(is_busy_mtx_);
-        state_.busy_imu = false;
+        auto lck = mrpt::lockHelper(is_busy_mtx_);
+        state_.worker_tasks--;
     }
 }
 
@@ -852,13 +853,11 @@ void LidarInertialOdometry::onIMUImpl(const CObservation::Ptr& o)
 
 bool LidarInertialOdometry::isBusy() const
 {
-    bool b1, b2;
+    bool b;
     is_busy_mtx_.lock();
-    b1 = state_.busy_imu;
-    b2 = state_.busy_lidar;
+    b = state_.worker_tasks != 0;
     is_busy_mtx_.unlock();
-    return b1 || b2 || worker_lidar_.pendingTasks() ||
-           worker_imu_.pendingTasks();
+    return b || worker_lidar_imu_.pendingTasks();
 }
 
 mrpt::poses::CPose3DInterpolator LidarInertialOdometry::estimatedTrajectory()

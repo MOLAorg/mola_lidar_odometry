@@ -215,7 +215,7 @@ class LidarInertialOdometry : public FrontEndBase
         bool initialized = false;
         bool fatal_error = false;
 
-        bool busy_imu = false, busy_lidar = false;
+        int worker_tasks = 0;
 
         std::optional<mrpt::Clock::time_point> last_obs_tim;
         std::optional<mrpt::math::TTwist3D>    last_iter_twist;
@@ -249,14 +249,11 @@ class LidarInertialOdometry : public FrontEndBase
         int mapUpdateCnt = std::numeric_limits<int>::max();
     };
 
-    /** The worker thread pool with 1 thread for processing incomming scans */
-    mrpt::WorkerThreadsPool worker_lidar_{
+    /** The worker thread pool with 1 thread for processing incomming
+     * IMU or LIDAR observations*/
+    mrpt::WorkerThreadsPool worker_lidar_imu_{
         1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO,
-        "worker_lidar"};
-
-    /** The worker thread pool with 1 thread for processing incomming IMU */
-    mrpt::WorkerThreadsPool worker_imu_{
-        1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_imu"};
+        "worker_lidar_imu"};
 
     MethodState        state_;
     const MethodState& state() const { return state_; }
