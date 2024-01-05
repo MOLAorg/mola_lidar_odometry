@@ -16,8 +16,9 @@ params:
   imu_sensor_label: 'imu'
 
   # How often to update the local map model:
-  min_dist_xyz_between_keyframes: 0.1  # [m]
-  min_rotation_between_keyframes: 15.0  # [deg]
+  local_map_updates:
+    min_translation_between_keyframes: 0.25  # [m]
+    min_rotation_between_keyframes: 15.0  # [deg]
 
   icp_settings_with_vel: $include{./icp-pipeline.yaml}
   icp_settings_without_vel: $include{./icp-pipeline.yaml}
@@ -41,7 +42,7 @@ params:
   # to a ".simplemap" file for later use for localization, etc.
   simplemap:
     generate: ${MOLA_GENERATE_SIMPLEMAP|false}   # Can be overriden with CLI flag --output-simplemap
-    min_dist_xyz_between_keyframes: 0.05   # m
+    min_translation_between_keyframes: 0.05   # m
     min_rotation_between_keyframes: 3.0  # deg
     save_final_map_to_file: 'final_map.simplemap'
 

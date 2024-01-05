@@ -85,14 +85,21 @@ class LidarInertialOdometry : public FrontEndBase
 
         double max_time_to_use_velocity_model = 2.0;
 
-        /** Minimum Euclidean distance (x,y,z) between keyframes inserted into
-         * the map [meters]. */
-        double min_dist_xyz_between_keyframes = 1.0;
+        struct MapUpdateOptions
+        {
+            /** Minimum Euclidean distance (x,y,z) between keyframes inserted
+             * into the local map [meters]. */
+            double min_translation_between_keyframes = 1.0;
 
-        /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether) between
-         * keyframes inserted into
-         * the map [rad here, degrees in the yaml file]. */
-        double min_rotation_between_keyframes = mrpt::DEG2RAD(30.0);
+            /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether)
+             * between keyframes inserted into
+             * the local map [rad here, degrees in the yaml file]. */
+            double min_rotation_between_keyframes = mrpt::DEG2RAD(30.0);
+
+            void initialize(const Yaml& c);
+        };
+
+        MapUpdateOptions local_map_updates;
 
         /** Minimum ICP "goodness" (in the range [0,1]) for a new KeyFrame to be
          * accepted during regular lidar odometry & mapping */
@@ -145,7 +152,7 @@ class LidarInertialOdometry : public FrontEndBase
 
             /** Minimum Euclidean distance (x,y,z) between keyframes inserted
              * into the simplemap [meters]. */
-            double min_dist_xyz_between_keyframes = 1.0;
+            double min_translation_between_keyframes = 1.0;
 
             /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether)
              * between keyframes inserted into

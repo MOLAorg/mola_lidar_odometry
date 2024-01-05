@@ -106,9 +106,16 @@ void LidarInertialOdometry::Parameters::SimpleMapOptions::initialize(
     const Yaml& cfg)
 {
     YAML_LOAD_REQ(generate, bool);
-    YAML_LOAD_OPT(min_dist_xyz_between_keyframes, double);
+    YAML_LOAD_OPT(min_translation_between_keyframes, double);
     YAML_LOAD_OPT_DEG(min_rotation_between_keyframes, double);
     YAML_LOAD_OPT(save_final_map_to_file, std::string);
+}
+
+void LidarInertialOdometry::Parameters::MapUpdateOptions::initialize(
+    const Yaml& cfg)
+{
+    YAML_LOAD_REQ(min_translation_between_keyframes, double);
+    YAML_LOAD_REQ_DEG(min_rotation_between_keyframes, double);
 }
 
 void LidarInertialOdometry::initialize(const Yaml& c)
@@ -167,8 +174,8 @@ void LidarInertialOdometry::initialize(const Yaml& c)
             cfg["imu_sensor_label"].as<std::string>());
     }
 
-    YAML_LOAD_REQ(params_, min_dist_xyz_between_keyframes, double);
-    YAML_LOAD_OPT_DEG(params_, min_rotation_between_keyframes, double);
+    ASSERT_(cfg.has("local_map_updates"));
+    params_.local_map_updates.initialize(cfg["local_map_updates"]);
 
     YAML_LOAD_OPT(params_, min_time_between_scans, double);
     YAML_LOAD_OPT(params_, max_time_to_use_velocity_model, double);
@@ -615,8 +622,10 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             (icpIsGood &&
              hasMotionModel &&  // skip map update for the special ICP alignment
                                 // without motion model
-             (dist_eucl_since_last > params_.min_dist_xyz_between_keyframes ||
-              rot_since_last > params_.min_rotation_between_keyframes));
+             (dist_eucl_since_last >
+                  params_.local_map_updates.min_translation_between_keyframes ||
+              rot_since_last >
+                  params_.local_map_updates.min_rotation_between_keyframes));
 
         if (updateLocalMap)
             state_.accum_since_last_kf = mrpt::poses::CPose3D::Identity();
@@ -632,7 +641,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             (params_.simplemap.generate) &&
             (icpIsGood &&
              (dist_eucl_since_last_sm >
-                  params_.simplemap.min_dist_xyz_between_keyframes ||
+                  params_.simplemap.min_translation_between_keyframes ||
               rot_since_last_sm >
                   params_.simplemap.min_rotation_between_keyframes));
 
