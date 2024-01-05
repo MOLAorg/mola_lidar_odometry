@@ -5,4 +5,4 @@ MOLA_ODOMETRY_PIPELINE_YAML=$HOME/ros2_ws/src/mola_lidar_odometry/params/lidar-i
 MOLA_TIME_WARP=2.0 \
 MOLA_LIDAR_NAME=Velodyne1_SCAN \
   mola-cli \
-    -c $HOME/ros2_ws/src/mola_lidar_odometry/mola-cli-launchs/lidar_odometry_from_rawlog.yaml $@
+    $HOME/ros2_ws/src/mola_lidar_odometry/mola-cli-launchs/lidar_odometry_from_rawlog.yaml $@

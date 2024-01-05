@@ -15,5 +15,5 @@ shift 1
 KITTI_SEQ=$SEQ \
 MOLA_ODOMETRY_PIPELINE_YAML=$SCRIPT_DIR/../params/lidar-inertial-pipeline-simple.yaml \
   mola-cli \
-    -c $SCRIPT_DIR/../mola-cli-launchs/lidar_odometry_from_kitti.yaml \
+    $SCRIPT_DIR/../mola-cli-launchs/lidar_odometry_from_kitti.yaml \
     $@
