@@ -44,7 +44,7 @@ modules:
 
     params:
       # We use an environment variable to force the user to specify a bag file:
-      rosbag_filename: ${ROSBAG2_FILE}
+      rosbag_filename: ${MOLA_INPUT_ROSBAG2}
       
       base_link_frame_id: 'base_footprint'
 

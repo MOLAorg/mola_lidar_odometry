@@ -1007,4 +1007,29 @@ void LidarInertialOdometry::updateVisualization()
 
         visualizer_->update_3d_object("liodom/localmap", state_.glLocalMap);
     }
+
+    // Console messages:
+    // -------------------------
+    {
+        std::stringstream ss;
+        if (state_.last_obs_tim)
+            ss << mrpt::format(
+                "t=%.03f ", mrpt::Clock::toDouble(state_.last_obs_tim.value()));
+
+        ss << mrpt::format(
+            "pose:%65s ", state_.current_pose.mean.asString().c_str());
+
+        if (state_.last_iter_twist)
+            ss << mrpt::format(
+                "twist:%65s ",
+                state_.last_iter_twist.value().asString().c_str());
+
+        ss << mrpt::format(
+            "path KFs: %4zu ", state_.estimatedTrajectory.size());
+
+        ss << mrpt::format(
+            "simplemap KFs: %4zu ", state_.reconstructedMap.size());
+
+        visualizer_->output_console_message(ss.str());
+    }
 }
