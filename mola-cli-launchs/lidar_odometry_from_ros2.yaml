@@ -15,7 +15,7 @@ modules:
 
   - name: icp_odom
     type: mola::LidarInertialOdometry
-    verbosity_level: DEBUG
+    #verbosity_level: DEBUG
     raw_data_source: 'ros_input'
     # This includes here a whole block "params: (...)"
     # with the LIDAR-Odometry pipeline configuration:

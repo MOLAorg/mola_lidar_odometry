@@ -100,6 +100,7 @@ void LidarInertialOdometry::Parameters::Visualization::initialize(
     const Yaml& cfg)
 {
     YAML_LOAD_OPT(map_update_decimation, int);
+    YAML_LOAD_OPT(show_trajectory, bool);
 }
 
 void LidarInertialOdometry::Parameters::SimpleMapOptions::initialize(
@@ -987,6 +988,33 @@ void LidarInertialOdometry::updateVisualization()
     }
     state_.glVehicleFrame->setPose(state_.current_pose.mean);
     visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame);
+
+    // Estimated path:
+    // ------------------------
+    if (params_.visualization.show_trajectory)
+    {
+        if (!state_.glEstimatedPath)
+        {
+            state_.glEstimatedPath = mrpt::opengl::CSetOfLines::Create();
+            state_.glEstimatedPath->setColor_u8(0x30, 0x30, 0x30);
+
+            state_.glPathGrp = mrpt::opengl::CSetOfObjects::Create();
+            state_.glPathGrp->insert(state_.glEstimatedPath);
+        }
+        // Update path viz:
+        state_.glEstimatedPath->clear();
+        for (auto it = state_.estimatedTrajectory.begin();
+             it != state_.estimatedTrajectory.end(); ++it)
+        {
+            const auto t = it->second.translation();
+
+            if (state_.glEstimatedPath->empty())
+                state_.glEstimatedPath->appendLine(t, t);
+            else
+                state_.glEstimatedPath->appendLineStrip(t);
+        }
+        visualizer_->update_3d_object("liodom/path", state_.glPathGrp);
+    }
 
     // GUI follow vehicle:
     // ---------------------------

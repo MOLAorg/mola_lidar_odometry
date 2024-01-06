@@ -32,6 +32,8 @@
 #include <mp2p_icp_filters/Generator.h>
 #include <mrpt/core/WorkerThreadsPool.h>
 #include <mrpt/maps/CSimpleMap.h>
+#include <mrpt/opengl/CSetOfLines.h>
+#include <mrpt/opengl/CSetOfObjects.h>
 #include <mrpt/poses/CPose3DInterpolator.h>
 #include <mrpt/serialization/CSerializable.h>
 
@@ -111,7 +113,8 @@ class LidarInertialOdometry : public FrontEndBase
 
         struct Visualization
         {
-            int map_update_decimation = 10;
+            int  map_update_decimation = 10;
+            bool show_trajectory       = true;
 
             void initialize(const Yaml& c);
         };
@@ -245,7 +248,8 @@ class LidarInertialOdometry : public FrontEndBase
             mp2p_icp::metric_map_t::Create();
 
         // Visualization:
-        mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap;
+        mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;
+        mrpt::opengl::CSetOfLines::Ptr   glEstimatedPath;
         int mapUpdateCnt = std::numeric_limits<int>::max();
     };
 
