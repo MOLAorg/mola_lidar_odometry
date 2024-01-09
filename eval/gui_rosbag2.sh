@@ -3,7 +3,7 @@
 if [ "$#" -eq 0 ]; then
     echo "Error: At least 1 argument is required."
     echo "Usage: $0 /path/to/dataset.mcap [additional flags for mola-cli]"
-    echo "You can set env var POINTCLOUD_TOPIC to define the lidar topic name (default: '/ouster/points')"
+    echo "You can set env var MOLA_LIDAR_TOPIC to define the lidar topic name (default: '/ouster/points')"
     exit 1
 fi
 
