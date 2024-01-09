@@ -45,6 +45,11 @@ params:
     min_rotation_between_keyframes: 3.0  # deg
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
 
+  # Save the final trajectory in TUM format. Disabled by default.
+  estimated_trajectory:
+    save_to_file: ${MOLA_SAVE_TRAJECTORY|false}
+    output_file: ${MOLA_TUM_TRAJECTORY_OUTPUT|'estimated_trajectory.txt'}
+
   # If run within a mola-cli container, and mola_viz is present, use these options 
   # to show live progress:
   visualization:

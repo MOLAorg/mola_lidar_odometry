@@ -113,8 +113,15 @@ class LidarInertialOdometry : public FrontEndBase
 
         struct Visualization
         {
-            int  map_update_decimation = 10;
-            bool show_trajectory       = true;
+            int    map_update_decimation    = 10;
+            bool   show_trajectory          = true;
+            double current_pose_corner_size = 1.5;  //! [m]
+
+            /** If not empty, an optional 3D model (.DAE, etc) to load for
+             * visualizing the robot/vehicle pose */
+            std::string         model_file;
+            mrpt::math::TPose3D model_tf;  /// Optional 3D model offset/rotation
+            double              model_scale = 1.0;
 
             void initialize(const Yaml& c);
         };
@@ -170,6 +177,20 @@ class LidarInertialOdometry : public FrontEndBase
         };
 
         SimpleMapOptions simplemap;
+
+        // === OUTPUT TRAJECTORY ====
+        struct TrajectoryOutputOptions
+        {
+            bool save_to_file = false;
+
+            /** If save_to_file==true, the final estimated trajectory will be
+             * dumped to a file at destruction time */
+            std::string output_file = "output.txt";
+
+            void initialize(const Yaml& c);
+        };
+
+        TrajectoryOutputOptions estimated_trajectory;
     };
 
     /** Algorithm parameters */

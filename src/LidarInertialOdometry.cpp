@@ -35,6 +35,7 @@
 #include <mrpt/obs/CObservationComment.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
+#include <mrpt/opengl/CAssimpModel.h>
 #include <mrpt/opengl/COpenGLScene.h>
 #include <mrpt/opengl/CText.h>
 #include <mrpt/opengl/stock_objects.h>
@@ -59,19 +60,41 @@ LidarInertialOdometry::LidarInertialOdometry() = default;
 
 LidarInertialOdometry::~LidarInertialOdometry()
 {
-    if (params_.simplemap.generate &&
-        !params_.simplemap.save_final_map_to_file.empty())
+    try  // a dtor should never throw
     {
-        const auto fil = params_.simplemap.save_final_map_to_file;
+        if (params_.simplemap.generate &&
+            !params_.simplemap.save_final_map_to_file.empty())
+        {
+            const auto fil = params_.simplemap.save_final_map_to_file;
 
-        MRPT_LOG_INFO_STREAM(
-            "Saving final simplemap with " << state_.reconstructedMap.size()
-                                           << " keyframes to file '" << fil
-                                           << "'...");
+            MRPT_LOG_INFO_STREAM(
+                "Saving final simplemap with " << state_.reconstructedMap.size()
+                                               << " keyframes to file '" << fil
+                                               << "'...");
 
-        state_.reconstructedMap.saveToFile(fil);
+            state_.reconstructedMap.saveToFile(fil);
 
-        MRPT_LOG_INFO("Final simplemap saved.");
+            MRPT_LOG_INFO("Final simplemap saved.");
+        }
+
+        if (params_.estimated_trajectory.save_to_file &&
+            !params_.estimated_trajectory.output_file.empty())
+        {
+            const auto fil = params_.estimated_trajectory.output_file;
+
+            MRPT_LOG_INFO_STREAM(
+                "Saving final trajectory with "
+                << state_.estimatedTrajectory.size() << " keyframes to file '"
+                << fil << "' in TUM format...");
+
+            state_.estimatedTrajectory.saveToTextFile_TUM(fil);
+
+            MRPT_LOG_INFO("Final trajectory saved.");
+        }
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "[~LidarInertialOdometry] Exception: " << e.what();
     }
 }
 
@@ -101,12 +124,23 @@ void LidarInertialOdometry::Parameters::Visualization::initialize(
 {
     YAML_LOAD_OPT(map_update_decimation, int);
     YAML_LOAD_OPT(show_trajectory, bool);
+    YAML_LOAD_OPT(current_pose_corner_size, double);
+
+    YAML_LOAD_OPT(model_file, std::string);
+    YAML_LOAD_OPT(model_tf.x, double);
+    YAML_LOAD_OPT(model_tf.y, double);
+    YAML_LOAD_OPT(model_tf.z, double);
+    YAML_LOAD_OPT_DEG(model_tf.yaw, double);
+    YAML_LOAD_OPT_DEG(model_tf.pitch, double);
+    YAML_LOAD_OPT_DEG(model_tf.roll, double);
+
+    YAML_LOAD_OPT(model_scale, double);
 }
 
 void LidarInertialOdometry::Parameters::SimpleMapOptions::initialize(
     const Yaml& cfg)
 {
-    YAML_LOAD_REQ(generate, bool);
+    YAML_LOAD_OPT(generate, bool);
     YAML_LOAD_OPT(min_translation_between_keyframes, double);
     YAML_LOAD_OPT_DEG(min_rotation_between_keyframes, double);
     YAML_LOAD_OPT(save_final_map_to_file, std::string);
@@ -117,6 +151,13 @@ void LidarInertialOdometry::Parameters::MapUpdateOptions::initialize(
 {
     YAML_LOAD_REQ(min_translation_between_keyframes, double);
     YAML_LOAD_REQ_DEG(min_rotation_between_keyframes, double);
+}
+
+void LidarInertialOdometry::Parameters::TrajectoryOutputOptions::initialize(
+    const Yaml& cfg)
+{
+    YAML_LOAD_OPT(save_to_file, bool);
+    YAML_LOAD_OPT(output_file, std::string);
 }
 
 void LidarInertialOdometry::initialize(const Yaml& c)
@@ -193,6 +234,9 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     YAML_LOAD_OPT(params_, icp_profiler_full_history, bool);
 
     if (cfg.has("simplemap")) params_.simplemap.initialize(cfg["simplemap"]);
+
+    if (cfg.has("estimated_trajectory"))
+        params_.estimated_trajectory.initialize(cfg["estimated_trajectory"]);
 
     ENSURE_YAML_ENTRY_EXISTS(cfg, "icp_settings_with_vel");
     load_icp_set_of_params(
@@ -983,8 +1027,35 @@ void LidarInertialOdometry::updateVisualization()
     if (!state_.glVehicleFrame)
     {
         state_.glVehicleFrame = mrpt::opengl::CSetOfObjects::Create();
-        auto glCorner         = mrpt::opengl::stock_objects::CornerXYZ(1.5f);
-        state_.glVehicleFrame->insert(glCorner);
+        if (const auto l = params_.visualization.current_pose_corner_size;
+            l > 0)
+        {
+            auto glCorner = mrpt::opengl::stock_objects::CornerXYZ(l);
+            state_.glVehicleFrame->insert(glCorner);
+        }
+
+        // 3D model:
+        if (!params_.visualization.model_file.empty())
+        {
+            const auto& _ = params_.visualization;
+
+            const auto localFileName = _.model_file;
+
+            auto m = mrpt::opengl::CAssimpModel::Create();
+
+            ASSERT_FILE_EXISTS_(localFileName);
+
+            int loadFlags =
+                mrpt::opengl::CAssimpModel::LoadFlags::RealTimeMaxQuality |
+                mrpt::opengl::CAssimpModel::LoadFlags::FlipUVs;
+
+            m->loadScene(localFileName, loadFlags);
+
+            m->setScale(_.model_scale);
+            m->setPose(_.model_tf);
+
+            state_.glVehicleFrame->insert(m);
+        }
     }
     state_.glVehicleFrame->setPose(state_.current_pose.mean);
     visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame);

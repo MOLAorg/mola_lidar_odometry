@@ -45,10 +45,19 @@ params:
     min_rotation_between_keyframes: 3.0  # deg
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
 
+  # Save the final trajectory in TUM format. Disabled by default.
+  estimated_trajectory:
+    save_to_file: ${MOLA_SAVE_TRAJECTORY|false}
+    output_file: ${MOLA_TUM_TRAJECTORY_OUTPUT|'estimated_trajectory.txt'}
+
   # If run within a mola-cli container, and mola_viz is present, use these options 
   # to show live progress:
   visualization:
     map_update_decimation: 20
+    show_trajectory: true
+    #current_pose_corner_size: 1.5
+    #model_file: ${HOME}/Downloads/ParrotBebop2_assembled.dae
+    #model_tf.roll: 90.0 # deg
 
   # Profile the main steps of the odometry pipeline:
   pipeline_profiler_enabled: true

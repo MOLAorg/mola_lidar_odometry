@@ -28,7 +28,7 @@ modules:
     params:
       rawlog_filename: ${MOLA_INPUT_RAWLOG}
       time_warp_scale: ${MOLA_TIME_WARP|1.0}
-      read_all_first: false  # read from disk as needed
+      read_all_first: ${MOLA_INPUT_RAWLOG_READ_ALL_FIRST|false}  # read from disk as needed
 
   - name: lidar_odom
     type: mola::LidarInertialOdometry
