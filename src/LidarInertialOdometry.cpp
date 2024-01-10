@@ -144,6 +144,7 @@ void LidarInertialOdometry::Parameters::SimpleMapOptions::initialize(
     YAML_LOAD_OPT(min_translation_between_keyframes, double);
     YAML_LOAD_OPT_DEG(min_rotation_between_keyframes, double);
     YAML_LOAD_OPT(save_final_map_to_file, std::string);
+    YAML_LOAD_OPT(measure_from_last_kf_only, bool);
 }
 
 void LidarInertialOdometry::Parameters::MapUpdateOptions::initialize(
@@ -151,6 +152,7 @@ void LidarInertialOdometry::Parameters::MapUpdateOptions::initialize(
 {
     YAML_LOAD_REQ(min_translation_between_keyframes, double);
     YAML_LOAD_REQ_DEG(min_rotation_between_keyframes, double);
+    YAML_LOAD_OPT(measure_from_last_kf_only, bool);
 }
 
 void LidarInertialOdometry::Parameters::TrajectoryOutputOptions::initialize(
@@ -653,47 +655,58 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
                                              << motionModelError.asString());
         }  // end adaptive threshold
 
+        // Create distance checker on first usage:
+        if (!state_.distanceCheckerLocalMap)
+            state_.distanceCheckerLocalMap.emplace(
+                params_.local_map_updates.measure_from_last_kf_only);
+
+        if (!state_.distanceCheckerSimplemap)
+            state_.distanceCheckerSimplemap.emplace(
+                params_.simplemap.measure_from_last_kf_only);
+
         // Create a new KF if the distance since the last one is large
         // enough:
-        state_.accum_since_last_kf += incrPose;
-        state_.accum_since_last_simplemap_kf += incrPose;
+        const auto [isFirstPoseInChecker, distanceToClosest] =
+            state_.distanceCheckerLocalMap->check(state_.current_pose.mean);
 
-        const double dist_eucl_since_last = state_.accum_since_last_kf.norm();
+        const double dist_eucl_since_last = distanceToClosest.norm();
         const double rot_since_last =
-            mrpt::poses::Lie::SO<3>::log(
-                state_.accum_since_last_kf.getRotationMatrix())
+            mrpt::poses::Lie::SO<3>::log(distanceToClosest.getRotationMatrix())
                 .norm();
 
         updateLocalMap =
             (icpIsGood &&
              hasMotionModel &&  // skip map update for the special ICP alignment
                                 // without motion model
-             (dist_eucl_since_last >
+             (isFirstPoseInChecker ||
+              dist_eucl_since_last >
                   params_.local_map_updates.min_translation_between_keyframes ||
               rot_since_last >
                   params_.local_map_updates.min_rotation_between_keyframes));
 
         if (updateLocalMap)
-            state_.accum_since_last_kf = mrpt::poses::CPose3D::Identity();
+            state_.distanceCheckerLocalMap->insert(state_.current_pose.mean);
 
-        const double dist_eucl_since_last_sm =
-            state_.accum_since_last_simplemap_kf.norm();
+        const auto [isFirstPoseInSMChecker, distanceToClosestSM] =
+            state_.distanceCheckerSimplemap->check(state_.current_pose.mean);
+
+        const double dist_eucl_since_last_sm = distanceToClosestSM.norm();
         const double rot_since_last_sm =
             mrpt::poses::Lie::SO<3>::log(
-                state_.accum_since_last_simplemap_kf.getRotationMatrix())
+                distanceToClosestSM.getRotationMatrix())
                 .norm();
 
         updateSimpleMap =
             (params_.simplemap.generate) &&
             (icpIsGood &&
-             (dist_eucl_since_last_sm >
+             (isFirstPoseInSMChecker ||
+              dist_eucl_since_last_sm >
                   params_.simplemap.min_translation_between_keyframes ||
               rot_since_last_sm >
                   params_.simplemap.min_rotation_between_keyframes));
 
         if (updateSimpleMap)
-            state_.accum_since_last_simplemap_kf =
-                mrpt::poses::CPose3D::Identity();
+            state_.distanceCheckerSimplemap->insert(state_.current_pose.mean);
 
         MRPT_LOG_DEBUG_FMT(
             "Since last KF: dist=%5.03f m rotation=%.01f deg updateLocalMap=%s "
@@ -1070,13 +1083,14 @@ void LidarInertialOdometry::updateVisualization()
             state_.glEstimatedPath->setColor_u8(0x30, 0x30, 0x30);
 
             state_.glPathGrp = mrpt::opengl::CSetOfObjects::Create();
-            state_.glPathGrp->insert(state_.glEstimatedPath);
         }
         // Update path viz:
-        state_.glEstimatedPath->clear();
-        for (auto it = state_.estimatedTrajectory.begin();
-             it != state_.estimatedTrajectory.end(); ++it)
+        for (size_t i = state_.glEstimatedPath->size();
+             i < state_.estimatedTrajectory.size(); i++)
         {
+            auto it = state_.estimatedTrajectory.begin();
+            std::advance(it, i);
+
             const auto t = it->second.translation();
 
             if (state_.glEstimatedPath->empty())
@@ -1084,6 +1098,10 @@ void LidarInertialOdometry::updateVisualization()
             else
                 state_.glEstimatedPath->appendLineStrip(t);
         }
+        state_.glPathGrp->clear();
+        state_.glPathGrp->insert(
+            mrpt::opengl::CSetOfLines::Create(*state_.glEstimatedPath));
+
         visualizer_->update_3d_object("liodom/path", state_.glPathGrp);
     }
 

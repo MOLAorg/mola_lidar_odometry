@@ -32,6 +32,7 @@
 #include <mp2p_icp_filters/Generator.h>
 #include <mrpt/core/WorkerThreadsPool.h>
 #include <mrpt/maps/CSimpleMap.h>
+#include <mrpt/maps/CSimplePointsMap.h>
 #include <mrpt/opengl/CSetOfLines.h>
 #include <mrpt/opengl/CSetOfObjects.h>
 #include <mrpt/poses/CPose3DInterpolator.h>
@@ -97,6 +98,14 @@ class LidarInertialOdometry : public FrontEndBase
              * between keyframes inserted into
              * the local map [rad here, degrees in the yaml file]. */
             double min_rotation_between_keyframes = mrpt::DEG2RAD(30.0);
+
+            /** If true, distance from the last map update are only considered.
+             * Use if mostly mapping without "closed loops".
+             *
+             *  If false (default), a KD-tree will be used to check the distance
+             * to *all* past map insert poses.
+             */
+            bool measure_from_last_kf_only = false;
 
             void initialize(const Yaml& c);
         };
@@ -169,6 +178,14 @@ class LidarInertialOdometry : public FrontEndBase
              * the map [rad here, degrees in the yaml file]. */
             double min_rotation_between_keyframes = mrpt::DEG2RAD(30.0);
 
+            /** If true, distance from the last map update are only considered.
+             * Use if mostly mapping without "closed loops".
+             *
+             *  If false (default), a KD-tree will be used to check the distance
+             * to *all* past map insert poses.
+             */
+            bool measure_from_last_kf_only = false;
+
             /** If not empty, the final simple map will be dumped to a file at
              * destruction time */
             std::string save_final_map_to_file;
@@ -233,6 +250,80 @@ class LidarInertialOdometry : public FrontEndBase
     };
     void run_one_icp(const ICP_Input& in, ICP_Output& out);
 
+    class SearchablePoseList
+    {
+       public:
+        SearchablePoseList() = default;
+
+        SearchablePoseList(bool measure_from_last_kf_only)
+            : from_last_only_(measure_from_last_kf_only)
+        {
+        }
+
+        bool empty() const
+        {
+            if (from_last_only_)  //
+                return last_kf_ == mrpt::poses::CPose3D::Identity();
+            else
+                return kf_poses_.empty();
+        }
+
+        void insert(const mrpt::poses::CPose3D& p)
+        {
+            if (from_last_only_)
+            {  //
+                last_kf_ = p;
+            }
+            else
+            {
+                kf_points_.insertPoint(p.translation());
+                kf_poses_.push_back(p);
+            }
+        }
+
+        [[nodiscard]] std::tuple<
+            bool /*isFirst*/, mrpt::poses::CPose3D /*distanceToClosest*/>
+            check(const mrpt::poses::CPose3D& p) const
+        {
+            const bool           isFirst = empty();
+            mrpt::poses::CPose3D distanceToClosest;
+            if (isFirst) return {isFirst, distanceToClosest};
+
+            if (from_last_only_)
+            {  //
+                distanceToClosest = p - last_kf_;
+            }
+            else
+            {
+                mrpt::math::TPoint3Df closest;
+                float                 closestSqrDist = 0;
+                uint64_t              closestID      = 0;
+
+                const bool found = kf_points_.nn_single_search(
+                    p.translation().cast<float>(), closest, closestSqrDist,
+                    closestID);
+                ASSERT_(found);  // empty()==false from check above
+
+                // TODO(jlbc): Merge the SO(3) part of SE(3) metrics here too!
+                const auto& closestPose = kf_poses_.at(closestID);
+
+                distanceToClosest = p - closestPose;
+            }
+
+            return {isFirst, distanceToClosest};
+        }
+
+       private:
+        // if from_last_only_==true
+        mrpt::poses::CPose3D last_kf_ = mrpt::poses::CPose3D::Identity();
+
+        // if from_last_only_==false
+        std::deque<mrpt::poses::CPose3D> kf_poses_;
+        mrpt::maps::CSimplePointsMap     kf_points_;
+
+        bool from_last_only_ = false;
+    };
+
     /** All variables that hold the algorithm state */
     struct MethodState
     {
@@ -246,8 +337,6 @@ class LidarInertialOdometry : public FrontEndBase
         std::optional<mrpt::poses::CPose3D>    last_pose;  //!< in local map
         bool                                   last_icp_was_good = true;
         mrpt::poses::CPose3DPDFGaussian        current_pose;  //!< in local map
-        mrpt::poses::CPose3D                   accum_since_last_kf;
-        mrpt::poses::CPose3D                   accum_since_last_simplemap_kf;
 
         /// The source of "dynamic variables" in ICP pipelines:
         mp2p_icp::ParameterSource icpParameterSource;
@@ -267,6 +356,11 @@ class LidarInertialOdometry : public FrontEndBase
         mp2p_icp_filters::GeneratorSet   local_map_generators;
         mp2p_icp::metric_map_t::Ptr      local_map =
             mp2p_icp::metric_map_t::Create();
+
+        // to check for map updates. Defined as optional<> so we enforce
+        // setting their type in the ctor:
+        std::optional<SearchablePoseList> distanceCheckerLocalMap;
+        std::optional<SearchablePoseList> distanceCheckerSimplemap;
 
         // Visualization:
         mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;
