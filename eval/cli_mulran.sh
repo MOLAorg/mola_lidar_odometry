@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Default pipeline YAML file:
-PIPELINE_YAML="${PIPELINE_YAML:-src/mola_lidar_odometry/params/lidar-inertial-pipeline-simple.yaml}"
+PIPELINE_YAML="${PIPELINE_YAML:-src/mola_lidar_odometry/params/lidar-odometry-pipeline-default.yaml}"
 PLUGIN_MAPS=install/mola_metric_maps/lib/libmola_metric_maps.so
 
 #SEQUENCES=DCC01

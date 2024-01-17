@@ -88,6 +88,8 @@ class LidarInertialOdometry : public FrontEndBase
 
         double max_time_to_use_velocity_model = 2.0;
 
+        double max_sensor_range_filter_coefficient = 0.9;
+
         struct MapUpdateOptions
         {
             /** Minimum Euclidean distance (x,y,z) between keyframes inserted
@@ -347,7 +349,7 @@ class LidarInertialOdometry : public FrontEndBase
         double   adapt_thres_sigma       = 0;  // 0: initial
 
         // Automatic estimation of max range:
-        double estimated_sensor_max_range = 90.0;
+        std::optional<double> estimated_sensor_max_range;
 
         mp2p_icp_filters::GeneratorSet   obs_generators;
         mp2p_icp_filters::FilterPipeline pc_filter;
@@ -392,8 +394,7 @@ class LidarInertialOdometry : public FrontEndBase
     void doUpdateAdaptiveThreshold(
         const mrpt::poses::CPose3D& lastMotionModelError);
 
-    void doUpdateEstimatedMaxSensorRange(
-        const mp2p_icp::metric_map_t& localFrame);
+    void doUpdateEstimatedMaxSensorRange(const mrpt::obs::CObservation& o);
 
     void updatePipelineDynamicVariables();
 

@@ -224,6 +224,7 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     YAML_LOAD_OPT(params_, min_time_between_scans, double);
     YAML_LOAD_OPT(params_, max_time_to_use_velocity_model, double);
     YAML_LOAD_OPT(params_, min_icp_goodness, double);
+    YAML_LOAD_OPT(params_, max_sensor_range_filter_coefficient, double);
 
     if (cfg.has("adaptive_threshold"))
         params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
@@ -240,13 +241,22 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     if (cfg.has("estimated_trajectory"))
         params_.estimated_trajectory.initialize(cfg["estimated_trajectory"]);
 
-    ENSURE_YAML_ENTRY_EXISTS(cfg, "icp_settings_with_vel");
+    ENSURE_YAML_ENTRY_EXISTS(c, "icp_settings_with_vel");
     load_icp_set_of_params(
-        params_.icp[AlignKind::RegularOdometry], cfg["icp_settings_with_vel"]);
+        params_.icp[AlignKind::RegularOdometry], c["icp_settings_with_vel"]);
 
-    ENSURE_YAML_ENTRY_EXISTS(cfg, "icp_settings_without_vel");
-    load_icp_set_of_params(
-        params_.icp[AlignKind::NoMotionModel], cfg["icp_settings_without_vel"]);
+    if (c.has("icp_settings_without_vel"))
+    {
+        load_icp_set_of_params(
+            params_.icp[AlignKind::NoMotionModel],
+            c["icp_settings_without_vel"]);
+    }
+    else
+    {
+        // Default: use the regular ICP settings:
+        params_.icp[AlignKind::NoMotionModel] =
+            params_.icp[AlignKind::RegularOdometry];
+    }
 
     for (auto& [kind, icpCase] : params_.icp)
     {
@@ -463,6 +473,9 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         return;
     }
 
+    // Use the observation to update the estimated sensor range:
+    doUpdateEstimatedMaxSensorRange(*o);
+
     updatePipelineDynamicVariables();
 
     MRPT_LOG_DEBUG_STREAM(
@@ -477,9 +490,6 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *observation);
 
     tle0.stop();
-
-    // Use the observation to update the estimated sensor range:
-    doUpdateEstimatedMaxSensorRange(*observation);
 
     // Filter/segment the point cloud (optional, but normally will be
     // present):
@@ -949,7 +959,9 @@ double computeModelError(
 void LidarInertialOdometry::doUpdateAdaptiveThreshold(
     const mrpt::poses::CPose3D& lastMotionModelError)
 {
-    const double max_range = state_.estimated_sensor_max_range;
+    if (!state_.estimated_sensor_max_range.has_value()) return;
+
+    const double max_range = state_.estimated_sensor_max_range.value();
 
     double model_error = computeModelError(lastMotionModelError, max_range);
 
@@ -971,32 +983,30 @@ void LidarInertialOdometry::doUpdateAdaptiveThreshold(
 }
 
 void LidarInertialOdometry::doUpdateEstimatedMaxSensorRange(
-    const mp2p_icp::metric_map_t& localFrame)
+    const mrpt::obs::CObservation& o)
 {
-    constexpr double ALPHA = 0.9;
+    const double ALPHA = params_.max_sensor_range_filter_coefficient;
 
-    // Use the first non-empty point cloud layer to estimate maximum sensor
-    // range:
-    for (const auto& [name, map] : localFrame.layers)
-    {
-        const auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(map);
-        if (!pts) continue;
-        if (pts->empty()) continue;
+    auto& maxRange = state_.estimated_sensor_max_range;
 
-        const auto   bb     = pts->boundingBox();
-        const double radius = 0.5 * (bb.max - bb.min).norm();
+    mrpt::maps::CSimplePointsMap pts;
+    pts.insertObservation(o);
 
-        state_.estimated_sensor_max_range =
-            state_.estimated_sensor_max_range * ALPHA + radius * (1.0 - ALPHA);
+    if (pts.empty()) return;
 
-        MRPT_LOG_DEBUG_STREAM(
-            "Estimated sensor max range=" << state_.estimated_sensor_max_range
-                                          << " (instantaneous=" << radius
-                                          << ")");
-        // With one layer is enough:
-        return;
-    }
-    // No way to automatically determine sensor range, do not touch it
+    const auto   bb     = pts.boundingBox();
+    const double radius = 0.5 * (bb.max - bb.min).norm();
+
+    if (!maxRange)
+        // 1st time set:
+        maxRange = radius;
+    else
+        // low-pass filter update:
+        maxRange = maxRange.value() * ALPHA + radius * (1.0 - ALPHA);
+
+    MRPT_LOG_DEBUG_STREAM(
+        "Estimated sensor max range=" << *state_.estimated_sensor_max_range
+                                      << " (instantaneous=" << radius << ")");
 }
 
 void LidarInertialOdometry::updatePipelineDynamicVariables()
@@ -1022,8 +1032,11 @@ void LidarInertialOdometry::updatePipelineDynamicVariables()
             ? state_.adapt_thres_sigma
             : params_.adaptive_threshold.initial_sigma);
 
-    state_.icpParameterSource.updateVariable(
-        "ESTIMATED_SENSOR_MAX_RANGE", state_.estimated_sensor_max_range);
+    if (state_.estimated_sensor_max_range)
+    {
+        state_.icpParameterSource.updateVariable(
+            "ESTIMATED_SENSOR_MAX_RANGE", *state_.estimated_sensor_max_range);
+    }
 
     // Make all changes effective and evaluate the variables now:
     state_.icpParameterSource.realize();

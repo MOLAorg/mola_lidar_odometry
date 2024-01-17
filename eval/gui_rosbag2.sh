@@ -13,7 +13,7 @@ FILE=$1
 shift 1
 
 MOLA_INPUT_ROSBAG2=$FILE \
-MOLA_ODOMETRY_PIPELINE_YAML=${MOLA_ODOMETRY_PIPELINE_YAML:-$SCRIPT_DIR/../params/lidar-inertial-pipeline-simple.yaml} \
+MOLA_ODOMETRY_PIPELINE_YAML=${MOLA_ODOMETRY_PIPELINE_YAML:-$SCRIPT_DIR/../params/lidar-odometry-pipeline-default.yaml} \
   mola-cli \
     $SCRIPT_DIR/../mola-cli-launchs/lidar_odometry_from_rosbag2.yaml \
     $@

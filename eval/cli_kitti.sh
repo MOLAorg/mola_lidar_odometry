@@ -3,7 +3,7 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 # Default pipeline YAML file:
-PIPELINE_YAML="${PIPELINE_YAML:-$SCRIPT_DIR/../params/lidar-inertial-pipeline-simple.yaml}"
+PIPELINE_YAML="${PIPELINE_YAML:-$SCRIPT_DIR/../params/lidar-odometry-pipeline-default.yaml}"
 PLUGIN_MAPS=install/mola_metric_maps/lib/libmola_metric_maps.so
 SEQS_TO_RUN="00 01 02 03 04 05 06 07 08 09 10"
 
