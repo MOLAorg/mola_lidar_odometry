@@ -963,23 +963,18 @@ void LidarInertialOdometry::doUpdateAdaptiveThreshold(
 
     const double max_range = state_.estimated_sensor_max_range.value();
 
+    const double ALPHA = 0.9;
+
     double model_error = computeModelError(lastMotionModelError, max_range);
 
-    if (model_error > params_.adaptive_threshold.min_motion)
-    {
-        state_.adapt_thres_sse2 += mrpt::square(model_error);
-        state_.adapt_thres_num_samples++;
-    }
-
-    if (state_.adapt_thres_num_samples < 1)
-    {
+    if (state_.adapt_thres_sigma == 0)  // initial
         state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;
-    }
-    else
-    {
-        state_.adapt_thres_sigma =
-            std::sqrt(state_.adapt_thres_sse2 / state_.adapt_thres_num_samples);
-    }
+
+    state_.adapt_thres_sigma =
+        ALPHA * state_.adapt_thres_sigma + (1.0 - ALPHA) * model_error;
+
+    mrpt::keep_max(
+        state_.adapt_thres_sigma, params_.adaptive_threshold.min_motion);
 }
 
 void LidarInertialOdometry::doUpdateEstimatedMaxSensorRange(

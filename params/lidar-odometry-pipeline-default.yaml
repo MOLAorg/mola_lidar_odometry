@@ -62,15 +62,14 @@ params:
   icp_profiler_enabled: true
 
 
-# If undefined, defaults to be the same than 'icp_settings_with_vel'
-#icp_settings_without_vel: ...
-
+# If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
 # ICP settings can be included from an external YAML file if desired, or defined
 # in this same YAML for self-completeness:
 # Include example:
 #icp_settings_with_vel: $include{./icp-pipeline-default.yaml}
 
-# ICP parameters definitions:
+
+# ICP parameters for a regular time step:
 icp_settings_with_vel:
   # mp2p_icp ICP pipeline configuration file, for use in ICP 
   # odometry and SLAM packages.
