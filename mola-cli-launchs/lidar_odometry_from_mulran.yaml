@@ -29,7 +29,7 @@ modules:
     params:
       base_dir: ${MULRAN_BASE_DIR}
       sequence: ${MULRAN_SEQ}
-      time_warp_scale: 1.9 #1.0
+      time_warp_scale: ${MOLA_TIME_WARP|1.0}
       publish_lidar: true
       publish_ground_truth: true
 
