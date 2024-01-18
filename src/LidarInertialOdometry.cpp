@@ -241,6 +241,17 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     if (cfg.has("estimated_trajectory"))
         params_.estimated_trajectory.initialize(cfg["estimated_trajectory"]);
 
+    if (cfg.has("initial_twist"))
+    {
+        ASSERT_(
+            cfg["initial_twist"].isSequence() &&
+            cfg["initial_twist"].asSequence().size() == 6);
+
+        auto&       tw  = params_.initial_twist.emplace();
+        const auto& seq = cfg["initial_twist"].asSequence();
+        for (size_t i = 0; i < 6; i++) tw[i] = seq.at(i).as<double>();
+    }
+
     ENSURE_YAML_ENTRY_EXISTS(c, "icp_settings_with_vel");
     load_icp_set_of_params(
         params_.icp[AlignKind::RegularOdometry], c["icp_settings_with_vel"]);
@@ -334,6 +345,9 @@ void LidarInertialOdometry::initialize(const Yaml& c)
             state_.local_map_generators, state_.icpParameterSource);
     }
 
+    // set optional initial twist:
+    if (params_.initial_twist) state_.last_iter_twist = *params_.initial_twist;
+
     state_.initialized = true;
 
     MRPT_TRY_END
@@ -348,7 +362,12 @@ void LidarInertialOdometry::spinOnce()
     MRPT_TRY_END
 }
 
-void LidarInertialOdometry::reset() { state_ = MethodState(); }
+void LidarInertialOdometry::reset()
+{
+    // TODO: there is more to be done! Check state_ fields changed in
+    // initialize()
+    state_ = MethodState();
+}
 
 void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
 {

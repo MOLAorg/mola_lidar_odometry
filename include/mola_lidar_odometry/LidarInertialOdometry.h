@@ -210,6 +210,8 @@ class LidarInertialOdometry : public FrontEndBase
         };
 
         TrajectoryOutputOptions estimated_trajectory;
+
+        std::optional<mrpt::math::TTwist3D> initial_twist;
     };
 
     /** Algorithm parameters */

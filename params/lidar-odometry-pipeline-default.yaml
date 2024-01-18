@@ -61,6 +61,9 @@ params:
   # Profile the internal steps of the ICP implementation:
   icp_profiler_enabled: true
 
+  # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
+  initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
+
 
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
 # ICP settings can be included from an external YAML file if desired, or defined
@@ -209,6 +212,7 @@ observations_filter:
       output_pointcloud_layer: 'decimated_for_map'
       voxel_filter_resolution: 0.5*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
       use_closest_to_voxel_average: true
+      #use_random_point_within_voxel: true
 
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer

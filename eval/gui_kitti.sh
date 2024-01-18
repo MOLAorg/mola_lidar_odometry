@@ -14,6 +14,7 @@ shift 1
 
 KITTI_SEQ=$SEQ \
 MOLA_ODOMETRY_PIPELINE_YAML=${MOLA_ODOMETRY_PIPELINE_YAML:-$SCRIPT_DIR/../params/lidar-odometry-pipeline-default.yaml} \
+MOLA_INITIAL_VX=20.0 \
   mola-cli \
     $SCRIPT_DIR/../mola-cli-launchs/lidar_odometry_from_kitti.yaml \
     $@
