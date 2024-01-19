@@ -25,6 +25,9 @@ modules:
       - raw_sensor_label: ${MOLA_LIDAR_NAME|lidar}
         decimation: 1
         win_pos: 5 40 600 200 # [x,y,width,height]
+      - raw_sensor_label: ${MOLA_CAMERA_NAME|camera}
+        decimation: 1
+        win_pos: 5 370 600 200
     params:
       rawlog_filename: ${MOLA_INPUT_RAWLOG}
       time_warp_scale: ${MOLA_TIME_WARP|1.0}
