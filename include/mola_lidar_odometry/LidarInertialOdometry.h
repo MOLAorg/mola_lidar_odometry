@@ -394,7 +394,8 @@ class LidarInertialOdometry : public FrontEndBase
     void doUpdateAdaptiveThreshold(
         const mrpt::poses::CPose3D& lastMotionModelError);
 
-    void doUpdateEstimatedMaxSensorRange(const mrpt::obs::CObservation& o);
+    void doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObservation& o);
+    void doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t& m);
 
     void updatePipelineDynamicVariables();
 

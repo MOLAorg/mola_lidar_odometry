@@ -48,6 +48,9 @@
 #include <mrpt/system/filesystem.h>
 #include <mrpt/system/string_utils.h>
 
+#include <chrono>
+#include <thread>
+
 using namespace mola;
 
 // static const std::string ANNOTATION_NAME_PC_LAYERS =
@@ -60,8 +63,20 @@ LidarInertialOdometry::LidarInertialOdometry() = default;
 
 LidarInertialOdometry::~LidarInertialOdometry()
 {
+    using namespace std::chrono_literals;
+
     try  // a dtor should never throw
     {
+        worker_lidar_imu_.clear();
+        while (isBusy())
+        {
+            MRPT_LOG_THROTTLE_WARN(
+                2.0,
+                "Destructor: waiting for remaining tasks on the worker "
+                "threads...");
+            std::this_thread::sleep_for(100ms);
+        }
+
         if (params_.simplemap.generate &&
             !params_.simplemap.save_final_map_to_file.empty())
         {
@@ -493,8 +508,10 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     }
 
     // Use the observation to update the estimated sensor range:
-    doUpdateEstimatedMaxSensorRange(*o);
+    if (!state_.estimated_sensor_max_range.has_value())
+        doInitializeEstimatedMaxSensorRange(*o);
 
+    // Refresh dyn. variables used in the mp2p_icp pipelines:
     updatePipelineDynamicVariables();
 
     MRPT_LOG_DEBUG_STREAM(
@@ -517,6 +534,9 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     mp2p_icp_filters::apply_filter_pipeline(state_.pc_filter, *observation);
 
     tle1.stop();
+
+    // Update sensor max range from the obs map layers:
+    doUpdateEstimatedMaxSensorRange(*observation);
 
     profiler_.enter("onLidar.2.copy_vars");
 
@@ -996,12 +1016,11 @@ void LidarInertialOdometry::doUpdateAdaptiveThreshold(
         state_.adapt_thres_sigma, params_.adaptive_threshold.min_motion);
 }
 
-void LidarInertialOdometry::doUpdateEstimatedMaxSensorRange(
+void LidarInertialOdometry::doInitializeEstimatedMaxSensorRange(
     const mrpt::obs::CObservation& o)
 {
-    const double ALPHA = params_.max_sensor_range_filter_coefficient;
-
     auto& maxRange = state_.estimated_sensor_max_range;
+    ASSERT_(!maxRange.has_value());  // this method is for 1st call only
 
     mrpt::maps::CSimplePointsMap pts;
     pts.insertObservation(o);
@@ -1011,16 +1030,43 @@ void LidarInertialOdometry::doUpdateEstimatedMaxSensorRange(
     const auto   bb     = pts.boundingBox();
     const double radius = 0.5 * (bb.max - bb.min).norm();
 
-    if (!maxRange)
-        // 1st time set:
-        maxRange = radius;
-    else
-        // low-pass filter update:
-        maxRange = maxRange.value() * ALPHA + radius * (1.0 - ALPHA);
+    maxRange = radius;
 
     MRPT_LOG_DEBUG_STREAM(
         "Estimated sensor max range=" << *state_.estimated_sensor_max_range
                                       << " (instantaneous=" << radius << ")");
+}
+
+void LidarInertialOdometry::doUpdateEstimatedMaxSensorRange(
+    const mp2p_icp::metric_map_t& m)
+{
+    const double ALPHA = params_.max_sensor_range_filter_coefficient;
+
+    auto& maxRange = state_.estimated_sensor_max_range;
+    ASSERT_(maxRange.has_value());  // this method is for subsequent calls only
+
+    for (const auto& [layerName, layer] : m.layers)
+    {
+        auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layer);
+        if (!pts) continue;
+
+        const auto   bb     = pts->boundingBox();
+        const double radius = 0.5 * (bb.max - bb.min).norm();
+
+        // low-pass filter update:
+        maxRange = maxRange.value() * ALPHA + radius * (1.0 - ALPHA);
+
+        MRPT_LOG_DEBUG_STREAM(
+            "Estimated sensor max range=" << *state_.estimated_sensor_max_range
+                                          << " (instantaneous=" << radius
+                                          << ")");
+
+        // one layer is enough:
+        return;
+    }
+    MRPT_LOG_DEBUG(
+        "Estimated sensor max range could NOT be updated, no points layer "
+        "found in observation metric_map_t");
 }
 
 void LidarInertialOdometry::updatePipelineDynamicVariables()
