@@ -18,8 +18,15 @@
   <depend>mola_common</depend>
   <depend>mola_kernel</depend>
   <depend>mp2p_icp</depend>
-  <depend>mola_imu_preintegration</depend>
+  <depend>mola_navstate_fuse</depend>
   <depend>mrpt2</depend>
+
+  <!-- dataset input sources -->
+  <depend>mola_input_kitti_dataset</depend>
+  <depend>mola_input_mulran_dataset</depend>
+  <depend>mola_input_rawlog</depend>
+  <depend>mola_input_rosbag2</depend>
+
 
   <doc_depend>doxygen</doc_depend>
 

@@ -26,7 +26,7 @@ find_package(mrpt-tclap REQUIRED)
 find_mola_package(mola_kernel)
 find_mola_package(mp2p_icp)
 find_mola_package(mp2p_icp_filters)
-find_mola_package(mola_imu_preintegration)
+find_mola_package(mola_navstate_fuse)
 
 # -----------------------
 # define lib:
@@ -41,14 +41,14 @@ mola_add_library(
 		mola::mola_kernel
 		mola::mp2p_icp
 		mola::mp2p_icp_filters
-		mola::mola_imu_preintegration
+		mola::mola_navstate_fuse
 #	PRIVATE_LINK_LIBRARIES
 #		mrpt::maps
 	CMAKE_DEPENDENCIES
 		mola_kernel
 		mp2p_icp
 		mp2p_icp_filters
-		mola_imu_preintegration
+		mola_navstate_fuse
 		mrpt-maps
 )
 
@@ -98,8 +98,6 @@ target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_ROSBA
 else()
 message("mola-lidar-odometry-cli: With rosbag2 = NO")
 endif()
-
-
 
 
 

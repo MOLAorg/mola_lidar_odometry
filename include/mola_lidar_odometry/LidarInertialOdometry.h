@@ -25,8 +25,9 @@
  */
 #pragma once
 
-#include <mola_imu_preintegration/RotationIntegrator.h>
 #include <mola_kernel/interfaces/FrontEndBase.h>
+#include <mola_navstate_fuse/NavStateFuse.h>
+#include <mola_navstate_fuse/NavStateFuseParams.h>
 #include <mp2p_icp/ICP.h>
 #include <mp2p_icp/Parameterizable.h>
 #include <mp2p_icp_filters/FilterBase.h>
@@ -91,8 +92,6 @@ class LidarInertialOdometry : public FrontEndBase
          * aligned. Scans faster than this rate will be just silently ignored.
          */
         double min_time_between_scans = 0.05;
-
-        double max_time_to_use_velocity_model = 2.0;  // [s]
 
         double max_sensor_range_filter_coefficient = 0.9;
         double absolute_minimum_sensor_range       = 5.0;  // [m]
@@ -168,7 +167,7 @@ class LidarInertialOdometry : public FrontEndBase
 
         std::map<AlignKind, ICP_case> icp;
 
-        mola::RotationIntegrationParams imu_params;
+        mola::NavStateFuseParams navstate_fuse_params;
 
         std::vector<std::pair<mp2p_icp::layer_name_t, mp2p_icp::layer_name_t>>
             observation_layers_to_merge_local_map;
@@ -253,6 +252,8 @@ class LidarInertialOdometry : public FrontEndBase
         mrpt::math::TPose3D         init_guess_local_wrt_global;
         mp2p_icp::Parameters        icp_params;
 
+        std::optional<mrpt::poses::CPose3DPDFGaussianInf> prior;
+
         /** used to identity where does this request come from */
         std::string debug_str;
     };
@@ -318,10 +319,11 @@ class LidarInertialOdometry : public FrontEndBase
         int worker_tasks = 0;
 
         std::optional<mrpt::Clock::time_point> last_obs_tim;
-        std::optional<mrpt::math::TTwist3D>    last_iter_twist;
-        std::optional<mrpt::poses::CPose3D>    last_pose;  //!< in local map
         bool                                   last_icp_was_good = true;
-        mrpt::poses::CPose3DPDFGaussian        current_pose;  //!< in local map
+        mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
+
+        // navstate_fuse to merge pose estimates, IMU, odom, estimate twist.
+        mola::NavStateFuse navstate_fuse;
 
         /// The source of "dynamic variables" in ICP pipelines:
         mp2p_icp::ParameterSource icpParameterSource;
