@@ -7,18 +7,18 @@ params:
   # Can be overriden with cli flag --lidar-sensor-label
   lidar_sensor_labels: ['${MOLA_LIDAR_NAME|lidar}', '/ouster/points']
 
-  # Optionally, drop lidar data too close in time:
-  min_time_between_scans: 0 # 0.2  # [seconds]
-  # Maximum time between two scans to consider the validity of the velocity model:
-  max_time_to_use_velocity_model: 2.0 # [seconds]
-
   # These sensor labels will be handled as IMU observations:
   imu_sensor_label: 'imu'
 
+  # Optionally, drop lidar data too close in time:
+  min_time_between_scans: 0  # [seconds]
+  # Maximum time between two scans to consider the validity of the velocity model:
+  max_time_to_use_velocity_model: 2.0 # [seconds]
+
   # How often to update the local map model:
   local_map_updates:
-    min_translation_between_keyframes: 0.25  # [m]
-    min_rotation_between_keyframes: 15.0  # [deg]
+    min_translation_between_keyframes: '0.5e-2*ESTIMATED_SENSOR_MAX_RANGE' # [m]
+    min_rotation_between_keyframes: 15.0 # [deg]
 
   # Minimum ICP quality to insert it into the map:
   min_icp_goodness: 0.30
@@ -29,8 +29,8 @@ params:
     initial_sigma: 6.0
     min_motion: 0.05
 
-  # - Rest of observations: use these *pointcloud* layers of the observation 
-  #   metric_map_t and *insert* them into the local map:
+  # Except for the very first observation, use these layers of the observation
+  # metric_map_t and insert them into the local map:
   observation_layers_to_merge_local_map:
     - {from_obs: 'decimated_for_map', into_map: 'localmap'}
 
@@ -124,7 +124,7 @@ icp_settings_with_vel:
 
 
 # Local map updates:
-# - First time: Using the mp2p_icp pipeline generator:
+# Very first observation: Use the mp2p_icp pipeline generator to create the local map:
 localmap_generator:
   # Generators:
   #
@@ -168,7 +168,6 @@ observations_filter:
   # and with the given parameters. Filters are run in definition order on the
   # input metric_map_t object.
   #
-
   - class_name: mp2p_icp_filters::FilterDeskew
     params:
       input_pointcloud_layer: 'raw'

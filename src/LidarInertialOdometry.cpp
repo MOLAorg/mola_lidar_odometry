@@ -153,20 +153,20 @@ void LidarInertialOdometry::Parameters::Visualization::initialize(
 }
 
 void LidarInertialOdometry::Parameters::SimpleMapOptions::initialize(
-    const Yaml& cfg)
+    const Yaml& cfg, Parameters& parent)
 {
     YAML_LOAD_OPT(generate, bool);
-    YAML_LOAD_OPT(min_translation_between_keyframes, double);
-    YAML_LOAD_OPT_DEG(min_rotation_between_keyframes, double);
+    DECLARE_PARAMETER_IN_OPT(cfg, min_translation_between_keyframes, parent);
+    DECLARE_PARAMETER_IN_OPT(cfg, min_rotation_between_keyframes, parent);
     YAML_LOAD_OPT(save_final_map_to_file, std::string);
     YAML_LOAD_OPT(measure_from_last_kf_only, bool);
 }
 
 void LidarInertialOdometry::Parameters::MapUpdateOptions::initialize(
-    const Yaml& cfg)
+    const Yaml& cfg, Parameters& parent)
 {
-    YAML_LOAD_REQ(min_translation_between_keyframes, double);
-    YAML_LOAD_REQ_DEG(min_rotation_between_keyframes, double);
+    DECLARE_PARAMETER_IN_REQ(cfg, min_translation_between_keyframes, parent);
+    DECLARE_PARAMETER_IN_REQ(cfg, min_rotation_between_keyframes, parent);
     YAML_LOAD_OPT(measure_from_last_kf_only, bool);
 }
 
@@ -234,7 +234,7 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     }
 
     ASSERT_(cfg.has("local_map_updates"));
-    params_.local_map_updates.initialize(cfg["local_map_updates"]);
+    params_.local_map_updates.initialize(cfg["local_map_updates"], params_);
 
     YAML_LOAD_OPT(params_, min_time_between_scans, double);
     YAML_LOAD_OPT(params_, max_time_to_use_velocity_model, double);
@@ -251,7 +251,8 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     YAML_LOAD_OPT(params_, icp_profiler_enabled, bool);
     YAML_LOAD_OPT(params_, icp_profiler_full_history, bool);
 
-    if (cfg.has("simplemap")) params_.simplemap.initialize(cfg["simplemap"]);
+    if (cfg.has("simplemap"))
+        params_.simplemap.initialize(cfg["simplemap"], params_);
 
     if (cfg.has("estimated_trajectory"))
         params_.estimated_trajectory.initialize(cfg["estimated_trajectory"]);
@@ -362,6 +363,9 @@ void LidarInertialOdometry::initialize(const Yaml& c)
 
     // set optional initial twist:
     if (params_.initial_twist) state_.last_iter_twist = *params_.initial_twist;
+
+    // Parameterizable values in params_:
+    params_.attachToParameterSource(state_.icpParameterSource);
 
     state_.initialized = true;
 
@@ -723,15 +727,15 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
             mrpt::poses::Lie::SO<3>::log(distanceToClosest.getRotationMatrix())
                 .norm();
 
+        // clang-format off
         updateLocalMap =
             (icpIsGood &&
-             hasMotionModel &&  // skip map update for the special ICP alignment
-                                // without motion model
+            // skip map update for the special ICP alignment without motion model
+             hasMotionModel &&
              (isFirstPoseInChecker ||
-              dist_eucl_since_last >
-                  params_.local_map_updates.min_translation_between_keyframes ||
-              rot_since_last >
-                  params_.local_map_updates.min_rotation_between_keyframes));
+              dist_eucl_since_last > params_.local_map_updates.min_translation_between_keyframes ||
+              rot_since_last > mrpt::DEG2RAD(params_.local_map_updates.min_rotation_between_keyframes)));
+        // clang-format on
 
         if (updateLocalMap)
             state_.distanceCheckerLocalMap->insert(state_.current_pose.mean);
@@ -745,14 +749,14 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
                 distanceToClosestSM.getRotationMatrix())
                 .norm();
 
+        // clang-format off
         updateSimpleMap =
             (params_.simplemap.generate) &&
             (icpIsGood &&
              (isFirstPoseInSMChecker ||
-              dist_eucl_since_last_sm >
-                  params_.simplemap.min_translation_between_keyframes ||
-              rot_since_last_sm >
-                  params_.simplemap.min_rotation_between_keyframes));
+              dist_eucl_since_last_sm > params_.simplemap.min_translation_between_keyframes ||
+              rot_since_last_sm > mrpt::DEG2RAD(params_.simplemap.min_rotation_between_keyframes)));
+        // clang-format on
 
         if (updateSimpleMap)
             state_.distanceCheckerSimplemap->insert(state_.current_pose.mean);
@@ -1050,8 +1054,10 @@ void LidarInertialOdometry::doUpdateEstimatedMaxSensorRange(
         auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layer);
         if (!pts) continue;
 
-        const auto   bb     = pts->boundingBox();
-        const double radius = 0.5 * (bb.max - bb.min).norm();
+        const auto bb     = pts->boundingBox();
+        double     radius = 0.5 * (bb.max - bb.min).norm();
+
+        mrpt::keep_max(radius, params_.absolute_minimum_sensor_range);
 
         // low-pass filter update:
         maxRange = maxRange.value() * ALPHA + radius * (1.0 - ALPHA);
@@ -1222,4 +1228,54 @@ void LidarInertialOdometry::updateVisualization()
 
         visualizer_->output_console_message(ss.str());
     }
+}
+
+std::tuple<bool /*isFirst*/, mrpt::poses::CPose3D /*distanceToClosest*/>
+    LidarInertialOdometry::SearchablePoseList::check(
+        const mrpt::poses::CPose3D& p) const
+{
+    const bool           isFirst = empty();
+    mrpt::poses::CPose3D distanceToClosest;
+    if (isFirst) return {isFirst, distanceToClosest};
+
+    if (from_last_only_)
+    {  //
+        distanceToClosest = p - last_kf_;
+    }
+    else
+    {
+        std::vector<mrpt::math::TPoint3Df> closest;
+        std::vector<float>                 closestSqrDist;
+        std::vector<uint64_t>              closestID;
+
+        kf_points_.nn_multiple_search(
+            p.translation().cast<float>(), 20, closest, closestSqrDist,
+            closestID);
+        ASSERT_(!closest.empty());  // empty()==false from check above
+
+        // Check for both, rotation and translation.
+        // Use a heuristic SE(3) metric to merge both parts:
+        constexpr double ROTATION_WEIGHT = 1.0;
+
+        std::optional<size_t> bestIdx;
+
+        for (size_t i = 0; i < closest.size(); i++)
+        {
+            const auto&  candidate = kf_poses_.at(closestID.at(i));
+            const double rot       = mrpt::poses::Lie::SO<3>::log(
+                                   (p - candidate).getRotationMatrix())
+                                   .norm();
+
+            closestSqrDist[i] += ROTATION_WEIGHT * mrpt::square(rot);
+
+            if (!bestIdx || closestSqrDist[i] < closestSqrDist[*bestIdx])
+                bestIdx = i;
+        }
+
+        const auto& closestPose = kf_poses_.at(closestID.at(*bestIdx));
+
+        distanceToClosest = p - closestPose;
+    }
+
+    return {isFirst, distanceToClosest};
 }

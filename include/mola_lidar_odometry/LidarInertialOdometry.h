@@ -28,6 +28,7 @@
 #include <mola_imu_preintegration/RotationIntegrator.h>
 #include <mola_kernel/interfaces/FrontEndBase.h>
 #include <mp2p_icp/ICP.h>
+#include <mp2p_icp/Parameterizable.h>
 #include <mp2p_icp_filters/FilterBase.h>
 #include <mp2p_icp_filters/Generator.h>
 #include <mrpt/core/WorkerThreadsPool.h>
@@ -69,7 +70,7 @@ class LidarInertialOdometry : public FrontEndBase
         NoMotionModel
     };
 
-    struct Parameters
+    struct Parameters : public mp2p_icp::Parameterizable
     {
         /** List of sensor labels or regex's to be matched to input observations
          *  to be used as raw lidar observations.
@@ -86,9 +87,10 @@ class LidarInertialOdometry : public FrontEndBase
          */
         double min_time_between_scans = 0.05;
 
-        double max_time_to_use_velocity_model = 2.0;
+        double max_time_to_use_velocity_model = 2.0;  // [s]
 
         double max_sensor_range_filter_coefficient = 0.9;
+        double absolute_minimum_sensor_range       = 5.0;  // [m]
 
         struct MapUpdateOptions
         {
@@ -98,8 +100,8 @@ class LidarInertialOdometry : public FrontEndBase
 
             /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether)
              * between keyframes inserted into
-             * the local map [rad here, degrees in the yaml file]. */
-            double min_rotation_between_keyframes = mrpt::DEG2RAD(30.0);
+             * the local map [in degrees]. */
+            double min_rotation_between_keyframes = 30.0;
 
             /** If true, distance from the last map update are only considered.
              * Use if mostly mapping without "closed loops".
@@ -109,7 +111,7 @@ class LidarInertialOdometry : public FrontEndBase
              */
             bool measure_from_last_kf_only = false;
 
-            void initialize(const Yaml& c);
+            void initialize(const Yaml& c, Parameters& parent);
         };
 
         MapUpdateOptions local_map_updates;
@@ -177,8 +179,8 @@ class LidarInertialOdometry : public FrontEndBase
 
             /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether)
              * between keyframes inserted into
-             * the map [rad here, degrees in the yaml file]. */
-            double min_rotation_between_keyframes = mrpt::DEG2RAD(30.0);
+             * the map [in degrees]. */
+            double min_rotation_between_keyframes = 30.0;
 
             /** If true, distance from the last map update are only considered.
              * Use if mostly mapping without "closed loops".
@@ -192,7 +194,7 @@ class LidarInertialOdometry : public FrontEndBase
              * destruction time */
             std::string save_final_map_to_file;
 
-            void initialize(const Yaml& c);
+            void initialize(const Yaml& c, Parameters& parent);
         };
 
         SimpleMapOptions simplemap;
@@ -287,35 +289,7 @@ class LidarInertialOdometry : public FrontEndBase
 
         [[nodiscard]] std::tuple<
             bool /*isFirst*/, mrpt::poses::CPose3D /*distanceToClosest*/>
-            check(const mrpt::poses::CPose3D& p) const
-        {
-            const bool           isFirst = empty();
-            mrpt::poses::CPose3D distanceToClosest;
-            if (isFirst) return {isFirst, distanceToClosest};
-
-            if (from_last_only_)
-            {  //
-                distanceToClosest = p - last_kf_;
-            }
-            else
-            {
-                mrpt::math::TPoint3Df closest;
-                float                 closestSqrDist = 0;
-                uint64_t              closestID      = 0;
-
-                const bool found = kf_points_.nn_single_search(
-                    p.translation().cast<float>(), closest, closestSqrDist,
-                    closestID);
-                ASSERT_(found);  // empty()==false from check above
-
-                // TODO(jlbc): Merge the SO(3) part of SE(3) metrics here too!
-                const auto& closestPose = kf_poses_.at(closestID);
-
-                distanceToClosest = p - closestPose;
-            }
-
-            return {isFirst, distanceToClosest};
-        }
+            check(const mrpt::poses::CPose3D& p) const;
 
        private:
         // if from_last_only_==true

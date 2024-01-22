@@ -17,8 +17,8 @@ params:
 
   # How often to update the local map model:
   local_map_updates:
-    min_translation_between_keyframes: 0.25  # [m]
-    min_rotation_between_keyframes: 15.0  # [deg]
+    min_translation_between_keyframes: 0  # [m]
+    min_rotation_between_keyframes: 0  # [deg]
 
   # Minimum ICP quality to insert it into the map:
   min_icp_goodness: 0.30
