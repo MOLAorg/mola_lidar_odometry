@@ -508,6 +508,9 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     ProfilerEntry tleg(profiler_, "onLidar");
     profiler_.leave("delay_onNewObs_to_process");
 
+    // make sure data is loaded, if using an offline lazy-load dataset.
+    o->load();
+
     // Only process pointclouds that are sufficiently apart in time:
     const auto this_obs_tim     = o->timestamp;
     double     lidar_delta_time = 0;
