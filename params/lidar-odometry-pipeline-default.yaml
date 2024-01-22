@@ -10,6 +10,9 @@ params:
   # These sensor labels will be handled as IMU observations:
   imu_sensor_label: 'imu'
 
+  # These sensor labels will be handled as wheel odometry observation:
+  wheel_odometry_sensor_label: 'odometry'
+
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 0  # [seconds]
   # Maximum time between two scans to consider the validity of the velocity model:

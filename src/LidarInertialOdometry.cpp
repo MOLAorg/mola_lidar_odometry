@@ -32,7 +32,7 @@
 #include <mrpt/containers/yaml.h>
 #include <mrpt/core/initializer.h>
 #include <mrpt/maps/CColouredPointsMap.h>
-#include <mrpt/obs/CObservationComment.h>
+#include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/opengl/CAssimpModel.h>
@@ -67,7 +67,7 @@ LidarInertialOdometry::~LidarInertialOdometry()
 
     try  // a dtor should never throw
     {
-        worker_lidar_imu_.clear();
+        worker_.clear();
         while (isBusy())
         {
             MRPT_LOG_THROTTLE_WARN(
@@ -231,6 +231,12 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     {
         params_.imu_sensor_label.emplace(
             cfg["imu_sensor_label"].as<std::string>());
+    }
+
+    if (cfg.has("wheel_odometry_sensor_label"))
+    {
+        params_.wheel_odometry_sensor_label.emplace(
+            cfg["wheel_odometry_sensor_label"].as<std::string>());
     }
 
     ASSERT_(cfg.has("local_map_updates"));
@@ -411,12 +417,6 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
         return;
     }
 
-#if 0
-    MRPT_LOG_DEBUG_STREAM(
-        "onNewObservation: class=" << o->GetRuntimeClass()->className
-                                   << " sensorLabel=" << o->sensorLabel);
-#endif
-
     // Is it an IMU obs?
     if (params_.imu_sensor_label &&
         std::regex_match(o->sensorLabel, params_.imu_sensor_label.value()))
@@ -427,8 +427,21 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
         }
 
         // Yes, it's an IMU obs:
+        auto fut = worker_.enqueue(&LidarInertialOdometry::onIMU, this, o);
+        (void)fut;
+    }
+
+    // Is it odometry?
+    if (params_.wheel_odometry_sensor_label &&
+        std::regex_match(
+            o->sensorLabel, params_.wheel_odometry_sensor_label.value()))
+    {
+        {
+            auto lck = mrpt::lockHelper(is_busy_mtx_);
+            state_.worker_tasks++;
+        }
         auto fut =
-            worker_lidar_imu_.enqueue(&LidarInertialOdometry::onIMU, this, o);
+            worker_.enqueue(&LidarInertialOdometry::onWheelOdometry, this, o);
         (void)fut;
     }
 
@@ -438,9 +451,9 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
         if (!std::regex_match(o->sensorLabel, re)) continue;
 
         // Yes, it's a LIDAR obs:
-        const auto queued = worker_lidar_imu_.pendingTasks();
+        const auto queued = worker_.pendingTasks();
         profiler_.registerUserMeasure("onNewObservation.queue_length", queued);
-        if (queued > 500)
+        if (queued > params_.max_worker_thread_queue_before_drop)
         {
             MRPT_LOG_THROTTLE_ERROR(
                 1.0, "Dropping observation due to worker threads too busy.");
@@ -456,8 +469,7 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
         }
 
         // Enqueue task:
-        auto fut =
-            worker_lidar_imu_.enqueue(&LidarInertialOdometry::onLidar, this, o);
+        auto fut = worker_.enqueue(&LidarInertialOdometry::onLidar, this, o);
 
         (void)fut;
 
@@ -962,13 +974,50 @@ void LidarInertialOdometry::onIMUImpl(const CObservation::Ptr& o)
     ProfilerEntry tleg(profiler_, "onIMU");
 }
 
+void LidarInertialOdometry::onWheelOdometry(const CObservation::Ptr& o)
+{
+    // All methods that are enqueued into a thread pool should have its own
+    // top-level try-catch:
+    try
+    {
+        onWheelOdometryImpl(o);
+    }
+    catch (const std::exception& e)
+    {
+        MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
+        state_.fatal_error = true;
+    }
+
+    {
+        auto lck = mrpt::lockHelper(is_busy_mtx_);
+        state_.worker_tasks--;
+    }
+}
+
+void LidarInertialOdometry::onWheelOdometryImpl(const CObservation::Ptr& o)
+{
+    ASSERT_(o);
+
+    ProfilerEntry tleg(profiler_, "onWheelOdometry");
+
+    auto odo = std::dynamic_pointer_cast<mrpt::obs::CObservationOdometry>(o);
+    ASSERTMSG_(
+        odo,
+        mrpt::format(
+            "Odometry observation with label '%s' does not have the expected "
+            "type 'mrpt::obs::CObservationOdometry', it is '%s' instead",
+            o->sensorLabel.c_str(), o->GetRuntimeClass()->className));
+
+    // odo->timestamp;
+}
+
 bool LidarInertialOdometry::isBusy() const
 {
     bool b;
     is_busy_mtx_.lock();
     b = state_.worker_tasks != 0;
     is_busy_mtx_.unlock();
-    return b || worker_lidar_imu_.pendingTasks();
+    return b || worker_.pendingTasks();
 }
 
 mrpt::poses::CPose3DInterpolator LidarInertialOdometry::estimatedTrajectory()

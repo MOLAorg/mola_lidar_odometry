@@ -13,7 +13,7 @@ params:
   max_time_to_use_velocity_model: 2.0 # [seconds]
 
   # These sensor labels will be handled as IMU observations:
-  imu_sensor_label: 'imu'
+  #imu_sensor_label: 'imu'
 
   # How often to update the local map model:
   local_map_updates:

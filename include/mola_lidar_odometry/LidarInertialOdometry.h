@@ -82,6 +82,11 @@ class LidarInertialOdometry : public FrontEndBase
          */
         std::optional<std::regex> imu_sensor_label;
 
+        /** Sensor labels or regex to be matched to input observations
+         *  to be used as wheel odometry observations.
+         */
+        std::optional<std::regex> wheel_odometry_sensor_label;
+
         /** Minimum time (seconds) between scans for being attempted to be
          * aligned. Scans faster than this rate will be just silently ignored.
          */
@@ -214,6 +219,8 @@ class LidarInertialOdometry : public FrontEndBase
         TrajectoryOutputOptions estimated_trajectory;
 
         std::optional<mrpt::math::TTwist3D> initial_twist;
+
+        uint32_t max_worker_thread_queue_before_drop = 500;
     };
 
     /** Algorithm parameters */
@@ -346,9 +353,9 @@ class LidarInertialOdometry : public FrontEndBase
 
     /** The worker thread pool with 1 thread for processing incomming
      * IMU or LIDAR observations*/
-    mrpt::WorkerThreadsPool worker_lidar_imu_{
+    mrpt::WorkerThreadsPool worker_{
         1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO,
-        "worker_lidar_imu"};
+        "worker_lidar_odom"};
 
     MethodState        state_;
     const MethodState& state() const { return state_; }
@@ -363,6 +370,9 @@ class LidarInertialOdometry : public FrontEndBase
 
     void onIMU(const CObservation::Ptr& o);
     void onIMUImpl(const CObservation::Ptr& o);
+
+    void onWheelOdometry(const CObservation::Ptr& o);
+    void onWheelOdometryImpl(const CObservation::Ptr& o);
 
     // KISS-ICP adaptive threshold method:
     void doUpdateAdaptiveThreshold(
