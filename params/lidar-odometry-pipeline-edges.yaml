@@ -88,6 +88,8 @@ icp_settings_with_vel:
 
     #debugPrintIterationProgress: true  # Print progress
     #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
+    saveIterationDetails: true  # Store partial solutions and pairings for each ICP iteration
+    decimationIterationDetails: 3
     debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
     decimationDebugFiles: 100
 
@@ -136,12 +138,7 @@ icp_settings_with_vel:
   quality:
     - class: mp2p_icp::QualityEvaluator_PairedRatio
       params:
-        reuse_icp_pairings: true
-        threshold: 0.75 # ignored when 'reuse_icp_pairings'==true
-        thresholdAngularDeg: 0
-        pointLayerMatches:
-            - {global: "localmap_small_curvature", local: "decimated_for_icp_smaller_curvature", weight: 1.0}
-            - {global: "localmap_large_curvature", local: "decimated_for_icp_large_curvature", weight: 1.0}
+        ~  # none required
 
 
 

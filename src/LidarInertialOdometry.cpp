@@ -368,12 +368,6 @@ void LidarInertialOdometry::initialize(const Yaml& c)
             state_.local_map_generators, state_.icpParameterSource);
     }
 
-    // set optional initial twist:
-    if (params_.initial_twist)
-    {
-        state_.navstate_fuse.force_last_twist(*params_.initial_twist);
-    }
-
     // Parameterizable values in params_:
     params_.attachToParameterSource(state_.icpParameterSource);
 
@@ -617,6 +611,15 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         initPose.cov.setDiagonal(1e-12);
 
         state_.navstate_fuse.fuse_pose(this_obs_tim, initPose);
+
+        // set optional initial twist:
+        if (params_.initial_twist)
+        {
+            state_.navstate_fuse.force_last_twist(*params_.initial_twist);
+
+            // and reset since we only want to enforce the a-priori twist once:
+            params_.initial_twist.reset();
+        }
     }
     else
     {

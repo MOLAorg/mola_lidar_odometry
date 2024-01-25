@@ -15,6 +15,8 @@ params:
 
   #debugPrintIterationProgress: true  # Print progress
   #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
+  saveIterationDetails: true  # Store partial solutions and pairings for each ICP iteration
+  decimationIterationDetails: 3
   debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
   decimationDebugFiles: 100
 
