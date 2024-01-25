@@ -158,7 +158,7 @@ localmap_generator:
           max_points_per_voxel: 20
           min_distance_between_points: 0  # [m]
           # if !=0, remove voxels farther (L1) than the current observation insert point
-          remove_voxels_farther_than: '$f{1.50*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
+          remove_voxels_farther_than: '$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
         likelihoodOpts:
           sigma_dist: 1.0    # [m]
           max_corr_distance: 2.0  #[m]

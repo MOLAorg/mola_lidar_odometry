@@ -13,7 +13,6 @@ FILE=$1
 shift 1
 
 MOLA_INPUT_RAWLOG=$FILE \
-MOLA_ODOMETRY_PIPELINE_YAML=${MOLA_ODOMETRY_PIPELINE_YAML:-$SCRIPT_DIR/../params/lidar-odometry-pipeline-default.yaml} \
   mola-cli \
     $SCRIPT_DIR/../mola-cli-launchs/lidar_odometry_from_rawlog.yaml \
     $@

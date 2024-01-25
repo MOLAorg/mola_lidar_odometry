@@ -15,7 +15,6 @@ SEQ=$1
 shift 1
 
 MULRAN_SEQ=$SEQ \
-MOLA_ODOMETRY_PIPELINE_YAML=$PIPELINE_YAML \
   mola-cli \
     $SCRIPT_DIR/../mola-cli-launchs/lidar_odometry_from_mulran.yaml \
     $@
