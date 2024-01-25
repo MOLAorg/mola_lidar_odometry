@@ -2,7 +2,6 @@
 
 # Default pipeline YAML file:
 PIPELINE_YAML="${PIPELINE_YAML:-src/mola_lidar_odometry/params/lidar-odometry-pipeline-default.yaml}"
-PLUGIN_MAPS=install/mola_metric_maps/lib/libmola_metric_maps.so
 
 #SEQUENCES=DCC01
 SEQUENCES="KAIST01 KAIST02 KAIST03"
@@ -12,16 +11,10 @@ if [ ! -f $PIPELINE_YAML ]; then
     echo "Usage: Invoke this script from your ~/ros_ws directory."
     exit 1
 fi
-if [ ! -f $PLUGIN_MAPS ]; then
-    echo "Error: Expected local file: 'src/mola_lidar_odometry/params/config-lidar-inertial-odometry.yaml'"
-    echo "Usage: Invoke this script from your ~/ros_ws directory."
-    exit 1
-fi
 
 parallel -j2 --lb \
   SEQ={} mola-lidar-odometry-cli \
     -c $PIPELINE_YAML\
-    -l $PLUGIN_MAPS\
     --input-mulran-seq {} \
     --output-tum-path results/estim_{}.txt \
 ::: $SEQUENCES
