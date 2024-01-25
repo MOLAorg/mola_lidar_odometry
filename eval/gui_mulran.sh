@@ -3,7 +3,7 @@
 if [ "$#" -eq 0 ]; then
     echo "Error: At least 1 argument is required."
     echo "Usage: $0 <MULRAN_SEQ> [additional flags for mola-cli]"
-    echo "With <KITTI_SEQ> 00 or 01 or 02..."
+    echo "With <MULRAN_SEQ> KAIST01, DCC01, ..."
     exit 1
 fi
 
