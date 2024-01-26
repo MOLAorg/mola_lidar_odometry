@@ -27,8 +27,8 @@ params:
   # Adaptive threshold, as in the KISS-ICP paper:
   adaptive_threshold:
     enabled: true
-    initial_sigma: 6.0
-    min_motion: 0.05
+    initial_sigma: 2.0
+    min_motion: 0.10
 
   # Except for the very first observation, use these layers of the observation
   # metric_map_t and insert them into the local map:
@@ -111,7 +111,7 @@ icp_settings_with_vel:
       params:
         maxIterations: 2
         robustKernel: 'RobustKernel::GemanMcClure'
-        robustKernelParam: '0.10*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
+        robustKernelParam: '0.30*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher

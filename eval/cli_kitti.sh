@@ -14,7 +14,7 @@ fi
 
 parallel -j2 --lb --halt now,fail=1 \
   SEQ={} \
-  MOLA_INITIAL_VX=20.0 \
+  MOLA_INITIAL_VX=18.0 \
   mola-lidar-odometry-cli \
     -c $PIPELINE_YAML\
     --input-kitti-seq {} \
