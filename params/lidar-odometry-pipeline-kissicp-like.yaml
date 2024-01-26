@@ -188,14 +188,14 @@ observations_filter:
       input_pointcloud_layer: 'filtered'
       output_pointcloud_layer: 'decimated_for_icp'
       voxel_filter_resolution: 1.50
-      #use_closest_to_voxel_average: true
+      decimate_method: DecimateMethod::FirstPoint
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'filtered'
       output_pointcloud_layer: 'decimated_for_map'
       voxel_filter_resolution: 0.5
-      #use_closest_to_voxel_average: true
+      decimate_method: DecimateMethod::FirstPoint
 
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
