@@ -215,15 +215,6 @@ observations_generator:
   # and with the given parameters. Filters are run in definition order on the
   # incoming raw CObservation objects.
   #
-  - class_name: mp2p_icp_filters::GeneratorEdgesFromCurvature
-    params:
-      target_layer: 'edges'
-      max_cosine: 0.2
-      min_point_clearance: 0.10
-      throw_on_unhandled_observation_class: true
-      process_class_names_regex: '.*'
-      process_sensor_labels_regex: '.*'
-
   - class_name: mp2p_icp_filters::Generator
     params:
       target_layer: 'raw'
@@ -281,30 +272,32 @@ observations_filter:
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'large_curvature'
-      output_pointcloud_layer: 'decimated_for_icp_large_curvature'
-      voxel_filter_resolution: 1.00*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
-      decimate_method: DecimateMethod::ClosestToAverage
+      output_pointcloud_layer: 'decimated_for_map_large_curvature'
+      voxel_filter_resolution: 1.0*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
+      decimate_method: DecimateMethod::FirstPoint
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'large_curvature'
-      output_pointcloud_layer: 'decimated_for_map_large_curvature'
-      voxel_filter_resolution: 1.0*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
-      decimate_method: DecimateMethod::ClosestToAverage
+      output_pointcloud_layer: 'decimated_for_icp_large_curvature'
+      voxel_filter_resolution: 1.5*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
+      decimate_method: DecimateMethod::VoxelAverage
 
-  - class_name: mp2p_icp_filters::FilterDecimateVoxels
-    params:
-      input_pointcloud_layer: 'smaller_curvature'
-      output_pointcloud_layer: 'decimated_for_icp_smaller_curvature'
-      voxel_filter_resolution: 2.0*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
-      decimate_method: DecimateMethod::ClosestToAverage
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'smaller_curvature'
       output_pointcloud_layer: 'decimated_for_map_smaller_curvature'
       voxel_filter_resolution: 0.5*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
-      decimate_method: DecimateMethod::ClosestToAverage
+      decimate_method: DecimateMethod::FirstPoint
+
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: 'decimated_for_map_smaller_curvature'
+      output_pointcloud_layer: 'decimated_for_icp_smaller_curvature'
+      voxel_filter_resolution: 2.0*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
+      decimate_method: DecimateMethod::VoxelAverage
+
 
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
