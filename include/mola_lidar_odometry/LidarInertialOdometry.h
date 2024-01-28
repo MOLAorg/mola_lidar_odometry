@@ -134,6 +134,8 @@ class LidarInertialOdometry : public FrontEndBase
             bool   show_trajectory          = true;
             double current_pose_corner_size = 1.5;  //! [m]
 
+            bool gui_subwindow_starts_hidden = false;
+
             /** If not empty, an optional 3D model (.DAE, etc) to load for
              * visualizing the robot/vehicle pose */
             std::string         model_file;
@@ -320,6 +322,7 @@ class LidarInertialOdometry : public FrontEndBase
 
         std::optional<mrpt::Clock::time_point> last_obs_tim;
         bool                                   last_icp_was_good = true;
+        double                                 last_icp_quality  = .0;
         mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 
         // navstate_fuse to merge pose estimates, IMU, odom, estimate twist.
@@ -350,7 +353,10 @@ class LidarInertialOdometry : public FrontEndBase
         // Visualization:
         mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;
         mrpt::opengl::CSetOfLines::Ptr   glEstimatedPath;
-        int mapUpdateCnt = std::numeric_limits<int>::max();
+        int              mapUpdateCnt = std::numeric_limits<int>::max();
+        nanogui::Window* ui           = nullptr;
+        nanogui::Label*  lbIcpQuality = nullptr;
+        nanogui::Label*  lbSigma      = nullptr;
     };
 
     /** The worker thread pool with 1 thread for processing incomming

@@ -149,6 +149,8 @@ void LidarInertialOdometry::Parameters::Visualization::initialize(
     YAML_LOAD_OPT_DEG(model_tf.roll, double);
 
     YAML_LOAD_OPT(model_scale, double);
+
+    YAML_LOAD_OPT(gui_subwindow_starts_hidden, bool);
 }
 
 void LidarInertialOdometry::Parameters::SimpleMapOptions::initialize(
@@ -674,6 +676,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         }
         const bool icpIsGood     = icp_out.goodness >= params_.min_icp_goodness;
         state_.last_icp_was_good = icpIsGood;
+        state_.last_icp_quality  = icp_out.goodness;
 
         if (icpIsGood) state_.last_lidar_pose = icp_out.found_pose_to_wrt_from;
 
@@ -1057,7 +1060,7 @@ void LidarInertialOdometry::doUpdateAdaptiveThreshold(
 
     const double max_range = state_.estimated_sensor_max_range.value();
 
-    const double ALPHA = 0.9;
+    const double ALPHA = 0.99;
 
     double model_error = computeModelError(lastMotionModelError, max_range);
 
@@ -1281,6 +1284,29 @@ void LidarInertialOdometry::updateVisualization()
 
         visualizer_->output_console_message(ss.str());
     }
+
+    // Sub-window with custom UI
+    // -------------------------------------
+    if (!state_.ui)
+    {
+        auto fut  = visualizer_->create_subwindow("mola_lidar_odometry");
+        state_.ui = fut.get();
+        state_.ui->requestFocus();
+        state_.ui->setVisible(
+            !params_.visualization.gui_subwindow_starts_hidden);
+        state_.ui->setPosition({5, 700});
+
+        state_.ui->setLayout(new nanogui::BoxLayout(
+            nanogui::Orientation::Vertical, nanogui::Alignment::Fill, 5, 2));
+        state_.ui->setFixedWidth(300);
+
+        state_.lbIcpQuality = state_.ui->add<nanogui::Label>(" ");
+        state_.lbSigma      = state_.ui->add<nanogui::Label>(" ");
+    }
+    state_.lbIcpQuality->setCaption(
+        mrpt::format("ICP quality: %.01f%%", 100.0 * state_.last_icp_quality));
+    state_.lbSigma->setCaption(
+        mrpt::format("Threshold sigma: %.02f", state_.adapt_thres_sigma));
 }
 
 std::tuple<bool /*isFirst*/, mrpt::poses::CPose3D /*distanceToClosest*/>
