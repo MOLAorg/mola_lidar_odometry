@@ -357,6 +357,8 @@ class LidarInertialOdometry : public FrontEndBase
         nanogui::Window* ui           = nullptr;
         nanogui::Label*  lbIcpQuality = nullptr;
         nanogui::Label*  lbSigma      = nullptr;
+        nanogui::Label*  lbTime       = nullptr;
+        nanogui::Label*  lbPeriod     = nullptr;
     };
 
     /** The worker thread pool with 1 thread for processing incomming

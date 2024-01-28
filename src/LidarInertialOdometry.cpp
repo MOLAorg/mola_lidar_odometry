@@ -1302,11 +1302,25 @@ void LidarInertialOdometry::updateVisualization()
 
         state_.lbIcpQuality = state_.ui->add<nanogui::Label>(" ");
         state_.lbSigma      = state_.ui->add<nanogui::Label>(" ");
+        state_.lbTime       = state_.ui->add<nanogui::Label>(" ");
+        state_.lbPeriod     = state_.ui->add<nanogui::Label>(" ");
     }
     state_.lbIcpQuality->setCaption(
         mrpt::format("ICP quality: %.01f%%", 100.0 * state_.last_icp_quality));
     state_.lbSigma->setCaption(
         mrpt::format("Threshold sigma: %.02f", state_.adapt_thres_sigma));
+    {
+        const double dt    = profiler_.getLastTime("onLidar");
+        const double dtAvr = profiler_.getMeanTime("onLidar");
+        state_.lbTime->setCaption(mrpt::format(
+            "Process time: %6.02f ms (avr: %6.02f ms)", 1e3 * dt, 1e3 * dtAvr));
+        if (dt > 0 && dtAvr > 0)
+        {
+            state_.lbPeriod->setCaption(mrpt::format(
+                "Process rate: %6.02f Hz (avr: %6.02f Hz)", 1.0 / dt,
+                1.0 / dtAvr));
+        }
+    }
 }
 
 std::tuple<bool /*isFirst*/, mrpt::poses::CPose3D /*distanceToClosest*/>
