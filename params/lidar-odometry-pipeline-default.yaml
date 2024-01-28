@@ -111,7 +111,7 @@ icp_settings_with_vel:
       params:
         maxIterations: 2
         robustKernel: 'RobustKernel::GemanMcClure'
-        robustKernelParam: '0.30*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
+        robustKernelParam: '0.50*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -119,7 +119,7 @@ icp_settings_with_vel:
   matchers:
     - class: mp2p_icp::Matcher_Points_DistanceThreshold
       params:
-        threshold: '3.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
+        threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
         thresholdAngularDeg: 0  # deg
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster

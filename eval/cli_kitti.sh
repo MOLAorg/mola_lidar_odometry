@@ -20,7 +20,7 @@ parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   mola-lidar-odometry-cli \
     -c $PIPELINE_YAML\
     --input-kitti-seq {} \
-    --output-tum-path results/estim_{}.txt \
+    --output-tum-path results/estim_{}.txt $@ \
 ::: $SEQS_TO_RUN
 
 #    --kitti-correction-angle-deg 0.21 \

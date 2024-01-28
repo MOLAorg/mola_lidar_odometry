@@ -210,15 +210,15 @@ observations_filter:
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'filtered'
-      output_pointcloud_layer: 'decimated_for_icp'
-      voxel_filter_resolution: 1.50
+      output_pointcloud_layer: 'decimated_for_map'
+      voxel_filter_resolution: 0.5
       decimate_method: DecimateMethod::FirstPoint
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
-      input_pointcloud_layer: 'filtered'
-      output_pointcloud_layer: 'decimated_for_map'
-      voxel_filter_resolution: 0.5
+      input_pointcloud_layer: 'decimated_for_map'
+      output_pointcloud_layer: 'decimated_for_icp'
+      voxel_filter_resolution: 1.50
       decimate_method: DecimateMethod::FirstPoint
 
   # Remove layers to save memory and log file storage
