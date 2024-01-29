@@ -5,6 +5,7 @@ PIPELINE_YAML="${PIPELINE_YAML:-src/mola_lidar_odometry/params/lidar-odometry-pi
 
 #SEQUENCES=DCC01
 SEQUENCES="KAIST01 KAIST02 KAIST03"
+NUM_THREADS=1
 
 if [ ! -f $PIPELINE_YAML ]; then
     echo "Error: Expected local file: '$PIPELINE_YAML'"
@@ -12,7 +13,7 @@ if [ ! -f $PIPELINE_YAML ]; then
     exit 1
 fi
 
-parallel -j2 --lb \
+parallel -j${NUM_THREADS} --lb \
   SEQ={} mola-lidar-odometry-cli \
     -c $PIPELINE_YAML\
     --input-mulran-seq {} \
@@ -27,5 +28,5 @@ done
 
 # TODO: Eval ATE/RTE with evo?
 for d in $SEQUENCES; do
-  evo_ape tum results/estim_DCC01.txt results/estim_DCC01_gt.txt -a
+  evo_ape tum results/estim_${d}.txt results/estim_${d}_gt.txt -a
 done
