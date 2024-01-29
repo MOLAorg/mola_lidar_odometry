@@ -18,7 +18,7 @@ params:
 
   # How often to update the local map model:
   local_map_updates:
-    min_translation_between_keyframes: '0.5e-2*ESTIMATED_SENSOR_MAX_RANGE' # [m]
+    min_translation_between_keyframes: '(0.5e-2 + sqrt(WX^2+WY^2+WZ^2)*0.25 )*ESTIMATED_SENSOR_MAX_RANGE' # [m]
     min_rotation_between_keyframes: 15.0 # [deg]
 
   # Minimum ICP quality to insert it into the map:
