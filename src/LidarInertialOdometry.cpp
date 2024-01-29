@@ -1300,15 +1300,19 @@ void LidarInertialOdometry::updateVisualization()
             nanogui::Orientation::Vertical, nanogui::Alignment::Fill, 5, 2));
         state_.ui->setFixedWidth(300);
 
-        state_.lbIcpQuality = state_.ui->add<nanogui::Label>(" ");
-        state_.lbSigma      = state_.ui->add<nanogui::Label>(" ");
-        state_.lbTime       = state_.ui->add<nanogui::Label>(" ");
-        state_.lbPeriod     = state_.ui->add<nanogui::Label>(" ");
+        state_.lbIcpQuality  = state_.ui->add<nanogui::Label>(" ");
+        state_.lbSigma       = state_.ui->add<nanogui::Label>(" ");
+        state_.lbSensorRange = state_.ui->add<nanogui::Label>(" ");
+        state_.lbTime        = state_.ui->add<nanogui::Label>(" ");
+        state_.lbPeriod      = state_.ui->add<nanogui::Label>(" ");
     }
     state_.lbIcpQuality->setCaption(
         mrpt::format("ICP quality: %.01f%%", 100.0 * state_.last_icp_quality));
     state_.lbSigma->setCaption(
         mrpt::format("Threshold sigma: %.02f", state_.adapt_thres_sigma));
+    if (state_.estimated_sensor_max_range)
+        state_.lbSensorRange->setCaption(mrpt::format(
+            "Est. max range: %.02f m", *state_.estimated_sensor_max_range));
     {
         const double dt    = profiler_.getLastTime("onLidar");
         const double dtAvr = profiler_.getMeanTime("onLidar");

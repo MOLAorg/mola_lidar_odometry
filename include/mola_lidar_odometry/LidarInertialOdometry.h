@@ -353,12 +353,13 @@ class LidarInertialOdometry : public FrontEndBase
         // Visualization:
         mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;
         mrpt::opengl::CSetOfLines::Ptr   glEstimatedPath;
-        int              mapUpdateCnt = std::numeric_limits<int>::max();
-        nanogui::Window* ui           = nullptr;
-        nanogui::Label*  lbIcpQuality = nullptr;
-        nanogui::Label*  lbSigma      = nullptr;
-        nanogui::Label*  lbTime       = nullptr;
-        nanogui::Label*  lbPeriod     = nullptr;
+        int              mapUpdateCnt  = std::numeric_limits<int>::max();
+        nanogui::Window* ui            = nullptr;
+        nanogui::Label*  lbIcpQuality  = nullptr;
+        nanogui::Label*  lbSigma       = nullptr;
+        nanogui::Label*  lbSensorRange = nullptr;
+        nanogui::Label*  lbTime        = nullptr;
+        nanogui::Label*  lbPeriod      = nullptr;
     };
 
     /** The worker thread pool with 1 thread for processing incomming
