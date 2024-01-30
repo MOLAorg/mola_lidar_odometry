@@ -54,8 +54,9 @@ params:
     map_update_decimation: 20
     show_trajectory: true
     #current_pose_corner_size: 1.5
-    #model_file: ${HOME}/Downloads/ParrotBebop2_assembled.dae
-    #model_tf.roll: 90.0 # deg
+    model:
+      - file: ${MOLA_VEHICLE_MODEL_FILE|""} # Default: none
+        tf.roll: 90.0 # deg
 
   # Profile the main steps of the odometry pipeline:
   pipeline_profiler_enabled: true
