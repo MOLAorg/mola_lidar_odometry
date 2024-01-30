@@ -138,9 +138,13 @@ class LidarInertialOdometry : public FrontEndBase
 
             /** If not empty, an optional 3D model (.DAE, etc) to load for
              * visualizing the robot/vehicle pose */
-            std::string         model_file;
-            mrpt::math::TPose3D model_tf;  /// Optional 3D model offset/rotation
-            double              model_scale = 1.0;
+            struct ModelPart
+            {
+                std::string         file;
+                mrpt::math::TPose3D tf;  /// Optional 3D model offset/rotation
+                double              scale = 1.0;
+            };
+            std::vector<ModelPart> model;
 
             void initialize(const Yaml& c);
         };

@@ -140,15 +140,39 @@ void LidarInertialOdometry::Parameters::Visualization::initialize(
     YAML_LOAD_OPT(show_trajectory, bool);
     YAML_LOAD_OPT(current_pose_corner_size, double);
 
-    YAML_LOAD_OPT(model_file, std::string);
-    YAML_LOAD_OPT(model_tf.x, double);
-    YAML_LOAD_OPT(model_tf.y, double);
-    YAML_LOAD_OPT(model_tf.z, double);
-    YAML_LOAD_OPT_DEG(model_tf.yaw, double);
-    YAML_LOAD_OPT_DEG(model_tf.pitch, double);
-    YAML_LOAD_OPT_DEG(model_tf.roll, double);
+    if (cfg.has("model"))
+    {
+        ASSERT_(cfg["model"].isSequence());
+        for (const auto& e : cfg["model"].asSequence())
+        {
+            ASSERT_(e.isMap());
+            auto  c = e.asMap();
+            auto& m = model.emplace_back();
+            ASSERT_(c.count("file") != 0);
+            m.file = c["file"].as<std::string>();
 
-    YAML_LOAD_OPT(model_scale, double);
+            if (m.file.empty())
+            {
+                model.erase(--model.end());
+                continue;
+            }
+
+            if (c.count("tf.x")) m.tf.x = c["tf.x"].as<float>();
+            if (c.count("tf.y")) m.tf.y = c["tf.y"].as<float>();
+            if (c.count("tf.z")) m.tf.z = c["tf.z"].as<float>();
+
+            if (c.count("tf.yaw"))
+                m.tf.yaw = mrpt::DEG2RAD(c["tf.yaw"].as<float>());
+
+            if (c.count("tf.pitch"))
+                m.tf.pitch = mrpt::DEG2RAD(c["tf.pitch"].as<float>());
+
+            if (c.count("tf.roll"))
+                m.tf.roll = mrpt::DEG2RAD(c["tf.roll"].as<float>());
+
+            if (c.count("scale")) m.scale = c["scale"].as<float>();
+        }
+    }
 
     YAML_LOAD_OPT(gui_subwindow_starts_hidden, bool);
 }
@@ -1080,12 +1104,18 @@ void LidarInertialOdometry::doInitializeEstimatedMaxSensorRange(
     auto& maxRange = state_.estimated_sensor_max_range;
     ASSERT_(!maxRange.has_value());  // this method is for 1st call only
 
-    mrpt::maps::CSimplePointsMap pts;
-    pts.insertObservation(o);
+    mp2p_icp_filters::Generator gen;
+    gen.params_.target_layer = "raw";
+    gen.initialize({});
 
-    if (pts.empty()) return;
+    mp2p_icp::metric_map_t map;
+    gen.process(o, map);
 
-    const auto   bb     = pts.boundingBox();
+    auto pts = map.point_layer("raw");
+
+    if (pts->empty()) return;
+
+    const auto   bb     = pts->boundingBox();
     const double radius = 0.5 * (bb.max - bb.min).norm();
 
     maxRange = radius;
@@ -1181,26 +1211,29 @@ void LidarInertialOdometry::updateVisualization()
         }
 
         // 3D model:
-        if (!params_.visualization.model_file.empty())
+        if (!params_.visualization.model.empty())
         {
             const auto& _ = params_.visualization;
 
-            const auto localFileName = _.model_file;
+            for (const auto& model : _.model)
+            {
+                const auto localFileName = model.file;
 
-            auto m = mrpt::opengl::CAssimpModel::Create();
+                auto m = mrpt::opengl::CAssimpModel::Create();
 
-            ASSERT_FILE_EXISTS_(localFileName);
+                ASSERT_FILE_EXISTS_(localFileName);
 
-            int loadFlags =
-                mrpt::opengl::CAssimpModel::LoadFlags::RealTimeMaxQuality |
-                mrpt::opengl::CAssimpModel::LoadFlags::FlipUVs;
+                int loadFlags =
+                    mrpt::opengl::CAssimpModel::LoadFlags::RealTimeMaxQuality |
+                    mrpt::opengl::CAssimpModel::LoadFlags::FlipUVs;
 
-            m->loadScene(localFileName, loadFlags);
+                m->loadScene(localFileName, loadFlags);
 
-            m->setScale(_.model_scale);
-            m->setPose(_.model_tf);
+                m->setScale(model.scale);
+                m->setPose(model.tf);
 
-            state_.glVehicleFrame->insert(m);
+                state_.glVehicleFrame->insert(m);
+            }
         }
     }
     state_.glVehicleFrame->setPose(state_.last_lidar_pose.mean);
