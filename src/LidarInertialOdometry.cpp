@@ -678,6 +678,14 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
                 icp_in.prior.emplace(motionModelOutput->pose);
             }
         }
+        else
+        {
+            // Use the last pose without velocity motion model:
+            MRPT_LOG_THROTTLE_WARN(
+                2.0, "Not able to use velocity motion model for this timestep");
+            icp_in.init_guess_local_wrt_global =
+                state_.last_lidar_pose.mean.asTPose();
+        }
 
         // Send out to icp:
         icp_in.local_pc  = observation;
