@@ -17,7 +17,7 @@ modules:
   # =====================
   # KittiOdometryDataset
   # =====================
-  - name: rawlog_input
+  - name: dataset_input
     type: mola::RawlogDataset
     execution_rate: 150 # Hz
     #verbosity_level: INFO
@@ -36,7 +36,7 @@ modules:
   - name: lidar_odom
     type: mola::LidarInertialOdometry
     #verbosity_level: DEBUG
-    raw_data_source: 'rawlog_input'
+    raw_data_source: 'dataset_input'
     # This includes here a whole block "params: (...)"
     # with the LIDAR-Odometry pipeline configuration:
     params: '${MOLA_ODOMETRY_PIPELINE_YAML|../params/lidar-odometry-pipeline-default.yaml}'
