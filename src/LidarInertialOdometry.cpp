@@ -192,6 +192,8 @@ void LidarInertialOdometry::Parameters::MapUpdateOptions::initialize(
 {
     DECLARE_PARAMETER_IN_REQ(cfg, min_translation_between_keyframes, parent);
     DECLARE_PARAMETER_IN_REQ(cfg, min_rotation_between_keyframes, parent);
+    DECLARE_PARAMETER_IN_OPT(cfg, max_distance_to_keep_keyframes, parent);
+    DECLARE_PARAMETER_IN_OPT(cfg, check_for_removal_every_n, parent);
     YAML_LOAD_OPT(measure_from_last_kf_only, bool);
 }
 
@@ -786,7 +788,33 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         // clang-format on
 
         if (updateLocalMap)
+        {
             state_.distanceCheckerLocalMap->insert(state_.last_lidar_pose.mean);
+
+            if (params_.local_map_updates.max_distance_to_keep_keyframes > 0)
+            {
+                if (state_.localMapCheckForRemovalCounter++ >=
+                    params_.local_map_updates.check_for_removal_every_n)
+                {
+                    ProfilerEntry tleCleanup(
+                        profiler_, "onLidar.distant_kfs_cleanup");
+
+                    state_.localMapCheckForRemovalCounter = 0;
+
+                    const auto nInit = state_.distanceCheckerLocalMap->size();
+
+                    state_.distanceCheckerLocalMap->removeAllFartherThan(
+                        state_.last_lidar_pose.mean,
+                        params_.local_map_updates
+                            .max_distance_to_keep_keyframes);
+
+                    const auto nFinal = state_.distanceCheckerLocalMap->size();
+                    MRPT_LOG_DEBUG_STREAM(
+                        "removeAllFartherThan: " << nInit << " => " << nFinal
+                                                 << " KFs");
+                }
+            }
+        }
 
         const auto [isFirstPoseInSMChecker, distanceToClosestSM] =
             state_.distanceCheckerSimplemap->check(state_.last_lidar_pose.mean);
@@ -1416,4 +1444,29 @@ std::tuple<bool /*isFirst*/, mrpt::poses::CPose3D /*distanceToClosest*/>
     }
 
     return {isFirst, distanceToClosest};
+}
+
+void LidarInertialOdometry::SearchablePoseList::removeAllFartherThan(
+    const mrpt::poses::CPose3D& p, const double maxTranslation)
+{
+    if (from_last_only_) return;  // not applicable
+
+    std::deque<mrpt::poses::CPose3D> new_kf_poses;
+    mrpt::maps::CSimplePointsMap     new_kf_points;
+
+    const double maxSqrDist = mrpt::square(maxTranslation);
+    const auto   c          = p.translation();
+
+    for (size_t i = 0; i < kf_poses_.size(); i++)
+    {
+        mrpt::math::TPoint3D pt;
+        kf_points_.getPoint(i, pt.x, pt.y, pt.z);
+        if ((pt - c).sqrNorm() > maxSqrDist) continue;  // remove
+        // pass:
+        new_kf_points.insertPoint(pt);
+        new_kf_poses.push_back(kf_poses_.at(i));
+    }
+    // replace:
+    kf_poses_  = std::move(new_kf_poses);
+    kf_points_ = std::move(new_kf_points);
 }

@@ -115,6 +115,17 @@ class LidarInertialOdometry : public FrontEndBase
              */
             bool measure_from_last_kf_only = false;
 
+            /** Should match the "remove farther than" option of the local
+             * metric map. 0 means deletion of distant keyframes is disabled.
+             * In meters.
+             */
+            double max_distance_to_keep_keyframes = 0;
+
+            /** If  `max_distance_to_keep_keyframes` is not zero, this indicates
+             * how often to do the distant keyframes clean up.
+             */
+            uint32_t check_for_removal_every_n = 100;
+
             void initialize(const Yaml& c, Parameters& parent);
         };
 
@@ -288,6 +299,8 @@ class LidarInertialOdometry : public FrontEndBase
                 return kf_poses_.empty();
         }
 
+        size_t size() const { return from_last_only_ ? 1 : kf_poses_.size(); }
+
         void insert(const mrpt::poses::CPose3D& p)
         {
             if (from_last_only_)
@@ -304,6 +317,9 @@ class LidarInertialOdometry : public FrontEndBase
         [[nodiscard]] std::tuple<
             bool /*isFirst*/, mrpt::poses::CPose3D /*distanceToClosest*/>
             check(const mrpt::poses::CPose3D& p) const;
+
+        void removeAllFartherThan(
+            const mrpt::poses::CPose3D& p, const double maxTranslation);
 
        private:
         // if from_last_only_==true
@@ -353,6 +369,9 @@ class LidarInertialOdometry : public FrontEndBase
         // setting their type in the ctor:
         std::optional<SearchablePoseList> distanceCheckerLocalMap;
         std::optional<SearchablePoseList> distanceCheckerSimplemap;
+
+        /// See check_for_removal_every_n
+        uint32_t localMapCheckForRemovalCounter = 0;
 
         // Visualization:
         mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;

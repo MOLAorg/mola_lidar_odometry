@@ -18,7 +18,7 @@ params:
 
   # How often to update the local map model:
   local_map_updates:
-    min_translation_between_keyframes: '0.5e-2*ESTIMATED_SENSOR_MAX_RANGE' # [m]
+    min_translation_between_keyframes: '(0.5e-2 + sqrt(WX^2+WY^2+WZ^2)*0.25 )*ESTIMATED_SENSOR_MAX_RANGE' # [m]
     min_rotation_between_keyframes: 15.0 # [deg]
 
   # Minimum ICP quality to insert it into the map:
@@ -55,8 +55,9 @@ params:
     map_update_decimation: 20
     show_trajectory: true
     #current_pose_corner_size: 1.5
-    #model_file: ${HOME}/Downloads/ParrotBebop2_assembled.dae
-    #model_tf.roll: 90.0 # deg
+    model:
+      - file: ${MOLA_VEHICLE_MODEL_FILE|""} # Default: none
+        tf.roll: 90.0 # deg
 
   # Profile the main steps of the odometry pipeline:
   pipeline_profiler_enabled: true
@@ -102,17 +103,17 @@ icp_settings_with_vel:
 
     #debugPrintIterationProgress: true  # Print iteration progress
     #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
-    saveIterationDetails: true  # Store partial solutions and pairings for each ICP iteration
+    saveIterationDetails: false  # Store partial solutions and pairings for each ICP iteration
     decimationIterationDetails: 3
     debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
-    decimationDebugFiles: 10
+    decimationDebugFiles: ${MP2P_ICP_LOG_FILES_DECIMATION|10}
 
   solvers:
     - class: mp2p_icp::Solver_GaussNewton
       params:
         maxIterations: 2
         robustKernel: 'RobustKernel::GemanMcClure'
-        robustKernelParam: '0.30*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
+        robustKernelParam: '0.50*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -120,22 +121,13 @@ icp_settings_with_vel:
   matchers:
     - class: mp2p_icp::Matcher_Points_DistanceThreshold
       params:
-        threshold: '1.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
+        threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
         thresholdAngularDeg: 0  # deg
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         pointLayerMatches:
           - {global: "localmap_large_curvature", local: "decimated_for_icp_large_curvature", weight: 1.0}
-
-    - class: mp2p_icp::Matcher_Points_DistanceThreshold
-      params:
-        threshold: '3.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
-        thresholdAngularDeg: 0  # deg
-        pairingsPerPoint: 2
-        allowMatchAlreadyMatchedGlobalPoints: true # faster
-        pointLayerMatches:
           - {global: "localmap_small_curvature", local: "decimated_for_icp_smaller_curvature", weight: 1.0}
-
 
   quality:
     - class: mp2p_icp::QualityEvaluator_PairedRatio
@@ -190,7 +182,7 @@ localmap_generator:
         creationOpts:
           voxel_size: '$f{max(0.5, 0.01*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
         insertionOpts:
-          max_points_per_voxel: 20
+          max_points_per_voxel: 10
           min_distance_between_points: 0  # [m]
           # if !=0, remove voxels farther (L1) than the current observation insert point
           remove_voxels_farther_than: '$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
@@ -234,7 +226,7 @@ observations_filter:
       input_pointcloud_layer: 'raw'
       output_pointcloud_layer: 'deskewed'
       silently_ignore_no_timestamps: true # To handle more dataset types
-      output_layer_class: 'mrpt::maps::CPointsMapXYZI'  # Keep intensity channel
+      output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity & ring channels
       
       # These (vx,...wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
@@ -265,8 +257,8 @@ observations_filter:
       output_layer_larger_curvature: 'large_curvature'
       output_layer_smaller_curvature: 'smaller_curvature'
       #output_layer_other: 'large_curvature'
-      max_cosine: 0.1
-      min_clearance: 0.10
+      max_cosine: 0.4
+      min_clearance: 0.20
       max_gap: 1.0
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
@@ -278,10 +270,10 @@ observations_filter:
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
-      input_pointcloud_layer: 'large_curvature'
+      input_pointcloud_layer: 'decimated_for_map_large_curvature'
       output_pointcloud_layer: 'decimated_for_icp_large_curvature'
       voxel_filter_resolution: 1.5*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
-      decimate_method: DecimateMethod::VoxelAverage
+      decimate_method: DecimateMethod::FirstPoint
 
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
@@ -296,8 +288,7 @@ observations_filter:
       input_pointcloud_layer: 'decimated_for_map_smaller_curvature'
       output_pointcloud_layer: 'decimated_for_icp_smaller_curvature'
       voxel_filter_resolution: 2.0*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
-      decimate_method: DecimateMethod::VoxelAverage
-
+      decimate_method: DecimateMethod::FirstPoint
 
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
