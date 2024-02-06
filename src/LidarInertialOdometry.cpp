@@ -138,6 +138,7 @@ void LidarInertialOdometry::Parameters::Visualization::initialize(
 {
     YAML_LOAD_OPT(map_update_decimation, int);
     YAML_LOAD_OPT(show_trajectory, bool);
+    YAML_LOAD_OPT(show_console_messages, bool);
     YAML_LOAD_OPT(current_pose_corner_size, double);
 
     if (cfg.has("model"))
@@ -1329,6 +1330,7 @@ void LidarInertialOdometry::updateVisualization()
 
     // Console messages:
     // -------------------------
+    if (params_.visualization.show_console_messages)
     {
         std::stringstream ss;
         if (state_.last_obs_tim)

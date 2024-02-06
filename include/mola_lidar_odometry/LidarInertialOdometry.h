@@ -146,6 +146,7 @@ class LidarInertialOdometry : public FrontEndBase
             double current_pose_corner_size = 1.5;  //! [m]
 
             bool gui_subwindow_starts_hidden = false;
+            bool show_console_messages       = true;
 
             /** If not empty, an optional 3D model (.DAE, etc) to load for
              * visualizing the robot/vehicle pose */

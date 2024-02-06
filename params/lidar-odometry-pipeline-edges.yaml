@@ -18,8 +18,11 @@ params:
 
   # How often to update the local map model:
   local_map_updates:
-    min_translation_between_keyframes: '(0.5e-2 + sqrt(WX^2+WY^2+WZ^2)*0.25 )*ESTIMATED_SENSOR_MAX_RANGE' # [m]
+    min_translation_between_keyframes: '(0.5e-2 + sqrt(WX^2+WY^2+WZ^2)*0.2 )*ESTIMATED_SENSOR_MAX_RANGE' # [m]
     min_rotation_between_keyframes: 15.0 # [deg]
+    # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
+    max_distance_to_keep_keyframes: 'max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)' # [m]
+    check_for_removal_every_n: 100
 
   # Minimum ICP quality to insert it into the map:
   min_icp_goodness: 0.25
@@ -40,8 +43,8 @@ params:
   # to a ".simplemap" file for later use for localization, etc.
   simplemap:
     generate: ${MOLA_GENERATE_SIMPLEMAP|false}   # Can be overriden with CLI flag --output-simplemap
-    min_translation_between_keyframes: 0.05   # m
-    min_rotation_between_keyframes: 3.0  # deg
+    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|0.05}   # m
+    min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|3.0}  # deg
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
 
   # Save the final trajectory in TUM format. Disabled by default.
