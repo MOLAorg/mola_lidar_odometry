@@ -29,7 +29,7 @@
  *
  */
 
-#include <mola_lidar_odometry/LidarInertialOdometry.h>
+#include <mola_lidar_odometry/LidarOdometry.h>
 #include <mrpt/core/initializer.h>
 #include <mrpt/rtti/CObject.h>
 

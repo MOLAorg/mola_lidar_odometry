@@ -18,13 +18,13 @@
  * MOLA. If not, see <https://www.gnu.org/licenses/>.
  * ------------------------------------------------------------------------- */
 /**
- * @file   LidarInertialOdometry.cpp
+ * @file   LidarOdometry.cpp
  * @brief  Header for main C++ class exposing LIDAR-inertial odometry
  * @author Jose Luis Blanco Claraco
  * @date   Sep 16, 2023
  */
 
-#include <mola_lidar_odometry/LidarInertialOdometry.h>
+#include <mola_lidar_odometry/LidarOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mp2p_icp/Solver_GaussNewton.h>
 #include <mp2p_icp/icp_pipeline_from_yaml.h>

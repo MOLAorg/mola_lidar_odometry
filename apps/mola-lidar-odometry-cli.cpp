@@ -28,7 +28,7 @@
 
 #include <mola_kernel/interfaces/OfflineDatasetSource.h>
 #include <mola_kernel/pretty_print_exception.h>
-#include <mola_lidar_odometry/LidarInertialOdometry.h>
+#include <mola_lidar_odometry/LidarOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/3rdparty/tclap/CmdLine.h>
 #include <mrpt/core/Clock.h>
