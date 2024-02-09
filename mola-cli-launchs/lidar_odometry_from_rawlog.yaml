@@ -34,7 +34,7 @@ modules:
       read_all_first: ${MOLA_INPUT_RAWLOG_READ_ALL_FIRST|false}  # read from disk as needed
 
   - name: lidar_odom
-    type: mola::LidarInertialOdometry
+    type: mola::LidarOdometry
     #verbosity_level: DEBUG
     raw_data_source: 'dataset_input'
     # This includes here a whole block "params: (...)"

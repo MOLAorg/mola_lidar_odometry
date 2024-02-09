@@ -46,13 +46,13 @@ namespace mola
 {
 /** LIDAR-inertial odometry based on ICP against a local metric map model.
  */
-class LidarInertialOdometry : public FrontEndBase
+class LidarOdometry : public FrontEndBase
 {
-    DEFINE_MRPT_OBJECT(LidarInertialOdometry, mola)
+    DEFINE_MRPT_OBJECT(LidarOdometry, mola)
 
    public:
-    LidarInertialOdometry();
-    ~LidarInertialOdometry();
+    LidarOdometry();
+    ~LidarOdometry();
 
     /** @name Main API
      * @{ */
@@ -87,6 +87,11 @@ class LidarInertialOdometry : public FrontEndBase
          *  to be used as wheel odometry observations.
          */
         std::optional<std::regex> wheel_odometry_sensor_label;
+
+        /** Sensor labels or regex to be matched to input observations
+         *  to be used as GNNS (GPS) observations.
+         */
+        std::optional<std::regex> gnns_sensor_label;
 
         /** Minimum time (seconds) between scans for being attempted to be
          * aligned. Scans faster than this rate will be just silently ignored.
@@ -215,6 +220,14 @@ class LidarInertialOdometry : public FrontEndBase
             /** If not empty, the final simple map will be dumped to a file at
              * destruction time */
             std::string save_final_map_to_file;
+
+            /** If !=0, storing the latest GNNS observation together with the
+             * Lidar observation in the simplemap CSensoryFrame (SF)
+             * ("keyframe") will be enabled. This parameter sets the maximum age
+             * in seconds for a GNNS (GPS) observation to be considered valid to
+             * be stored in the SF.
+             */
+            double save_gnns_max_age = 1.0;  // [s]
 
             void initialize(const Yaml& c, Parameters& parent);
         };
@@ -374,6 +387,9 @@ class LidarInertialOdometry : public FrontEndBase
         /// See check_for_removal_every_n
         uint32_t localMapCheckForRemovalCounter = 0;
 
+        // GNNS:
+        mrpt::obs::CObservation::Ptr lastGNNS_;
+
         // Visualization:
         mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;
         mrpt::opengl::CSetOfLines::Ptr   glEstimatedPath;
@@ -408,6 +424,9 @@ class LidarInertialOdometry : public FrontEndBase
 
     void onWheelOdometry(const CObservation::Ptr& o);
     void onWheelOdometryImpl(const CObservation::Ptr& o);
+
+    void onGPS(const CObservation::Ptr& o);
+    void onGPSImpl(const CObservation::Ptr& o);
 
     // KISS-ICP adaptive threshold method:
     void doUpdateAdaptiveThreshold(

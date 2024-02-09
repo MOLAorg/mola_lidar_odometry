@@ -32,6 +32,7 @@
 #include <mrpt/containers/yaml.h>
 #include <mrpt/core/initializer.h>
 #include <mrpt/maps/CColouredPointsMap.h>
+#include <mrpt/obs/CObservationGPS.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
@@ -56,11 +57,11 @@ using namespace mola;
 // "lidar-pointcloud-layers";
 
 // arguments: class_name, parent_class, class namespace
-IMPLEMENTS_MRPT_OBJECT(LidarInertialOdometry, FrontEndBase, mola)
+IMPLEMENTS_MRPT_OBJECT(LidarOdometry, FrontEndBase, mola)
 
-LidarInertialOdometry::LidarInertialOdometry() = default;
+LidarOdometry::LidarOdometry() = default;
 
-LidarInertialOdometry::~LidarInertialOdometry()
+LidarOdometry::~LidarOdometry()
 {
     using namespace std::chrono_literals;
 
@@ -108,15 +109,14 @@ LidarInertialOdometry::~LidarInertialOdometry()
     }
     catch (const std::exception& e)
     {
-        std::cerr << "[~LidarInertialOdometry] Exception: " << e.what();
+        std::cerr << "[~LidarOdometry] Exception: " << e.what();
     }
 }
 
 namespace
 {
 void load_icp_set_of_params(
-    LidarInertialOdometry::Parameters::ICP_case& out,
-    const mrpt::containers::yaml&                cfg)
+    LidarOdometry::Parameters::ICP_case& out, const mrpt::containers::yaml& cfg)
 {
     const auto [icp, params] = mp2p_icp::icp_pipeline_from_yaml(cfg);
 
@@ -125,16 +125,14 @@ void load_icp_set_of_params(
 }
 }  // namespace
 
-void LidarInertialOdometry::Parameters::AdaptiveThreshold::initialize(
-    const Yaml& cfg)
+void LidarOdometry::Parameters::AdaptiveThreshold::initialize(const Yaml& cfg)
 {
     YAML_LOAD_REQ(enabled, bool);
     YAML_LOAD_REQ(initial_sigma, double);
     YAML_LOAD_REQ(min_motion, double);
 }
 
-void LidarInertialOdometry::Parameters::Visualization::initialize(
-    const Yaml& cfg)
+void LidarOdometry::Parameters::Visualization::initialize(const Yaml& cfg)
 {
     YAML_LOAD_OPT(map_update_decimation, int);
     YAML_LOAD_OPT(show_trajectory, bool);
@@ -178,7 +176,7 @@ void LidarInertialOdometry::Parameters::Visualization::initialize(
     YAML_LOAD_OPT(gui_subwindow_starts_hidden, bool);
 }
 
-void LidarInertialOdometry::Parameters::SimpleMapOptions::initialize(
+void LidarOdometry::Parameters::SimpleMapOptions::initialize(
     const Yaml& cfg, Parameters& parent)
 {
     YAML_LOAD_OPT(generate, bool);
@@ -186,9 +184,10 @@ void LidarInertialOdometry::Parameters::SimpleMapOptions::initialize(
     DECLARE_PARAMETER_IN_OPT(cfg, min_rotation_between_keyframes, parent);
     YAML_LOAD_OPT(save_final_map_to_file, std::string);
     YAML_LOAD_OPT(measure_from_last_kf_only, bool);
+    YAML_LOAD_OPT(save_gnns_max_age, double);
 }
 
-void LidarInertialOdometry::Parameters::MapUpdateOptions::initialize(
+void LidarOdometry::Parameters::MapUpdateOptions::initialize(
     const Yaml& cfg, Parameters& parent)
 {
     DECLARE_PARAMETER_IN_REQ(cfg, min_translation_between_keyframes, parent);
@@ -198,16 +197,18 @@ void LidarInertialOdometry::Parameters::MapUpdateOptions::initialize(
     YAML_LOAD_OPT(measure_from_last_kf_only, bool);
 }
 
-void LidarInertialOdometry::Parameters::TrajectoryOutputOptions::initialize(
+void LidarOdometry::Parameters::TrajectoryOutputOptions::initialize(
     const Yaml& cfg)
 {
     YAML_LOAD_OPT(save_to_file, bool);
     YAML_LOAD_OPT(output_file, std::string);
 }
 
-void LidarInertialOdometry::initialize(const Yaml& c)
+void LidarOdometry::initialize(const Yaml& c)
 {
     MRPT_TRY_START
+
+    this->setLoggerName("LidarOdometry");
 
     // Load params:
     const auto cfg = c["params"];
@@ -256,16 +257,14 @@ void LidarInertialOdometry::initialize(const Yaml& c)
     ASSERT_(!params_.observation_layers_to_merge_local_map.empty());
 
     if (cfg.has("imu_sensor_label"))
-    {
-        params_.imu_sensor_label.emplace(
-            cfg["imu_sensor_label"].as<std::string>());
-    }
+        params_.imu_sensor_label = cfg["imu_sensor_label"].as<std::string>();
 
     if (cfg.has("wheel_odometry_sensor_label"))
-    {
-        params_.wheel_odometry_sensor_label.emplace(
-            cfg["wheel_odometry_sensor_label"].as<std::string>());
-    }
+        params_.wheel_odometry_sensor_label =
+            cfg["wheel_odometry_sensor_label"].as<std::string>();
+
+    if (cfg.has("gnns_sensor_label"))
+        params_.gnns_sensor_label = cfg["gnns_sensor_label"].as<std::string>();
 
     ASSERT_(cfg.has("local_map_updates"));
     params_.local_map_updates.initialize(cfg["local_map_updates"], params_);
@@ -404,7 +403,7 @@ void LidarInertialOdometry::initialize(const Yaml& c)
 
     MRPT_TRY_END
 }
-void LidarInertialOdometry::spinOnce()
+void LidarOdometry::spinOnce()
 {
     MRPT_TRY_START
 
@@ -414,14 +413,14 @@ void LidarInertialOdometry::spinOnce()
     MRPT_TRY_END
 }
 
-void LidarInertialOdometry::reset()
+void LidarOdometry::reset()
 {
     // TODO: there is more to be done! Check state_ fields changed in
     // initialize()
     state_ = MethodState();
 }
 
-void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
+void LidarOdometry::onNewObservation(const CObservation::Ptr& o)
 {
     MRPT_TRY_START
     ProfilerEntry tleg(profiler_, "onNewObservation");
@@ -454,7 +453,7 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
         }
 
         // Yes, it's an IMU obs:
-        auto fut = worker_.enqueue(&LidarInertialOdometry::onIMU, this, o);
+        auto fut = worker_.enqueue(&LidarOdometry::onIMU, this, o);
         (void)fut;
     }
 
@@ -467,8 +466,19 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
             auto lck = mrpt::lockHelper(is_busy_mtx_);
             state_.worker_tasks++;
         }
-        auto fut =
-            worker_.enqueue(&LidarInertialOdometry::onWheelOdometry, this, o);
+        auto fut = worker_.enqueue(&LidarOdometry::onWheelOdometry, this, o);
+        (void)fut;
+    }
+
+    // Is it GNNS?
+    if (params_.gnns_sensor_label &&
+        std::regex_match(o->sensorLabel, params_.gnns_sensor_label.value()))
+    {
+        {
+            auto lck = mrpt::lockHelper(is_busy_mtx_);
+            state_.worker_tasks++;
+        }
+        auto fut = worker_.enqueue(&LidarOdometry::onGPS, this, o);
         (void)fut;
     }
 
@@ -496,7 +506,7 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
         }
 
         // Enqueue task:
-        auto fut = worker_.enqueue(&LidarInertialOdometry::onLidar, this, o);
+        auto fut = worker_.enqueue(&LidarOdometry::onLidar, this, o);
 
         (void)fut;
 
@@ -506,7 +516,7 @@ void LidarInertialOdometry::onNewObservation(const CObservation::Ptr& o)
     MRPT_TRY_END
 }
 
-void LidarInertialOdometry::onLidar(const CObservation::Ptr& o)
+void LidarOdometry::onLidar(const CObservation::Ptr& o)
 {
     // All methods that are enqueued into a thread pool should have its own
     // top-level try-catch:
@@ -526,7 +536,7 @@ void LidarInertialOdometry::onLidar(const CObservation::Ptr& o)
 }
 
 // here happens the main stuff:
-void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
+void LidarOdometry::onLidarImpl(const CObservation::Ptr& o)
 {
     using namespace std::string_literals;
 
@@ -933,6 +943,18 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
         mrpt::obs::CSensoryFrame obsSF;
         obsSF.insert(o);
 
+        // insert GNNS too?
+        if (auto gps = state_.lastGNNS_; gps)
+        {
+            if (std::abs(mrpt::system::timeDifference(
+                    gps->getTimeStamp(), o->getTimeStamp())) <
+                params_.simplemap.save_gnns_max_age)
+            {
+                obsSF.insert(gps);
+            }
+            state_.lastGNNS_.reset();
+        }
+
         std::optional<mrpt::math::TTwist3D> curTwist;
         if (hasMotionModel) curTwist = motionModelOutput->twist;
 
@@ -969,7 +991,7 @@ void LidarInertialOdometry::onLidarImpl(const CObservation::Ptr& o)
     }
 }
 
-void LidarInertialOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
+void LidarOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
 {
     using namespace std::string_literals;
 
@@ -1013,7 +1035,7 @@ void LidarInertialOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
     MRPT_END
 }
 
-void LidarInertialOdometry::onIMU(const CObservation::Ptr& o)
+void LidarOdometry::onIMU(const CObservation::Ptr& o)
 {
     // All methods that are enqueued into a thread pool should have its own
     // top-level try-catch:
@@ -1033,14 +1055,16 @@ void LidarInertialOdometry::onIMU(const CObservation::Ptr& o)
     }
 }
 
-void LidarInertialOdometry::onIMUImpl(const CObservation::Ptr& o)
+void LidarOdometry::onIMUImpl(const CObservation::Ptr& o)
 {
     ASSERT_(o);
 
     ProfilerEntry tleg(profiler_, "onIMU");
+
+    // TODO!
 }
 
-void LidarInertialOdometry::onWheelOdometry(const CObservation::Ptr& o)
+void LidarOdometry::onWheelOdometry(const CObservation::Ptr& o)
 {
     // All methods that are enqueued into a thread pool should have its own
     // top-level try-catch:
@@ -1060,7 +1084,7 @@ void LidarInertialOdometry::onWheelOdometry(const CObservation::Ptr& o)
     }
 }
 
-void LidarInertialOdometry::onWheelOdometryImpl(const CObservation::Ptr& o)
+void LidarOdometry::onWheelOdometryImpl(const CObservation::Ptr& o)
 {
     ASSERT_(o);
 
@@ -1074,10 +1098,52 @@ void LidarInertialOdometry::onWheelOdometryImpl(const CObservation::Ptr& o)
             "type 'mrpt::obs::CObservationOdometry', it is '%s' instead",
             o->sensorLabel.c_str(), o->GetRuntimeClass()->className));
 
+    // TODO!
     // odo->timestamp;
 }
 
-bool LidarInertialOdometry::isBusy() const
+void LidarOdometry::onGPS(const CObservation::Ptr& o)
+{
+    // All methods that are enqueued into a thread pool should have its own
+    // top-level try-catch:
+    try
+    {
+        onGPSImpl(o);
+    }
+    catch (const std::exception& e)
+    {
+        MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
+        state_.fatal_error = true;
+    }
+
+    {
+        auto lck = mrpt::lockHelper(is_busy_mtx_);
+        state_.worker_tasks--;
+    }
+}
+
+void LidarOdometry::onGPSImpl(const CObservation::Ptr& o)
+{
+    ASSERT_(o);
+
+    ProfilerEntry tleg(profiler_, "onGPS");
+
+    auto gps = std::dynamic_pointer_cast<mrpt::obs::CObservationGPS>(o);
+    ASSERTMSG_(
+        gps, mrpt::format(
+                 "GPS observation with label '%s' does not have the expected "
+                 "type 'mrpt::obs::CObservationGPS', it is '%s' instead",
+                 o->sensorLabel.c_str(), o->GetRuntimeClass()->className));
+
+    MRPT_LOG_DEBUG_FMT(
+        "GNNS observation received, t=%.03f",
+        mrpt::Clock::toDouble(gps->timestamp));
+
+    // Keep the latest GPS for simplemap insertion:
+    state_.lastGNNS_ = gps;
+}
+
+bool LidarOdometry::isBusy() const
 {
     bool b;
     is_busy_mtx_.lock();
@@ -1086,14 +1152,13 @@ bool LidarInertialOdometry::isBusy() const
     return b || worker_.pendingTasks();
 }
 
-mrpt::poses::CPose3DInterpolator LidarInertialOdometry::estimatedTrajectory()
-    const
+mrpt::poses::CPose3DInterpolator LidarOdometry::estimatedTrajectory() const
 {
     auto lck = mrpt::lockHelper(stateTrajectory_mtx_);
     return state_.estimatedTrajectory;
 }
 
-mrpt::maps::CSimpleMap LidarInertialOdometry::reconstructedMap() const
+mrpt::maps::CSimpleMap LidarOdometry::reconstructedMap() const
 {
     auto lck = mrpt::lockHelper(stateSimpleMap_mtx_);
     return state_.reconstructedMap;
@@ -1114,7 +1179,7 @@ double computeModelError(
 }
 }  // namespace
 
-void LidarInertialOdometry::doUpdateAdaptiveThreshold(
+void LidarOdometry::doUpdateAdaptiveThreshold(
     const mrpt::poses::CPose3D& lastMotionModelError)
 {
     if (!state_.estimated_sensor_max_range.has_value()) return;
@@ -1135,7 +1200,7 @@ void LidarInertialOdometry::doUpdateAdaptiveThreshold(
         state_.adapt_thres_sigma, params_.adaptive_threshold.min_motion);
 }
 
-void LidarInertialOdometry::doInitializeEstimatedMaxSensorRange(
+void LidarOdometry::doInitializeEstimatedMaxSensorRange(
     const mrpt::obs::CObservation& o)
 {
     auto& maxRange = state_.estimated_sensor_max_range;
@@ -1162,7 +1227,7 @@ void LidarInertialOdometry::doInitializeEstimatedMaxSensorRange(
                                       << " (instantaneous=" << radius << ")");
 }
 
-void LidarInertialOdometry::doUpdateEstimatedMaxSensorRange(
+void LidarOdometry::doUpdateEstimatedMaxSensorRange(
     const mp2p_icp::metric_map_t& m)
 {
     const double ALPHA = params_.max_sensor_range_filter_coefficient;
@@ -1196,7 +1261,7 @@ void LidarInertialOdometry::doUpdateEstimatedMaxSensorRange(
         "found in observation metric_map_t");
 }
 
-void LidarInertialOdometry::updatePipelineDynamicVariables()
+void LidarOdometry::updatePipelineDynamicVariables()
 {
     // Set dynamic variables for twist usage within ICP pipelines
     // (e.g. de-skew methods)
@@ -1229,7 +1294,7 @@ void LidarInertialOdometry::updatePipelineDynamicVariables()
     state_.icpParameterSource.realize();
 }
 
-void LidarInertialOdometry::updateVisualization()
+void LidarOdometry::updateVisualization()
 {
     // In this point, we are called by the LIDAR worker thread, so it's safe
     // to read the state without mutexes.
@@ -1399,7 +1464,7 @@ void LidarInertialOdometry::updateVisualization()
 }
 
 std::tuple<bool /*isFirst*/, mrpt::poses::CPose3D /*distanceToClosest*/>
-    LidarInertialOdometry::SearchablePoseList::check(
+    LidarOdometry::SearchablePoseList::check(
         const mrpt::poses::CPose3D& p) const
 {
     const bool           isFirst = empty();
@@ -1448,7 +1513,7 @@ std::tuple<bool /*isFirst*/, mrpt::poses::CPose3D /*distanceToClosest*/>
     return {isFirst, distanceToClosest};
 }
 
-void LidarInertialOdometry::SearchablePoseList::removeAllFartherThan(
+void LidarOdometry::SearchablePoseList::removeAllFartherThan(
     const mrpt::poses::CPose3D& p, const double maxTranslation)
 {
     if (from_last_only_) return;  // not applicable

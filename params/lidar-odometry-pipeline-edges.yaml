@@ -1,4 +1,4 @@
-# This file holds parameters for mola::LidarInertialOdometry,
+# This file holds parameters for mola::LidarOdometry,
 # for use either programmatically calling initialize(), or from a MOLA system
 # launch file. See "launch/*" examples.
 

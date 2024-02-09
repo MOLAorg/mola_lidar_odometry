@@ -1,9 +1,9 @@
 # `mola_lidar_odometry`
-LIDAR-inertial odometry components, based on the MOLA and MRPT frameworks,
+LIDAR odometry components, based on the MOLA and MRPT frameworks,
 compatible with ROS 2.
 
 ## Contents
-This repository provides a C++ library `mola_lidar_odometry` implementing LIDAR-inertial
+This repository provides a C++ library `mola_lidar_odometry` implementing LIDAR
 odometry. Sensor input is provided via MOLA components, and ROS 2 example launch files are
 provided in [launch](launch/).
 

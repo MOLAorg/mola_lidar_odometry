@@ -35,6 +35,7 @@
 #include <mrpt/core/exceptions.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservation3DRangeScan.h>
+#include <mrpt/obs/CObservationGPS.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CObservationRotatingScan.h>
 #include <mrpt/obs/CObservationVelodyneScan.h>
@@ -274,7 +275,7 @@ void mola_install_signal_handler()
 
 static int main_odometry()
 {
-    mola::LidarInertialOdometry liodom;
+    mola::LidarOdometry liodom;
 
     mrpt::system::VerbosityLevel logLevel = liodom.getMinLoggingLevel();
     if (arg_verbosity_level.isSet())
@@ -295,7 +296,13 @@ static int main_odometry()
     // system
     liodom.initialize(cfg);
 
-    if (arg_outSimpleMap.isSet()) liodom.params_.simplemap.generate = true;
+    if (arg_outSimpleMap.isSet())
+    {
+        liodom.params_.simplemap.generate = true;
+        // don't save within the LidarOdometry object, we will do it here in
+        // this cli app:
+        liodom.params_.simplemap.save_final_map_to_file.clear();
+    }
 
     if (arg_lidarLabel.isSet())
         liodom.params_.lidar_sensor_labels.assign(
@@ -385,6 +392,7 @@ static int main_odometry()
         if (!obs) obs = sf->getObservationByClass<CObservation3DRangeScan>();
         if (!obs) obs = sf->getObservationByClass<CObservation2DRangeScan>();
         if (!obs) obs = sf->getObservationByClass<CObservationVelodyneScan>();
+        if (!obs) obs = sf->getObservationByClass<CObservationGPS>();
 
         if (!obs) continue;
 
@@ -393,7 +401,7 @@ static int main_odometry()
 
         // Show stats:
         static int cnt = 0;
-        if (cnt++ % 20 == 0)
+        if (cnt++ % 100 == 0)
         {
             cnt             = 0;
             const size_t N  = (dataset->datasetSize() - 1);

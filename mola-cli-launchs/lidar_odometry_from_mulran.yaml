@@ -34,7 +34,7 @@ modules:
       publish_ground_truth: true
 
   - name: lidar_odom
-    type: mola::LidarInertialOdometry
+    type: mola::LidarOdometry
     #verbosity_level: DEBUG
     raw_data_source: 'dataset_input'
     # This includes here a whole block "params: (...)"
