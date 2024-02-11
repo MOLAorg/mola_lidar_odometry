@@ -3,7 +3,7 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 # Default pipeline YAML file:
-PIPELINE_YAML="${PIPELINE_YAML:-$SCRIPT_DIR/../params/lidar-odometry-pipeline-default.yaml}"
+PIPELINE_YAML="${PIPELINE_YAML:-$SCRIPT_DIR/../params/lidar3d-default.yaml}"
 DEFAULT_SEQS_TO_RUN="00 01 02 03 04 05 06 07 08 09 10"
 SEQS_TO_RUN="${SEQS_TO_RUN:-${DEFAULT_SEQS_TO_RUN}}"
 NUM_THREADS=1

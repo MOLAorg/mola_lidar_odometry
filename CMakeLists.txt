@@ -115,6 +115,16 @@ install(DIRECTORY
     share/${PROJECT_NAME}
 )
 
+# Install gui_* demo "executables" too:
+install(PROGRAMS
+  eval/gui_kitti.sh
+  eval/gui_mulran.sh
+  eval/gui_rawlog.sh
+  eval/gui_rosbag2.sh
+  DESTINATION
+    bin
+)
+
 # -----------------------------------------------------------------------------
 #  ROS2
 # -----------------------------------------------------------------------------

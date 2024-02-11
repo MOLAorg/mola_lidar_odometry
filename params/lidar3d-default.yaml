@@ -34,7 +34,7 @@ params:
   adaptive_threshold:
     enabled: true
     initial_sigma: 2.0
-    min_motion: 0.10
+    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}
 
   # Except for the very first observation, use these layers of the observation
   # metric_map_t and insert them into the local map:
@@ -48,7 +48,7 @@ params:
     min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|0.05}   # m
     min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|3.0}  # deg
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
-    save_gnns_max_age: 2.0  # [s] max age of GNNS observations to keep in the keyframe
+    save_gnns_max_age: 1.0  # [s] max age of GNNS observations to keep in the keyframe
 
   # Save the final trajectory in TUM format. Disabled by default.
   estimated_trajectory:
