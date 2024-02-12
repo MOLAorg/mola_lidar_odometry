@@ -19,7 +19,7 @@
  * ------------------------------------------------------------------------- */
 /**
  * @file   LidarOdometry.h
- * @brief  Header for main C++ class exposing LIDAR-inertial odometry
+ * @brief  Header for main C++ class exposing LIDAR odometry
  * @author Jose Luis Blanco Claraco
  * @date   Sep 16, 2023
  */
@@ -101,6 +101,22 @@ class LidarOdometry : public FrontEndBase
         double max_sensor_range_filter_coefficient = 0.9;
         double absolute_minimum_sensor_range       = 5.0;  // [m]
 
+        struct MultipleLidarOptions
+        {
+            /** If N>1, the system LO system will try to group "N" observations
+             * before attempting to use them for localization and map update.
+             */
+            uint32_t lidar_count = 1;
+
+            /** If using multiple LIDARs, the maximum delay between the first
+             * and last one in order to be treated as a "group". In seconds. */
+            double max_time_offset = 25e-3;
+
+            void initialize(const Yaml& c, Parameters& parent);
+        };
+
+        MultipleLidarOptions multiple_lidars;
+
         struct MapUpdateOptions
         {
             /** Minimum Euclidean distance (x,y,z) between keyframes inserted
@@ -149,6 +165,7 @@ class LidarOdometry : public FrontEndBase
             int    map_update_decimation    = 10;
             bool   show_trajectory          = true;
             double current_pose_corner_size = 1.5;  //! [m]
+            float  local_map_point_size     = 3.0f;
 
             bool gui_subwindow_starts_hidden = false;
             bool show_console_messages       = true;
@@ -354,10 +371,13 @@ class LidarOdometry : public FrontEndBase
 
         int worker_tasks = 0;
 
-        std::optional<mrpt::Clock::time_point> last_obs_tim;
-        bool                                   last_icp_was_good = true;
-        double                                 last_icp_quality  = .0;
+        std::map<std::string, mrpt::Clock::time_point> last_obs_tim_by_label;
+        bool                                           last_icp_was_good = true;
+        double                                         last_icp_quality  = .0;
         mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
+
+        /// Cache for multiple LIDAR synchronization:
+        std::map<std::string /*label*/, mrpt::obs::CObservation::Ptr> sync_obs;
 
         // navstate_fuse to merge pose estimates, IMU, odom, estimate twist.
         mola::NavStateFuse navstate_fuse;
@@ -417,7 +437,7 @@ class LidarOdometry : public FrontEndBase
     mutable std::mutex stateSimpleMap_mtx_;
 
     void onLidar(const CObservation::Ptr& o);
-    void onLidarImpl(const CObservation::Ptr& o);
+    void onLidarImpl(const CObservation::Ptr& obs);
 
     void onIMU(const CObservation::Ptr& o);
     void onIMUImpl(const CObservation::Ptr& o);

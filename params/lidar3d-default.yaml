@@ -7,6 +7,10 @@ params:
   # Can be overriden with cli flag --lidar-sensor-label
   lidar_sensor_labels: ['${MOLA_LIDAR_NAME|lidar}', '/ouster/points']
 
+  multiple_lidars:
+    lidar_count: ${MOLA_LIDAR_COUNT|1} # useful only if using several lidar_sensor_labels or regex's.
+    max_time_offset: ${MOLA_LIDAR_MAX_TIME_OFFSET|25e-3}  # [s]
+
   # These sensor labels will be handled as IMU observations:
   imu_sensor_label: 'imu'
 
@@ -61,6 +65,7 @@ params:
     map_update_decimation: 20
     show_trajectory: true
     #current_pose_corner_size: 1.5
+    local_map_point_size: 3
     model:
       - file: ${MOLA_VEHICLE_MODEL_FILE|""} # Default: none
         tf.roll: 90.0 # deg
@@ -171,8 +176,6 @@ localmap_generator:
           sigma_dist: 1.0    # [m]
           max_corr_distance: 2.0  #[m]
           decimation: 10
-        renderOpts:
-          point_size: 2.0
 
 # ---------------------------------------------------------------------------------
 # LIDAR observations are, first, loaded using a generator
@@ -220,7 +223,7 @@ observations_filter:
       input_pointcloud_layer: 'deskewed'
       output_pointcloud_layer: 'range_filtered'
       keep_between: true # Remove points out of this range limits
-      range_min: max(1.0, 0.05*ESTIMATED_SENSOR_MAX_RANGE)
+      range_min: max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)
       range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
 
   # Remove close ceilings (problematic in most cases!)

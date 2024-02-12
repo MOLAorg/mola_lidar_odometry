@@ -19,7 +19,7 @@
  * ------------------------------------------------------------------------- */
 /**
  * @file   LidarOdometry.cpp
- * @brief  Header for main C++ class exposing LIDAR-inertial odometry
+ * @brief  Header for main C++ class exposing LIDAR odometry
  * @author Jose Luis Blanco Claraco
  * @date   Sep 16, 2023
  */
@@ -138,6 +138,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml& cfg)
     YAML_LOAD_OPT(show_trajectory, bool);
     YAML_LOAD_OPT(show_console_messages, bool);
     YAML_LOAD_OPT(current_pose_corner_size, double);
+    YAML_LOAD_OPT(local_map_point_size, float);
 
     if (cfg.has("model"))
     {
@@ -185,6 +186,13 @@ void LidarOdometry::Parameters::SimpleMapOptions::initialize(
     YAML_LOAD_OPT(save_final_map_to_file, std::string);
     YAML_LOAD_OPT(measure_from_last_kf_only, bool);
     YAML_LOAD_OPT(save_gnns_max_age, double);
+}
+
+void LidarOdometry::Parameters::MultipleLidarOptions::initialize(
+    const Yaml& cfg, Parameters& parent)
+{
+    DECLARE_PARAMETER_IN_REQ(cfg, max_time_offset, parent);
+    YAML_LOAD_REQ(lidar_count, uint32_t);
 }
 
 void LidarOdometry::Parameters::MapUpdateOptions::initialize(
@@ -268,6 +276,9 @@ void LidarOdometry::initialize(const Yaml& c)
 
     ASSERT_(cfg.has("local_map_updates"));
     params_.local_map_updates.initialize(cfg["local_map_updates"], params_);
+
+    if (cfg.has("multiple_lidars"))
+        params_.multiple_lidars.initialize(cfg["multiple_lidars"], params_);
 
     YAML_LOAD_OPT(params_, min_time_between_scans, double);
     YAML_LOAD_OPT(params_, min_icp_goodness, double);
@@ -536,24 +547,24 @@ void LidarOdometry::onLidar(const CObservation::Ptr& o)
 }
 
 // here happens the main stuff:
-void LidarOdometry::onLidarImpl(const CObservation::Ptr& o)
+void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 {
     using namespace std::string_literals;
 
-    ASSERT_(o);
+    ASSERT_(obs);
 
-    ProfilerEntry tleg(profiler_, "onLidar");
     profiler_.leave("delay_onNewObs_to_process");
 
     // make sure data is loaded, if using an offline lazy-load dataset.
-    o->load();
+    obs->load();
 
     // Only process pointclouds that are sufficiently apart in time:
-    const auto this_obs_tim     = o->timestamp;
+    const auto this_obs_tim     = obs->timestamp;
     double     lidar_delta_time = 0;
-    if (state_.last_obs_tim && (lidar_delta_time = mrpt::system::timeDifference(
-                                    *state_.last_obs_tim, this_obs_tim)) <
-                                   params_.min_time_between_scans)
+    if (state_.last_obs_tim_by_label.count(obs->sensorLabel) &&
+        (lidar_delta_time = mrpt::system::timeDifference(
+             state_.last_obs_tim_by_label[obs->sensorLabel], this_obs_tim)) <
+            params_.min_time_between_scans)
     {
         // Drop observation.
         MRPT_LOG_DEBUG_FMT(
@@ -563,9 +574,47 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& o)
         return;
     }
 
+    ProfilerEntry tleg(profiler_, "onLidar");
+
     // Use the observation to update the estimated sensor range:
     if (!state_.estimated_sensor_max_range.has_value())
-        doInitializeEstimatedMaxSensorRange(*o);
+        doInitializeEstimatedMaxSensorRange(*obs);
+
+    // Handle multiple simultaneous LIDARs:
+    mrpt::obs::CSensoryFrame sf;
+    if (params_.multiple_lidars.lidar_count > 1)
+    {
+        // Synchronize 2+ lidars:
+        state_.sync_obs[obs->sensorLabel] = obs;
+        if (state_.sync_obs.size() < params_.multiple_lidars.lidar_count)
+        {
+            MRPT_LOG_THROTTLE_DEBUG(
+                5.0,
+                "Skipping ICP since still waiting for all of multiple LIDARs");
+            return;
+        }
+        // now, keep all of them within the time window:
+        for (const auto& [label, o] : state_.sync_obs)
+        {
+            const auto dt = std::abs(
+                mrpt::system::timeDifference(o->timestamp, obs->timestamp));
+            if (dt > params_.multiple_lidars.max_time_offset) continue;
+
+            sf += o;  // include this observation
+        }
+        // and clear for the next iter:
+        state_.sync_obs.clear();
+
+        ASSERT_(!sf.empty());
+        MRPT_LOG_DEBUG_STREAM(
+            "multiple_lidars: "
+            << sf.size() << " valid observations have been synchronized.");
+    }
+    else
+    {
+        // Single LIDAR:
+        sf.insert(obs);
+    }
 
     // Refresh dyn. variables used in the mp2p_icp pipelines:
     updatePipelineDynamicVariables();
@@ -579,7 +628,9 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& o)
 
     ProfilerEntry tle0(profiler_, "onLidar.0.apply_generators");
 
-    mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *observation);
+    for (const auto& o : sf)
+        mp2p_icp_filters::apply_generators(
+            state_.obs_generators, *o, *observation);
 
     tle0.stop();
 
@@ -591,21 +642,25 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& o)
 
     tle1.stop();
 
+    profiler_.enter("onLidar.2.copy_vars");
+
     // Update sensor max range from the obs map layers:
     doUpdateEstimatedMaxSensorRange(*observation);
 
-    profiler_.enter("onLidar.2.copy_vars");
-
     // Store for next step:
-    const auto last_obs_tim = state_.last_obs_tim;
-    state_.last_obs_tim     = this_obs_tim;
+    std::optional<mrpt::Clock::time_point> last_obs_tim;
+    if (auto it = state_.last_obs_tim_by_label.find(obs->sensorLabel);
+        it != state_.last_obs_tim_by_label.end())
+        last_obs_tim = it->second;
+
+    state_.last_obs_tim_by_label[obs->sensorLabel] = this_obs_tim;
 
     profiler_.leave("onLidar.2.copy_vars");
 
     if (observation->empty())
     {
         MRPT_LOG_WARN_STREAM(
-            "Observation of type `" << o->GetRuntimeClass()->className
+            "Observation of type `" << obs->GetRuntimeClass()->className
                                     << "` could not be converted into a "
                                        "pointcloud. Doing nothing.");
         return;
@@ -882,8 +937,9 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& o)
             ProfilerEntry tle3(profiler_, "onLidar.4.update_local_map.create");
             MRPT_LOG_DEBUG("Creating local map since it was empty");
 
-            mp2p_icp_filters::apply_generators(
-                state_.local_map_generators, *o, *state_.local_map);
+            for (const auto& o : sf)
+                mp2p_icp_filters::apply_generators(
+                    state_.local_map_generators, *o, *state_.local_map);
         }
 
         ProfilerEntry tle3(profiler_, "onLidar.4.update_local_map.insert");
@@ -913,7 +969,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& o)
                     state_.local_map->contents_summary().c_str()));
 
             mrpt::obs::CObservationPointCloud obsPc;
-            obsPc.timestamp = o->timestamp;
+            obsPc.timestamp = obs->timestamp;
             obsPc.pointcloud =
                 std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(
                     itObs->second);
@@ -941,13 +997,13 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& o)
         auto lck = mrpt::lockHelper(stateSimpleMap_mtx_);
 
         mrpt::obs::CSensoryFrame obsSF;
-        obsSF.insert(o);
+        obsSF += sf;
 
         // insert GNNS too?
         if (auto gps = state_.lastGNNS_; gps)
         {
             if (std::abs(mrpt::system::timeDifference(
-                    gps->getTimeStamp(), o->getTimeStamp())) <
+                    gps->getTimeStamp(), obs->getTimeStamp())) <
                 params_.simplemap.save_gnns_max_age)
             {
                 obsSF.insert(gps);
@@ -1387,7 +1443,12 @@ void LidarOdometry::updateVisualization()
     {
         state_.mapUpdateCnt = 0;
         state_.glLocalMap->clear();
-        auto glMap = state_.local_map->get_visualization();
+
+        mp2p_icp::render_params_t rp;
+        rp.points.allLayers.pointSize =
+            params_.visualization.local_map_point_size;
+
+        auto glMap = state_.local_map->get_visualization(rp);
         for (auto& o : *glMap) state_.glLocalMap->insert(o);
 
         visualizer_->update_3d_object("liodom/localmap", state_.glLocalMap);
@@ -1398,9 +1459,10 @@ void LidarOdometry::updateVisualization()
     if (params_.visualization.show_console_messages)
     {
         std::stringstream ss;
-        if (state_.last_obs_tim)
+        if (!state_.last_obs_tim_by_label.empty())
             ss << mrpt::format(
-                "t=%.03f ", mrpt::Clock::toDouble(state_.last_obs_tim.value()));
+                "t=%.03f ", mrpt::Clock::toDouble(
+                                state_.last_obs_tim_by_label.begin()->second));
 
         ss << mrpt::format(
             "pose:%65s ", state_.last_lidar_pose.mean.asString().c_str());
