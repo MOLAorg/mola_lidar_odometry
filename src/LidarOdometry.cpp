@@ -638,7 +638,8 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
     // present):
     ProfilerEntry tle1(profiler_, "onLidar.1.filter_pointclouds");
 
-    mp2p_icp_filters::apply_filter_pipeline(state_.pc_filter, *observation);
+    mp2p_icp_filters::apply_filter_pipeline(
+        state_.pc_filter, *observation, profiler_);
 
     tle1.stop();
 

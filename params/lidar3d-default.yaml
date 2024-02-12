@@ -25,7 +25,7 @@ params:
 
   # How often to update the local map model:
   local_map_updates:
-    min_translation_between_keyframes: '(0.5e-2 + sqrt(WX^2+WY^2+WZ^2)*0.2 )*ESTIMATED_SENSOR_MAX_RANGE' # [m]
+    min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(WX^2+WY^2+WZ^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
     min_rotation_between_keyframes: 15.0 # [deg]
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
     max_distance_to_keep_keyframes: 'max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)' # [m]
@@ -124,7 +124,7 @@ icp_settings_with_vel:
       params:
         maxIterations: 2
         robustKernel: 'RobustKernel::GemanMcClure'
-        robustKernelParam: '0.50*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
+        robustKernelParam: '0.5*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -133,7 +133,7 @@ icp_settings_with_vel:
     - class: mp2p_icp::Matcher_Points_DistanceThreshold
       params:
         threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
-        thresholdAngularDeg: 0  # deg
+        thresholdAngularDeg: 0.5  # deg
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         pointLayerMatches:
