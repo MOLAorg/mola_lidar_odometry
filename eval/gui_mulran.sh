@@ -9,12 +9,16 @@ fi
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-PIPELINE_YAML="${PIPELINE_YAML:-$SCRIPT_DIR/../params/lidar3d-default.yaml}"
+MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../mola-cli-launchs/
+if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
+  MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
+fi
 
 SEQ=$1
 shift 1
 
+MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../params/lidar3d-default.yaml}" \
 MULRAN_SEQ=$SEQ \
   mola-cli \
-    $SCRIPT_DIR/../mola-cli-launchs/lidar_odometry_from_mulran.yaml \
+    $MOLA_LAUNCHS_DIR/lidar_odometry_from_mulran.yaml \
     $@

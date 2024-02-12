@@ -6,7 +6,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 PIPELINE_YAML="${PIPELINE_YAML:-$SCRIPT_DIR/../params/lidar3d-default.yaml}"
 DEFAULT_SEQS_TO_RUN="00 01 02 03 04 05 06 07 08 09 10"
 SEQS_TO_RUN="${SEQS_TO_RUN:-${DEFAULT_SEQS_TO_RUN}}"
-NUM_THREADS=1
+NUM_THREADS=3
 
 if [ ! -f $PIPELINE_YAML ]; then
     echo "Error: Expected local file: '$PIPELINE_YAML'"
