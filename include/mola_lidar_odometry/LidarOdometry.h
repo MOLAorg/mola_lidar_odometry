@@ -98,7 +98,7 @@ class LidarOdometry : public FrontEndBase
          */
         double min_time_between_scans = 0.05;
 
-        double max_sensor_range_filter_coefficient = 0.9;
+        double max_sensor_range_filter_coefficient = 0.999;
         double absolute_minimum_sensor_range       = 5.0;  // [m]
 
         struct MultipleLidarOptions

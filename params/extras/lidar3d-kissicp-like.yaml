@@ -117,7 +117,6 @@ icp_settings_with_vel:
         pointLayerMatches:
           - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
 
-
   quality:
     - class: mp2p_icp::QualityEvaluator_PairedRatio
       params:
@@ -155,8 +154,6 @@ localmap_generator:
           sigma_dist: 1.0    # [m]
           max_corr_distance: 2.0  #[m]
           decimation: 10
-        renderOpts:
-          point_size: 2.0
 
 # ---------------------------------------------------------------------------------
 # LIDAR observations are, first, loaded using a generator
@@ -190,7 +187,7 @@ observations_filter:
       input_pointcloud_layer: 'raw'
       output_pointcloud_layer: 'deskewed'
       silently_ignore_no_timestamps: true # To handle more dataset types
-      output_layer_class: 'mrpt::maps::CPointsMapXYZI'  # Keep intensity channel
+      output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity & ring channels
       
       # These (vx,...wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
