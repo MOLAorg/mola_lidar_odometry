@@ -22,6 +22,8 @@ modules:
     execution_rate: 20 # Hz
     #export_to_rawlog: mulran_${MULRAN_SEQ}.rawlog
     #verbosity_level: INFO
+    quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|true}
+    
     gui_preview_sensors:
       - raw_sensor_label: lidar
         decimation: 1

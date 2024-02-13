@@ -31,6 +31,7 @@ modules:
     # in bursts.
     execution_rate: 50 # Hz
     #verbosity_level: INFO
+    quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|true}
 
     # Optional visualization of raw sensor streams in the MolaViz GUI
     gui_preview_sensors:

@@ -21,6 +21,8 @@ modules:
     type: mola::RawlogDataset
     execution_rate: 150 # Hz
     #verbosity_level: INFO
+    quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|true}
+    
     gui_preview_sensors:
       - raw_sensor_label: ${MOLA_LIDAR_NAME|lidar}
         decimation: 1
