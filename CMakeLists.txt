@@ -68,35 +68,35 @@ mola_add_executable(
 		mrpt::tclap
 )
 if (mola_input_kitti_dataset_FOUND)
-message("mola-lidar-odometry-cli: With Kitti = YES")
+message(STATUS "mola-lidar-odometry-cli: With Kitti = YES")
 target_link_libraries(mola-lidar-odometry-cli mola::mola_input_kitti_dataset)
 target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_KITTI)
 else()
-message("mola-lidar-odometry-cli: With Kitti = NO")
+message(STATUS "mola-lidar-odometry-cli: With Kitti = NO")
 endif()
 
 if (mola_input_mulran_dataset_FOUND)
-message("mola-lidar-odometry-cli: With Mulran = YES")
+message(STATUS "mola-lidar-odometry-cli: With Mulran = YES")
 target_link_libraries(mola-lidar-odometry-cli mola::mola_input_mulran_dataset)
 target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_MULRAN)
 else()
-message("mola-lidar-odometry-cli: With Mulran = NO")
+message(STATUS "mola-lidar-odometry-cli: With Mulran = NO")
 endif()
 
 if (mola_input_rawlog_FOUND)
-message("mola-lidar-odometry-cli: With Rawlog = YES")
+message(STATUS "mola-lidar-odometry-cli: With Rawlog = YES")
 target_link_libraries(mola-lidar-odometry-cli mola::mola_input_rawlog)
 target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_RAWLOG)
 else()
-message("mola-lidar-odometry-cli: With Rawlog = NO")
+message(STATUS "mola-lidar-odometry-cli: With Rawlog = NO")
 endif()
 
 if (mola_input_rosbag2_FOUND)
-message("mola-lidar-odometry-cli: With rosbag2 = YES")
+message(STATUS "mola-lidar-odometry-cli: With rosbag2 = YES")
 target_link_libraries(mola-lidar-odometry-cli mola::mola_input_rosbag2)
 target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_ROSBAG2)
 else()
-message("mola-lidar-odometry-cli: With rosbag2 = NO")
+message(STATUS "mola-lidar-odometry-cli: With rosbag2 = NO")
 endif()
 
 
@@ -117,10 +117,10 @@ install(DIRECTORY
 
 # Install gui_* demo "executables" too:
 install(PROGRAMS
-  eval/gui_kitti.sh
-  eval/gui_mulran.sh
-  eval/gui_rawlog.sh
-  eval/gui_rosbag2.sh
+  eval/mola-lo-gui-kitti
+  eval/mola-lo-gui-mulran
+  eval/mola-lo-gui-rawlog
+  eval/mola-lo-gui-rosbag2
   DESTINATION
     bin
 )

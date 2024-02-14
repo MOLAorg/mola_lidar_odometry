@@ -75,6 +75,8 @@ params:
   # Profile the internal steps of the ICP implementation:
   icp_profiler_enabled: true
 
+  max_sensor_range_filter_coefficient: 0.99 # memory IIR filter coefficient
+
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
 
