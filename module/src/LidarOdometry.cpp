@@ -32,6 +32,7 @@
 #include <mrpt/containers/yaml.h>
 #include <mrpt/core/initializer.h>
 #include <mrpt/maps/CColouredPointsMap.h>
+#include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservationGPS.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
@@ -52,9 +53,6 @@
 #include <thread>
 
 using namespace mola;
-
-// static const std::string ANNOTATION_NAME_PC_LAYERS =
-// "lidar-pointcloud-layers";
 
 // arguments: class_name, parent_class, class namespace
 IMPLEMENTS_MRPT_OBJECT(LidarOdometry, FrontEndBase, mola)
@@ -732,7 +730,19 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             if (motionModelOutput->pose.cov_inv !=
                 mrpt::math::CMatrixDouble66::Zero())
             {
+                // Send it to the ICP solver:
                 icp_in.prior.emplace(motionModelOutput->pose);
+
+                // Special case: 2D lidars mean we are working on SE(2):
+                if (std::dynamic_pointer_cast<
+                        mrpt::obs::CObservation2DRangeScan>(obs))
+                {
+                    // fix: z, pitch (rot_y), roll (rot_x):
+                    const double large_certainty = 1e5;
+                    icp_in.prior->cov_inv(2, 2)  = large_certainty;  // dz
+                    icp_in.prior->cov_inv(3, 3)  = large_certainty;  // rx
+                    icp_in.prior->cov_inv(4, 4)  = large_certainty;  // ry
+                }
             }
         }
         else

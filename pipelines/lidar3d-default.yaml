@@ -24,6 +24,10 @@ params:
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 0  # [seconds]
 
+  # Parameters for max sensor range automatic estimation:
+  max_sensor_range_filter_coefficient: 0.999
+  absolute_minimum_sensor_range: 5.0
+
   # How often to update the local map model:
   local_map_updates:
     min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(WX^2+WY^2+WZ^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
