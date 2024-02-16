@@ -30,8 +30,8 @@ find_mola_package(mola_navstate_fuse)
 
 # -----------------------
 # define lib:
-file(GLOB_RECURSE LIB_SRCS src/*.cpp src/*.h)
-file(GLOB_RECURSE LIB_PUBLIC_HDRS include/*.h)
+file(GLOB_RECURSE LIB_SRCS module/src/*.cpp module/src/*.h)
+file(GLOB_RECURSE LIB_PUBLIC_HDRS module/include/*.h)
 
 mola_add_library(
 	TARGET ${PROJECT_NAME}
@@ -50,6 +50,17 @@ mola_add_library(
 		mp2p_icp_filters
 		mola_navstate_fuse
 		mrpt-maps
+)
+
+# mola_add_library() expects headers under "ROOT/include", so do this manually here:
+target_include_directories(${PROJECT_NAME} PUBLIC
+	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/module/include>
+	$<INSTALL_INTERFACE:include>
+	PRIVATE src
+)
+install(
+	DIRECTORY module/include/
+	DESTINATION ${CMAKE_INSTALL_PREFIX}/include
 )
 
 # CLI apps
@@ -104,8 +115,7 @@ endif()
 # -----------------------
 # define tests:
 enable_testing()
-add_subdirectory(tests)
-
+add_subdirectory(module/tests)
 
 # Install files:
 install(DIRECTORY
