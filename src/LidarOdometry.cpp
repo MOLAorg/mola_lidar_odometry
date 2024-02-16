@@ -83,11 +83,11 @@ LidarOdometry::~LidarOdometry()
             const auto fil = params_.simplemap.save_final_map_to_file;
 
             MRPT_LOG_INFO_STREAM(
-                "Saving final simplemap with " << state_.reconstructedMap.size()
-                                               << " keyframes to file '" << fil
-                                               << "'...");
+                "Saving final simplemap with "
+                << state_.reconstructed_simplemap.size()
+                << " keyframes to file '" << fil << "'...");
 
-            state_.reconstructedMap.saveToFile(fil);
+            state_.reconstructed_simplemap.saveToFile(fil);
 
             MRPT_LOG_INFO("Final simplemap saved.");
         }
@@ -99,10 +99,10 @@ LidarOdometry::~LidarOdometry()
 
             MRPT_LOG_INFO_STREAM(
                 "Saving final trajectory with "
-                << state_.estimatedTrajectory.size() << " keyframes to file '"
+                << state_.estimated_trajectory.size() << " keyframes to file '"
                 << fil << "' in TUM format...");
 
-            state_.estimatedTrajectory.saveToTextFile_TUM(fil);
+            state_.estimated_trajectory.saveToTextFile_TUM(fil);
 
             MRPT_LOG_INFO("Final trajectory saved.");
         }
@@ -120,8 +120,8 @@ void load_icp_set_of_params(
 {
     const auto [icp, params] = mp2p_icp::icp_pipeline_from_yaml(cfg);
 
-    out.icp           = icp;
-    out.icpParameters = params;
+    out.icp            = icp;
+    out.icp_parameters = params;
 }
 }  // namespace
 
@@ -241,28 +241,17 @@ void LidarOdometry::initialize(const Yaml& c)
     }
     ASSERT_(!params_.lidar_sensor_labels.empty());
 
-    ASSERT_(cfg["observation_layers_to_merge_local_map"].isSequence());
+    // Obs2map merge pipeline:
+    ASSERT_(c["insert_observation_into_local_map"].isSequence());
+    // Create, and copy my own verbosity level:
+    state_.obs2map_merge = mp2p_icp_filters::filter_pipeline_from_yaml(
+        c["insert_observation_into_local_map"], this->getMinLoggingLevel());
 
-    for (const auto& sl :
-         cfg["observation_layers_to_merge_local_map"].asSequence())
-    {
-        ASSERTMSG_(
-            sl.isMap(),
-            "Each entry in 'observation_layers_to_merge_local_map' must be a "
-            "dictionary/map with values 'from_obs' and 'from_obs' with layer "
-            "names");
+    // Attach to the parameter source for dynamic parameters:
+    mp2p_icp::AttachToParameterSource(
+        state_.obs2map_merge, state_.parameter_source);
 
-        const auto sFrom = sl.asMap().at("from_obs").as<std::string>();
-        const auto sInto = sl.asMap().at("into_map").as<std::string>();
-
-        MRPT_LOG_DEBUG_STREAM(
-            "Adding as observation_layers_to_merge_local_map: from_obs="
-            << sFrom << " => into_map=" << sInto);
-
-        params_.observation_layers_to_merge_local_map.emplace_back(
-            sFrom, sInto);
-    }
-    ASSERT_(!params_.observation_layers_to_merge_local_map.empty());
+    ASSERT_(!state_.obs2map_merge.empty());
 
     if (cfg.has("imu_sensor_label"))
         params_.imu_sensor_label = cfg["imu_sensor_label"].as<std::string>();
@@ -339,7 +328,7 @@ void LidarOdometry::initialize(const Yaml& c)
 
         // Attach all ICP instances to the parameter source for dynamic
         // parameters:
-        icpCase.icp->attachToParameterSource(state_.icpParameterSource);
+        icpCase.icp->attachToParameterSource(state_.parameter_source);
     }
     // system-wide profiler:
     profiler_.enable(params_.pipeline_profiler_enabled);
@@ -370,7 +359,7 @@ void LidarOdometry::initialize(const Yaml& c)
 
         // Attach to the parameter source for dynamic parameters:
         mp2p_icp::AttachToParameterSource(
-            state_.obs_generators, state_.icpParameterSource);
+            state_.obs_generators, state_.parameter_source);
 
         if (c.has("observations_filter"))
         {
@@ -380,7 +369,7 @@ void LidarOdometry::initialize(const Yaml& c)
 
             // Attach to the parameter source for dynamic parameters:
             mp2p_icp::AttachToParameterSource(
-                state_.pc_filter, state_.icpParameterSource);
+                state_.pc_filter, state_.parameter_source);
         }
 
         // Local map generator:
@@ -404,11 +393,11 @@ void LidarOdometry::initialize(const Yaml& c)
         }
         // Attach to the parameter source for dynamic parameters:
         mp2p_icp::AttachToParameterSource(
-            state_.local_map_generators, state_.icpParameterSource);
+            state_.local_map_generators, state_.parameter_source);
     }
 
     // Parameterizable values in params_:
-    params_.attachToParameterSource(state_.icpParameterSource);
+    params_.attachToParameterSource(state_.parameter_source);
 
     state_.initialized = true;
 
@@ -620,8 +609,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
     updatePipelineDynamicVariables();
 
     MRPT_LOG_DEBUG_STREAM(
-        "Dynamic variables: "
-        << state_.icpParameterSource.printVariableValues());
+        "Dynamic variables: " << state_.parameter_source.printVariableValues());
 
     // Extract points from observation:
     auto observation = mp2p_icp::metric_map_t::Create();
@@ -694,8 +682,8 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
         // Update trajectory too:
         {
-            auto lck = mrpt::lockHelper(stateTrajectory_mtx_);
-            state_.estimatedTrajectory.insert(
+            auto lck = mrpt::lockHelper(state_trajectory_mtx_);
+            state_.estimated_trajectory.insert(
                 this_obs_tim, state_.last_lidar_pose.mean);
         }
 
@@ -766,7 +754,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         icp_in.align_kind = hasMotionModel ? AlignKind::RegularOdometry
                                            : AlignKind::NoMotionModel;
 
-        icp_in.icp_params = params_.icp[icp_in.align_kind].icpParameters;
+        icp_in.icp_params = params_.icp[icp_in.align_kind].icp_parameters;
 
         profiler_.leave("onLidar.2c.prepare_icp_in");
 
@@ -795,8 +783,8 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         // Update trajectory too:
         if (icpIsGood)
         {
-            auto lck = mrpt::lockHelper(stateTrajectory_mtx_);
-            state_.estimatedTrajectory.insert(
+            auto lck = mrpt::lockHelper(state_trajectory_mtx_);
+            state_.estimated_trajectory.insert(
                 this_obs_tim, state_.last_lidar_pose.mean);
         }
 
@@ -826,18 +814,19 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         }  // end adaptive threshold
 
         // Create distance checker on first usage:
-        if (!state_.distanceCheckerLocalMap)
-            state_.distanceCheckerLocalMap.emplace(
+        if (!state_.distance_checker_local_map)
+            state_.distance_checker_local_map.emplace(
                 params_.local_map_updates.measure_from_last_kf_only);
 
-        if (!state_.distanceCheckerSimplemap)
-            state_.distanceCheckerSimplemap.emplace(
+        if (!state_.distance_checker_simplemap)
+            state_.distance_checker_simplemap.emplace(
                 params_.simplemap.measure_from_last_kf_only);
 
         // Create a new KF if the distance since the last one is large
         // enough:
         const auto [isFirstPoseInChecker, distanceToClosest] =
-            state_.distanceCheckerLocalMap->check(state_.last_lidar_pose.mean);
+            state_.distance_checker_local_map->check(
+                state_.last_lidar_pose.mean);
 
         const double dist_eucl_since_last = distanceToClosest.norm();
         const double rot_since_last =
@@ -856,26 +845,29 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
         if (updateLocalMap)
         {
-            state_.distanceCheckerLocalMap->insert(state_.last_lidar_pose.mean);
+            state_.distance_checker_local_map->insert(
+                state_.last_lidar_pose.mean);
 
             if (params_.local_map_updates.max_distance_to_keep_keyframes > 0)
             {
-                if (state_.localMapCheckForRemovalCounter++ >=
+                if (state_.localmap_check_removal_counter++ >=
                     params_.local_map_updates.check_for_removal_every_n)
                 {
                     ProfilerEntry tleCleanup(
                         profiler_, "onLidar.distant_kfs_cleanup");
 
-                    state_.localMapCheckForRemovalCounter = 0;
+                    state_.localmap_check_removal_counter = 0;
 
-                    const auto nInit = state_.distanceCheckerLocalMap->size();
+                    const auto nInit =
+                        state_.distance_checker_local_map->size();
 
-                    state_.distanceCheckerLocalMap->removeAllFartherThan(
+                    state_.distance_checker_local_map->removeAllFartherThan(
                         state_.last_lidar_pose.mean,
                         params_.local_map_updates
                             .max_distance_to_keep_keyframes);
 
-                    const auto nFinal = state_.distanceCheckerLocalMap->size();
+                    const auto nFinal =
+                        state_.distance_checker_local_map->size();
                     MRPT_LOG_DEBUG_STREAM(
                         "removeAllFartherThan: " << nInit << " => " << nFinal
                                                  << " KFs");
@@ -884,7 +876,8 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         }
 
         const auto [isFirstPoseInSMChecker, distanceToClosestSM] =
-            state_.distanceCheckerSimplemap->check(state_.last_lidar_pose.mean);
+            state_.distance_checker_simplemap->check(
+                state_.last_lidar_pose.mean);
 
         const double dist_eucl_since_last_sm = distanceToClosestSM.norm();
         const double rot_since_last_sm =
@@ -902,7 +895,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         // clang-format on
 
         if (updateSimpleMap)
-            state_.distanceCheckerSimplemap->insert(
+            state_.distance_checker_simplemap->insert(
                 state_.last_lidar_pose.mean);
 
         MRPT_LOG_DEBUG_FMT(
@@ -915,11 +908,11 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
     // If this was a bad ICP, and we just started with an empty map, re-start
     // again:
-    if (!state_.last_icp_was_good && state_.estimatedTrajectory.size() == 1)
+    if (!state_.last_icp_was_good && state_.estimated_trajectory.size() == 1)
     {
         // Re-start the local map:
         state_.local_map->clear();
-        state_.estimatedTrajectory.clear();
+        state_.estimated_trajectory.clear();
         updateLocalMap           = false;
         state_.last_icp_was_good = true;
 
@@ -946,48 +939,35 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         ProfilerEntry tle3(profiler_, "onLidar.4.update_local_map.insert");
 
         // Merge "observation_layers_to_merge_local_map" in local map:
-        for (const auto& [lyObs, lyMap] :
-             params_.observation_layers_to_merge_local_map)
+        // Input  metric_map_t: observation
+        // Output metric_map_t: state_.local_map
+
+        // 1/4: temporarily make a (shallow) copy of the observation layers into
+        // the local map:
+        for (const auto& [lyName, lyMap] : observation->layers)
         {
-            auto itObs = observation->layers.find(lyObs);
             ASSERTMSG_(
-                itObs != observation->layers.end(),
+                state_.local_map->layers.count(lyName) == 0,
                 mrpt::format(
-                    "Error inserting LIDAR observation into local map: "
-                    "expected a metric_map_t layer named '%s' in the "
-                    "observation, but it was not found. Actual contents: %s",
-                    lyObs.c_str(), observation->contents_summary().c_str()));
+                    "Error: local map layer name '%s' collides with one of the "
+                    "observation layers, please use different layer names.",
+                    lyName.c_str()));
 
-            auto itLocalMap = state_.local_map->layers.find(lyMap);
-            ASSERTMSG_(
-                itLocalMap != state_.local_map->layers.end(),
-                mrpt::format(
-                    "Error inserting LIDAR observation into local map: "
-                    "expected a metric_map_t layer named '%s' in the local "
-                    "map, but it was "
-                    "not found. Actual contents: %s",
-                    lyMap.c_str(),
-                    state_.local_map->contents_summary().c_str()));
-
-            mrpt::obs::CObservationPointCloud obsPc;
-            obsPc.timestamp = obs->timestamp;
-            obsPc.pointcloud =
-                std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(
-                    itObs->second);
-            ASSERTMSG_(
-                obsPc.pointcloud,
-                "Only observation layers of classes derived from "
-                "mrpt::maps::CPointsMap can be used to be inserted into the "
-                "local map");
-
-            MRPT_LOG_DEBUG_FMT(
-                "UpdateLocalMap: Inserting observation layer '%s' into "
-                "local map layer '%s'",
-                lyObs.c_str(), lyMap.c_str());
-
-            itLocalMap->second->insertObservation(
-                obsPc, state_.last_lidar_pose.mean);
+            state_.local_map->layers[lyName] = lyMap;  // shallow copy
         }
+
+        // 2/4: Make sure dynamic variables are up-to-date,
+        // in particular, [robot_x, ..., robot_roll]
+        updatePipelineDynamicVariables();
+
+        // 3/4: Apply pipeline
+        mp2p_icp_filters::apply_filter_pipeline(
+            state_.obs2map_merge, *state_.local_map, profiler_);
+
+        // 4/4: remove temporary layers:
+        for (const auto& [lyName, lyMap] : observation->layers)
+            state_.local_map->layers.erase(lyName);
+
         tle3.stop();
 
     }  // end done add a new KF to local map
@@ -995,13 +975,13 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
     // Optional build simplemap:
     if (updateSimpleMap)
     {
-        auto lck = mrpt::lockHelper(stateSimpleMap_mtx_);
+        auto lck = mrpt::lockHelper(state_simplemap_mtx_);
 
         mrpt::obs::CSensoryFrame obsSF;
         obsSF += sf;
 
         // insert GNNS too?
-        if (auto gps = state_.lastGNNS_; gps)
+        if (auto gps = state_.last_gnns_; gps)
         {
             if (std::abs(mrpt::system::timeDifference(
                     gps->getTimeStamp(), obs->getTimeStamp())) <
@@ -1009,13 +989,13 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             {
                 obsSF.insert(gps);
             }
-            state_.lastGNNS_.reset();
+            state_.last_gnns_.reset();
         }
 
         std::optional<mrpt::math::TTwist3D> curTwist;
         if (hasMotionModel) curTwist = motionModelOutput->twist;
 
-        state_.reconstructedMap.insert(
+        state_.reconstructed_simplemap.insert(
             // Pose: mean + covariance
             mrpt::poses::CPose3DPDFGaussian::Create(state_.last_lidar_pose),
             // SensoryFrame: set of observations (only one)
@@ -1197,7 +1177,7 @@ void LidarOdometry::onGPSImpl(const CObservation::Ptr& o)
         mrpt::Clock::toDouble(gps->timestamp));
 
     // Keep the latest GPS for simplemap insertion:
-    state_.lastGNNS_ = gps;
+    state_.last_gnns_ = gps;
 }
 
 bool LidarOdometry::isBusy() const
@@ -1211,14 +1191,14 @@ bool LidarOdometry::isBusy() const
 
 mrpt::poses::CPose3DInterpolator LidarOdometry::estimatedTrajectory() const
 {
-    auto lck = mrpt::lockHelper(stateTrajectory_mtx_);
-    return state_.estimatedTrajectory;
+    auto lck = mrpt::lockHelper(state_trajectory_mtx_);
+    return state_.estimated_trajectory;
 }
 
 mrpt::maps::CSimpleMap LidarOdometry::reconstructedMap() const
 {
-    auto lck = mrpt::lockHelper(stateSimpleMap_mtx_);
-    return state_.reconstructedMap;
+    auto lck = mrpt::lockHelper(state_simplemap_mtx_);
+    return state_.reconstructed_simplemap;
 }
 
 // KISS-ICP adaptive threshold method (MIT License; code adapted to MRPT)
@@ -1327,15 +1307,24 @@ void LidarOdometry::updatePipelineDynamicVariables()
         if (state_.navstate_fuse.get_last_twist())
             twistForIcpVars = state_.navstate_fuse.get_last_twist().value();
 
-        state_.icpParameterSource.updateVariable("VX", twistForIcpVars.vx);
-        state_.icpParameterSource.updateVariable("VY", twistForIcpVars.vy);
-        state_.icpParameterSource.updateVariable("VZ", twistForIcpVars.vz);
-        state_.icpParameterSource.updateVariable("WX", twistForIcpVars.wx);
-        state_.icpParameterSource.updateVariable("WY", twistForIcpVars.wy);
-        state_.icpParameterSource.updateVariable("WZ", twistForIcpVars.wz);
+        state_.parameter_source.updateVariable("VX", twistForIcpVars.vx);
+        state_.parameter_source.updateVariable("VY", twistForIcpVars.vy);
+        state_.parameter_source.updateVariable("VZ", twistForIcpVars.vz);
+        state_.parameter_source.updateVariable("WX", twistForIcpVars.wx);
+        state_.parameter_source.updateVariable("WY", twistForIcpVars.wy);
+        state_.parameter_source.updateVariable("WZ", twistForIcpVars.wz);
     }
 
-    state_.icpParameterSource.updateVariable(
+    // robot pose:
+    const auto& p = state_.last_lidar_pose.mean;
+    state_.parameter_source.updateVariable("ROBOT_X", p.x());
+    state_.parameter_source.updateVariable("ROBOT_Y", p.y());
+    state_.parameter_source.updateVariable("ROBOT_Z", p.z());
+    state_.parameter_source.updateVariable("ROBOT_YAW", p.yaw());
+    state_.parameter_source.updateVariable("ROBOT_PITCH", p.pitch());
+    state_.parameter_source.updateVariable("ROBOT_ROLL", p.roll());
+
+    state_.parameter_source.updateVariable(
         "ADAPTIVE_THRESHOLD_SIGMA",
         state_.adapt_thres_sigma != 0
             ? state_.adapt_thres_sigma
@@ -1343,12 +1332,12 @@ void LidarOdometry::updatePipelineDynamicVariables()
 
     if (state_.estimated_sensor_max_range)
     {
-        state_.icpParameterSource.updateVariable(
+        state_.parameter_source.updateVariable(
             "ESTIMATED_SENSOR_MAX_RANGE", *state_.estimated_sensor_max_range);
     }
 
     // Make all changes effective and evaluate the variables now:
-    state_.icpParameterSource.realize();
+    state_.parameter_source.realize();
 }
 
 void LidarOdometry::updateVisualization()
@@ -1411,9 +1400,9 @@ void LidarOdometry::updateVisualization()
         }
         // Update path viz:
         for (size_t i = state_.glEstimatedPath->size();
-             i < state_.estimatedTrajectory.size(); i++)
+             i < state_.estimated_trajectory.size(); i++)
         {
-            auto it = state_.estimatedTrajectory.begin();
+            auto it = state_.estimated_trajectory.begin();
             std::advance(it, i);
 
             const auto t = it->second.translation();
@@ -1476,10 +1465,10 @@ void LidarOdometry::updateVisualization()
                                    .c_str());
 
         ss << mrpt::format(
-            "path KFs: %4zu ", state_.estimatedTrajectory.size());
+            "path KFs: %4zu ", state_.estimated_trajectory.size());
 
         ss << mrpt::format(
-            "simplemap KFs: %4zu ", state_.reconstructedMap.size());
+            "simplemap KFs: %4zu ", state_.reconstructed_simplemap.size());
 
         visualizer_->output_console_message(ss.str());
     }

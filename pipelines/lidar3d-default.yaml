@@ -1,6 +1,7 @@
 # This file holds parameters for mola::LidarOdometry,
 # for use either programmatically calling initialize(), or from a MOLA system
-# launch file. See "launch/*" examples.
+# launch file. See "mola-cli-launchs/*" examples or the main project docs:
+# https://github.com/MOLAorg/mola_lidar_odometry/
 
 params:
   # These sensor labels will be handled as LIDAR observations:
@@ -39,11 +40,6 @@ params:
     enabled: true
     initial_sigma: 2.0
     min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}
-
-  # Except for the very first observation, use these layers of the observation
-  # metric_map_t and insert them into the local map:
-  observation_layers_to_merge_local_map:
-    - {from_obs: 'decimated_for_map', into_map: 'localmap'}
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
@@ -231,8 +227,7 @@ observations_filter:
   - class_name: mp2p_icp_filters::FilterByRange
     params:
       input_pointcloud_layer: 'decimated_for_map_raw'
-      output_pointcloud_layer: 'decimated_for_map_by_range'
-      keep_between: true # Remove points out of this range limits
+      output_layer_between: 'decimated_for_map_by_range'
       range_min: max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)
       range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
 
@@ -257,4 +252,14 @@ observations_filter:
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
       pointcloud_layer_to_remove: ['raw','deskewed', 'decimated_for_map_by_range', 'decimated_for_map_raw']
+
+# To populate the local map, one or more observation layers are merged
+# into the local map via this pipeline:
+insert_observation_into_local_map:
+  - class_name: mp2p_icp_filters::FilterMerge
+    params:
+      input_pointcloud_layer: 'decimated_for_map'
+      target_layer: 'localmap'
+      input_layer_in_local_coordinates: true
+      robot_pose: [ROBOT_X, ROBOT_Y, ROBOT_Z, ROBOT_YAW, ROBOT_PITCH, ROBOT_ROLL]
 

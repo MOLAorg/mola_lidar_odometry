@@ -110,12 +110,12 @@ add_subdirectory(tests)
 # Install files:
 install(DIRECTORY
   mola-cli-launchs
-  params
+  pipelines
   DESTINATION
     share/${PROJECT_NAME}
 )
 
-# Install gui_* demo "executables" too:
+# Install gui-* demo "executables" too:
 install(PROGRAMS
   eval/mola-lo-gui-kitti
   eval/mola-lo-gui-mulran

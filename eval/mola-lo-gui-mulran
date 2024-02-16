@@ -17,7 +17,7 @@ fi
 SEQ=$1
 shift 1
 
-MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../params/lidar3d-default.yaml}" \
+MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
 MULRAN_SEQ=$SEQ \
   mola-cli \
     $MOLA_LAUNCHS_DIR/lidar_odometry_from_mulran.yaml \

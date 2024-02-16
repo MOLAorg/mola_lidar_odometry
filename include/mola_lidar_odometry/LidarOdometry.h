@@ -202,15 +202,12 @@ class LidarOdometry : public FrontEndBase
         struct ICP_case
         {
             mp2p_icp::ICP::Ptr   icp;
-            mp2p_icp::Parameters icpParameters;
+            mp2p_icp::Parameters icp_parameters;
         };
 
         std::map<AlignKind, ICP_case> icp;
 
         mola::NavStateFuseParams navstate_fuse_params;
-
-        std::vector<std::pair<mp2p_icp::layer_name_t, mp2p_icp::layer_name_t>>
-            observation_layers_to_merge_local_map;
 
         // === SIMPLEMAP GENERATION ====
         struct SimpleMapOptions
@@ -293,9 +290,9 @@ class LidarOdometry : public FrontEndBase
     {
         using Ptr = std::shared_ptr<ICP_Input>;
 
-        AlignKind                   align_kind{AlignKind::RegularOdometry};
-        id_t                        global_id{mola::INVALID_ID};
-        id_t                        local_id{mola::INVALID_ID};
+        AlignKind                   align_kind = AlignKind::RegularOdometry;
+        id_t                        global_id  = mola::INVALID_ID;
+        id_t                        local_id   = mola::INVALID_ID;
         mp2p_icp::metric_map_t::Ptr global_pc, local_pc;
         mrpt::math::TPose3D         init_guess_local_wrt_global;
         mp2p_icp::Parameters        icp_params;
@@ -371,10 +368,11 @@ class LidarOdometry : public FrontEndBase
 
         int worker_tasks = 0;
 
+        mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
+
         std::map<std::string, mrpt::Clock::time_point> last_obs_tim_by_label;
         bool                                           last_icp_was_good = true;
         double                                         last_icp_quality  = .0;
-        mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 
         /// Cache for multiple LIDAR synchronization:
         std::map<std::string /*label*/, mrpt::obs::CObservation::Ptr> sync_obs;
@@ -383,7 +381,7 @@ class LidarOdometry : public FrontEndBase
         mola::NavStateFuse navstate_fuse;
 
         /// The source of "dynamic variables" in ICP pipelines:
-        mp2p_icp::ParameterSource icpParameterSource;
+        mp2p_icp::ParameterSource parameter_source;
 
         // KISS-ICP-like adaptive threshold method:
         double adapt_thres_sigma = 0;  // 0: initial
@@ -393,22 +391,24 @@ class LidarOdometry : public FrontEndBase
 
         mp2p_icp_filters::GeneratorSet   obs_generators;
         mp2p_icp_filters::FilterPipeline pc_filter;
-        mrpt::poses::CPose3DInterpolator estimatedTrajectory;
-        mrpt::maps::CSimpleMap           reconstructedMap;
         mp2p_icp_filters::GeneratorSet   local_map_generators;
         mp2p_icp::metric_map_t::Ptr      local_map =
             mp2p_icp::metric_map_t::Create();
+        mp2p_icp_filters::FilterPipeline obs2map_merge;
+
+        mrpt::poses::CPose3DInterpolator estimated_trajectory;
+        mrpt::maps::CSimpleMap           reconstructed_simplemap;
 
         // to check for map updates. Defined as optional<> so we enforce
         // setting their type in the ctor:
-        std::optional<SearchablePoseList> distanceCheckerLocalMap;
-        std::optional<SearchablePoseList> distanceCheckerSimplemap;
+        std::optional<SearchablePoseList> distance_checker_local_map;
+        std::optional<SearchablePoseList> distance_checker_simplemap;
 
         /// See check_for_removal_every_n
-        uint32_t localMapCheckForRemovalCounter = 0;
+        uint32_t localmap_check_removal_counter = 0;
 
         // GNNS:
-        mrpt::obs::CObservation::Ptr lastGNNS_;
+        mrpt::obs::CObservation::Ptr last_gnns_;
 
         // Visualization:
         mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;
@@ -433,8 +433,8 @@ class LidarOdometry : public FrontEndBase
     MethodState        stateCopy() const { return state_; }
 
     mutable std::mutex is_busy_mtx_;
-    mutable std::mutex stateTrajectory_mtx_;
-    mutable std::mutex stateSimpleMap_mtx_;
+    mutable std::mutex state_trajectory_mtx_;
+    mutable std::mutex state_simplemap_mtx_;
 
     void onLidar(const CObservation::Ptr& o);
     void onLidarImpl(const CObservation::Ptr& obs);

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Default pipeline YAML file:
-PIPELINE_YAML="${PIPELINE_YAML:-src/mola_lidar_odometry/params/lidar3d-default.yaml}"
+PIPELINE_YAML="${PIPELINE_YAML:-src/mola_lidar_odometry/pipelines/lidar3d-default.yaml}"
 
 DEFAULT_SEQUENCES="KAIST01 KAIST02 KAIST03 DCC01 DCC02 DCC03 Riverside01 Riverside02 Riverside03 Sejong01 Sejong02 Sejong03"
 SEQUENCES="${SEQUENCES:-${DEFAULT_SEQUENCES}}"
