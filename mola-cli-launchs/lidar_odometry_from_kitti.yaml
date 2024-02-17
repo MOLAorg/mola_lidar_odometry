@@ -21,7 +21,7 @@ modules:
     type: mola::KittiOdometryDataset
     execution_rate: 20 # Hz
     #verbosity_level: INFO
-    quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|true}
+    quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|false}
     
     gui_preview_sensors:
       - raw_sensor_label: lidar

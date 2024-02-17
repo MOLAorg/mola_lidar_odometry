@@ -137,6 +137,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml& cfg)
     YAML_LOAD_OPT(show_console_messages, bool);
     YAML_LOAD_OPT(current_pose_corner_size, double);
     YAML_LOAD_OPT(local_map_point_size, float);
+    YAML_LOAD_OPT(local_map_render_voxelmap_free_space, bool);
 
     if (cfg.has("model"))
     {
@@ -738,10 +739,16 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                         mrpt::obs::CObservation2DRangeScan>(obs))
                 {
                     // fix: z, pitch (rot_y), roll (rot_x):
-                    const double large_certainty = 1e5;
-                    icp_in.prior->cov_inv(2, 2)  = large_certainty;  // dz
-                    icp_in.prior->cov_inv(3, 3)  = large_certainty;  // rx
-                    icp_in.prior->cov_inv(4, 4)  = large_certainty;  // ry
+                    const double large_certainty = 1e6;
+
+                    auto& m = icp_in.prior->mean;
+
+                    m.z(0);
+                    m.setYawPitchRoll(m.yaw(), .0, .0);
+
+                    icp_in.prior->cov_inv(2, 2) = large_certainty;  // dz
+                    icp_in.prior->cov_inv(3, 3) = large_certainty;  // rx
+                    icp_in.prior->cov_inv(4, 4) = large_certainty;  // ry
                 }
             }
         }
@@ -1145,8 +1152,9 @@ void LidarOdometry::onWheelOdometryImpl(const CObservation::Ptr& o)
             "type 'mrpt::obs::CObservationOdometry', it is '%s' instead",
             o->sensorLabel.c_str(), o->GetRuntimeClass()->className));
 
-    // TODO!
-    // odo->timestamp;
+    MRPT_LOG_DEBUG_STREAM("onWheelOdometry: odom=" << odo->odometry);
+
+    state_.navstate_fuse.fuse_odometry(*odo);
 }
 
 void LidarOdometry::onGPS(const CObservation::Ptr& o)
@@ -1447,6 +1455,9 @@ void LidarOdometry::updateVisualization()
         mp2p_icp::render_params_t rp;
         rp.points.allLayers.pointSize =
             params_.visualization.local_map_point_size;
+
+        rp.points.allLayers.render_voxelmaps_free_space =
+            params_.visualization.local_map_render_voxelmap_free_space;
 
         auto glMap = state_.local_map->get_visualization(rp);
         for (auto& o : *glMap) state_.glLocalMap->insert(o);

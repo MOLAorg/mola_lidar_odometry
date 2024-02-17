@@ -36,6 +36,7 @@
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservation3DRangeScan.h>
 #include <mrpt/obs/CObservationGPS.h>
+#include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CObservationRotatingScan.h>
 #include <mrpt/obs/CObservationVelodyneScan.h>
@@ -393,6 +394,7 @@ static int main_odometry()
         if (!obs) obs = sf->getObservationByClass<CObservation2DRangeScan>();
         if (!obs) obs = sf->getObservationByClass<CObservationVelodyneScan>();
         if (!obs) obs = sf->getObservationByClass<CObservationGPS>();
+        if (!obs) obs = sf->getObservationByClass<CObservationOdometry>();
 
         if (!obs) continue;
 
