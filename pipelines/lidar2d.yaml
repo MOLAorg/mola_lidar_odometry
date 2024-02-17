@@ -22,7 +22,7 @@ params:
   gnns_sensor_label: 'gps'
 
   # Optionally, drop lidar data too close in time:
-  min_time_between_scans: 0  # [seconds]
+  min_time_between_scans: 1e-3 # [seconds]
 
   # Parameters for max sensor range automatic estimation:
   max_sensor_range_filter_coefficient: 0.999
@@ -62,7 +62,7 @@ params:
   # If run within a mola-cli container, and mola_viz is present, use these options 
   # to show live progress:
   visualization:
-    map_update_decimation: 100
+    map_update_decimation: 40
     show_trajectory: true
     #current_pose_corner_size: 1.5
     local_map_point_size: 3

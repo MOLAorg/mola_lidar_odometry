@@ -271,6 +271,7 @@ void LidarOdometry::initialize(const Yaml& c)
     YAML_LOAD_OPT(params_, min_time_between_scans, double);
     YAML_LOAD_OPT(params_, min_icp_goodness, double);
     YAML_LOAD_OPT(params_, max_sensor_range_filter_coefficient, double);
+    YAML_LOAD_OPT(params_, absolute_minimum_sensor_range, double);
 
     if (cfg.has("adaptive_threshold"))
         params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
@@ -1272,8 +1273,10 @@ void LidarOdometry::doInitializeEstimatedMaxSensorRange(
 
     if (pts->empty()) return;
 
-    const auto   bb     = pts->boundingBox();
-    const double radius = 0.5 * (bb.max - bb.min).norm();
+    const auto bb     = pts->boundingBox();
+    double     radius = 0.5 * (bb.max - bb.min).norm();
+
+    mrpt::keep_max(radius, params_.absolute_minimum_sensor_range);
 
     maxRange = radius;
 
