@@ -440,6 +440,8 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr& o)
         MRPT_LOG_THROTTLE_ERROR(
             2.0,
             "Discarding incoming observations: a fatal error ocurred above.");
+
+        this->requestShutdown();  // request end of mola-cli app, if applicable
         return;
     }
 
