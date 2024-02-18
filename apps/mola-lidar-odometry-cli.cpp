@@ -64,6 +64,10 @@
 #include <mola_input_rosbag2/Rosbag2Dataset.h>
 #endif
 
+#if defined(HAVE_MOLA_INPUT_PARIS_LUCO)
+#include <mola_input_paris_luco_dataset/ParisLucoDataset.h>
+#endif
+
 #include <csignal>  // sigaction
 #include <cstdlib>
 #include <iostream>
@@ -144,6 +148,12 @@ static TCLAP::ValueArg<std::string> argMulranSeq(
     "", "input-mulran-seq",
     "INPUT DATASET: Use Mulran dataset sequence KAIST01|KAIST01|...", false,
     "KAIST01", "KAIST01", cmd);
+#endif
+
+#if defined(HAVE_MOLA_INPUT_PARIS_LUCO)
+static TCLAP::SwitchArg argParisLucoSeq(
+    "", "input-paris-luco",
+    "INPUT DATASET: Use Paris Luco dataset (unique sequence=00)", cmd);
 #endif
 
 #if defined(HAVE_MOLA_INPUT_RAWLOG)
@@ -254,6 +264,27 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
 }
 #endif
 
+#if defined(HAVE_MOLA_INPUT_PARIS_LUCO)
+std::shared_ptr<mola::OfflineDatasetSource> dataset_from_paris_luco(
+    const mrpt::system::VerbosityLevel logLevel)
+{
+    auto o = std::make_shared<mola::ParisLucoDataset>();
+    o->setMinLoggingLevel(logLevel);
+
+    const auto cfg = mola::Yaml::FromText(mola::parse_yaml(
+        R""""(
+    params:
+      base_dir: ${PARIS_LUCO_BASE_DIR}
+      sequence: '00'  # There is only one sequence in this dataset
+      time_warp_scale: 1.0
+)""""));
+
+    o->initialize(cfg);
+
+    return o;
+}
+#endif
+
 void mola_signal_handler(int s);
 void mola_install_signal_handler();
 
@@ -337,6 +368,13 @@ static int main_odometry()
         if (argRosbag2.isSet())
     {
         dataset = dataset_from_rosbag2(argRosbag2.getValue(), logLevel);
+    }
+    else
+#endif
+#if defined(HAVE_MOLA_INPUT_PARIS_LUCO)
+        if (argParisLucoSeq.isSet())
+    {
+        dataset = dataset_from_paris_luco(logLevel);
     }
     else
 #endif
