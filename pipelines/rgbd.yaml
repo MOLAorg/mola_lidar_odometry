@@ -16,7 +16,7 @@ params:
   imu_sensor_label: 'imu'
 
   # These sensor labels will be handled as wheel odometry observation (C++11 regex):
-  wheel_odometry_sensor_label: 'odometry|ODOMETRY'
+  wheel_odometry_sensor_label: '${MOLA_ODOMETRY_NAME|odometry}'
 
   # These sensor labels will be handled as GNNS (GPS) (For storage in simplemap only)
   gnns_sensor_label: 'gps'
@@ -30,20 +30,20 @@ params:
 
   # How often to update the local map model:
   local_map_updates:
-    min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(WX^2+WY^2+WZ^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
+    min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.03 + sqrt(WX^2+WY^2+WZ^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
     min_rotation_between_keyframes: 15.0 # [deg]
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
-    max_distance_to_keep_keyframes: 'max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)' # [m]
+    max_distance_to_keep_keyframes: 'max(50.0, 2.50*ESTIMATED_SENSOR_MAX_RANGE)' # [m]
     check_for_removal_every_n: 100
 
   # Minimum ICP quality to insert it into the map:
-  min_icp_goodness: 0.25
+  min_icp_goodness: 0.05
 
   # Adaptive threshold, as in the KISS-ICP paper:
   adaptive_threshold:
     enabled: true
     initial_sigma: 0.20
-    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.05}
+    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
@@ -124,7 +124,7 @@ icp_settings_with_vel:
       params:
         maxIterations: 2
         robustKernel: 'RobustKernel::GemanMcClure'
-        robustKernelParam: '0.5*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
+        robustKernelParam:  0.02 #'0.5*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -132,12 +132,24 @@ icp_settings_with_vel:
   matchers:
     - class: mp2p_icp::Matcher_Points_DistanceThreshold
       params:
-        threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
-        thresholdAngularDeg: 0  # deg
-        pairingsPerPoint: 1
+        threshold: 0.20 #'2.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
+        thresholdAngularDeg: 0.5  # deg
+        pairingsPerPoint: 2
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         pointLayerMatches:
-          - {global: "localmap", local: "edges", weight: 1.0}
+          - {global: "localmap_edges", local: "edges_for_icp", weight: 1.0}
+
+    - class: mp2p_icp::Matcher_Point2Plane
+      params:
+        distanceThreshold: 0.40
+        planeEigenThreshold: 1e-2
+        searchRadius: 0.80
+        knn: 10
+        minimumPlanePoints: 6
+        pointLayerMatches:
+          - {global: "localmap_planes", local: "planes_for_icp", weight: 1.0}
+
+
 
   quality:
     - class: mp2p_icp::QualityEvaluator_PairedRatio
@@ -155,7 +167,7 @@ localmap_generator:
   #
   - class_name: mp2p_icp_filters::Generator
     params:
-      target_layer: 'localmap'
+      target_layer: 'localmap_edges'
       throw_on_unhandled_observation_class: true
       process_class_names_regex: ''  # NONE: don't process observations in the generator.
       #process_sensor_labels_regex: '.*'
@@ -163,11 +175,46 @@ localmap_generator:
       
       metric_map_definition:
         # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/latest/group_mrpt_maps_grp.html
-        class: mrpt::maps::CSimplePointsMap
-        #plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
-        creationOpts: ~ # none
-        insertionOpts: ~ # none
-        likelihoodOpts: ~ # none
+        class: mola::HashedVoxelPointCloud
+        plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
+        creationOpts:
+          voxel_size: '$f{max(0.05, min(0.5, 0.10*ESTIMATED_SENSOR_MAX_RANGE))}' # [m]
+        insertionOpts:
+          max_points_per_voxel: 20
+          min_distance_between_points: 0  # [m]
+          # if !=0, remove voxels farther (L1) than the current observation insert point
+          remove_voxels_farther_than: '$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
+        likelihoodOpts:
+          sigma_dist: 1.0    # [m]
+          max_corr_distance: 2.0  #[m]
+          decimation: 10
+
+  - class_name: mp2p_icp_filters::Generator
+    params:
+      target_layer: 'localmap_planes'
+      throw_on_unhandled_observation_class: true
+      process_class_names_regex: ''  # NONE: don't process observations in the generator.
+      #process_sensor_labels_regex: '.*'
+      # metric_map_definition_ini_file: '${CURRENT_YAML_FILE_PATH}/localmap_definition_voxelmap.ini'
+      
+      metric_map_definition:
+        # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/latest/group_mrpt_maps_grp.html
+        class: mola::SparseTreesPointCloud
+        plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
+        creationOpts:
+          grid_size: '$f{max(1.0, min(5.0, 0.10*ESTIMATED_SENSOR_MAX_RANGE))}' # [m]
+        insertionOpts:
+          minimum_points_clearance: 0  # [m]
+          # if !=0, remove voxels farther (L1) than the current observation insert point
+          remove_submaps_farther_than: '$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
+        likelihoodOpts:
+          sigma_dist: 1.0    # [m]
+          max_corr_distance: 2.0  #[m]
+          decimation: 10
+        renderOpts:
+          point_size: 1.0
+          show_inner_grid_boxes: false
+
 
 # ---------------------------------------------------------------------------------
 # LIDAR observations are, first, loaded using a generator
@@ -186,6 +233,7 @@ observations_generator:
     params:
       # base Generator params:
       target_layer: 'edges'
+      planes_target_layer: 'planes'
       throw_on_unhandled_observation_class: true
       process_class_names_regex: '.*'
       process_sensor_labels_regex: '.*'
@@ -196,15 +244,58 @@ observations_generator:
 
 
 observations_filter:
-  ~ # None required
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: 'planes'
+      output_pointcloud_layer: 'planes_for_map'
+      voxel_filter_resolution: 0.025  # [m]
+      #decimate_method: DecimateMethod::FirstPoint
+      decimate_method: DecimateMethod::ClosestToAverage
+
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: 'planes'
+      output_pointcloud_layer: 'planes_for_icp'
+      voxel_filter_resolution: 0.050  # [m]
+      #decimate_method: DecimateMethod::FirstPoint
+      decimate_method: DecimateMethod::ClosestToAverage
+
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: 'edges'
+      output_pointcloud_layer: 'edges_for_map'
+      voxel_filter_resolution: 0.05  # [m]
+      #decimate_method: DecimateMethod::FirstPoint
+      decimate_method: DecimateMethod::ClosestToAverage
+
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: 'edges'
+      output_pointcloud_layer: 'edges_for_icp'
+      voxel_filter_resolution: 0.10  # [m]
+      #decimate_method: DecimateMethod::FirstPoint
+      decimate_method: DecimateMethod::ClosestToAverage
+
+  # Remove layers to save memory and log file storage
+  - class_name: mp2p_icp_filters::FilterDeleteLayer
+    params:
+      pointcloud_layer_to_remove: ['edges', 'planes']
 
 # To populate the local map, one or more observation layers are merged
 # into the local map via this pipeline:
 insert_observation_into_local_map:
   - class_name: mp2p_icp_filters::FilterMerge
     params:
-      input_pointcloud_layer: 'edges'
-      target_layer: 'localmap'
+      input_pointcloud_layer: 'edges_for_map'
+      target_layer: 'localmap_edges'
       input_layer_in_local_coordinates: true
       robot_pose: [ROBOT_X, ROBOT_Y, ROBOT_Z, ROBOT_YAW, ROBOT_PITCH, ROBOT_ROLL]
+
+  - class_name: mp2p_icp_filters::FilterMerge
+    params:
+      input_pointcloud_layer: 'planes_for_map'
+      target_layer: 'localmap_planes'
+      input_layer_in_local_coordinates: true
+      robot_pose: [ROBOT_X, ROBOT_Y, ROBOT_Z, ROBOT_YAW, ROBOT_PITCH, ROBOT_ROLL]
+
 
