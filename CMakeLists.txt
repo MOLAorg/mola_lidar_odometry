@@ -66,6 +66,7 @@ install(
 # CLI apps
 # ---------------------------------
 find_package(mola_input_kitti_dataset) # optional
+find_package(mola_input_kitti360_dataset) # optional
 find_package(mola_input_mulran_dataset) # optional
 find_package(mola_input_rawlog) # optional
 find_package(mola_input_rosbag2) # optional
@@ -85,6 +86,14 @@ target_link_libraries(mola-lidar-odometry-cli mola::mola_input_kitti_dataset)
 target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_KITTI)
 else()
 message(STATUS "mola-lidar-odometry-cli: With Kitti = NO")
+endif()
+
+if (mola_input_kitti360_dataset_FOUND)
+message(STATUS "mola-lidar-odometry-cli: With Kitti360 = YES")
+target_link_libraries(mola-lidar-odometry-cli mola::mola_input_kitti360_dataset)
+target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_KITTI360)
+else()
+message(STATUS "mola-lidar-odometry-cli: With Kitti360 = NO")
 endif()
 
 if (mola_input_mulran_dataset_FOUND)
@@ -136,6 +145,7 @@ install(DIRECTORY
 # Install gui-* demo "executables" too:
 install(PROGRAMS
   eval/mola-lo-gui-kitti
+  eval/mola-lo-gui-kitti360
   eval/mola-lo-gui-mulran
   eval/mola-lo-gui-rawlog
   eval/mola-lo-gui-rosbag2

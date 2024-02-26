@@ -52,6 +52,10 @@
 #include <mola_input_kitti_dataset/KittiOdometryDataset.h>
 #endif
 
+#if defined(HAVE_MOLA_INPUT_KITTI360)
+#include <mola_input_kitti360_dataset/Kitti360Dataset.h>
+#endif
+
 #if defined(HAVE_MOLA_INPUT_MULRAN)
 #include <mola_input_mulran_dataset/MulranDataset.h>
 #endif
@@ -141,6 +145,13 @@ static TCLAP::ValueArg<double> argKittiAngleDeg(
     "", "kitti-correction-angle-deg",
     "Correction vertical angle offset (see Deschaud,2018)", false, 0.205,
     "0.205 [degrees]", cmd);
+#endif
+
+#if defined(HAVE_MOLA_INPUT_KITTI360)
+static TCLAP::ValueArg<std::string> argKitti360Seq(
+    "", "input-kitti360-seq",
+    "INPUT DATASET: Use KITTI360 dataset sequence number 00|01|...|test_00|...",
+    false, "00", "00", cmd);
 #endif
 
 #if defined(HAVE_MOLA_INPUT_MULRAN)
@@ -264,6 +275,35 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
 }
 #endif
 
+#if defined(HAVE_MOLA_INPUT_KITTI360)
+std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti360(
+    const std::string&                 kittiSeqNumber,
+    const mrpt::system::VerbosityLevel logLevel)
+{
+    auto o = std::make_shared<mola::Kitti360Dataset>();
+    o->setMinLoggingLevel(logLevel);
+
+    const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+        R""""(
+    params:
+      base_dir: ${KITTI360_DATASET}
+      sequence: '%s'
+      time_warp_scale: 1.0
+      publish_lidar: true
+      publish_image_0: false
+      publish_image_1: false
+      publish_image_2: false
+      publish_image_3: false
+      publish_ground_truth: true
+)"""",
+        kittiSeqNumber.c_str())));
+
+    o->initialize(cfg);
+
+    return o;
+}
+#endif
+
 #if defined(HAVE_MOLA_INPUT_PARIS_LUCO)
 std::shared_ptr<mola::OfflineDatasetSource> dataset_from_paris_luco(
     const mrpt::system::VerbosityLevel logLevel)
@@ -354,6 +394,13 @@ static int main_odometry()
         if (argKittiSeq.isSet())
     {
         dataset = dataset_from_kitti(argKittiSeq.getValue(), logLevel);
+    }
+    else
+#endif
+#if defined(HAVE_MOLA_INPUT_KITTI360)
+        if (argKitti360Seq.isSet())
+    {
+        dataset = dataset_from_kitti360(argKitti360Seq.getValue(), logLevel);
     }
     else
 #endif
