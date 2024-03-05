@@ -60,7 +60,7 @@ modules:
           type: CObservationPointCloud
           sensorLabel: '${MOLA_LIDAR_NAME|lidar}'
           # If present, this will override whatever /tf tells about the sensor pose:
-          fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg'
+          #fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg'
 
         #- topic: /ouster/range_image
         #  type: CObservationImage
