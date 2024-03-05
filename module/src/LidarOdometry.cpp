@@ -217,6 +217,9 @@ void LidarOdometry::initialize(const Yaml& c)
 
     this->setLoggerName("LidarOdometry");
 
+    // make a copy of the initialization, for use in reset()
+    lastInitConfig_ = c;
+
     // Load params:
     const auto cfg = c["params"];
     MRPT_LOG_DEBUG_STREAM("Loading these params:\n" << cfg);
@@ -272,6 +275,8 @@ void LidarOdometry::initialize(const Yaml& c)
     YAML_LOAD_OPT(params_, min_icp_goodness, double);
     YAML_LOAD_OPT(params_, max_sensor_range_filter_coefficient, double);
     YAML_LOAD_OPT(params_, absolute_minimum_sensor_range, double);
+
+    YAML_LOAD_OPT(params_, start_active, bool);
 
     if (cfg.has("adaptive_threshold"))
         params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
@@ -400,6 +405,7 @@ void LidarOdometry::initialize(const Yaml& c)
     params_.attachToParameterSource(state_.parameter_source);
 
     state_.initialized = true;
+    state_.active      = params_.start_active;
 
     MRPT_TRY_END
 }
@@ -415,9 +421,10 @@ void LidarOdometry::spinOnce()
 
 void LidarOdometry::reset()
 {
-    // TODO: there is more to be done! Check state_ fields changed in
-    // initialize()
+    ASSERTMSG_(!lastInitConfig_.empty(), "initialize() must be called first.");
+
     state_ = MethodState();
+    initialize(lastInitConfig_);
 }
 
 void LidarOdometry::onNewObservation(const CObservation::Ptr& o)
@@ -442,6 +449,15 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr& o)
             "Discarding incoming observations: a fatal error ocurred above.");
 
         this->requestShutdown();  // request end of mola-cli app, if applicable
+        return;
+    }
+
+    if (!state_.active)
+    {
+        // Optional real-time GUI via MOLA VizInterface. Execute here since
+        // otherwise the GUI would never show up if inactive!
+        if (visualizer_ && state_.local_map) updateVisualization();
+
         return;
     }
 
@@ -1501,40 +1517,81 @@ void LidarOdometry::updateVisualization()
 
     // Sub-window with custom UI
     // -------------------------------------
-    if (!state_.ui)
+    if (!gui_.ui)
     {
-        auto fut  = visualizer_->create_subwindow("mola_lidar_odometry");
-        state_.ui = fut.get();
-        state_.ui->requestFocus();
-        state_.ui->setVisible(
-            !params_.visualization.gui_subwindow_starts_hidden);
-        state_.ui->setPosition({5, 700});
+        auto fut = visualizer_->create_subwindow("mola_lidar_odometry");
+        gui_.ui  = fut.get();
+        gui_.ui->requestFocus();
+        gui_.ui->setVisible(!params_.visualization.gui_subwindow_starts_hidden);
+        gui_.ui->setPosition({5, 700});
 
-        state_.ui->setLayout(new nanogui::BoxLayout(
+        gui_.ui->setLayout(new nanogui::BoxLayout(
             nanogui::Orientation::Vertical, nanogui::Alignment::Fill, 5, 2));
-        state_.ui->setFixedWidth(300);
+        gui_.ui->setFixedWidth(300);
 
-        state_.lbIcpQuality  = state_.ui->add<nanogui::Label>(" ");
-        state_.lbSigma       = state_.ui->add<nanogui::Label>(" ");
-        state_.lbSensorRange = state_.ui->add<nanogui::Label>(" ");
-        state_.lbTime        = state_.ui->add<nanogui::Label>(" ");
-        state_.lbPeriod      = state_.ui->add<nanogui::Label>(" ");
+        auto tabWidget = gui_.ui->add<nanogui::TabWidget>();
+
+        auto* tab1 = tabWidget->createTab("Status");
+        tab1->setLayout(new nanogui::GroupLayout());
+
+        auto* tab2 = tabWidget->createTab("Control");
+        tab2->setLayout(new nanogui::GroupLayout());
+
+        tabWidget->setActiveTab(0);
+
+        // tab 1: status
+        gui_.lbIcpQuality  = tab1->add<nanogui::Label>(" ");
+        gui_.lbSigma       = tab1->add<nanogui::Label>(" ");
+        gui_.lbSensorRange = tab1->add<nanogui::Label>(" ");
+        gui_.lbTime        = tab1->add<nanogui::Label>(" ");
+        gui_.lbPeriod      = tab1->add<nanogui::Label>(" ");
+
+        // tab 1: control
+        auto cbActive = tab2->add<nanogui::CheckBox>("Active");
+        cbActive->setChecked(state_.active);
+        cbActive->setCallback([&](bool checked) { state_.active = checked; });
+
+        auto* cbSaveTrajectory =
+            tab2->add<nanogui::CheckBox>("Save trajectory");
+        cbSaveTrajectory->setChecked(params_.estimated_trajectory.save_to_file);
+        cbSaveTrajectory->setCallback([this](bool checked) {
+            params_.estimated_trajectory.save_to_file = checked;
+        });
+
+        auto cbSaveSimplemap =
+            tab2->add<nanogui::CheckBox>("Generate simplemap");
+        cbSaveSimplemap->setChecked(params_.simplemap.generate);
+        cbSaveSimplemap->setCallback(
+            [this](bool checked) { params_.simplemap.generate = checked; });
+
+        auto btnReset = tab2->add<nanogui::Button>("Reset", ENTYPO_ICON_CCW);
+        btnReset->setCallback([&]() {
+            try
+            {
+                this->reset();
+            }
+            catch (const std::exception& e)
+            {
+                std::cerr << e.what() << std::endl;
+            }
+        });
     }
-    state_.lbIcpQuality->setCaption(
+
+    gui_.lbIcpQuality->setCaption(
         mrpt::format("ICP quality: %.01f%%", 100.0 * state_.last_icp_quality));
-    state_.lbSigma->setCaption(
+    gui_.lbSigma->setCaption(
         mrpt::format("Threshold sigma: %.02f", state_.adapt_thres_sigma));
     if (state_.estimated_sensor_max_range)
-        state_.lbSensorRange->setCaption(mrpt::format(
+        gui_.lbSensorRange->setCaption(mrpt::format(
             "Est. max range: %.02f m", *state_.estimated_sensor_max_range));
     {
         const double dt    = profiler_.getLastTime("onLidar");
         const double dtAvr = profiler_.getMeanTime("onLidar");
-        state_.lbTime->setCaption(mrpt::format(
+        gui_.lbTime->setCaption(mrpt::format(
             "Process time: %6.02f ms (avr: %6.02f ms)", 1e3 * dt, 1e3 * dtAvr));
         if (dt > 0 && dtAvr > 0)
         {
-            state_.lbPeriod->setCaption(mrpt::format(
+            gui_.lbPeriod->setCaption(mrpt::format(
                 "Process rate: %6.02f Hz (avr: %6.02f Hz)", 1.0 / dt,
                 1.0 / dtAvr));
         }

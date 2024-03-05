@@ -74,6 +74,10 @@ params:
   pipeline_profiler_enabled: true
   # Profile the internal steps of the ICP implementation:
   icp_profiler_enabled: true
+  
+  # If set to false, the odometry pipeline will ignore incoming observations
+  # until active is set to true (e.g. via the GUI).
+  start_active: '${MOLA_START_ACTIVE|true}'
 
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]

@@ -62,7 +62,9 @@ class LidarOdometry : public FrontEndBase
     void spinOnce() override;
     void onNewObservation(const CObservation::Ptr& o) override;
 
-    /** Re-initializes the front-end. initialize() needs to be called again. */
+    /** Re-initializes the odometry system. It effectively calls initialize()
+     *  once again with the same parameters that were used the first time.
+     */
     void reset();
 
     enum class AlignKind : uint8_t
@@ -265,6 +267,8 @@ class LidarOdometry : public FrontEndBase
 
         std::optional<mrpt::math::TTwist3D> initial_twist;
 
+        bool start_active = true;
+
         uint32_t max_worker_thread_queue_before_drop = 500;
     };
 
@@ -367,6 +371,10 @@ class LidarOdometry : public FrontEndBase
         bool initialized = false;
         bool fatal_error = false;
 
+        /// if false, input observations will be just ignored.
+        /// Useful for real-time execution on robots.
+        bool active = true;
+
         int worker_tasks = 0;
 
         mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
@@ -414,13 +422,7 @@ class LidarOdometry : public FrontEndBase
         // Visualization:
         mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;
         mrpt::opengl::CSetOfLines::Ptr   glEstimatedPath;
-        int              mapUpdateCnt  = std::numeric_limits<int>::max();
-        nanogui::Window* ui            = nullptr;
-        nanogui::Label*  lbIcpQuality  = nullptr;
-        nanogui::Label*  lbSigma       = nullptr;
-        nanogui::Label*  lbSensorRange = nullptr;
-        nanogui::Label*  lbTime        = nullptr;
-        nanogui::Label*  lbPeriod      = nullptr;
+        int mapUpdateCnt = std::numeric_limits<int>::max();
     };
 
     /** The worker thread pool with 1 thread for processing incomming
@@ -432,6 +434,23 @@ class LidarOdometry : public FrontEndBase
     MethodState        state_;
     const MethodState& state() const { return state_; }
     MethodState        stateCopy() const { return state_; }
+
+    struct StateUI
+    {
+        StateUI() = default;
+
+        nanogui::Window* ui            = nullptr;
+        nanogui::Label*  lbIcpQuality  = nullptr;
+        nanogui::Label*  lbSigma       = nullptr;
+        nanogui::Label*  lbSensorRange = nullptr;
+        nanogui::Label*  lbTime        = nullptr;
+        nanogui::Label*  lbPeriod      = nullptr;
+    };
+
+    StateUI gui_;
+
+    /// The configuration used in the last call to initialize()
+    Yaml lastInitConfig_;
 
     mutable std::mutex is_busy_mtx_;
     mutable std::mutex state_trajectory_mtx_;
