@@ -288,6 +288,9 @@ class LidarOdometry : public FrontEndBase
      */
     mrpt::maps::CSimpleMap reconstructedMap() const;
 
+    void saveEstimatedTrajectoryToFile() const;
+    void saveReconstructedMapToFile() const;
+
     /** @} */
 
    private:
@@ -478,6 +481,8 @@ class LidarOdometry : public FrontEndBase
     void updatePipelineDynamicVariables();
 
     void updateVisualization();
+
+    void internalBuildGUI();
 };
 
 }  // namespace mola

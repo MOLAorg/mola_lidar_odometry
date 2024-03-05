@@ -75,35 +75,11 @@ LidarOdometry::~LidarOdometry()
             std::this_thread::sleep_for(100ms);
         }
 
-        if (params_.simplemap.generate &&
-            !params_.simplemap.save_final_map_to_file.empty())
-        {
-            const auto fil = params_.simplemap.save_final_map_to_file;
+        if (params_.simplemap.generate)  //
+            saveReconstructedMapToFile();
 
-            MRPT_LOG_INFO_STREAM(
-                "Saving final simplemap with "
-                << state_.reconstructed_simplemap.size()
-                << " keyframes to file '" << fil << "'...");
-
-            state_.reconstructed_simplemap.saveToFile(fil);
-
-            MRPT_LOG_INFO("Final simplemap saved.");
-        }
-
-        if (params_.estimated_trajectory.save_to_file &&
-            !params_.estimated_trajectory.output_file.empty())
-        {
-            const auto fil = params_.estimated_trajectory.output_file;
-
-            MRPT_LOG_INFO_STREAM(
-                "Saving final trajectory with "
-                << state_.estimated_trajectory.size() << " keyframes to file '"
-                << fil << "' in TUM format...");
-
-            state_.estimated_trajectory.saveToTextFile_TUM(fil);
-
-            MRPT_LOG_INFO("Final trajectory saved.");
-        }
+        if (params_.estimated_trajectory.save_to_file)
+            saveEstimatedTrajectoryToFile();
     }
     catch (const std::exception& e)
     {
@@ -1521,60 +1497,12 @@ void LidarOdometry::updateVisualization()
     {
         auto fut = visualizer_->create_subwindow("mola_lidar_odometry");
         gui_.ui  = fut.get();
-        gui_.ui->requestFocus();
-        gui_.ui->setVisible(!params_.visualization.gui_subwindow_starts_hidden);
-        gui_.ui->setPosition({5, 700});
 
-        gui_.ui->setLayout(new nanogui::BoxLayout(
-            nanogui::Orientation::Vertical, nanogui::Alignment::Fill, 5, 2));
-        gui_.ui->setFixedWidth(300);
+        // wait until this code is executed in the UI thread:
+        auto fut2 = visualizer_->enqueue_custom_nanogui_code(
+            [this]() { internalBuildGUI(); });
 
-        auto tabWidget = gui_.ui->add<nanogui::TabWidget>();
-
-        auto* tab1 = tabWidget->createTab("Status");
-        tab1->setLayout(new nanogui::GroupLayout());
-
-        auto* tab2 = tabWidget->createTab("Control");
-        tab2->setLayout(new nanogui::GroupLayout());
-
-        tabWidget->setActiveTab(0);
-
-        // tab 1: status
-        gui_.lbIcpQuality  = tab1->add<nanogui::Label>(" ");
-        gui_.lbSigma       = tab1->add<nanogui::Label>(" ");
-        gui_.lbSensorRange = tab1->add<nanogui::Label>(" ");
-        gui_.lbTime        = tab1->add<nanogui::Label>(" ");
-        gui_.lbPeriod      = tab1->add<nanogui::Label>(" ");
-
-        // tab 1: control
-        auto cbActive = tab2->add<nanogui::CheckBox>("Active");
-        cbActive->setChecked(state_.active);
-        cbActive->setCallback([&](bool checked) { state_.active = checked; });
-
-        auto* cbSaveTrajectory =
-            tab2->add<nanogui::CheckBox>("Save trajectory");
-        cbSaveTrajectory->setChecked(params_.estimated_trajectory.save_to_file);
-        cbSaveTrajectory->setCallback([this](bool checked) {
-            params_.estimated_trajectory.save_to_file = checked;
-        });
-
-        auto cbSaveSimplemap =
-            tab2->add<nanogui::CheckBox>("Generate simplemap");
-        cbSaveSimplemap->setChecked(params_.simplemap.generate);
-        cbSaveSimplemap->setCallback(
-            [this](bool checked) { params_.simplemap.generate = checked; });
-
-        auto btnReset = tab2->add<nanogui::Button>("Reset", ENTYPO_ICON_CCW);
-        btnReset->setCallback([&]() {
-            try
-            {
-                this->reset();
-            }
-            catch (const std::exception& e)
-            {
-                std::cerr << e.what() << std::endl;
-            }
-        });
+        fut2.get();
     }
 
     gui_.lbIcpQuality->setCaption(
@@ -1596,6 +1524,166 @@ void LidarOdometry::updateVisualization()
                 1.0 / dtAvr));
         }
     }
+}
+
+void LidarOdometry::saveEstimatedTrajectoryToFile() const
+{
+    if (params_.estimated_trajectory.output_file.empty()) return;
+
+    auto lck = mrpt::lockHelper(state_trajectory_mtx_);
+
+    const auto fil = params_.estimated_trajectory.output_file;
+
+    MRPT_LOG_INFO_STREAM(
+        "Saving estimated trajectory with "
+        << state_.estimated_trajectory.size() << " keyframes to file '" << fil
+        << "' in TUM format...");
+
+    state_.estimated_trajectory.saveToTextFile_TUM(fil);
+
+    MRPT_LOG_INFO("Final trajectory saved.");
+}
+
+void LidarOdometry::saveReconstructedMapToFile() const
+{
+    if (params_.simplemap.save_final_map_to_file.empty()) return;
+
+    auto lck = mrpt::lockHelper(state_simplemap_mtx_);
+
+    const auto fil = params_.simplemap.save_final_map_to_file;
+
+    MRPT_LOG_INFO_STREAM(
+        "Saving final simplemap with " << state_.reconstructed_simplemap.size()
+                                       << " keyframes to file '" << fil
+                                       << "'...");
+
+    state_.reconstructed_simplemap.saveToFile(fil);
+
+    MRPT_LOG_INFO("Final simplemap saved.");
+}
+
+void LidarOdometry::internalBuildGUI()
+{
+    ASSERT_(gui_.ui);
+
+    gui_.ui->requestFocus();
+    gui_.ui->setVisible(!params_.visualization.gui_subwindow_starts_hidden);
+    gui_.ui->setPosition({5, 700});
+
+    gui_.ui->setLayout(new nanogui::BoxLayout(
+        nanogui::Orientation::Vertical, nanogui::Alignment::Fill, 5, 2));
+    gui_.ui->setFixedWidth(340);
+
+    auto tabWidget = gui_.ui->add<nanogui::TabWidget>();
+
+    auto* tab1 = tabWidget->createTab("Status");
+    tab1->setLayout(new nanogui::GroupLayout());
+
+    auto* tab2 = tabWidget->createTab("Control");
+    tab2->setLayout(new nanogui::GroupLayout());
+
+    tabWidget->setActiveTab(0);
+
+    // tab 1: status
+    gui_.lbIcpQuality  = tab1->add<nanogui::Label>(" ");
+    gui_.lbSigma       = tab1->add<nanogui::Label>(" ");
+    gui_.lbSensorRange = tab1->add<nanogui::Label>(" ");
+    gui_.lbTime        = tab1->add<nanogui::Label>(" ");
+    gui_.lbPeriod      = tab1->add<nanogui::Label>(" ");
+
+    // tab 2: control
+    auto cbActive = tab2->add<nanogui::CheckBox>("Active");
+    cbActive->setChecked(state_.active);
+    cbActive->setCallback([&](bool checked) { state_.active = checked; });
+
+    {
+        auto* lbMsg = tab2->add<nanogui::Label>(
+            "Traj./map are saved at exit or when button clicked");
+        lbMsg->setFontSize(14);
+    }
+
+    {
+        auto* panel = tab2->add<nanogui::Widget>();
+        panel->setLayout(new nanogui::BoxLayout(
+            nanogui::Orientation::Horizontal, nanogui::Alignment::Maximum, 1,
+            1));
+
+        auto* cbSaveTrajectory =
+            panel->add<nanogui::CheckBox>("Save trajectory");
+        cbSaveTrajectory->setChecked(params_.estimated_trajectory.save_to_file);
+        cbSaveTrajectory->setCallback([this](bool checked) {
+            params_.estimated_trajectory.save_to_file = checked;
+        });
+
+        auto* edTrajOutFile = panel->add<nanogui::TextBox>();
+        edTrajOutFile->setFontSize(13);
+        edTrajOutFile->setEditable(true);
+        edTrajOutFile->setAlignment(nanogui::TextBox::Alignment::Left);
+        edTrajOutFile->setValue(params_.estimated_trajectory.output_file);
+        edTrajOutFile->setCallback([this](const std::string& f) {
+            params_.estimated_trajectory.output_file = f;
+            return true;
+        });
+    }
+
+    {
+        auto* panel = tab2->add<nanogui::Widget>();
+        panel->setLayout(new nanogui::BoxLayout(
+            nanogui::Orientation::Horizontal, nanogui::Alignment::Maximum, 1,
+            1));
+
+        auto* cbSaveSimplemap =
+            panel->add<nanogui::CheckBox>("Generate simplemap");
+        cbSaveSimplemap->setChecked(params_.simplemap.generate);
+        cbSaveSimplemap->setCallback(
+            [this](bool checked) { params_.simplemap.generate = checked; });
+
+        auto* edMapOutFile = panel->add<nanogui::TextBox>();
+        edMapOutFile->setFontSize(13);
+        edMapOutFile->setEditable(true);
+        edMapOutFile->setAlignment(nanogui::TextBox::Alignment::Left);
+        edMapOutFile->setValue(params_.simplemap.save_final_map_to_file);
+        edMapOutFile->setCallback([this](const std::string& f) {
+            params_.simplemap.save_final_map_to_file = f;
+            return true;
+        });
+    }
+
+    {
+        auto* panel = tab2->add<nanogui::Widget>();
+        panel->setLayout(new nanogui::BoxLayout(
+            nanogui::Orientation::Horizontal, nanogui::Alignment::Maximum, 1,
+            1));
+
+        auto* btnSaveTraj =
+            panel->add<nanogui::Button>("Save traj. now", ENTYPO_ICON_SAVE);
+        btnSaveTraj->setFontSize(14);
+
+        btnSaveTraj->setCallback(
+            [this]() { this->saveEstimatedTrajectoryToFile(); });
+
+        auto* btnSaveMap =
+            panel->add<nanogui::Button>("Save map now", ENTYPO_ICON_SAVE);
+        btnSaveMap->setFontSize(14);
+
+        btnSaveMap->setCallback(
+            [this]() { this->saveReconstructedMapToFile(); });
+    }
+
+    auto btnReset = tab2->add<nanogui::Button>("Reset", ENTYPO_ICON_CCW);
+    btnReset->setCallback([&]() {
+        try
+        {
+            this->reset();
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << e.what() << std::endl;
+        }
+    });
+
+    auto btnQuit = tab2->add<nanogui::Button>("Quit", ENTYPO_ICON_ARROW_LEFT);
+    btnQuit->setCallback([&]() { this->requestShutdown(); });
 }
 
 std::tuple<bool /*isFirst*/, mrpt::poses::CPose3D /*distanceToClosest*/>
