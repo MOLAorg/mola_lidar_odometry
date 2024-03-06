@@ -27,6 +27,7 @@ find_mola_package(mola_kernel)
 find_mola_package(mp2p_icp)
 find_mola_package(mp2p_icp_filters)
 find_mola_package(mola_navstate_fuse)
+find_mola_package(mola_pose_list)
 
 # -----------------------
 # define lib:
@@ -42,6 +43,7 @@ mola_add_library(
 		mola::mp2p_icp
 		mola::mp2p_icp_filters
 		mola::mola_navstate_fuse
+		mola::mola_pose_list
 #	PRIVATE_LINK_LIBRARIES
 #		mrpt::maps
 	CMAKE_DEPENDENCIES
