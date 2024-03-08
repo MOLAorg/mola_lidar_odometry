@@ -187,7 +187,7 @@ void LidarOdometry::Parameters::TrajectoryOutputOptions::initialize(
     YAML_LOAD_OPT(output_file, std::string);
 }
 
-void LidarOdometry::initialize(const Yaml& c)
+void LidarOdometry::initialize_frontend(const Yaml& c)
 {
     MRPT_TRY_START
 

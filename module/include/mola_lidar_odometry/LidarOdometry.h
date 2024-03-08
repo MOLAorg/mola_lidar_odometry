@@ -59,7 +59,7 @@ class LidarOdometry : public FrontEndBase
      * @{ */
 
     // See docs in base class
-    void initialize(const Yaml& cfg) override;
+    void initialize_frontend(const Yaml& cfg) override;
     void spinOnce() override;
     void onNewObservation(const CObservation::Ptr& o) override;
 
