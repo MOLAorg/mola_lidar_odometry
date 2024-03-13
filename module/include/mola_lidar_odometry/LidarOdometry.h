@@ -25,14 +25,23 @@
  */
 #pragma once
 
+// MOLA interfaces:
 #include <mola_kernel/interfaces/FrontEndBase.h>
+#include <mola_kernel/interfaces/LocalizationSourceBase.h>
+#include <mola_kernel/interfaces/MapSourceBase.h>
+
+// Other packages:
 #include <mola_navstate_fuse/NavStateFuse.h>
 #include <mola_navstate_fuse/NavStateFuseParams.h>
 #include <mola_pose_list/SearchablePoseList.h>
+
+// MP2P_ICP
 #include <mp2p_icp/ICP.h>
 #include <mp2p_icp/Parameterizable.h>
 #include <mp2p_icp_filters/FilterBase.h>
 #include <mp2p_icp_filters/Generator.h>
+
+// MRPT
 #include <mrpt/core/WorkerThreadsPool.h>
 #include <mrpt/maps/CSimpleMap.h>
 #include <mrpt/maps/CSimplePointsMap.h>
@@ -47,7 +56,9 @@ namespace mola
 {
 /** LIDAR-inertial odometry based on ICP against a local metric map model.
  */
-class LidarOdometry : public FrontEndBase
+class LidarOdometry : public FrontEndBase,
+                      public LocalizationSourceBase,
+                      public MapSourceBase
 {
     DEFINE_MRPT_OBJECT(LidarOdometry, mola)
 
@@ -149,6 +160,10 @@ class LidarOdometry : public FrontEndBase
              * how often to do the distant keyframes clean up.
              */
             uint32_t check_for_removal_every_n = 100;
+
+            /** Publish updated map via mola::MapSourceBase once every N frames
+             */
+            uint32_t publish_map_updates_every_n = 10;
 
             void initialize(const Yaml& c, Parameters& parent);
         };
@@ -367,7 +382,8 @@ class LidarOdometry : public FrontEndBase
         std::optional<SearchablePoseList> distance_checker_simplemap;
 
         /// See check_for_removal_every_n
-        uint32_t localmap_check_removal_counter = 0;
+        uint32_t localmap_check_removal_counter     = 0;
+        uint32_t localmap_advertise_updates_counter = 0;
 
         // GNNS:
         mrpt::obs::CObservation::Ptr last_gnns_;

@@ -177,6 +177,7 @@ void LidarOdometry::Parameters::MapUpdateOptions::initialize(
     DECLARE_PARAMETER_IN_REQ(cfg, min_rotation_between_keyframes, parent);
     DECLARE_PARAMETER_IN_OPT(cfg, max_distance_to_keep_keyframes, parent);
     DECLARE_PARAMETER_IN_OPT(cfg, check_for_removal_every_n, parent);
+    DECLARE_PARAMETER_IN_OPT(cfg, publish_map_updates_every_n, parent);
     YAML_LOAD_OPT(measure_from_last_kf_only, bool);
 }
 
@@ -1016,19 +1017,40 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             curTwist);
     }
 
-    // In any case, publish to the SLAM BackEnd what's our **current**
-    // vehicle pose, no matter if it's a keyframe or not:
-    if (slam_backend_)
+    // In any case, publish the vehicle pose, no matter if it's a keyframe or
+    // not:
     {
         ProfilerEntry tle(profiler_, "onLidar.5.advertiseUpdatedLocalization");
 
-        BackEndBase::AdvertiseUpdatedLocalization_Input new_loc;
-        new_loc.timestamp = this_obs_tim;
-        // new_loc.reference_kf = state_.last_kf;
-        new_loc.pose = state_.last_lidar_pose.mean.asTPose();
+        LocalizationUpdate lu;
+        lu.method          = "lidar_odometry";
+        lu.reference_frame = "odom";
+        lu.timestamp       = this_obs_tim;
+        lu.pose            = state_.last_lidar_pose.mean.asTPose();
+        lu.cov             = state_.last_lidar_pose.cov;
 
-        std::future<void> adv_pose_fut =
-            slam_backend_->advertiseUpdatedLocalization(new_loc);
+        advertiseUpdatedLocalization(lu);
+    }
+
+    // Publish new local map:
+    if (state_.localmap_advertise_updates_counter++ >=
+        params_.local_map_updates.publish_map_updates_every_n)
+    {
+        ProfilerEntry tleCleanup(profiler_, "onLidar.6.advertiseMap");
+        state_.localmap_advertise_updates_counter = 0;
+
+        MapUpdate mu;
+        mu.method          = "lidar_odometry";
+        mu.reference_frame = "map";
+        mu.timestamp       = this_obs_tim;
+
+        // publish all local map layers:
+        for (const auto& [layerName, layerMap] : state_.local_map->layers)
+        {
+            mu.map_name = layerName;
+            mu.map      = layerMap;
+            advertiseUpdatedMap(mu);
+        }
     }
 
     // Optional real-time GUI via MOLA VizInterface:
