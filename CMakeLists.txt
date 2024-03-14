@@ -137,9 +137,12 @@ enable_testing()
 add_subdirectory(module/tests)
 
 # Install files:
-install(DIRECTORY
-  mola-cli-launchs
-  pipelines
+install(
+  DIRECTORY
+    mola-cli-launchs
+    pipelines
+    ros2-launchs
+    rviz2
   DESTINATION
     share/${PROJECT_NAME}
 )

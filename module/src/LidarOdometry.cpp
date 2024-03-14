@@ -31,6 +31,7 @@
 #include <mrpt/config/CConfigFileMemory.h>
 #include <mrpt/containers/yaml.h>
 #include <mrpt/core/initializer.h>
+#include <mrpt/io/CMemoryStream.h>
 #include <mrpt/maps/CColouredPointsMap.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservationGPS.h>
@@ -1019,39 +1020,10 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
     // In any case, publish the vehicle pose, no matter if it's a keyframe or
     // not:
-    {
-        ProfilerEntry tle(profiler_, "onLidar.5.advertiseUpdatedLocalization");
-
-        LocalizationUpdate lu;
-        lu.method          = "lidar_odometry";
-        lu.reference_frame = "odom";
-        lu.timestamp       = this_obs_tim;
-        lu.pose            = state_.last_lidar_pose.mean.asTPose();
-        lu.cov             = state_.last_lidar_pose.cov;
-
-        advertiseUpdatedLocalization(lu);
-    }
+    doPublishUpdatedLocalization(this_obs_tim);
 
     // Publish new local map:
-    if (state_.localmap_advertise_updates_counter++ >=
-        params_.local_map_updates.publish_map_updates_every_n)
-    {
-        ProfilerEntry tleCleanup(profiler_, "onLidar.6.advertiseMap");
-        state_.localmap_advertise_updates_counter = 0;
-
-        MapUpdate mu;
-        mu.method          = "lidar_odometry";
-        mu.reference_frame = "map";
-        mu.timestamp       = this_obs_tim;
-
-        // publish all local map layers:
-        for (const auto& [layerName, layerMap] : state_.local_map->layers)
-        {
-            mu.map_name = layerName;
-            mu.map      = layerMap;
-            advertiseUpdatedMap(mu);
-        }
-    }
+    doPublishUpdatedMap(this_obs_tim);
 
     // Optional real-time GUI via MOLA VizInterface:
     if (visualizer_ && state_.local_map)
@@ -1706,4 +1678,85 @@ void LidarOdometry::internalBuildGUI()
 
     auto btnQuit = tab2->add<nanogui::Button>("Quit", ENTYPO_ICON_ARROW_LEFT);
     btnQuit->setCallback([&]() { this->requestShutdown(); });
+}
+
+void LidarOdometry::doPublishUpdatedLocalization(
+    const mrpt::Clock::time_point& this_obs_tim)
+{
+    if (!anyUpdateMapSubscriber()) return;
+
+    ProfilerEntry tle(profiler_, "advertiseUpdatedLocalization");
+
+    LocalizationUpdate lu;
+    lu.method          = "lidar_odometry";
+    lu.reference_frame = "odom";
+    lu.timestamp       = this_obs_tim;
+    lu.pose            = state_.last_lidar_pose.mean.asTPose();
+    lu.cov             = state_.last_lidar_pose.cov;
+
+    advertiseUpdatedLocalization(lu);
+}
+
+void LidarOdometry::doPublishUpdatedMap(
+    const mrpt::Clock::time_point& this_obs_tim)
+{
+    if (state_.localmap_advertise_updates_counter++ <
+        params_.local_map_updates.publish_map_updates_every_n)
+        return;
+
+    if (!anyUpdateMapSubscriber()) return;
+
+    ProfilerEntry tleCleanup(profiler_, "advertiseMap");
+    state_.localmap_advertise_updates_counter = 0;
+
+    MapUpdate mu;
+    mu.method          = "lidar_odometry";
+    mu.reference_frame = "map";
+    mu.timestamp       = this_obs_tim;
+
+    // publish all local map layers:
+    // make map *copies* to make this multithread safe.
+    // This is costly for large maps (!). That's why we decimate sending
+    // map notifications and check for anyUpdateMapSubscriber() above.
+    for (const auto& [layerName, layerMap] : state_.local_map->layers)
+    {
+        mu.map_name = layerName;
+
+        // Make a copy of the maps:
+        if (auto mapPts =
+                std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layerMap);
+            mapPts)
+        {  // point cloud maps:
+            auto mapCopy = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(
+                mrpt::rtti::classFactory(
+                    layerMap->GetRuntimeClass()->className));
+            ASSERT_(mapCopy);
+            mapCopy->insertAnotherMap(
+                mapPts.get(), mrpt::poses::CPose3D::Identity());
+
+            mu.map = mapCopy;
+        }
+        else if (auto auxPts = layerMap->getAsSimplePointsMap(); auxPts)
+        {  // classes implementing getAsSimplePointsMap()
+            auto mapCopy = mrpt::maps::CSimplePointsMap::Create();
+            mapCopy->insertAnotherMap(auxPts, mrpt::poses::CPose3D::Identity());
+
+            mu.map = mapCopy;
+        }
+        else
+        {
+            // Any other class: make a deep copy.
+            mrpt::io::CMemoryStream buf;
+            auto                    ar = mrpt::serialization::archiveFrom(buf);
+            ar << *layerMap;
+            buf.Seek(0);
+            auto out = ar.ReadObject();
+
+            mu.map = std::dynamic_pointer_cast<mrpt::maps::CMetricMap>(out);
+            ASSERT_(mu.map);
+        }
+
+        // send it out:
+        advertiseUpdatedMap(mu);
+    }
 }

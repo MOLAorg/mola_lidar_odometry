@@ -449,6 +449,11 @@ class LidarOdometry : public FrontEndBase,
     void updateVisualization();
 
     void internalBuildGUI();
+
+    void doPublishUpdatedLocalization(
+        const mrpt::Clock::time_point& this_obs_tim);
+
+    void doPublishUpdatedMap(const mrpt::Clock::time_point& this_obs_tim);
 };
 
 }  // namespace mola

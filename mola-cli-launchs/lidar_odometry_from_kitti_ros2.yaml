@@ -1,0 +1,77 @@
+# -----------------------------------------------------------------------------
+#                        SLAM system definition for MOLA
+# This file defines:
+# An input sensor from a ROS 2 topic, and the MOLA Visualizer.
+# -----------------------------------------------------------------------------
+
+modules:
+  # =====================
+  # MolaViz
+  # =====================
+  - name: viz
+    type: mola::MolaViz
+    #verbosity_level: DEBUG
+    params: ~ # none
+
+# Offline or online sensory data sources =====================
+  # =====================
+  # KittiOdometryDataset
+  # =====================
+  - name: dataset_input
+    type: mola::KittiOdometryDataset
+    execution_rate: 20 # Hz
+    #verbosity_level: INFO
+    quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|false}
+    
+    gui_preview_sensors:
+      - raw_sensor_label: lidar
+        decimation: 1
+        win_pos: 5 70 400 400
+      - raw_sensor_label: image_0
+        decimation: 1
+        win_pos: 5 370 600 200
+    params:
+      base_dir: ${KITTI_BASE_DIR}
+      sequence: ${KITTI_SEQ}
+      time_warp_scale: ${MOLA_TIME_WARP|1.0}
+      start_paused: ${MOLA_DATASET_START_PAUSED|false}
+      publish_lidar: true
+      publish_image_0: true
+      publish_image_1: true
+      publish_ground_truth: true
+
+  - name: lidar_odom
+    type: mola::LidarOdometry
+    #verbosity_level: DEBUG
+    raw_data_source: 'dataset_input'
+    # This includes here a whole block "params: (...)"
+    # with the LIDAR-Odometry pipeline configuration:
+    params: '${MOLA_ODOMETRY_PIPELINE_YAML|../pipelines/lidar3d-default.yaml}'
+
+  # MOLA -> ROS 2 bridge  =====================
+  - name: ros2_output
+    type: mola::OutputROS2
+
+    # In OutputROS2, this execution rate (Hz) is not relevant.
+    execution_rate: 20 # Hz
+    #verbosity_level: INFO
+    params:
+      # Whenever a MOLA odometry/SLAM system publishes a new pose estimate
+      # it will be forwarded to /tf as a transformation between: 
+      # `reference_frame` -> `base_link_frame`
+      base_link_frame: base_link
+      reference_frame: map
+
+      # If true, an nav_msgs/Odometry message will be also published from SLAM solution:
+      publish_odometry_msgs_from_slam: true
+
+      # do not publish to /tf from ground_truth
+      publish_tf_from_robot_pose_observations: false
+
+      # If true, the original dataset timestamps will be used to publish.
+      # Otherwise, the wallclock time will be used.
+      publish_in_sim_time: false
+
+      period_publish_new_localization: 0.1 # [s]
+      period_publish_new_map: 5.0 # [s]
+
