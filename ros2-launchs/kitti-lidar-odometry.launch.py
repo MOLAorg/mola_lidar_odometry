@@ -32,7 +32,7 @@ def generate_launch_description():
         executable='mola-cli',
         output='screen',
         arguments=[
-                os.path.join(myDir, 'mola-cli-launchs', 'lidar_odometry_from_kitti_ros2.yaml')]
+                os.path.join(myDir, 'mola-cli-launchs', 'lidar_odometry_from_kitti_output_ros2.yaml')]
     )
 
     rviz2_node = Node(
