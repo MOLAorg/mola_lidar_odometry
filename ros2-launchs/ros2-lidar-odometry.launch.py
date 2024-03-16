@@ -20,13 +20,19 @@ def generate_launch_description():
         "lidar_topic_name", description="Topic name to listen for PointCloud2 input from the LiDAR (for example '/ouster/points')")
 
     topic_env_var = SetEnvironmentVariable(
-        name='MOLA_LIDAR_NAME', value=LaunchConfiguration('lidar_topic_name'))
+        name='MOLA_LIDAR_TOPIC', value=LaunchConfiguration('lidar_topic_name'))
 
     ignore_lidar_pose_from_tf_arg = DeclareLaunchArgument(
         "ignore_lidar_pose_from_tf", default_value="false", description="If true, the LiDAR pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf")
 
     fixed_sensorpose_env_var = SetEnvironmentVariable(
         name='MOLA_USE_FIXED_LIDAR_POSE', value=LaunchConfiguration('ignore_lidar_pose_from_tf'))
+
+    gnns_topic_name_arg = DeclareLaunchArgument(
+        "gnns_topic_name", description="Topic name to listen for NavSatFix input from a GNNS (for example '/gps')")
+
+    gps_topic_env_var = SetEnvironmentVariable(
+        name='MOLA_GNNS_TOPIC', value=LaunchConfiguration('gnns_topic_name'))
 
     mola_cli_node = Node(
         package='mola_launcher',
@@ -49,6 +55,8 @@ def generate_launch_description():
         topic_env_var,
         ignore_lidar_pose_from_tf_arg,
         fixed_sensorpose_env_var,
+        gnns_topic_name_arg,
+        gps_topic_env_var,
         mola_cli_node,
         rviz2_node
     ])

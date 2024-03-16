@@ -49,11 +49,11 @@ modules:
     params: '${MOLA_ODOMETRY_PIPELINE_YAML|../pipelines/lidar3d-default.yaml}'
 
   # MOLA -> ROS 2 bridge  =====================
-  - name: ros2_output
-    type: mola::OutputROS2
+  - name: ros2_bridge
+    type: mola::BridgeROS2
 
-    # In OutputROS2, this execution rate (Hz) is not relevant.
     execution_rate: 20 # Hz
+
     #verbosity_level: INFO
     params:
       # Whenever a MOLA odometry/SLAM system publishes a new pose estimate

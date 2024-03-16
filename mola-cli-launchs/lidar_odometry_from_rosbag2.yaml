@@ -63,9 +63,13 @@ modules:
           fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
 
+        - topic: ${MOLA_GNNS_TOPIC|'/gps'}
+          sensorLabel: 'gps'
+          type: CObservationGPS
+
         #- topic: /ouster/range_image
         #  type: CObservationImage
         #  fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg'
 
-        #- topic: ${ODOMETRY_TOPIC|'/odom'}
+        #- topic: ${MOLA_ODOMETRY_TOPIC|'/odom'}
         #  type: CObservationOdometry
