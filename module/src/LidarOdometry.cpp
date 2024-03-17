@@ -999,23 +999,27 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         mrpt::obs::CSensoryFrame obsSF;
         obsSF += sf;
 
-        // insert GNNS too?
-        if (auto gps = state_.last_gnns_; gps)
+        const auto curLidarStamp = obs->getTimeStamp();
+
+        // insert GNNS too? Search for a close-enough observation:
+        std::optional<double>           closestTimeAbsDiff;
+        mrpt::obs::CObservationGPS::Ptr closestGPS;
+
+        for (const auto& [gpsStamp, gpsObs] : state_.last_gnns_)
         {
-            const double stampDiff = mrpt::system::timeDifference(
-                gps->getTimeStamp(), obs->getTimeStamp());
+            const double timeDiff =
+                std::abs(mrpt::system::timeDifference(gpsStamp, curLidarStamp));
 
-            MRPT_LOG_DEBUG_FMT(
-                "Last GNNS observation stamp_diff=%.03f s (while updating "
-                "simplemap)",
-                stampDiff);
+            if (timeDiff > params_.simplemap.save_gnns_max_age) continue;
 
-            if (std::abs(stampDiff) < params_.simplemap.save_gnns_max_age)
+            if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff)
             {
-                obsSF.insert(gps);
+                closestTimeAbsDiff = timeDiff;
+                closestGPS         = gpsObs;
             }
-            state_.last_gnns_.reset();
         }
+
+        if (closestGPS) obsSF.insert(closestGPS);
 
         MRPT_LOG_DEBUG_STREAM(
             "New SimpleMap KeyFrame. SF=" << obsSF.size() << " observations.");
@@ -1197,8 +1201,14 @@ void LidarOdometry::onGPSImpl(const CObservation::Ptr& o)
         "GNNS observation received, t=%.03f",
         mrpt::Clock::toDouble(gps->timestamp));
 
-    // Keep the latest GPS for simplemap insertion:
-    state_.last_gnns_ = gps;
+    // Keep the latest GPS observations for simplemap insertion:
+    state_.last_gnns_.emplace(gps->timestamp, gps);
+
+    // remove old ones:
+    while (state_.last_gnns_.size() > params_.gnns_queue_max_size)
+    {
+        state_.last_gnns_.erase(state_.last_gnns_.begin());
+    }
 }
 
 bool LidarOdometry::isBusy() const

@@ -29,7 +29,7 @@ def generate_launch_description():
         name='MOLA_USE_FIXED_LIDAR_POSE', value=LaunchConfiguration('ignore_lidar_pose_from_tf'))
 
     gnns_topic_name_arg = DeclareLaunchArgument(
-        "gnns_topic_name", description="Topic name to listen for NavSatFix input from a GNNS (for example '/gps')")
+        "gnns_topic_name", default_value="/gps", description="Topic name to listen for NavSatFix input from a GNNS (for example '/gps')")
 
     gps_topic_env_var = SetEnvironmentVariable(
         name='MOLA_GNNS_TOPIC', value=LaunchConfiguration('gnns_topic_name'))

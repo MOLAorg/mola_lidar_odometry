@@ -45,6 +45,7 @@
 #include <mrpt/core/WorkerThreadsPool.h>
 #include <mrpt/maps/CSimpleMap.h>
 #include <mrpt/maps/CSimplePointsMap.h>
+#include <mrpt/obs/obs_frwds.h>
 #include <mrpt/opengl/CSetOfLines.h>
 #include <mrpt/opengl/CSetOfObjects.h>
 #include <mrpt/poses/CPose3DInterpolator.h>
@@ -286,6 +287,8 @@ class LidarOdometry : public FrontEndBase,
         bool start_active = true;
 
         uint32_t max_worker_thread_queue_before_drop = 500;
+
+        uint32_t gnns_queue_max_size = 100;
     };
 
     /** Algorithm parameters */
@@ -385,8 +388,12 @@ class LidarOdometry : public FrontEndBase,
         uint32_t localmap_check_removal_counter     = 0;
         uint32_t localmap_advertise_updates_counter = 0;
 
-        // GNNS:
-        mrpt::obs::CObservation::Ptr last_gnns_;
+        // GNNS: keep a list of recent observations to later on search the one
+        // closest to each LIDAR observation:
+        std::map<
+            mrpt::Clock::time_point,
+            std::shared_ptr<mrpt::obs::CObservationGPS>>
+            last_gnns_;
 
         // Visualization:
         mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;
