@@ -430,14 +430,19 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr& o)
         return;
     }
 
-    if (!state_.active)
+    // Force a refresh of the GUI?
+    // Executed here since
+    // otherwise the GUI would never show up if inactive, or if the LIDAR
+    // observations are misconfigured and are not been fed in.
+    if ((visualizer_ && state_.local_map) &&
+        (state_.local_map->empty() || !state_.active))
     {
-        // Optional real-time GUI via MOLA VizInterface. Execute here since
-        // otherwise the GUI would never show up if inactive!
-        if (visualizer_ && state_.local_map) updateVisualization();
-
-        return;
+        if (mrpt::Clock::nowDouble() - gui_.timestampLastUpdateUI > 1.0)
+            updateVisualization();
     }
+
+    // SLAM enabled?
+    if (!state_.active) return;
 
     // Is it an IMU obs?
     if (params_.imu_sensor_label &&
@@ -997,14 +1002,23 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         // insert GNNS too?
         if (auto gps = state_.last_gnns_; gps)
         {
-            if (std::abs(mrpt::system::timeDifference(
-                    gps->getTimeStamp(), obs->getTimeStamp())) <
-                params_.simplemap.save_gnns_max_age)
+            const double stampDiff = mrpt::system::timeDifference(
+                gps->getTimeStamp(), obs->getTimeStamp());
+
+            MRPT_LOG_DEBUG_FMT(
+                "Last GNNS observation stamp_diff=%.03f s (while updating "
+                "simplemap)",
+                stampDiff);
+
+            if (std::abs(stampDiff) < params_.simplemap.save_gnns_max_age)
             {
                 obsSF.insert(gps);
             }
             state_.last_gnns_.reset();
         }
+
+        MRPT_LOG_DEBUG_STREAM(
+            "New SimpleMap KeyFrame. SF=" << obsSF.size() << " observations.");
 
         std::optional<mrpt::math::TTwist3D> curTwist;
         if (hasMotionModel) curTwist = motionModelOutput->twist;
@@ -1012,7 +1026,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         state_.reconstructed_simplemap.insert(
             // Pose: mean + covariance
             mrpt::poses::CPose3DPDFGaussian::Create(state_.last_lidar_pose),
-            // SensoryFrame: set of observations (only one)
+            // SensoryFrame: set of observations from this KeyFrame:
             mrpt::obs::CSensoryFrame::Create(obsSF),
             // twist
             curTwist);
@@ -1351,6 +1365,8 @@ void LidarOdometry::updatePipelineDynamicVariables()
 
 void LidarOdometry::updateVisualization()
 {
+    gui_.timestampLastUpdateUI = mrpt::Clock::nowDouble();
+
     // In this point, we are called by the LIDAR worker thread, so it's safe
     // to read the state without mutexes.
     ASSERT_(visualizer_);
@@ -1483,6 +1499,16 @@ void LidarOdometry::updateVisualization()
             "simplemap KFs: %4zu ", state_.reconstructed_simplemap.size());
 
         visualizer_->output_console_message(ss.str());
+    }
+
+    // Show a warning if no lidar input is being received:
+    if (state_.local_map->empty())
+    {
+        const auto s = mrpt::format(
+            "t=%.03f *WARNING* No input LiDAR observations received yet!",
+            mrpt::Clock::nowDouble());
+        visualizer_->output_console_message(s);
+        return;
     }
 
     // Sub-window with custom UI

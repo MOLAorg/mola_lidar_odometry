@@ -408,6 +408,8 @@ class LidarOdometry : public FrontEndBase,
     {
         StateUI() = default;
 
+        double timestampLastUpdateUI = 0;
+
         nanogui::Window* ui            = nullptr;
         nanogui::Label*  lbIcpQuality  = nullptr;
         nanogui::Label*  lbSigma       = nullptr;
