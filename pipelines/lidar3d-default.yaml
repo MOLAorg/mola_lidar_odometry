@@ -49,9 +49,9 @@ params:
   # to a ".simplemap" file for later use for localization, etc.
   simplemap:
     generate: ${MOLA_GENERATE_SIMPLEMAP|false}   # Can be overriden with CLI flag --output-simplemap
-    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|0.05}   # m
-    min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|3.0}  # deg
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
+    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|0.50}   # m
+    min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|10.0}  # deg
     save_gnns_max_age: 1.0  # [s] max age of GNNS observations to keep in the keyframe
 
   # Save the final trajectory in TUM format. Disabled by default.

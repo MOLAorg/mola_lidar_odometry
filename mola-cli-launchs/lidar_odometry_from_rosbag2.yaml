@@ -13,6 +13,9 @@ modules:
     #verbosity_level: DEBUG
     params: ~ # none
 
+  # =====================
+  # LIDAR ODOMETRY
+  # =====================
   - name: icp_odom
     type: mola::LidarOdometry
     #verbosity_level: DEBUG
@@ -21,7 +24,9 @@ modules:
     # with the LIDAR-Odometry pipeline configuration:
     params: '${MOLA_ODOMETRY_PIPELINE_YAML|../pipelines/lidar3d-default.yaml}'
 
-# Offline or online sensory data sources =====================
+  # =========================
+  # Offline dataset source
+  # =========================
   - type: mola::Rosbag2Dataset
     name: dataset_input
     # In Rosbag2Dataset, this execution rate (Hz) determines the
