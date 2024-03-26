@@ -174,12 +174,14 @@ void LidarOdometry::Parameters::MultipleLidarOptions::initialize(
 void LidarOdometry::Parameters::MapUpdateOptions::initialize(
     const Yaml& cfg, Parameters& parent)
 {
+    YAML_LOAD_OPT(enabled, bool);
     DECLARE_PARAMETER_IN_REQ(cfg, min_translation_between_keyframes, parent);
     DECLARE_PARAMETER_IN_REQ(cfg, min_rotation_between_keyframes, parent);
     DECLARE_PARAMETER_IN_OPT(cfg, max_distance_to_keep_keyframes, parent);
     DECLARE_PARAMETER_IN_OPT(cfg, check_for_removal_every_n, parent);
     DECLARE_PARAMETER_IN_OPT(cfg, publish_map_updates_every_n, parent);
     YAML_LOAD_OPT(measure_from_last_kf_only, bool);
+    YAML_LOAD_OPT(load_existing_local_map, std::string);
 }
 
 void LidarOdometry::Parameters::TrajectoryOutputOptions::initialize(
@@ -381,6 +383,21 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
 
     // Parameterizable values in params_:
     params_.attachToParameterSource(state_.parameter_source);
+
+    // Preload maps (multisession SLAM or localization-only):
+    if (!params_.local_map_updates.load_existing_local_map.empty())
+    {
+        bool loadOk = state_.local_map->load_from_file(
+            params_.local_map_updates.load_existing_local_map);
+        ASSERT_(loadOk);
+    }
+
+    if (!params_.simplemap.load_existing_simple_map.empty())
+    {
+        bool loadOk = state_.reconstructed_simplemap.loadFromFile(
+            params_.simplemap.load_existing_simple_map);
+        ASSERT_(loadOk);
+    }
 
     state_.initialized = true;
     state_.active      = params_.start_active;
@@ -855,6 +872,8 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         // clang-format off
         updateLocalMap =
             (icpIsGood &&
+            // Only if we are in mapping mode:
+            params_.local_map_updates.enabled &&
             // skip map update for the special ICP alignment without motion model
              hasMotionModel &&
              (isFirstPoseInChecker ||
@@ -1625,6 +1644,11 @@ void LidarOdometry::internalBuildGUI()
     auto cbActive = tab2->add<nanogui::CheckBox>("Active");
     cbActive->setChecked(state_.active);
     cbActive->setCallback([&](bool checked) { state_.active = checked; });
+
+    auto cbMapping = tab2->add<nanogui::CheckBox>("Mapping enabled");
+    cbMapping->setChecked(params_.local_map_updates.enabled);
+    cbMapping->setCallback(
+        [&](bool checked) { params_.local_map_updates.enabled = checked; });
 
     {
         auto* lbMsg = tab2->add<nanogui::Label>(

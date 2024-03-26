@@ -30,6 +30,9 @@ params:
 
   # How often to update the local map model:
   local_map_updates:
+    enabled: '${MOLA_MAPPING_ENABLED|true}'
+    load_existing_local_map: ${MOLA_LOAD_MM|""}
+
     min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(WX^2+WY^2+WZ^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
     min_rotation_between_keyframes: 15.0 # [deg]
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
@@ -49,6 +52,8 @@ params:
   # to a ".simplemap" file for later use for localization, etc.
   simplemap:
     generate: ${MOLA_GENERATE_SIMPLEMAP|false}   # Can be overriden with CLI flag --output-simplemap
+    load_existing_simple_map: ${MOLA_LOAD_SM|""}
+
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
     min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|0.50}   # m
     min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|10.0}  # deg

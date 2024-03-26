@@ -134,6 +134,11 @@ class LidarOdometry : public FrontEndBase,
 
         struct MapUpdateOptions
         {
+            /** If set to false, the odometry system can be used as
+             * localization-only.
+             */
+            bool enabled = true;
+
             /** Minimum Euclidean distance (x,y,z) between keyframes inserted
              * into the local map [meters]. */
             double min_translation_between_keyframes = 1.0;
@@ -165,6 +170,13 @@ class LidarOdometry : public FrontEndBase,
             /** Publish updated map via mola::MapSourceBase once every N frames
              */
             uint32_t publish_map_updates_every_n = 10;
+
+            /** If non-empty, the local map will be loaded from the given `*.mm`
+             * file instead of generating it from scratch.
+             * This can be used for multi-session SLAM, or for
+             * localization-only.
+             */
+            std::string load_existing_local_map;
 
             void initialize(const Yaml& c, Parameters& parent);
         };
@@ -262,6 +274,12 @@ class LidarOdometry : public FrontEndBase,
              * be stored in the SF.
              */
             double save_gnns_max_age = 1.0;  // [s]
+
+            /** If non-empty, the simple map will be loaded from the given
+             * `*.simplemap` file instead of generating it from scratch. This
+             * can be used for multi-session SLAM, or for localization-only.
+             */
+            std::string load_existing_simple_map;
 
             void initialize(const Yaml& c, Parameters& parent);
         };

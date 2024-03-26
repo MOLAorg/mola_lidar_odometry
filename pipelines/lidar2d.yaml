@@ -30,6 +30,7 @@ params:
 
   # How often to update the local map model:
   local_map_updates:
+    enabled: '${MOLA_MAPPING_ENABLED|true}'
     min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|0.025*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
     min_rotation_between_keyframes: 5.0 # [deg]
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled

@@ -17,6 +17,7 @@ params:
 
   # How often to update the local map model:
   local_map_updates:
+    enabled: '${MOLA_MAPPING_ENABLED|true}'
     min_translation_between_keyframes: 0  # [m]
     min_rotation_between_keyframes: 0  # [deg]
 
