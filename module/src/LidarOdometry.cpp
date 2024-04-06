@@ -1094,12 +1094,6 @@ void LidarOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
                 pcs_local, pcs_global, current_solution, in.icp_params,
                 icp_result, in.prior);
 
-        if (icp_result.quality > 0)
-        {
-            // Accept it:
-            current_solution = icp_result.optimal_tf.mean.asTPose();
-        }
-
         out.found_pose_to_wrt_from = icp_result.optimal_tf;
         out.goodness               = icp_result.quality;
 
