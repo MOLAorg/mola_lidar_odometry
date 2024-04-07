@@ -19,7 +19,7 @@
  * ------------------------------------------------------------------------- */
 /**
  * @file   LidarOdometry.cpp
- * @brief  Header for main C++ class exposing LIDAR odometry
+ * @brief  Main C++ class exposing LIDAR odometry
  * @author Jose Luis Blanco Claraco
  * @date   Sep 16, 2023
  */
@@ -160,6 +160,7 @@ void LidarOdometry::Parameters::SimpleMapOptions::initialize(
     DECLARE_PARAMETER_IN_OPT(cfg, min_translation_between_keyframes, parent);
     DECLARE_PARAMETER_IN_OPT(cfg, min_rotation_between_keyframes, parent);
     YAML_LOAD_OPT(save_final_map_to_file, std::string);
+    YAML_LOAD_OPT(add_non_keyframes_too, bool);
     YAML_LOAD_OPT(measure_from_last_kf_only, bool);
     YAML_LOAD_OPT(save_gnns_max_age, double);
 }
@@ -678,7 +679,8 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
     // Simplemap: an optional map to be saved to disk at the end of the mapping
     // session:
-    bool updateSimpleMap = false;
+    bool updateSimpleMap    = false;
+    bool distance_enough_sm = false;
 
     // First time we cannot do ICP since we need at least two pointclouds:
     ASSERT_(state_.local_map);
@@ -696,7 +698,9 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             "First pointcloud: skipping ICP and directly adding to local map.");
 
         // Create a first KF (at origin)
-        updateLocalMap = true;
+        updateLocalMap     = true;
+        updateSimpleMap    = true;  // update SimpleMap too
+        distance_enough_sm = true;  // and treat this one as a KeyFrame with SF
 
         // Update trajectory too:
         {
@@ -811,10 +815,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             state_.navstate_fuse.fuse_pose(
                 this_obs_tim, icp_out.found_pose_to_wrt_from);
         }
-        else
-        {
-            state_.navstate_fuse.reset();
-        }
+        else { state_.navstate_fuse.reset(); }
 
         // Update trajectory too:
         if (icpIsGood)
@@ -923,16 +924,22 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                 distanceToClosestSM.getRotationMatrix())
                 .norm();
 
+        distance_enough_sm =
+            isFirstPoseInSMChecker ||
+            dist_eucl_since_last_sm >
+                params_.simplemap.min_translation_between_keyframes ||
+            rot_since_last_sm >
+                mrpt::DEG2RAD(params_.simplemap.min_rotation_between_keyframes);
+
         // clang-format off
         updateSimpleMap =
-            (params_.simplemap.generate) &&
+            params_.simplemap.generate &&
             (icpIsGood &&
-             (isFirstPoseInSMChecker ||
-              dist_eucl_since_last_sm > params_.simplemap.min_translation_between_keyframes ||
-              rot_since_last_sm > mrpt::DEG2RAD(params_.simplemap.min_rotation_between_keyframes)));
+             (distance_enough_sm || params_.simplemap.add_non_keyframes_too)
+            );
         // clang-format on
 
-        if (updateSimpleMap)
+        if (updateSimpleMap && distance_enough_sm)
             state_.distance_checker_simplemap->insert(
                 state_.last_lidar_pose.mean);
 
@@ -1016,29 +1023,34 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         auto lck = mrpt::lockHelper(state_simplemap_mtx_);
 
         mrpt::obs::CSensoryFrame obsSF;
-        obsSF += sf;
-
-        const auto curLidarStamp = obs->getTimeStamp();
-
-        // insert GNNS too? Search for a close-enough observation:
-        std::optional<double>           closestTimeAbsDiff;
-        mrpt::obs::CObservationGPS::Ptr closestGPS;
-
-        for (const auto& [gpsStamp, gpsObs] : state_.last_gnns_)
+        // Add observations only if this is a real keyframe
+        // (the alternative is this is a regular frame, but the option
+        //  add_non_keyframes_too is set):
+        if (distance_enough_sm)
         {
-            const double timeDiff =
-                std::abs(mrpt::system::timeDifference(gpsStamp, curLidarStamp));
+            obsSF += sf;
 
-            if (timeDiff > params_.simplemap.save_gnns_max_age) continue;
+            const auto curLidarStamp = obs->getTimeStamp();
 
-            if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff)
+            // insert GNNS too? Search for a close-enough observation:
+            std::optional<double>           closestTimeAbsDiff;
+            mrpt::obs::CObservationGPS::Ptr closestGPS;
+
+            for (const auto& [gpsStamp, gpsObs] : state_.last_gnns_)
             {
-                closestTimeAbsDiff = timeDiff;
-                closestGPS         = gpsObs;
-            }
-        }
+                const double timeDiff = std::abs(
+                    mrpt::system::timeDifference(gpsStamp, curLidarStamp));
 
-        if (closestGPS) obsSF.insert(closestGPS);
+                if (timeDiff > params_.simplemap.save_gnns_max_age) continue;
+
+                if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff)
+                {
+                    closestTimeAbsDiff = timeDiff;
+                    closestGPS         = gpsObs;
+                }
+            }
+            if (closestGPS) obsSF.insert(closestGPS);
+        }
 
         MRPT_LOG_DEBUG_STREAM(
             "New SimpleMap KeyFrame. SF=" << obsSF.size() << " observations.");
@@ -1641,8 +1653,8 @@ void LidarOdometry::internalBuildGUI()
 
     auto cbMapping = tab2->add<nanogui::CheckBox>("Mapping enabled");
     cbMapping->setChecked(params_.local_map_updates.enabled);
-    cbMapping->setCallback(
-        [&](bool checked) { params_.local_map_updates.enabled = checked; });
+    cbMapping->setCallback([&](bool checked)
+                           { params_.local_map_updates.enabled = checked; });
 
     {
         auto* lbMsg = tab2->add<nanogui::Label>(
@@ -1659,19 +1671,21 @@ void LidarOdometry::internalBuildGUI()
         auto* cbSaveTrajectory =
             panel->add<nanogui::CheckBox>("Save trajectory");
         cbSaveTrajectory->setChecked(params_.estimated_trajectory.save_to_file);
-        cbSaveTrajectory->setCallback([this](bool checked) {
-            params_.estimated_trajectory.save_to_file = checked;
-        });
+        cbSaveTrajectory->setCallback(
+            [this](bool checked)
+            { params_.estimated_trajectory.save_to_file = checked; });
 
         auto* edTrajOutFile = panel->add<nanogui::TextBox>();
         edTrajOutFile->setFontSize(13);
         edTrajOutFile->setEditable(true);
         edTrajOutFile->setAlignment(nanogui::TextBox::Alignment::Left);
         edTrajOutFile->setValue(params_.estimated_trajectory.output_file);
-        edTrajOutFile->setCallback([this](const std::string& f) {
-            params_.estimated_trajectory.output_file = f;
-            return true;
-        });
+        edTrajOutFile->setCallback(
+            [this](const std::string& f)
+            {
+                params_.estimated_trajectory.output_file = f;
+                return true;
+            });
     }
 
     {
@@ -1683,18 +1697,20 @@ void LidarOdometry::internalBuildGUI()
         auto* cbSaveSimplemap =
             panel->add<nanogui::CheckBox>("Generate simplemap");
         cbSaveSimplemap->setChecked(params_.simplemap.generate);
-        cbSaveSimplemap->setCallback(
-            [this](bool checked) { params_.simplemap.generate = checked; });
+        cbSaveSimplemap->setCallback([this](bool checked)
+                                     { params_.simplemap.generate = checked; });
 
         auto* edMapOutFile = panel->add<nanogui::TextBox>();
         edMapOutFile->setFontSize(13);
         edMapOutFile->setEditable(true);
         edMapOutFile->setAlignment(nanogui::TextBox::Alignment::Left);
         edMapOutFile->setValue(params_.simplemap.save_final_map_to_file);
-        edMapOutFile->setCallback([this](const std::string& f) {
-            params_.simplemap.save_final_map_to_file = f;
-            return true;
-        });
+        edMapOutFile->setCallback(
+            [this](const std::string& f)
+            {
+                params_.simplemap.save_final_map_to_file = f;
+                return true;
+            });
     }
 
     {
@@ -1707,28 +1723,30 @@ void LidarOdometry::internalBuildGUI()
             panel->add<nanogui::Button>("Save traj. now", ENTYPO_ICON_SAVE);
         btnSaveTraj->setFontSize(14);
 
-        btnSaveTraj->setCallback(
-            [this]() { this->saveEstimatedTrajectoryToFile(); });
+        btnSaveTraj->setCallback([this]()
+                                 { this->saveEstimatedTrajectoryToFile(); });
 
         auto* btnSaveMap =
             panel->add<nanogui::Button>("Save map now", ENTYPO_ICON_SAVE);
         btnSaveMap->setFontSize(14);
 
-        btnSaveMap->setCallback(
-            [this]() { this->saveReconstructedMapToFile(); });
+        btnSaveMap->setCallback([this]()
+                                { this->saveReconstructedMapToFile(); });
     }
 
     auto btnReset = tab2->add<nanogui::Button>("Reset", ENTYPO_ICON_CCW);
-    btnReset->setCallback([&]() {
-        try
+    btnReset->setCallback(
+        [&]()
         {
-            this->reset();
-        }
-        catch (const std::exception& e)
-        {
-            std::cerr << e.what() << std::endl;
-        }
-    });
+            try
+            {
+                this->reset();
+            }
+            catch (const std::exception& e)
+            {
+                std::cerr << e.what() << std::endl;
+            }
+        });
 
     auto btnQuit = tab2->add<nanogui::Button>("Quit", ENTYPO_ICON_ARROW_LEFT);
     btnQuit->setCallback([&]() { this->requestShutdown(); });

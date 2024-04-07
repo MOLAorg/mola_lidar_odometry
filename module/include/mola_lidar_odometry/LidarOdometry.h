@@ -267,6 +267,10 @@ class LidarOdometry : public FrontEndBase,
              * destruction time */
             std::string save_final_map_to_file;
 
+            /** If enabled, all frames are stored in the simplemap, but
+             * non-keyframes will be without associated observations. */
+            bool add_non_keyframes_too = false;
+
             /** If !=0, storing the latest GNNS observation together with the
              * Lidar observation in the simplemap CSensoryFrame (SF)
              * ("keyframe") will be enabled. This parameter sets the maximum age

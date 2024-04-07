@@ -14,13 +14,24 @@ if [ ! -f $PIPELINE_YAML ]; then
     exit 1
 fi
 
+# This var: MOLA_SIMPLEMAP_MIN_XYZ
+# is defined to save all .simplemap with *all* frames as keyframes,
+# for usage with the loop-closure postprocessing tool and afterwards
+# still be able to recover the full trajectory for metric error evaluation.
+
+
 parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   SEQ={} \
   MOLA_INITIAL_VX=18.0 \
+  MOLA_SIMPLEMAP_MIN_XYZ=0.0 \
+  MOLA_SIMPLEMAP_MIN_ROT=0.0 \
+  MOLA_GENERATE_SIMPLEMAP=true \
+  MOLA_SIMPLEMAP_OUTPUT=kitti_{}.simplemap \
   mola-lidar-odometry-cli \
     -c $PIPELINE_YAML\
     --input-kitti-seq {} \
-    --output-tum-path results/estim_{}.txt $@ \
+    --output-tum-path results/estim_{}.txt \
+    $@ \
 ::: $SEQS_TO_RUN
 
 #    --kitti-correction-angle-deg 0.21 \
