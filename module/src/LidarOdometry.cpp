@@ -1022,13 +1022,13 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
     {
         auto lck = mrpt::lockHelper(state_simplemap_mtx_);
 
-        mrpt::obs::CSensoryFrame obsSF;
+        auto obsSF = mrpt::obs::CSensoryFrame::Create();
         // Add observations only if this is a real keyframe
         // (the alternative is this is a regular frame, but the option
         //  add_non_keyframes_too is set):
         if (distance_enough_sm)
         {
-            obsSF += sf;
+            *obsSF += sf;
 
             const auto curLidarStamp = obs->getTimeStamp();
 
@@ -1049,11 +1049,11 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                     closestGPS         = gpsObs;
                 }
             }
-            if (closestGPS) obsSF.insert(closestGPS);
+            if (closestGPS) *obsSF += closestGPS;
         }
 
         MRPT_LOG_DEBUG_STREAM(
-            "New SimpleMap KeyFrame. SF=" << obsSF.size() << " observations.");
+            "New SimpleMap KeyFrame. SF=" << obsSF->size() << " observations.");
 
         std::optional<mrpt::math::TTwist3D> curTwist;
         if (hasMotionModel) curTwist = motionModelOutput->twist;
@@ -1062,10 +1062,28 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             // Pose: mean + covariance
             mrpt::poses::CPose3DPDFGaussian::Create(state_.last_lidar_pose),
             // SensoryFrame: set of observations from this KeyFrame:
-            mrpt::obs::CSensoryFrame::Create(obsSF),
+            obsSF,
             // twist
             curTwist);
-    }
+
+        // Mechanism to free old SFs:
+        // We cannot unload them right now, for the case when they are being
+        // used in a GUI, etc.
+        // (1/2) Add to the list:
+        state_.past_simplemaps_observations[this_obs_tim] = obsSF;
+
+        // (2/2) Unload ols lazy-load observations to save RAM, if applicable:
+        constexpr size_t MAX_SIZE_UNLOAD_QUEUE = 100;
+        while (state_.past_simplemaps_observations.size() >
+               MAX_SIZE_UNLOAD_QUEUE)
+        {
+            for (auto& o : *state_.past_simplemaps_observations.begin()->second)
+                o->unload();
+
+            state_.past_simplemaps_observations.erase(
+                state_.past_simplemaps_observations.begin());
+        }
+    }  // end update simple map
 
     // In any case, publish the vehicle pose, no matter if it's a keyframe or
     // not:

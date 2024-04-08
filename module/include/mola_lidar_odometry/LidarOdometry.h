@@ -421,6 +421,12 @@ class LidarOdometry : public FrontEndBase,
         mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;
         mrpt::opengl::CSetOfLines::Ptr   glEstimatedPath;
         int mapUpdateCnt = std::numeric_limits<int>::max();
+
+        // List of old observations to be unload()'ed, to save RAM if:
+        // 1) building a simplemap, and
+        // 2) Using a dataset source that supports lazy-load:
+        std::map<mrpt::Clock::time_point, mrpt::obs::CSensoryFrame::Ptr>
+            past_simplemaps_observations;
     };
 
     /** The worker thread pool with 1 thread for processing incomming
