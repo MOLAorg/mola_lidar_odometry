@@ -30,7 +30,7 @@ parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   mola-lidar-odometry-cli \
     -c $PIPELINE_YAML\
     --input-kitti-seq {} \
-    --output-tum-path results/kitti_{}_mola.txt \
+    --output-tum-path results/kitti_{}_mola.tum \
     $@ \
 ::: $SEQS_TO_RUN
 
@@ -38,10 +38,10 @@ parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
 
 # Eval kitti metrics for each sequence alone:
 for d in $SEQS_TO_RUN; do
-  kitti-metrics-eval -r results/kitti_${d}_mola.txt -s ${d} --no-figures
+  kitti-metrics-eval -r results/kitti_${d}_mola.tum -s ${d} --no-figures
 done
 
 # Eval overall kitti metrics:
 if [ "$DEFAULT_SEQS_TO_RUN" = "$SEQS_TO_RUN" ]; then
-  kitti-metrics-eval -r results/kitti_%02i_mola.txt -s 00 -s 01 -s 02 -s 03 -s 04 -s 05 -s 06 -s 07 -s 08 -s 09 -s 10 --no-figures
+  kitti-metrics-eval -r results/kitti_%02i_mola.tum -s 00 -s 01 -s 02 -s 03 -s 04 -s 05 -s 06 -s 07 -s 08 -s 09 -s 10 --no-figures
 fi
