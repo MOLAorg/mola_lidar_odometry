@@ -24,14 +24,22 @@
  * @date   Sep 16, 2023
  */
 
+// This module:
 #include <mola_lidar_odometry/LidarOdometry.h>
+
+// MOLA:
 #include <mola_yaml/yaml_helpers.h>
+
+// MP2P_ICP:
 #include <mp2p_icp/Solver_GaussNewton.h>
 #include <mp2p_icp/icp_pipeline_from_yaml.h>
+
+// MRPT:
 #include <mrpt/config/CConfigFileMemory.h>
 #include <mrpt/containers/yaml.h>
 #include <mrpt/core/initializer.h>
 #include <mrpt/io/CMemoryStream.h>
+#include <mrpt/io/lazy_load_path.h>
 #include <mrpt/maps/CColouredPointsMap.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservationGPS.h>
@@ -50,6 +58,7 @@
 #include <mrpt/system/filesystem.h>
 #include <mrpt/system/string_utils.h>
 
+// STD:
 #include <chrono>
 #include <thread>
 
@@ -162,6 +171,7 @@ void LidarOdometry::Parameters::SimpleMapOptions::initialize(
     YAML_LOAD_OPT(save_final_map_to_file, std::string);
     YAML_LOAD_OPT(add_non_keyframes_too, bool);
     YAML_LOAD_OPT(measure_from_last_kf_only, bool);
+    YAML_LOAD_OPT(generate_lazy_load_scan_files, bool);
     YAML_LOAD_OPT(save_gnns_max_age, double);
 }
 
@@ -1072,17 +1082,12 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         // (1/2) Add to the list:
         state_.past_simplemaps_observations[this_obs_tim] = obsSF;
 
-        // (2/2) Unload ols lazy-load observations to save RAM, if applicable:
-        constexpr size_t MAX_SIZE_UNLOAD_QUEUE = 100;
-        while (state_.past_simplemaps_observations.size() >
-               MAX_SIZE_UNLOAD_QUEUE)
-        {
-            for (auto& o : *state_.past_simplemaps_observations.begin()->second)
-                o->unload();
+        ProfilerEntry tleUnloadSM(profiler_, "onLidar.5.unload_past_sm_obs");
 
-            state_.past_simplemaps_observations.erase(
-                state_.past_simplemaps_observations.begin());
-        }
+        // (2/2) Unload old lazy-load observations to save RAM, if applicable:
+        constexpr size_t MAX_SIZE_UNLOAD_QUEUE = 100;
+        unloadPastSimplemapObservations(MAX_SIZE_UNLOAD_QUEUE);
+
     }  // end update simple map
 
     // In any case, publish the vehicle pose, no matter if it's a keyframe or
@@ -1621,6 +1626,11 @@ void LidarOdometry::saveReconstructedMapToFile() const
 {
     if (params_.simplemap.save_final_map_to_file.empty()) return;
 
+    // make sure the unload queue is empty first,
+    // so if we have this feature enabled, all SF entries have been
+    // "externalized" to make reading them much faster and less RAM intensive:
+    unloadPastSimplemapObservations(0 /* unload until queue is empty */);
+
     auto lck = mrpt::lockHelper(state_simplemap_mtx_);
 
     const auto fil = params_.simplemap.save_final_map_to_file;
@@ -1629,6 +1639,7 @@ void LidarOdometry::saveReconstructedMapToFile() const
         "Saving final simplemap with " << state_.reconstructed_simplemap.size()
                                        << " keyframes to file '" << fil
                                        << "'...");
+    std::cout.flush();
 
     state_.reconstructed_simplemap.saveToFile(fil);
 
@@ -1849,4 +1860,79 @@ void LidarOdometry::doPublishUpdatedMap(
         // send it out:
         advertiseUpdatedMap(mu);
     }
+}
+
+void LidarOdometry::unloadPastSimplemapObservations(
+    const size_t maxSizeUnloadQueue) const
+{
+    auto lck = mrpt::lockHelper(state_simplemap_mtx_);
+
+    auto& pso = state_.past_simplemaps_observations;
+
+    while (pso.size() > maxSizeUnloadQueue)
+    {
+        for (auto& o : *pso.begin()->second)
+            handleUnloadSinglePastObservation(o);
+
+        pso.erase(pso.begin());
+    }
+}
+
+void LidarOdometry::handleUnloadSinglePastObservation(
+    mrpt::obs::CObservation::Ptr& o) const
+{
+    using mrpt::obs::CObservationPointCloud;
+
+    // Generic method first: it will work with datasets providing input
+    // observations *already* in lazy-load format:
+    o->unload();
+
+    // special case: point cloud
+    auto oPts = std::dynamic_pointer_cast<CObservationPointCloud>(o);
+    if (!oPts) return;
+
+    if (oPts->isExternallyStored()) return;  // already external, do nothing.
+
+    if (params_.simplemap.save_final_map_to_file.empty())
+        return;  // no generation of simplemap requested by the user
+
+    if (!params_.simplemap.generate_lazy_load_scan_files)
+        return;  // feature is disabled
+
+    ASSERT_(oPts->pointcloud);
+
+    const std::string filename = mrpt::format(
+        "%s_%.09f.bin",
+        mrpt::system::fileNameStripInvalidChars(oPts->sensorLabel).c_str(),
+        mrpt::Clock::toDouble(oPts->timestamp));
+
+    // Create the default "/Images" directory.
+    const auto& smFile = params_.simplemap.save_final_map_to_file;
+
+    const std::string out_basedir = mrpt::system::pathJoin(
+        {mrpt::system::extractFileDirectory(smFile),
+         mrpt::system::extractFileName(smFile) + std::string("_Images")});
+
+    if (!mrpt::system::directoryExists(out_basedir))
+    {
+        bool dirCreatedOk = mrpt::system::createDirectory(out_basedir);
+        ASSERTMSG_(
+            dirCreatedOk,
+            mrpt::format(
+                "Error creating lazy-load directory for output simplemap: '%s'",
+                out_basedir.c_str()));
+
+        MRPT_LOG_INFO_STREAM(
+            "Creating lazy-load directory for output .simplemap: "
+            << out_basedir);
+    }
+
+    // Establish as reference external path base:
+    mrpt::io::setLazyLoadPathBase(out_basedir);
+
+    oPts->setAsExternalStorage(
+        filename,
+        CObservationPointCloud::ExternalStorageFormat::MRPT_Serialization);
+
+    oPts->unload();  // this actually saves the data to disk
 }

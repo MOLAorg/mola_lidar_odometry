@@ -279,6 +279,12 @@ class LidarOdometry : public FrontEndBase,
              */
             double save_gnns_max_age = 1.0;  // [s]
 
+            /** If enabled, a directory will be create alongside the .simplemap
+             *  and pointclouds will be externally serialized there, for much
+             * faster loading and processing of simplemaps.
+             */
+            bool generate_lazy_load_scan_files = false;
+
             /** If non-empty, the simple map will be loaded from the given
              * `*.simplemap` file instead of generating it from scratch. This
              * can be used for multi-session SLAM, or for localization-only.
@@ -425,7 +431,7 @@ class LidarOdometry : public FrontEndBase,
         // List of old observations to be unload()'ed, to save RAM if:
         // 1) building a simplemap, and
         // 2) Using a dataset source that supports lazy-load:
-        std::map<mrpt::Clock::time_point, mrpt::obs::CSensoryFrame::Ptr>
+        mutable std::map<mrpt::Clock::time_point, mrpt::obs::CSensoryFrame::Ptr>
             past_simplemaps_observations;
     };
 
@@ -458,9 +464,9 @@ class LidarOdometry : public FrontEndBase,
     /// The configuration used in the last call to initialize()
     Yaml lastInitConfig_;
 
-    mutable std::mutex is_busy_mtx_;
-    mutable std::mutex state_trajectory_mtx_;
-    mutable std::mutex state_simplemap_mtx_;
+    mutable std::mutex           is_busy_mtx_;
+    mutable std::mutex           state_trajectory_mtx_;
+    mutable std::recursive_mutex state_simplemap_mtx_;
 
     void onLidar(const CObservation::Ptr& o);
     void onLidarImpl(const CObservation::Ptr& obs);
@@ -491,6 +497,10 @@ class LidarOdometry : public FrontEndBase,
         const mrpt::Clock::time_point& this_obs_tim);
 
     void doPublishUpdatedMap(const mrpt::Clock::time_point& this_obs_tim);
+
+    void unloadPastSimplemapObservations(const size_t maxSizeUnloadQueue) const;
+
+    void handleUnloadSinglePastObservation(CObservation::Ptr& o) const;
 };
 
 }  // namespace mola

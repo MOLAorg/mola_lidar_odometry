@@ -16,19 +16,23 @@ if [ ! -f $PIPELINE_YAML ]; then
 fi
 
 parallel -j${NUM_THREADS} --lb \
-  SEQ={} mola-lidar-odometry-cli \
+  SEQ={} \
+  MOLA_GENERATE_SIMPLEMAP=true \
+  MOLA_SIMPLEMAP_OUTPUT=results/mulran_{}.simplemap \
+  MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD=true \
+  mola-lidar-odometry-cli \
     -c $PIPELINE_YAML\
     --input-mulran-seq {} \
-    --output-tum-path results/estim_{}.txt \
+    --output-tum-path results/mulran_{}_mola.tum \
 ::: $SEQUENCES
 
 # Eval kitti metrics for each sequence:
 # (the Mulran MOLA module generates the "*_gt.txt" files used below)
 for d in $SEQUENCES; do
-  kitti-metrics-eval -r results/estim_${d}.txt --gt-tum-path results/estim_${d}_gt.txt --no-figures
+  kitti-metrics-eval -r results/mulran_${d}_mola.tum --gt-tum-path mulran_${d}_mola_gt.tum --no-figures
 done
 
 # TODO: Eval ATE/RTE with evo?
 for d in $SEQUENCES; do
-  evo_ape tum results/estim_${d}.txt results/estim_${d}_gt.txt -a
+  evo_ape tum results/mulran_${d}_mola.tum results/mulran_${d}_mola_gt.tum -a
 done

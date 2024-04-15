@@ -441,7 +441,8 @@ static int main_odometry()
 
         const auto gtOutFile =
             mrpt::system::fileNameChangeExtension(arg_outPath.getValue(), "") +
-            "_gt.txt"s;
+            "_gt."s +
+            mrpt::system::extractFileExtension(arg_outPath.getValue());
 
         std::cout << "Ground truth available. Saving it to: " << gtOutFile
                   << std::endl;

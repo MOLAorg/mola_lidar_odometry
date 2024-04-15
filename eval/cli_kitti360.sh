@@ -16,10 +16,13 @@ fi
 
 parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   SEQ={} \
+  MOLA_GENERATE_SIMPLEMAP=true \
+  MOLA_SIMPLEMAP_OUTPUT=results/kitti360_{}.simplemap \
+  MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD=true \
   mola-lidar-odometry-cli \
     -c $PIPELINE_YAML\
     --input-kitti360-seq {} \
-    --output-tum-path results/estim_k360_{}.txt $@ \
+    --output-tum-path results/kitti360_{}_mola.tum $@ \
 ::: $SEQS_TO_RUN
 
 # Eval metrics for each sequence:
