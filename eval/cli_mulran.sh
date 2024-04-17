@@ -15,7 +15,7 @@ if [ ! -f $PIPELINE_YAML ]; then
     exit 1
 fi
 
-parallel -j${NUM_THREADS} --lb \
+parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   SEQ={} \
   MOLA_GENERATE_SIMPLEMAP=true \
   MOLA_SIMPLEMAP_OUTPUT=results/mulran_{}.simplemap \

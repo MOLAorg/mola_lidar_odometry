@@ -1061,6 +1061,18 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             }
             if (closestGPS) *obsSF += closestGPS;
         }
+        else
+        {
+            // Otherwise (we are in here because add_non_keyframes_too), add
+            // a dummy empty observation just to let postprocessing tools know
+            // the timestamp of this frame:
+            ASSERT_(params_.simplemap.add_non_keyframes_too);
+
+            auto dummyObs         = mrpt::obs::CObservationComment::Create();
+            dummyObs->timestamp   = this_obs_tim;
+            dummyObs->sensorLabel = "stamp";
+            *obsSF += dummyObs;
+        }
 
         MRPT_LOG_DEBUG_STREAM(
             "New SimpleMap KeyFrame. SF=" << obsSF->size() << " observations.");
@@ -1410,6 +1422,8 @@ void LidarOdometry::updatePipelineDynamicVariables()
         state_.adapt_thres_sigma != 0
             ? state_.adapt_thres_sigma
             : params_.adaptive_threshold.initial_sigma);
+
+    state_.parameter_source.updateVariable("ICP_ITERATION", 0);
 
     if (state_.estimated_sensor_max_range)
     {
