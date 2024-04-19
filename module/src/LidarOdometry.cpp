@@ -1063,17 +1063,42 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         }
         else
         {
-            // Otherwise (we are in here because add_non_keyframes_too), add
-            // a dummy empty observation just to let postprocessing tools know
-            // the timestamp of this frame:
+            // Otherwise (we are in here because add_non_keyframes_too).
+            // Since we are adding anyway a "comment" observation with the
+            // valid timestamp of this frame, it is enough for postprocessing
+            // tools.
             ASSERT_(params_.simplemap.add_non_keyframes_too);
-
-            auto dummyObs         = mrpt::obs::CObservationComment::Create();
-            dummyObs->timestamp   = this_obs_tim;
-            dummyObs->sensorLabel = "stamp";
-            *obsSF += dummyObs;
         }
 
+        // Add metadata ("comment") observation:
+        auto metadataObs         = mrpt::obs::CObservationComment::Create();
+        metadataObs->timestamp   = this_obs_tim;
+        metadataObs->sensorLabel = "metadata";
+
+        mrpt::containers::yaml kf_metadata = mrpt::containers::yaml::Map();
+        std::optional<mrpt::math::TBoundingBoxf> bbox;
+        for (const auto& [layerName, layerMap] : observation->layers)
+        {
+            if (bbox)
+                bbox = bbox->unionWith(layerMap->boundingBox());
+            else
+                bbox = layerMap->boundingBox();
+        }
+        if (bbox)
+        {
+            kf_metadata["frame_bbox_min"] = "'"s + bbox->min.asString() + "'"s;
+            kf_metadata["frame_bbox_max"] = "'"s + bbox->max.asString() + "'"s;
+        }
+
+        // convert yaml to string:
+        std::stringstream ss;
+        ss << kf_metadata;
+        metadataObs->text = ss.str();
+
+        // insert it:
+        *obsSF += metadataObs;
+
+        // Add keyframe to simple map:
         MRPT_LOG_DEBUG_STREAM(
             "New SimpleMap KeyFrame. SF=" << obsSF->size() << " observations.");
 
