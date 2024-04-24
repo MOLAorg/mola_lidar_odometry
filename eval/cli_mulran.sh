@@ -16,15 +16,15 @@ if [ ! -f $PIPELINE_YAML ]; then
 fi
 
 # Add this one to also create the maps (It requires several GBs!)
-#GENERATE_SIMPLEMAPS=true
-GENERATE_SIMPLEMAPS=false
+GENERATE_SIMPLEMAPS=true
+#GENERATE_SIMPLEMAPS=false
 
 
 parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   SEQ={} \
   MOLA_GENERATE_SIMPLEMAP=${GENERATE_SIMPLEMAPS} \
   MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES=true \
-  MOLA_SIMPLEMAP_MIN_XYZ=2.0 \
+  MOLA_SIMPLEMAP_MIN_XYZ=10.0 \
   MOLA_SIMPLEMAP_MIN_ROT=20.0 \
   MOLA_SIMPLEMAP_OUTPUT=results/mulran_{}.simplemap \
   MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD=true \
