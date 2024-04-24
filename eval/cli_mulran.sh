@@ -36,16 +36,16 @@ parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
 
 # Eval kitti metrics for each sequence:
 # (the Mulran MOLA module generates the "*_gt.txt" files used below)
-out=mulran_metrics_mola.txt
+out=results/mulran_metrics_mola.txt
 rm $out || true
-echo "KITTI_METRIC:" > $out
+echo "KITTI_METRIC:" >> $out
 for d in $SEQUENCES; do
-  kitti-metrics-eval -r results/mulran_${d}_mola.tum --gt-tum-path mulran_${d}_mola_gt.tum --no-figures > $out
+  kitti-metrics-eval -r results/mulran_${d}_mola.tum --gt-tum-path results/mulran_${d}_mola_gt.tum --no-figures >> $out
 done
 
 # Eval APE with evo:
-echo "EVO APE:" > $out
+echo "EVO APE:" >> $out
 for d in $SEQUENCES; do
-  echo "$d" > $out
-  evo_ape tum results/mulran_${d}_mola.tum results/mulran_${d}_mola_gt.tum -a  > $out
+  echo "$d" >> $out
+  evo_ape tum results/mulran_${d}_mola.tum results/mulran_${d}_mola_gt.tum -a  >> $out
 done
