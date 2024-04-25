@@ -24,6 +24,8 @@ parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   SEQ={} \
   MOLA_INITIAL_VX=18.0 \
   MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES=true \
+  MOLA_SIMPLEMAP_MIN_XYZ=10.0 \
+  MOLA_SIMPLEMAP_MIN_ROT=20.0 \
   MOLA_GENERATE_SIMPLEMAP=true \
   MOLA_SIMPLEMAP_OUTPUT=results/kitti_{}.simplemap \
   mola-lidar-odometry-cli \
