@@ -5,7 +5,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 # Default pipeline YAML file:
 PIPELINE_YAML="${PIPELINE_YAML:-$SCRIPT_DIR/../pipelines/lidar3d-default.yaml}"
 
-DEFAULT_SEQS_TO_RUN="00 03 04 05 06 07 08 09 10 18 test_0 test_1 test_2 test_3"
+DEFAULT_SEQS_TO_RUN="test_0 test_1 test_2 test_3 00 03 04 05 06 07 08 09 10 18"
 # Removed 02: See: https://github.com/autonomousvision/kitti360Scripts/issues/92
 
 SEQS_TO_RUN="${SEQS_TO_RUN:-${DEFAULT_SEQS_TO_RUN}}"
@@ -19,6 +19,9 @@ fi
 
 parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   SEQ={} \
+  MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES=true \
+  MOLA_SIMPLEMAP_MIN_XYZ=10.0 \
+  MOLA_SIMPLEMAP_MIN_ROT=20.0 \
   MOLA_GENERATE_SIMPLEMAP=true \
   MOLA_SIMPLEMAP_OUTPUT=results/kitti360_{}.simplemap \
   MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD=true \
