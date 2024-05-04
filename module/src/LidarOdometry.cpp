@@ -297,7 +297,7 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
     }
 
     ENSURE_YAML_ENTRY_EXISTS(c, "navstate_fuse_params");
-    params_.navstate_fuse_params.loadFrom(c["navstate_fuse_params"]);
+    state_.navstate_fuse.initialize(c["navstate_fuse_params"]);
 
     ENSURE_YAML_ENTRY_EXISTS(c, "icp_settings_with_vel");
     load_icp_set_of_params(

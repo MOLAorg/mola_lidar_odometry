@@ -89,13 +89,13 @@ params:
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
 
-
-
 # Parameter block for the "navstate_fuse" module in charge of merging and 
 # extrapolating pose estimations, odometry, IMU, etc.
 navstate_fuse_params:
   # Maximum time since last observation to consider the validity of the velocity model:
-  max_time_to_use_velocity_model: 2.0 # [seconds]
+  # (KITTI360 test_3 has some blackouts >=1.0 seconds while angular acceleration is high, so 
+  #  this threshold must be < 1.0 s for that dataset)
+  max_time_to_use_velocity_model: 0.75 # [seconds]
   sigma_random_walk_acceleration_linear: 10.0 # [m/s²]
   sigma_random_walk_acceleration_angular: 10.0 # [rad/s²]
 
