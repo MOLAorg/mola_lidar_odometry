@@ -5,8 +5,10 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 # Default pipeline YAML file:
 PIPELINE_YAML="${PIPELINE_YAML:-$SCRIPT_DIR/../pipelines/lidar3d-default.yaml}"
 
-DEFAULT_SEQS_TO_RUN="test_0 test_1 test_2 test_3 00 03 04 05 06 07 08 09 10 18"
+DEFAULT_SEQS_TO_RUN="test_0 test_1 test_2 test_3 00 03 04 05 06 07 09 10"
 # Removed 02: See: https://github.com/autonomousvision/kitti360Scripts/issues/92
+# Removed 08: no timestamps.txt file?
+# Removed 18: no timestamps.txt file?
 
 SEQS_TO_RUN="${SEQS_TO_RUN:-${DEFAULT_SEQS_TO_RUN}}"
 NUM_THREADS=3
