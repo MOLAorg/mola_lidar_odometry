@@ -159,7 +159,7 @@ localmap_generator:
         plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
           voxel_size: '$f{max(0.5, 0.01*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
-        insertionOpts:
+        insertOpts:
           max_points_per_voxel: 20
           min_distance_between_points: 0  # [m]
           # if !=0, remove voxels farther (L1) than the current observation insert point
@@ -183,7 +183,7 @@ localmap_generator:
         plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
           voxel_size: '$f{max(0.5, 0.01*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
-        insertionOpts:
+        insertOpts:
           max_points_per_voxel: 10
           min_distance_between_points: 0  # [m]
           # if !=0, remove voxels farther (L1) than the current observation insert point

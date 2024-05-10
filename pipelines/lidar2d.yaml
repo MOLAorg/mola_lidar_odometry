@@ -67,7 +67,7 @@ params:
     show_trajectory: true
     #current_pose_corner_size: 1.5
     local_map_point_size: 3
-    #local_map_render_voxelmap_free_space: true  # for 2D-LIDAR SLAM this may be affordable
+    local_map_render_voxelmap_free_space: true  # for 2D-LIDAR SLAM this may be affordable; for 3D it slows down too much
     model:
       - file: ${MOLA_VEHICLE_MODEL_FILE|""} # Default: none
         tf.roll: 90.0 # deg
@@ -169,13 +169,14 @@ localmap_generator:
         #plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
           resolution: '$f{max(0.05, min(1.0, 0.005*ESTIMATED_SENSOR_MAX_RANGE))}' # [m]
-        insertionOpts:
+        insertOpts:
           prob_miss: 0.35
           prob_hit: 0.80
           clamp_min: 0.05
           clamp_max: 0.95
           ray_trace_free_space: true
           decimation: 1
+          remove_voxels_farther_than: 60  # 0: disabled, otherwise, voxels farther away than this distance in meters will be erased.
         likelihoodOpts:
           occupiedThreshold: 0.60
 
