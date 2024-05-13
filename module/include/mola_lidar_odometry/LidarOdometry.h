@@ -425,6 +425,7 @@ class LidarOdometry : public FrontEndBase,
 
         // Visualization:
         mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;
+        mrpt::opengl::CSetOfObjects::Ptr glCurrentObservation;
         mrpt::opengl::CSetOfLines::Ptr   glEstimatedPath;
         int mapUpdateCnt = std::numeric_limits<int>::max();
 
@@ -489,7 +490,7 @@ class LidarOdometry : public FrontEndBase,
 
     void updatePipelineDynamicVariables();
 
-    void updateVisualization();
+    void updateVisualization(const mp2p_icp::metric_map_t& currentObservation);
 
     void internalBuildGUI();
 

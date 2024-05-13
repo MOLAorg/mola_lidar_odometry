@@ -16,6 +16,9 @@
  *
  * You should have received a copy of the GNU General Public License along with
  * MOLA. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Commercial licenses available upon request, for this odometry package alone
+ * or in combination with the complete SLAM system.
  * ------------------------------------------------------------------------- */
 /**
  * @file   LidarOdometry.cpp
@@ -466,7 +469,7 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr& o)
         (state_.local_map->empty() || !state_.active))
     {
         if (mrpt::Clock::nowDouble() - gui_.timestampLastUpdateUI > 1.0)
-            updateVisualization();
+            updateVisualization({});
     }
 
     // SLAM enabled?
@@ -648,6 +651,11 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
     for (const auto& o : sf)
         mp2p_icp_filters::apply_generators(
             state_.obs_generators, *o, *observation);
+
+    // Keep a copy of "raw" for visualization in the GUI:
+    mp2p_icp::metric_map_t observationRawForViz;
+    if (observation->layers.count("raw"))
+        observationRawForViz.layers["raw"] = observation->layers.at("raw");
 
     tle0.stop();
 
@@ -1139,7 +1147,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
     {
         ProfilerEntry tle(profiler_, "onLidar.6.updateVisualization");
 
-        updateVisualization();
+        updateVisualization(observationRawForViz);
     }
 }
 
@@ -1460,7 +1468,8 @@ void LidarOdometry::updatePipelineDynamicVariables()
     state_.parameter_source.realize();
 }
 
-void LidarOdometry::updateVisualization()
+void LidarOdometry::updateVisualization(
+    const mp2p_icp::metric_map_t& currentObservation)
 {
     gui_.timestampLastUpdateUI = mrpt::Clock::nowDouble();
 
@@ -1473,6 +1482,10 @@ void LidarOdometry::updateVisualization()
     if (!state_.glVehicleFrame)
     {
         state_.glVehicleFrame = mrpt::opengl::CSetOfObjects::Create();
+
+        state_.glCurrentObservation = mrpt::opengl::CSetOfObjects::Create();
+        state_.glVehicleFrame->insert(state_.glCurrentObservation);
+
         if (const auto l = params_.visualization.current_pose_corner_size;
             l > 0)
         {
@@ -1506,8 +1519,28 @@ void LidarOdometry::updateVisualization()
             }
         }
     }
+
+    // Update vehicle pose
+    // -------------------------
     state_.glVehicleFrame->setPose(state_.last_lidar_pose.mean);
     visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame);
+
+    // Update current observation
+    // ----------------------------
+    state_.glCurrentObservation->clear();
+    if (currentObservation.layers.count("raw"))
+    {
+        // Visualize the raw data only, not the filtered layers:
+        mp2p_icp::metric_map_t mm;
+        mm.layers["raw"] = currentObservation.layers.at("raw");
+
+        mp2p_icp::render_params_t rp;
+        rp.points.allLayers.pointSize = 2.0f;
+        auto& cm                      = rp.points.allLayers.colorMode.emplace();
+        cm.recolorizeByCoordinate     = mp2p_icp::Coordinate::Z;
+
+        state_.glCurrentObservation->insert(mm.get_visualization(rp));
+    }
 
     // Estimated path:
     // ------------------------
