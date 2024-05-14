@@ -1492,9 +1492,6 @@ void LidarOdometry::updateVisualization(
     {
         state_.glVehicleFrame = mrpt::opengl::CSetOfObjects::Create();
 
-        state_.glCurrentObservation = mrpt::opengl::CSetOfObjects::Create();
-        state_.glVehicleFrame->insert(state_.glCurrentObservation);
-
         if (const auto l = params_.visualization.current_pose_corner_size;
             l > 0)
         {
@@ -1529,6 +1526,11 @@ void LidarOdometry::updateVisualization(
         }
     }
 
+    // Update vehicle pose
+    // -------------------------
+    state_.glVehicleFrame->setPose(state_.last_lidar_pose.mean);
+    visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame);
+
     // Update current observation
     // ----------------------------
     if (currentObservation.layers.count("raw") &&
@@ -1544,14 +1546,13 @@ void LidarOdometry::updateVisualization(
         cm.colorMap                   = mrpt::img::cmJET;
         cm.recolorizeByCoordinate     = mp2p_icp::Coordinate::Z;
 
-        // Copy *contents* of the opengl group object:
-        *state_.glCurrentObservation = *mm.get_visualization(rp);
+        // get visualization
+        auto glCurrentObservation = mm.get_visualization(rp);
+        // move to current pose
+        glCurrentObservation->setPose(state_.last_lidar_pose.mean);
+        // and enqueue for updating in the opengl thread:
+        visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation);
     }
-
-    // Update vehicle pose
-    // -------------------------
-    state_.glVehicleFrame->setPose(state_.last_lidar_pose.mean);
-    visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame);
 
     // Estimated path:
     // ------------------------
@@ -1592,13 +1593,9 @@ void LidarOdometry::updateVisualization(
 
     // Local map:
     // -----------------------------
-    if (!state_.glLocalMap)  //
-        state_.glLocalMap = mrpt::opengl::CSetOfObjects::Create();
-
     if (state_.mapUpdateCnt++ > params_.visualization.map_update_decimation)
     {
         state_.mapUpdateCnt = 0;
-        state_.glLocalMap->clear();
 
         mp2p_icp::render_params_t rp;
         rp.points.allLayers.pointSize =
@@ -1608,9 +1605,8 @@ void LidarOdometry::updateVisualization(
             params_.visualization.local_map_render_voxelmap_free_space;
 
         auto glMap = state_.local_map->get_visualization(rp);
-        for (auto& o : *glMap) state_.glLocalMap->insert(o);
 
-        visualizer_->update_3d_object("liodom/localmap", state_.glLocalMap);
+        visualizer_->update_3d_object("liodom/localmap", glMap);
     }
 
     // Console messages:

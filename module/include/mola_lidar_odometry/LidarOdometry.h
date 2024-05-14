@@ -426,8 +426,7 @@ class LidarOdometry : public FrontEndBase,
             last_gnns_;
 
         // Visualization:
-        mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;
-        mrpt::opengl::CSetOfObjects::Ptr glCurrentObservation;
+        mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glPathGrp;
         mrpt::opengl::CSetOfLines::Ptr   glEstimatedPath;
         int mapUpdateCnt = std::numeric_limits<int>::max();
 

@@ -69,9 +69,9 @@ params:
   # If run within a mola-cli container, and mola_viz is present, use these options 
   # to show live progress:
   visualization:
-    map_update_decimation: 20
+    map_update_decimation: 10
     show_trajectory: true
-    show_current_observation: true   # shows "live raw" LiDAR points
+    show_current_observation: true # shows "live raw" LiDAR points
     #current_pose_corner_size: 1.5
     local_map_point_size: 3
     model:
