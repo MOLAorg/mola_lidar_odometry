@@ -1339,7 +1339,7 @@ void LidarOdometry::doUpdateAdaptiveThreshold(
 
     const double max_range = state_.estimated_sensor_max_range.value();
 
-    const double ALPHA = 0.99;
+    const double ALPHA = 0.90;
 
     double model_error = computeModelError(lastMotionModelError, max_range);
 
@@ -1400,6 +1400,8 @@ void LidarOdometry::doUpdateEstimatedMaxSensorRange(
 
         mrpt::keep_max(radius, params_.absolute_minimum_sensor_range);
 
+        state_.instantaneous_sensor_max_range = radius;
+
         // low-pass filter update:
         maxRange = maxRange.value() * ALPHA + radius * (1.0 - ALPHA);
 
@@ -1455,6 +1457,12 @@ void LidarOdometry::updatePipelineDynamicVariables()
         state_.parameter_source.updateVariable(
             "ESTIMATED_SENSOR_MAX_RANGE", *state_.estimated_sensor_max_range);
     }
+
+    state_.parameter_source.updateVariable(
+        "INSTANTANEOUS_SENSOR_MAX_RANGE",
+        state_.instantaneous_sensor_max_range
+            ? *state_.instantaneous_sensor_max_range
+            : 20.0 /*default, only used once*/);
 
     // Make all changes effective and evaluate the variables now:
     state_.parameter_source.realize();

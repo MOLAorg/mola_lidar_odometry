@@ -223,6 +223,7 @@ observations_filter:
       input_pointcloud_layer: 'deskewed'
       output_pointcloud_layer: 'decimated_pre'
       voxel_filter_resolution: 0.05 # [m]
+      minimum_input_points_to_filter: 2000  # don't decimate if smaller than this size
       decimate_method: DecimateMethod::FirstPoint
       #decimate_method: DecimateMethod::ClosestToAverage
 

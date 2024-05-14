@@ -396,6 +396,7 @@ class LidarOdometry : public FrontEndBase,
 
         // Automatic estimation of max range:
         std::optional<double> estimated_sensor_max_range;
+        std::optional<double> instantaneous_sensor_max_range;
 
         mp2p_icp_filters::GeneratorSet   obs_generators;
         mp2p_icp_filters::FilterPipeline pc_filter;

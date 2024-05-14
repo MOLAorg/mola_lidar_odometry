@@ -25,8 +25,8 @@ params:
   min_time_between_scans: 1e-3 # [seconds]
 
   # Parameters for max sensor range automatic estimation:
-  max_sensor_range_filter_coefficient: 0.999
-  absolute_minimum_sensor_range: 20.0
+  max_sensor_range_filter_coefficient: 0.95
+  absolute_minimum_sensor_range: 5.0
 
   # How often to update the local map model:
   local_map_updates:
@@ -232,7 +232,8 @@ observations_filter:
     params:
       input_pointcloud_layer: 'deskewed'
       output_pointcloud_layer: 'decimated_for_map_raw'
-      voxel_filter_resolution: 0.55*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
+      voxel_filter_resolution: max(0.20, 0.55*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
+      minimum_input_points_to_filter: 2000  # don't decimate if smaller than this size
       decimate_method: DecimateMethod::FirstPoint
       #decimate_method: DecimateMethod::ClosestToAverage
 
@@ -251,15 +252,16 @@ observations_filter:
     params:
       input_pointcloud_layer: 'decimated_for_map_by_range'
       outside_pointcloud_layer: 'decimated_for_map'
-      bounding_box_min: [ -0.20*ESTIMATED_SENSOR_MAX_RANGE, -0.20*ESTIMATED_SENSOR_MAX_RANGE, 0.01*ESTIMATED_SENSOR_MAX_RANGE ]
-      bounding_box_max: [  0.20*ESTIMATED_SENSOR_MAX_RANGE,  0.20*ESTIMATED_SENSOR_MAX_RANGE, 0.10*ESTIMATED_SENSOR_MAX_RANGE ]
+      bounding_box_min: [ -0.20*INSTANTANEOUS_SENSOR_MAX_RANGE, -0.20*INSTANTANEOUS_SENSOR_MAX_RANGE, 0.01*INSTANTANEOUS_SENSOR_MAX_RANGE ]
+      bounding_box_max: [  0.20*INSTANTANEOUS_SENSOR_MAX_RANGE,  0.20*INSTANTANEOUS_SENSOR_MAX_RANGE, 0.10*INSTANTANEOUS_SENSOR_MAX_RANGE ]
 
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'decimated_for_map'
       output_pointcloud_layer: 'decimated_for_icp'
-      voxel_filter_resolution: 1.6*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
+      voxel_filter_resolution: max(0.60, 1.6*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
+      minimum_input_points_to_filter: 2000  # don't decimate if smaller than this size
       decimate_method: DecimateMethod::FirstPoint
       #decimate_method: DecimateMethod::ClosestToAverage
 
