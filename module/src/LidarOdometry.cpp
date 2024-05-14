@@ -132,7 +132,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml& cfg)
     if (cfg.has("model"))
     {
         ASSERT_(cfg["model"].isSequence());
-        for (const auto& e : cfg["model"].asSequence())
+        for (const auto& e : cfg["model"].asSequenceRange())
         {
             ASSERT_(e.isMap());
             auto  c = e.asMap();
@@ -222,7 +222,7 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
     ENSURE_YAML_ENTRY_EXISTS(cfg, "lidar_sensor_labels");
     if (cfg["lidar_sensor_labels"].isSequence())
     {
-        for (const auto& sl : cfg["lidar_sensor_labels"].asSequence())
+        for (const auto& sl : cfg["lidar_sensor_labels"].asSequenceRange())
         {
             const auto s = sl.as<std::string>();
             MRPT_LOG_DEBUG_STREAM("Adding as input lidar sensor label: " << s);
@@ -295,8 +295,8 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
             cfg["initial_twist"].isSequence() &&
             cfg["initial_twist"].asSequence().size() == 6);
 
-        auto&       tw  = params_.initial_twist.emplace();
-        const auto& seq = cfg["initial_twist"].asSequence();
+        auto&      tw  = params_.initial_twist.emplace();
+        const auto seq = cfg["initial_twist"].asSequenceRange();
         for (size_t i = 0; i < 6; i++) tw[i] = seq.at(i).as<double>();
     }
 
