@@ -46,7 +46,7 @@ params:
   adaptive_threshold:
     enabled: true
     initial_sigma: 2.0
-    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}
+    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.25}
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
