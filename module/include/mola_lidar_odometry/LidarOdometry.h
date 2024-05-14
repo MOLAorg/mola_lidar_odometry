@@ -195,6 +195,7 @@ class LidarOdometry : public FrontEndBase,
         {
             int    map_update_decimation                = 10;
             bool   show_trajectory                      = true;
+            bool   show_current_observation             = true;
             double current_pose_corner_size             = 1.5;  //! [m]
             float  local_map_point_size                 = 3.0f;
             bool   local_map_render_voxelmap_free_space = false;
@@ -426,6 +427,7 @@ class LidarOdometry : public FrontEndBase,
 
         // Visualization:
         mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glLocalMap, glPathGrp;
+        mrpt::opengl::CSetOfObjects::Ptr glCurrentObservation;
         mrpt::opengl::CSetOfLines::Ptr   glEstimatedPath;
         int mapUpdateCnt = std::numeric_limits<int>::max();
 
@@ -490,7 +492,7 @@ class LidarOdometry : public FrontEndBase,
 
     void updatePipelineDynamicVariables();
 
-    void updateVisualization();
+    void updateVisualization(const mp2p_icp::metric_map_t& currentObservation);
 
     void internalBuildGUI();
 
