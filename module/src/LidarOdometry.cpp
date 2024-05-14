@@ -1486,6 +1486,9 @@ void LidarOdometry::updateVisualization(
     // to read the state without mutexes.
     ASSERT_(visualizer_);
 
+    // So they can be called at once at the end to minimize "flicker":
+    std::vector<std::function<void()>> updateTasks;
+
     // Vehicle pose:
     // ---------------------------
     if (!state_.glVehicleFrame)
@@ -1529,7 +1532,11 @@ void LidarOdometry::updateVisualization(
     // Update vehicle pose
     // -------------------------
     state_.glVehicleFrame->setPose(state_.last_lidar_pose.mean);
-    visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame);
+    updateTasks.emplace_back(
+        [this]() {
+            visualizer_->update_3d_object(
+                "liodom/vehicle", state_.glVehicleFrame);
+        });
 
     // Update current observation
     // ----------------------------
@@ -1551,7 +1558,11 @@ void LidarOdometry::updateVisualization(
         // move to current pose
         glCurrentObservation->setPose(state_.last_lidar_pose.mean);
         // and enqueue for updating in the opengl thread:
-        visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation);
+        updateTasks.emplace_back(
+            [=]() {
+                visualizer_->update_3d_object(
+                    "liodom/cur_obs", glCurrentObservation);
+            });
     }
 
     // Estimated path:
@@ -1583,13 +1594,20 @@ void LidarOdometry::updateVisualization(
         state_.glPathGrp->insert(
             mrpt::opengl::CSetOfLines::Create(*state_.glEstimatedPath));
 
-        visualizer_->update_3d_object("liodom/path", state_.glPathGrp);
+        updateTasks.emplace_back(
+            [this]() {
+                visualizer_->update_3d_object("liodom/path", state_.glPathGrp);
+            });
     }
 
     // GUI follow vehicle:
     // ---------------------------
-    visualizer_->update_viewport_look_at(
-        state_.last_lidar_pose.mean.translation());
+    updateTasks.emplace_back(
+        [this]()
+        {
+            visualizer_->update_viewport_look_at(
+                state_.last_lidar_pose.mean.translation());
+        });
 
     // Local map:
     // -----------------------------
@@ -1606,8 +1624,12 @@ void LidarOdometry::updateVisualization(
 
         auto glMap = state_.local_map->get_visualization(rp);
 
-        visualizer_->update_3d_object("liodom/localmap", glMap);
+        updateTasks.emplace_back(
+            [=]() { visualizer_->update_3d_object("liodom/localmap", glMap); });
     }
+
+    // now, update all visual elements at once:
+    for (const auto& ut : updateTasks) ut();
 
     // Console messages:
     // -------------------------
