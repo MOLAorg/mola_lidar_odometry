@@ -123,6 +123,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml& cfg)
 {
     YAML_LOAD_OPT(map_update_decimation, int);
     YAML_LOAD_OPT(show_trajectory, bool);
+    YAML_LOAD_OPT(show_current_observation, bool);
     YAML_LOAD_OPT(show_console_messages, bool);
     YAML_LOAD_OPT(current_pose_corner_size, double);
     YAML_LOAD_OPT(local_map_point_size, float);
@@ -1520,27 +1521,29 @@ void LidarOdometry::updateVisualization(
         }
     }
 
-    // Update vehicle pose
-    // -------------------------
-    state_.glVehicleFrame->setPose(state_.last_lidar_pose.mean);
-    visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame);
-
     // Update current observation
     // ----------------------------
-    state_.glCurrentObservation->clear();
-    if (currentObservation.layers.count("raw"))
+    if (currentObservation.layers.count("raw") &&
+        params_.visualization.show_current_observation)
     {
         // Visualize the raw data only, not the filtered layers:
         mp2p_icp::metric_map_t mm;
         mm.layers["raw"] = currentObservation.layers.at("raw");
 
         mp2p_icp::render_params_t rp;
-        rp.points.allLayers.pointSize = 2.0f;
+        rp.points.allLayers.pointSize = 1.0f;
         auto& cm                      = rp.points.allLayers.colorMode.emplace();
+        cm.colorMap                   = mrpt::img::cmJET;
         cm.recolorizeByCoordinate     = mp2p_icp::Coordinate::Z;
 
-        state_.glCurrentObservation->insert(mm.get_visualization(rp));
+        // Copy *contents* of the opengl group object:
+        *state_.glCurrentObservation = *mm.get_visualization(rp);
     }
+
+    // Update vehicle pose
+    // -------------------------
+    state_.glVehicleFrame->setPose(state_.last_lidar_pose.mean);
+    visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame);
 
     // Estimated path:
     // ------------------------

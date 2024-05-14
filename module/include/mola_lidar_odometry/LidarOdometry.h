@@ -195,6 +195,7 @@ class LidarOdometry : public FrontEndBase,
         {
             int    map_update_decimation                = 10;
             bool   show_trajectory                      = true;
+            bool   show_current_observation             = true;
             double current_pose_corner_size             = 1.5;  //! [m]
             float  local_map_point_size                 = 3.0f;
             bool   local_map_render_voxelmap_free_space = false;
