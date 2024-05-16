@@ -16,8 +16,8 @@ if [ ! -f $PIPELINE_YAML ]; then
 fi
 
 # Add this one to also create the maps (It requires several GBs!)
-GENERATE_SIMPLEMAPS=true
-#GENERATE_SIMPLEMAPS=false
+#GENERATE_SIMPLEMAPS=true
+GENERATE_SIMPLEMAPS=false
 
 
 parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
