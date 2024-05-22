@@ -65,6 +65,13 @@
 #include <chrono>
 #include <thread>
 
+// fix for older mrpt versions:
+#include <mrpt/config.h>
+#if MRPT_VERSION <= 0x020d00  // < v2.13.0
+// YAML API:
+#define asSequenceRange asSequence
+#endif
+
 using namespace mola;
 
 // arguments: class_name, parent_class, class namespace
