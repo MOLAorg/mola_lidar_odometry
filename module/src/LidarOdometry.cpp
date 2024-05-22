@@ -139,7 +139,8 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml& cfg)
     if (cfg.has("model"))
     {
         ASSERT_(cfg["model"].isSequence());
-        for (const auto& e : cfg["model"].asSequenceRange())
+        const auto models = cfg["model"].asSequenceRange();
+        for (const auto& e : models)
         {
             ASSERT_(e.isMap());
             auto  c = e.asMap();
@@ -229,7 +230,8 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
     ENSURE_YAML_ENTRY_EXISTS(cfg, "lidar_sensor_labels");
     if (cfg["lidar_sensor_labels"].isSequence())
     {
-        for (const auto& sl : cfg["lidar_sensor_labels"].asSequenceRange())
+        const auto lsl = cfg["lidar_sensor_labels"].asSequenceRange();
+        for (const auto& sl : lsl)
         {
             const auto s = sl.as<std::string>();
             MRPT_LOG_DEBUG_STREAM("Adding as input lidar sensor label: " << s);
