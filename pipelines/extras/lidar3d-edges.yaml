@@ -227,9 +227,9 @@ observations_filter:
       silently_ignore_no_timestamps: true # To handle more dataset types
       output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity & ring channels
       
-      # These (vx,...wz) are variable names that must be defined via the
+      # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
-      twist: [VX,VY,VZ,WX,WY,WZ]
+      twist: [vx,vy,vz,wx,wy,wz]
 
   # Remove points too close, to prevent "noise" from the vehicle, 
   # the person next to the robot, etc. Remove too distant points since
@@ -302,11 +302,11 @@ insert_observation_into_local_map:
       input_pointcloud_layer: 'decimated_for_map_smaller_curvature'
       target_layer: 'localmap_small_curvature'
       input_layer_in_local_coordinates: true
-      robot_pose: [ROBOT_X, ROBOT_Y, ROBOT_Z, ROBOT_YAW, ROBOT_PITCH, ROBOT_ROLL]
+      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
 
   - class_name: mp2p_icp_filters::FilterMerge
     params:
       input_pointcloud_layer: 'decimated_for_map_large_curvature'
       target_layer: 'localmap_large_curvature'
       input_layer_in_local_coordinates: true
-      robot_pose: [ROBOT_X, ROBOT_Y, ROBOT_Z, ROBOT_YAW, ROBOT_PITCH, ROBOT_ROLL]
+      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]

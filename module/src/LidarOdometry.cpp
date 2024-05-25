@@ -843,7 +843,10 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             state_.navstate_fuse.fuse_pose(
                 this_obs_tim, icp_out.found_pose_to_wrt_from);
         }
-        else { state_.navstate_fuse.reset(); }
+        else
+        {
+            state_.navstate_fuse.reset();
+        }
 
         // Update trajectory too:
         if (icpIsGood)
@@ -1453,22 +1456,22 @@ void LidarOdometry::updatePipelineDynamicVariables()
         if (state_.navstate_fuse.get_last_twist())
             twistForIcpVars = state_.navstate_fuse.get_last_twist().value();
 
-        state_.parameter_source.updateVariable("VX", twistForIcpVars.vx);
-        state_.parameter_source.updateVariable("VY", twistForIcpVars.vy);
-        state_.parameter_source.updateVariable("VZ", twistForIcpVars.vz);
-        state_.parameter_source.updateVariable("WX", twistForIcpVars.wx);
-        state_.parameter_source.updateVariable("WY", twistForIcpVars.wy);
-        state_.parameter_source.updateVariable("WZ", twistForIcpVars.wz);
+        state_.parameter_source.updateVariable("vx", twistForIcpVars.vx);
+        state_.parameter_source.updateVariable("vy", twistForIcpVars.vy);
+        state_.parameter_source.updateVariable("vz", twistForIcpVars.vz);
+        state_.parameter_source.updateVariable("wx", twistForIcpVars.wx);
+        state_.parameter_source.updateVariable("wy", twistForIcpVars.wy);
+        state_.parameter_source.updateVariable("wz", twistForIcpVars.wz);
     }
 
     // robot pose:
     const auto& p = state_.last_lidar_pose.mean;
-    state_.parameter_source.updateVariable("ROBOT_X", p.x());
-    state_.parameter_source.updateVariable("ROBOT_Y", p.y());
-    state_.parameter_source.updateVariable("ROBOT_Z", p.z());
-    state_.parameter_source.updateVariable("ROBOT_YAW", p.yaw());
-    state_.parameter_source.updateVariable("ROBOT_PITCH", p.pitch());
-    state_.parameter_source.updateVariable("ROBOT_ROLL", p.roll());
+    state_.parameter_source.updateVariable("robot_x", p.x());
+    state_.parameter_source.updateVariable("robot_y", p.y());
+    state_.parameter_source.updateVariable("robot_z", p.z());
+    state_.parameter_source.updateVariable("robot_yaw", p.yaw());
+    state_.parameter_source.updateVariable("robot_pitch", p.pitch());
+    state_.parameter_source.updateVariable("robot_roll", p.roll());
 
     state_.parameter_source.updateVariable(
         "ADAPTIVE_THRESHOLD_SIGMA",
@@ -1549,11 +1552,9 @@ void LidarOdometry::updateVisualization(
     // Update vehicle pose
     // -------------------------
     state_.glVehicleFrame->setPose(state_.last_lidar_pose.mean);
-    updateTasks.emplace_back(
-        [this]() {
-            visualizer_->update_3d_object(
-                "liodom/vehicle", state_.glVehicleFrame);
-        });
+    updateTasks.emplace_back([this]() {
+        visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame);
+    });
 
     // Update current observation
     // ----------------------------
@@ -1575,11 +1576,10 @@ void LidarOdometry::updateVisualization(
         // move to current pose
         glCurrentObservation->setPose(state_.last_lidar_pose.mean);
         // and enqueue for updating in the opengl thread:
-        updateTasks.emplace_back(
-            [=]() {
-                visualizer_->update_3d_object(
-                    "liodom/cur_obs", glCurrentObservation);
-            });
+        updateTasks.emplace_back([=]() {
+            visualizer_->update_3d_object(
+                "liodom/cur_obs", glCurrentObservation);
+        });
     }
 
     // Estimated path:
@@ -1611,20 +1611,17 @@ void LidarOdometry::updateVisualization(
         state_.glPathGrp->insert(
             mrpt::opengl::CSetOfLines::Create(*state_.glEstimatedPath));
 
-        updateTasks.emplace_back(
-            [this]() {
-                visualizer_->update_3d_object("liodom/path", state_.glPathGrp);
-            });
+        updateTasks.emplace_back([this]() {
+            visualizer_->update_3d_object("liodom/path", state_.glPathGrp);
+        });
     }
 
     // GUI follow vehicle:
     // ---------------------------
-    updateTasks.emplace_back(
-        [this]()
-        {
-            visualizer_->update_viewport_look_at(
-                state_.last_lidar_pose.mean.translation());
-        });
+    updateTasks.emplace_back([this]() {
+        visualizer_->update_viewport_look_at(
+            state_.last_lidar_pose.mean.translation());
+    });
 
     // Local map:
     // -----------------------------
@@ -1800,8 +1797,8 @@ void LidarOdometry::internalBuildGUI()
 
     auto cbMapping = tab2->add<nanogui::CheckBox>("Mapping enabled");
     cbMapping->setChecked(params_.local_map_updates.enabled);
-    cbMapping->setCallback([&](bool checked)
-                           { params_.local_map_updates.enabled = checked; });
+    cbMapping->setCallback(
+        [&](bool checked) { params_.local_map_updates.enabled = checked; });
 
     {
         auto* lbMsg = tab2->add<nanogui::Label>(
@@ -1818,21 +1815,19 @@ void LidarOdometry::internalBuildGUI()
         auto* cbSaveTrajectory =
             panel->add<nanogui::CheckBox>("Save trajectory");
         cbSaveTrajectory->setChecked(params_.estimated_trajectory.save_to_file);
-        cbSaveTrajectory->setCallback(
-            [this](bool checked)
-            { params_.estimated_trajectory.save_to_file = checked; });
+        cbSaveTrajectory->setCallback([this](bool checked) {
+            params_.estimated_trajectory.save_to_file = checked;
+        });
 
         auto* edTrajOutFile = panel->add<nanogui::TextBox>();
         edTrajOutFile->setFontSize(13);
         edTrajOutFile->setEditable(true);
         edTrajOutFile->setAlignment(nanogui::TextBox::Alignment::Left);
         edTrajOutFile->setValue(params_.estimated_trajectory.output_file);
-        edTrajOutFile->setCallback(
-            [this](const std::string& f)
-            {
-                params_.estimated_trajectory.output_file = f;
-                return true;
-            });
+        edTrajOutFile->setCallback([this](const std::string& f) {
+            params_.estimated_trajectory.output_file = f;
+            return true;
+        });
     }
 
     {
@@ -1844,20 +1839,18 @@ void LidarOdometry::internalBuildGUI()
         auto* cbSaveSimplemap =
             panel->add<nanogui::CheckBox>("Generate simplemap");
         cbSaveSimplemap->setChecked(params_.simplemap.generate);
-        cbSaveSimplemap->setCallback([this](bool checked)
-                                     { params_.simplemap.generate = checked; });
+        cbSaveSimplemap->setCallback(
+            [this](bool checked) { params_.simplemap.generate = checked; });
 
         auto* edMapOutFile = panel->add<nanogui::TextBox>();
         edMapOutFile->setFontSize(13);
         edMapOutFile->setEditable(true);
         edMapOutFile->setAlignment(nanogui::TextBox::Alignment::Left);
         edMapOutFile->setValue(params_.simplemap.save_final_map_to_file);
-        edMapOutFile->setCallback(
-            [this](const std::string& f)
-            {
-                params_.simplemap.save_final_map_to_file = f;
-                return true;
-            });
+        edMapOutFile->setCallback([this](const std::string& f) {
+            params_.simplemap.save_final_map_to_file = f;
+            return true;
+        });
     }
 
     {
@@ -1870,30 +1863,28 @@ void LidarOdometry::internalBuildGUI()
             panel->add<nanogui::Button>("Save traj. now", ENTYPO_ICON_SAVE);
         btnSaveTraj->setFontSize(14);
 
-        btnSaveTraj->setCallback([this]()
-                                 { this->saveEstimatedTrajectoryToFile(); });
+        btnSaveTraj->setCallback(
+            [this]() { this->saveEstimatedTrajectoryToFile(); });
 
         auto* btnSaveMap =
             panel->add<nanogui::Button>("Save map now", ENTYPO_ICON_SAVE);
         btnSaveMap->setFontSize(14);
 
-        btnSaveMap->setCallback([this]()
-                                { this->saveReconstructedMapToFile(); });
+        btnSaveMap->setCallback(
+            [this]() { this->saveReconstructedMapToFile(); });
     }
 
     auto btnReset = tab2->add<nanogui::Button>("Reset", ENTYPO_ICON_CCW);
-    btnReset->setCallback(
-        [&]()
+    btnReset->setCallback([&]() {
+        try
         {
-            try
-            {
-                this->reset();
-            }
-            catch (const std::exception& e)
-            {
-                std::cerr << e.what() << std::endl;
-            }
-        });
+            this->reset();
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << e.what() << std::endl;
+        }
+    });
 
     auto btnQuit = tab2->add<nanogui::Button>("Quit", ENTYPO_ICON_ARROW_LEFT);
     btnQuit->setCallback([&]() { this->requestShutdown(); });
