@@ -339,6 +339,14 @@ class LidarOdometry : public FrontEndBase,
     void saveEstimatedTrajectoryToFile() const;
     void saveReconstructedMapToFile() const;
 
+    /** Enqueue a custom user request to be executed on the main LidarOdometry
+     *  thread on the next iteration.
+     *
+     *  So, this method is safe to be called from any other thread.
+     *
+     */
+    void enqueue_request(const std::function<void()>& userRequest);
+
     /** @} */
 
    private:
@@ -466,9 +474,18 @@ class LidarOdometry : public FrontEndBase,
     /// The configuration used in the last call to initialize()
     Yaml lastInitConfig_;
 
+    bool                         destructor_called_ = false;
     mutable std::mutex           is_busy_mtx_;
+    mutable std::mutex           state_mtx_;
     mutable std::mutex           state_trajectory_mtx_;
     mutable std::recursive_mutex state_simplemap_mtx_;
+
+    /// The list of pending tasks from enqueue_request():
+    std::vector<std::function<void()>> requests_;
+    std::mutex                         requests_mtx_;
+
+    // Process requests_(), at the spinOnce() rate.
+    void processPendingUserRequests();
 
     void onLidar(const CObservation::Ptr& o);
     void onLidarImpl(const CObservation::Ptr& obs);

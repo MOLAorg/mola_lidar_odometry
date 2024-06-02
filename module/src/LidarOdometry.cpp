@@ -85,6 +85,11 @@ LidarOdometry::~LidarOdometry()
 
     try  // a dtor should never throw
     {
+        {
+            auto lck           = mrpt::lockHelper(is_busy_mtx_);
+            destructor_called_ = true;
+        }
+
         worker_.clear();
         while (isBusy())
         {
@@ -434,7 +439,8 @@ void LidarOdometry::spinOnce()
 
     ProfilerEntry tleg(profiler_, "spinOnce");
 
-    //
+    processPendingUserRequests();
+
     MRPT_TRY_END
 }
 
@@ -560,6 +566,11 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr& o)
 
 void LidarOdometry::onLidar(const CObservation::Ptr& o)
 {
+    {
+        auto lck = mrpt::lockHelper(is_busy_mtx_);
+        if (destructor_called_) return;  // abort pending tasks
+    }
+
     // All methods that are enqueued into a thread pool should have its own
     // top-level try-catch:
     try
@@ -581,6 +592,12 @@ void LidarOdometry::onLidar(const CObservation::Ptr& o)
 void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 {
     using namespace std::string_literals;
+
+    // Before locking the state_mtx_, check if we need to process any pending
+    // async request:
+    processPendingUserRequests();
+
+    auto lckState = mrpt::lockHelper(state_mtx_);
 
     ASSERT_(obs);
 
@@ -843,10 +860,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             state_.navstate_fuse.fuse_pose(
                 this_obs_tim, icp_out.found_pose_to_wrt_from);
         }
-        else
-        {
-            state_.navstate_fuse.reset();
-        }
+        else { state_.navstate_fuse.reset(); }
 
         // Update trajectory too:
         if (icpIsGood)
@@ -1552,9 +1566,11 @@ void LidarOdometry::updateVisualization(
     // Update vehicle pose
     // -------------------------
     state_.glVehicleFrame->setPose(state_.last_lidar_pose.mean);
-    updateTasks.emplace_back([this]() {
-        visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame);
-    });
+    updateTasks.emplace_back(
+        [this]() {
+            visualizer_->update_3d_object(
+                "liodom/vehicle", state_.glVehicleFrame);
+        });
 
     // Update current observation
     // ----------------------------
@@ -1576,10 +1592,11 @@ void LidarOdometry::updateVisualization(
         // move to current pose
         glCurrentObservation->setPose(state_.last_lidar_pose.mean);
         // and enqueue for updating in the opengl thread:
-        updateTasks.emplace_back([=]() {
-            visualizer_->update_3d_object(
-                "liodom/cur_obs", glCurrentObservation);
-        });
+        updateTasks.emplace_back(
+            [=]() {
+                visualizer_->update_3d_object(
+                    "liodom/cur_obs", glCurrentObservation);
+            });
     }
 
     // Estimated path:
@@ -1611,17 +1628,20 @@ void LidarOdometry::updateVisualization(
         state_.glPathGrp->insert(
             mrpt::opengl::CSetOfLines::Create(*state_.glEstimatedPath));
 
-        updateTasks.emplace_back([this]() {
-            visualizer_->update_3d_object("liodom/path", state_.glPathGrp);
-        });
+        updateTasks.emplace_back(
+            [this]() {
+                visualizer_->update_3d_object("liodom/path", state_.glPathGrp);
+            });
     }
 
     // GUI follow vehicle:
     // ---------------------------
-    updateTasks.emplace_back([this]() {
-        visualizer_->update_viewport_look_at(
-            state_.last_lidar_pose.mean.translation());
-    });
+    updateTasks.emplace_back(
+        [this]()
+        {
+            visualizer_->update_viewport_look_at(
+                state_.last_lidar_pose.mean.translation());
+        });
 
     // Local map:
     // -----------------------------
@@ -1793,12 +1813,21 @@ void LidarOdometry::internalBuildGUI()
     // tab 2: control
     auto cbActive = tab2->add<nanogui::CheckBox>("Active");
     cbActive->setChecked(state_.active);
-    cbActive->setCallback([&](bool checked) { state_.active = checked; });
+    cbActive->setCallback(
+        [&](bool checked) {
+            this->enqueue_request([this, checked]()
+                                  { state_.active = checked; });
+        });
 
     auto cbMapping = tab2->add<nanogui::CheckBox>("Mapping enabled");
     cbMapping->setChecked(params_.local_map_updates.enabled);
     cbMapping->setCallback(
-        [&](bool checked) { params_.local_map_updates.enabled = checked; });
+        [&](bool checked)
+        {
+            this->enqueue_request(
+                [this, checked]()
+                { params_.local_map_updates.enabled = checked; });
+        });
 
     {
         auto* lbMsg = tab2->add<nanogui::Label>(
@@ -1815,19 +1844,27 @@ void LidarOdometry::internalBuildGUI()
         auto* cbSaveTrajectory =
             panel->add<nanogui::CheckBox>("Save trajectory");
         cbSaveTrajectory->setChecked(params_.estimated_trajectory.save_to_file);
-        cbSaveTrajectory->setCallback([this](bool checked) {
-            params_.estimated_trajectory.save_to_file = checked;
-        });
+        cbSaveTrajectory->setCallback(
+            [this](bool checked)
+            {
+                this->enqueue_request(
+                    [this, checked]()
+                    { params_.estimated_trajectory.save_to_file = checked; });
+            });
 
         auto* edTrajOutFile = panel->add<nanogui::TextBox>();
         edTrajOutFile->setFontSize(13);
         edTrajOutFile->setEditable(true);
         edTrajOutFile->setAlignment(nanogui::TextBox::Alignment::Left);
         edTrajOutFile->setValue(params_.estimated_trajectory.output_file);
-        edTrajOutFile->setCallback([this](const std::string& f) {
-            params_.estimated_trajectory.output_file = f;
-            return true;
-        });
+        edTrajOutFile->setCallback(
+            [this](const std::string& f)
+            {
+                this->enqueue_request(
+                    [this, f]()
+                    { params_.estimated_trajectory.output_file = f; });
+                return true;
+            });
     }
 
     {
@@ -1840,17 +1877,26 @@ void LidarOdometry::internalBuildGUI()
             panel->add<nanogui::CheckBox>("Generate simplemap");
         cbSaveSimplemap->setChecked(params_.simplemap.generate);
         cbSaveSimplemap->setCallback(
-            [this](bool checked) { params_.simplemap.generate = checked; });
+            [this](bool checked)
+            {
+                this->enqueue_request(
+                    [this, checked]()
+                    { params_.simplemap.generate = checked; });
+            });
 
         auto* edMapOutFile = panel->add<nanogui::TextBox>();
         edMapOutFile->setFontSize(13);
         edMapOutFile->setEditable(true);
         edMapOutFile->setAlignment(nanogui::TextBox::Alignment::Left);
         edMapOutFile->setValue(params_.simplemap.save_final_map_to_file);
-        edMapOutFile->setCallback([this](const std::string& f) {
-            params_.simplemap.save_final_map_to_file = f;
-            return true;
-        });
+        edMapOutFile->setCallback(
+            [this](const std::string& f)
+            {
+                this->enqueue_request(
+                    [this, f]()
+                    { params_.simplemap.save_final_map_to_file = f; });
+                return true;
+            });
     }
 
     {
@@ -1863,28 +1909,20 @@ void LidarOdometry::internalBuildGUI()
             panel->add<nanogui::Button>("Save traj. now", ENTYPO_ICON_SAVE);
         btnSaveTraj->setFontSize(14);
 
-        btnSaveTraj->setCallback(
-            [this]() { this->saveEstimatedTrajectoryToFile(); });
+        btnSaveTraj->setCallback([this]()
+                                 { this->saveEstimatedTrajectoryToFile(); });
 
         auto* btnSaveMap =
             panel->add<nanogui::Button>("Save map now", ENTYPO_ICON_SAVE);
         btnSaveMap->setFontSize(14);
 
-        btnSaveMap->setCallback(
-            [this]() { this->saveReconstructedMapToFile(); });
+        btnSaveMap->setCallback([this]()
+                                { this->saveReconstructedMapToFile(); });
     }
 
     auto btnReset = tab2->add<nanogui::Button>("Reset", ENTYPO_ICON_CCW);
-    btnReset->setCallback([&]() {
-        try
-        {
-            this->reset();
-        }
-        catch (const std::exception& e)
-        {
-            std::cerr << e.what() << std::endl;
-        }
-    });
+    btnReset->setCallback(
+        [&]() { this->enqueue_request([this]() { this->reset(); }); });
 
     auto btnQuit = tab2->add<nanogui::Button>("Quit", ENTYPO_ICON_ARROW_LEFT);
     btnQuit->setCallback([&]() { this->requestShutdown(); });
@@ -2044,4 +2082,31 @@ void LidarOdometry::handleUnloadSinglePastObservation(
         CObservationPointCloud::ExternalStorageFormat::MRPT_Serialization);
 
     oPts->unload();  // this actually saves the data to disk
+}
+
+void LidarOdometry::enqueue_request(const std::function<void()>& userRequest)
+{
+    auto lck = mrpt::lockHelper(requests_mtx_);
+    requests_.push_back(userRequest);
+}
+
+void LidarOdometry::processPendingUserRequests()
+{
+    auto lckState = mrpt::lockHelper(state_mtx_);
+    auto lck      = mrpt::lockHelper(requests_mtx_);
+
+    for (const auto& r : requests_)
+    {
+        try
+        {
+            r();
+        }
+        catch (const std::exception& e)
+        {
+            MRPT_LOG_ERROR_STREAM(
+                "Error processing asynchronous enqueue_request(): "
+                << e.what());
+        }
+    }
+    requests_.clear();
 }

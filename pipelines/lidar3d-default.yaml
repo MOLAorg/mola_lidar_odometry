@@ -10,7 +10,7 @@ params:
 
   multiple_lidars:
     lidar_count: ${MOLA_LIDAR_COUNT|1} # useful only if using several lidar_sensor_labels or regex's.
-    max_time_offset: ${MOLA_LIDAR_MAX_TIME_OFFSET|25e-3}  # [s]
+    max_time_offset: ${MOLA_LIDAR_MAX_TIME_OFFSET|0.1}  # [s]
 
   # These sensor labels will be handled as IMU observations:
   imu_sensor_label: 'imu'
