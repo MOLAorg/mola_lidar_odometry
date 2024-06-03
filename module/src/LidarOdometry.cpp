@@ -223,6 +223,8 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
 {
     MRPT_TRY_START
 
+    auto lckState = mrpt::lockHelper(state_mtx_);
+
     this->setLoggerName("LidarOdometry");
 
     // make a copy of the initialization, for use in reset()
@@ -459,6 +461,8 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr& o)
 
     ASSERT_(o);
 
+    auto lckState = mrpt::lockHelper(state_mtx_);
+
     if (!state_.initialized)
     {
         MRPT_LOG_THROTTLE_ERROR(
@@ -593,8 +597,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 {
     using namespace std::string_literals;
 
-    // Before locking the state_mtx_, check if we need to process any pending
-    // async request:
+    // Check if we need to process any pending async request:
     processPendingUserRequests();
 
     auto lckState = mrpt::lockHelper(state_mtx_);

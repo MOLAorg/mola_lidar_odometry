@@ -476,7 +476,7 @@ class LidarOdometry : public FrontEndBase,
 
     bool                         destructor_called_ = false;
     mutable std::mutex           is_busy_mtx_;
-    mutable std::mutex           state_mtx_;
+    mutable std::recursive_mutex state_mtx_;
     mutable std::mutex           state_trajectory_mtx_;
     mutable std::recursive_mutex state_simplemap_mtx_;
 
