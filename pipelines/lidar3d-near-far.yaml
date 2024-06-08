@@ -22,7 +22,7 @@ params:
   gnns_sensor_label: 'gps'
 
   # Optionally, drop lidar data too close in time:
-  min_time_between_scans: 1e-3 # [seconds]
+  min_time_between_scans: 0 # [seconds]
 
   # Parameters for max sensor range automatic estimation:
   max_sensor_range_filter_coefficient: 0.95
@@ -144,13 +144,26 @@ icp_settings_with_vel:
   matchers:
     - class: mp2p_icp::Matcher_Points_DistanceThreshold
       params:
-        #threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
-        threshold: '2.0*max(0.5*ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-0.5*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30)'
+        threshold: '3.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
         thresholdAngularDeg: 0  # deg
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
+        runFromIteration: 4  # "from 0 to 0" means "all"
+        runUpToIteration: 0
         pointLayerMatches:
-          - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
+          - {global: "localmap_far", local: "decimated_for_icp_far", weight: 1.0}
+
+    - class: mp2p_icp::Matcher_Points_DistanceThreshold
+      params:
+        threshold: '2.00*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
+        thresholdAngularDeg: 0  # deg
+        pairingsPerPoint: 1
+        allowMatchAlreadyMatchedGlobalPoints: true # faster
+        runFromIteration: 0  # "from 0 to 0" means "all"
+        runUpToIteration: 0
+        pointLayerMatches:
+          - {global: "localmap_near", local: "decimated_for_icp_near", weight: 1.0}
+          - {global: "localmap_far", local: "decimated_for_icp_near", weight: 1.0}
 
   quality:
     - class: mp2p_icp::QualityEvaluator_PairedRatio
@@ -168,7 +181,7 @@ localmap_generator:
   #
   - class_name: mp2p_icp_filters::Generator
     params:
-      target_layer: 'localmap'
+      target_layer: 'localmap_near'
       throw_on_unhandled_observation_class: true
       process_class_names_regex: ''  # NONE: don't process observations in the generator.
       #process_sensor_labels_regex: '.*'
@@ -179,7 +192,7 @@ localmap_generator:
         class: mola::HashedVoxelPointCloud
         plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
-          voxel_size: '$f{max(0.5, min(1.0, 0.015*ESTIMATED_SENSOR_MAX_RANGE))}' # [m]
+          voxel_size: '0.10' # [m]
         insertOpts:
           max_points_per_voxel: 20
           min_distance_between_points: 0  # [m]
@@ -189,6 +202,32 @@ localmap_generator:
           sigma_dist: 1.0    # [m]
           max_corr_distance: 2.0  #[m]
           decimation: 10
+        renderOpts:
+          point_size: 2.0
+
+  - class_name: mp2p_icp_filters::Generator
+    params:
+      target_layer: 'localmap_far'
+      throw_on_unhandled_observation_class: true
+      process_class_names_regex: ''  # NONE: don't process observations in the generator.
+      #process_sensor_labels_regex: '.*'
+      metric_map_definition:
+        # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/latest/group_mrpt_maps_grp.html
+        class: mola::HashedVoxelPointCloud
+        plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
+        creationOpts:
+          voxel_size: '0.5' # [m]
+        insertOpts:
+          max_points_per_voxel: 10
+          min_distance_between_points: 0  # [m]
+          # if !=0, remove voxels farther (L1) than the current observation insert point
+          remove_voxels_farther_than: '$f{max(100.0, 1.10*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
+        likelihoodOpts:
+          sigma_dist: 1.0    # [m]
+          max_corr_distance: 2.0  #[m]
+          decimation: 10
+        renderOpts:
+          point_size: 2.0
 
 # ---------------------------------------------------------------------------------
 # LIDAR observations are, first, loaded using a generator
@@ -222,61 +261,78 @@ observations_filter:
       input_pointcloud_layer: 'raw'
       output_pointcloud_layer: 'deskewed'
       silently_ignore_no_timestamps: true # To handle more dataset types
-      output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity & ring channels
+      output_layer_class: 'mrpt::maps::CPointsMapXYZI'  # Keep intensity channel
       
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
       twist: [vx,vy,vz,wx,wy,wz]
-
-  - class_name: mp2p_icp_filters::FilterDecimateVoxels
-    params:
-      input_pointcloud_layer: 'deskewed'
-      output_pointcloud_layer: 'decimated_for_map_raw'
-      voxel_filter_resolution: max(0.20, 0.55*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
-      minimum_input_points_to_filter: 2000  # don't decimate if smaller than this size
-      decimate_method: DecimateMethod::FirstPoint
-      #decimate_method: DecimateMethod::ClosestToAverage
 
   # Remove points too close, to prevent "noise" from the vehicle, 
   # the person next to the robot, etc. Remove too distant points since
   # the tiniest angular error projects to a large translational error.
   - class_name: mp2p_icp_filters::FilterByRange
     params:
-      input_pointcloud_layer: 'decimated_for_map_raw'
-      output_layer_between: 'decimated_for_map_by_range'
-      range_min: max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)
+      input_pointcloud_layer: 'deskewed'
+      output_layer_between: 'filtered'
+      range_min: 1.0 # max(1.0, 0.05*ESTIMATED_SENSOR_MAX_RANGE)
       range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
 
-  # Remove close ceilings (problematic in most cases!)
   - class_name: mp2p_icp_filters::FilterBoundingBox
     params:
-      input_pointcloud_layer: 'decimated_for_map_by_range'
-      outside_pointcloud_layer: 'decimated_for_map'
-      bounding_box_min: [ -0.20*INSTANTANEOUS_SENSOR_MAX_RANGE, -0.20*INSTANTANEOUS_SENSOR_MAX_RANGE, 0.01*INSTANTANEOUS_SENSOR_MAX_RANGE ]
-      bounding_box_max: [  0.20*INSTANTANEOUS_SENSOR_MAX_RANGE,  0.20*INSTANTANEOUS_SENSOR_MAX_RANGE, 0.10*INSTANTANEOUS_SENSOR_MAX_RANGE ]
-
+      input_pointcloud_layer: 'filtered'
+      inside_pointcloud_layer: 'near'
+      outside_pointcloud_layer: 'far'
+      bounding_box_min: [ -5.0, -5.0, -40.0 ]
+      bounding_box_max: [  5.0,  5.0, 100.0 ]
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
-      input_pointcloud_layer: 'decimated_for_map'
-      output_pointcloud_layer: 'decimated_for_icp'
-      voxel_filter_resolution: max(0.60, 1.6*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
-      minimum_input_points_to_filter: 2000  # don't decimate if smaller than this size
+      input_pointcloud_layer: 'near'
+      output_pointcloud_layer: 'decimated_for_icp_near'
+      voxel_filter_resolution: 0.75  # [m]
       decimate_method: DecimateMethod::FirstPoint
-      #decimate_method: DecimateMethod::ClosestToAverage
+
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: 'near'
+      output_pointcloud_layer: 'decimated_for_map_near'
+      voxel_filter_resolution: 0.25  # [m]
+      decimate_method: DecimateMethod::FirstPoint
+
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: 'far'
+      output_pointcloud_layer: 'decimated_for_map_far'
+      voxel_filter_resolution: 0.5  # [m]
+      decimate_method: DecimateMethod::FirstPoint
+
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: 'far'
+      output_pointcloud_layer: 'decimated_for_icp_far'
+      voxel_filter_resolution: 1.5  # [m]
+      decimate_method: DecimateMethod::FirstPoint
 
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ['raw','deskewed', 'decimated_for_map_by_range', 'decimated_for_map_raw']
+      pointcloud_layer_to_remove: ['raw','deskewed', 'filtered', 'far', 'near']
+
 
 # To populate the local map, one or more observation layers are merged
 # into the local map via this pipeline:
 insert_observation_into_local_map:
   - class_name: mp2p_icp_filters::FilterMerge
     params:
-      input_pointcloud_layer: 'decimated_for_map'
-      target_layer: 'localmap'
+      input_pointcloud_layer: 'decimated_for_map_near'
+      target_layer: 'localmap_near'
+      input_layer_in_local_coordinates: true
+      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
+
+  - class_name: mp2p_icp_filters::FilterMerge
+    params:
+      input_pointcloud_layer: 'decimated_for_map_far'
+      target_layer: 'localmap_far'
       input_layer_in_local_coordinates: true
       robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
 
