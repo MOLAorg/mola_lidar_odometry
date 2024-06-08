@@ -1377,9 +1377,11 @@ void LidarOdometry::doUpdateAdaptiveThreshold(
 
     const double max_range = state_.estimated_sensor_max_range.value();
 
-    const double ALPHA = 0.95;
+    const double ALPHA = 0.90;
 
     double model_error = computeModelError(lastMotionModelError, max_range);
+
+    mrpt::keep_max(model_error, params_.adaptive_threshold.min_motion);
 
     const double new_sigma =
         model_error *
@@ -1390,9 +1392,6 @@ void LidarOdometry::doUpdateAdaptiveThreshold(
 
     state_.adapt_thres_sigma =
         ALPHA * state_.adapt_thres_sigma + (1.0 - ALPHA) * new_sigma;
-
-    mrpt::keep_max(
-        state_.adapt_thres_sigma, params_.adaptive_threshold.min_motion);
 
     MRPT_LOG_DEBUG_FMT(
         "model_error: %f  new_sigma: %f ICP q=%f sigma=%f", model_error,
