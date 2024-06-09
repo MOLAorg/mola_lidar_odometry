@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
+# For usage instructions, see: https://docs.mola-slam.org/latest/
 
 if [ "$#" -eq 0 ]; then
     echo "Error: At least 1 argument is required."
-    echo "Usage: $0 <MULRAN_SEQ> [additional flags for mola-cli]"
-    echo "With <MULRAN_SEQ> KAIST01, DCC01, ..."
+    echo "Usage: $0 /path/to/dataset.mcap [additional flags for mola-cli]"
+    echo "You can set env var MOLA_LIDAR_TOPIC to define the lidar topic name (default: '/ouster/points')"
     exit 1
 fi
 
@@ -14,11 +15,11 @@ if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
   MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
 fi
 
-SEQ=$1
+FILE=$1
 shift 1
 
 MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
-MULRAN_SEQ=$SEQ \
+MOLA_INPUT_ROSBAG2=$FILE \
   mola-cli \
-    $MOLA_LAUNCHS_DIR/lidar_odometry_from_mulran.yaml \
+    $MOLA_LAUNCHS_DIR/lidar_odometry_from_rosbag2.yaml \
     $@

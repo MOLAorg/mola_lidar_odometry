@@ -149,11 +149,11 @@ install(
 
 # Install gui-* demo "executables" too:
 install(PROGRAMS
-  eval/mola-lo-gui-kitti
-  eval/mola-lo-gui-kitti360
-  eval/mola-lo-gui-mulran
-  eval/mola-lo-gui-rawlog
-  eval/mola-lo-gui-rosbag2
+  scripts/mola-lo-gui-kitti
+  scripts/mola-lo-gui-kitti360
+  scripts/mola-lo-gui-mulran
+  scripts/mola-lo-gui-rawlog
+  scripts/mola-lo-gui-rosbag2
   DESTINATION
     bin
 )

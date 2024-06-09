@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# For usage instructions, see: https://docs.mola-slam.org/latest/
 
 if [ "$#" -eq 0 ]; then
     echo "Error: At least 1 argument is required."
@@ -19,6 +20,7 @@ shift 1
 
 KITTI_SEQ=$SEQ \
 MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
+MOLA_INITIAL_VX=20.0 \
   mola-cli \
-    $MOLA_LAUNCHS_DIR/lidar_odometry_from_kitti360.yaml \
+    $MOLA_LAUNCHS_DIR/lidar_odometry_from_kitti.yaml \
     $@
