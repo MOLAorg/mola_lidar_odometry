@@ -16,7 +16,7 @@ params:
   imu_sensor_label: 'imu'
 
   # These sensor labels will be handled as wheel odometry observation (C++11 regex):
-  wheel_odometry_sensor_label: 'odometry|ODOMETRY'
+  wheel_odometry_sensor_label: '${MOLA_ODOMETRY_NAME|odometry}'
 
   # These sensor labels will be handled as GNNS (GPS) (For storage in simplemap only)
   gnns_sensor_label: 'gps'
@@ -97,8 +97,8 @@ navstate_fuse_params:
   # (KITTI360 test_3 has some blackouts >=1.0 seconds while angular acceleration is high, so 
   #  this threshold must be < 1.0 s for that dataset)
   max_time_to_use_velocity_model: 0.75 # [seconds]
-  sigma_random_walk_acceleration_linear: 10.0 # [m/s²]
-  sigma_random_walk_acceleration_angular: 10.0 # [rad/s²]
+  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|10.0} # [m/s²]
+  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|10.0} # [rad/s²]
 
 
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
