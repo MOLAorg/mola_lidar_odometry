@@ -16,7 +16,7 @@ params:
   imu_sensor_label: 'imu'
 
   # These sensor labels will be handled as wheel odometry observation (C++11 regex):
-  wheel_odometry_sensor_label: 'odometry|ODOMETRY'
+  wheel_odometry_sensor_label: '${MOLA_ODOMETRY_NAME|odometry}'
 
   # These sensor labels will be handled as GNNS (GPS) (For storage in simplemap only)
   gnns_sensor_label: 'gps'
@@ -87,7 +87,7 @@ params:
 navstate_fuse_params:
   # Maximum time since last observation to consider the validity of the velocity model:
   max_time_to_use_velocity_model: 2.0 # [seconds]
-  sigma_random_walk_acceleration_linear: 1.0 # [m/s²]
+  sigma_random_walk_acceleration_linear: 0.1 # [m/s²]
   sigma_random_walk_acceleration_angular: 1.0 # [rad/s²]
 
 
@@ -168,10 +168,10 @@ localmap_generator:
         class: mrpt::maps::CVoxelMap
         #plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
-          resolution: '$f{max(0.05, min(1.0, 0.005*ESTIMATED_SENSOR_MAX_RANGE))}' # [m]
+          resolution: 0.075 # '$f{max(0.05, min(1.0, 0.005*ESTIMATED_SENSOR_MAX_RANGE))}' # [m]
         insertOpts:
-          prob_miss: 0.35
-          prob_hit: 0.80
+          prob_miss: 0.30
+          prob_hit: 0.70
           clamp_min: 0.05
           clamp_max: 0.95
           ray_trace_free_space: true
