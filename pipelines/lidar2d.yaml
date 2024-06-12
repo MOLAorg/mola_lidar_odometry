@@ -6,8 +6,8 @@
 params:
   # These sensor labels will be handled as LIDAR observations:
   # Can be overriden with cli flag --lidar-sensor-label
-  lidar_sensor_labels: ['${MOLA_LIDAR_NAME|lidar}']
 
+  lidar_sensor_labels: ['${MOLA_LIDAR_NAME|lidar}']
   multiple_lidars:
     lidar_count: ${MOLA_LIDAR_COUNT|1} # useful only if using several lidar_sensor_labels or regex's.
     max_time_offset: ${MOLA_LIDAR_MAX_TIME_OFFSET|25e-3}  # [s]
@@ -67,7 +67,7 @@ params:
     show_trajectory: true
     #current_pose_corner_size: 1.5
     local_map_point_size: 3
-    local_map_render_voxelmap_free_space: true  # for 2D-LIDAR SLAM this may be affordable; for 3D it slows down too much
+    local_map_render_voxelmap_free_space: ${MOLA_RENDER_VOXELMAP_FREESPACE|true}  # for 2D-LIDAR SLAM this may be affordable; for 3D it slows down too much
     model:
       - file: ${MOLA_VEHICLE_MODEL_FILE|""} # Default: none
         tf.roll: 90.0 # deg
@@ -87,8 +87,8 @@ params:
 navstate_fuse_params:
   # Maximum time since last observation to consider the validity of the velocity model:
   max_time_to_use_velocity_model: 2.0 # [seconds]
-  sigma_random_walk_acceleration_linear: 10.0 # [m/s²]
-  sigma_random_walk_acceleration_angular: 10.0 # [rad/s²]
+  sigma_random_walk_acceleration_linear: 1.0 # [m/s²]
+  sigma_random_walk_acceleration_angular: 1.0 # [rad/s²]
 
 
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
