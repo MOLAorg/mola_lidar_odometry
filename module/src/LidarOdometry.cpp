@@ -711,6 +711,11 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
     state_.last_obs_tim_by_label[obs->sensorLabel] = this_obs_tim;
 
+    // Keep timestamps for logging purposes:
+    state_.last_obs_timestamp = this_obs_tim;
+    if (!state_.first_ever_timestamp)
+        state_.first_ever_timestamp = this_obs_tim;
+
     profiler_.leave("onLidar.2.copy_vars");
 
     if (observation->empty())
@@ -1512,6 +1517,14 @@ void LidarOdometry::updatePipelineDynamicVariables()
             ? *state_.instantaneous_sensor_max_range
             : 20.0 /*default, only used once*/);
 
+    if (state_.last_obs_timestamp && state_.first_ever_timestamp)
+    {
+        state_.parameter_source.updateVariable(
+            "current_relative_timestamp",
+            mrpt::system::timeDifference(
+                *state_.first_ever_timestamp, *state_.last_obs_timestamp));
+    }
+
     // Make all changes effective and evaluate the variables now:
     state_.parameter_source.realize();
 }
@@ -1742,6 +1755,7 @@ void LidarOdometry::updateVisualization(
                 1.0 / dtAvr));
         }
     }
+    gui_.lbQueue->setCaption("Input queue: " + std::to_string(worker_.size()));
 }
 
 void LidarOdometry::saveEstimatedTrajectoryToFile() const
@@ -1768,7 +1782,8 @@ void LidarOdometry::saveReconstructedMapToFile() const
 
     // make sure the unload queue is empty first,
     // so if we have this feature enabled, all SF entries have been
-    // "externalized" to make reading them much faster and less RAM intensive:
+    // "externalized" to make reading them much faster and less RAM
+    // intensive:
     unloadPastSimplemapObservations(0 /* unload until queue is empty */);
 
     auto lck = mrpt::lockHelper(state_simplemap_mtx_);
@@ -1814,6 +1829,7 @@ void LidarOdometry::internalBuildGUI()
     gui_.lbSensorRange = tab1->add<nanogui::Label>(" ");
     gui_.lbTime        = tab1->add<nanogui::Label>(" ");
     gui_.lbPeriod      = tab1->add<nanogui::Label>(" ");
+    gui_.lbQueue       = tab1->add<nanogui::Label>(" ");
 
     // tab 2: control
     auto cbActive = tab2->add<nanogui::CheckBox>("Active");
@@ -2069,10 +2085,10 @@ void LidarOdometry::handleUnloadSinglePastObservation(
     {
         bool dirCreatedOk = mrpt::system::createDirectory(out_basedir);
         ASSERTMSG_(
-            dirCreatedOk,
-            mrpt::format(
-                "Error creating lazy-load directory for output simplemap: '%s'",
-                out_basedir.c_str()));
+            dirCreatedOk, mrpt::format(
+                              "Error creating lazy-load directory for "
+                              "output simplemap: '%s'",
+                              out_basedir.c_str()));
 
         MRPT_LOG_INFO_STREAM(
             "Creating lazy-load directory for output .simplemap: "

@@ -391,6 +391,9 @@ class LidarOdometry : public FrontEndBase,
         bool                                           last_icp_was_good = true;
         double                                         last_icp_quality  = .0;
 
+        std::optional<mrpt::Clock::time_point> first_ever_timestamp;
+        std::optional<mrpt::Clock::time_point> last_obs_timestamp;
+
         /// Cache for multiple LIDAR synchronization:
         std::map<std::string /*label*/, mrpt::obs::CObservation::Ptr> sync_obs;
 
@@ -467,6 +470,7 @@ class LidarOdometry : public FrontEndBase,
         nanogui::Label*  lbSensorRange = nullptr;
         nanogui::Label*  lbTime        = nullptr;
         nanogui::Label*  lbPeriod      = nullptr;
+        nanogui::Label*  lbQueue       = nullptr;
     };
 
     StateUI gui_;
