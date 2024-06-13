@@ -398,7 +398,8 @@ class LidarOdometry : public FrontEndBase,
         std::map<std::string /*label*/, mrpt::obs::CObservation::Ptr> sync_obs;
 
         // navstate_fuse to merge pose estimates, IMU, odom, estimate twist.
-        mola::NavStateFuse navstate_fuse;
+        mola::NavStateFuse      navstate_fuse;
+        std::optional<NavState> last_motion_model_output;
 
         /// The source of "dynamic variables" in ICP pipelines:
         mp2p_icp::ParameterSource parameter_source;
@@ -471,6 +472,7 @@ class LidarOdometry : public FrontEndBase,
         nanogui::Label*  lbTime        = nullptr;
         nanogui::Label*  lbPeriod      = nullptr;
         nanogui::Label*  lbQueue       = nullptr;
+        nanogui::Label*  lbSpeed       = nullptr;
     };
 
     StateUI gui_;

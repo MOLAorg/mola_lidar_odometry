@@ -739,10 +739,10 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
     ASSERT_(state_.local_map);
 
     // Request the current pose/twist estimation:
-    std::optional<NavState> motionModelOutput =
+    state_.last_motion_model_output =
         state_.navstate_fuse.estimated_navstate(this_obs_tim);
 
-    const bool hasMotionModel = motionModelOutput.has_value();
+    const bool hasMotionModel = state_.last_motion_model_output.has_value();
 
     if (state_.local_map->empty())
     {
@@ -797,18 +797,18 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
         icp_in.init_guess_local_wrt_global = mrpt::math::TPose3D::Identity();
 
-        if (motionModelOutput)
+        if (state_.last_motion_model_output)
         {
             // ICP initial pose:
             icp_in.init_guess_local_wrt_global =
-                motionModelOutput->pose.mean.asTPose();
+                state_.last_motion_model_output->pose.mean.asTPose();
 
             // ICP prior term: any information!=0?
-            if (motionModelOutput->pose.cov_inv !=
+            if (state_.last_motion_model_output->pose.cov_inv !=
                 mrpt::math::CMatrixDouble66::Zero())
             {
                 // Send it to the ICP solver:
-                icp_in.prior.emplace(motionModelOutput->pose);
+                icp_in.prior.emplace(state_.last_motion_model_output->pose);
 
                 // Special case: 2D lidars mean we are working on SE(2):
                 if (std::dynamic_pointer_cast<
@@ -879,12 +879,13 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         }
 
         MRPT_LOG_DEBUG_STREAM(
-            "Est.twist=" << (hasMotionModel
-                                 ? motionModelOutput->twist.asString()
-                                 : "(none)"s)
-                         << " dt=" << dt << " s. "
-                         << " Est. pose cov_inv:\n"
-                         << motionModelOutput->pose.cov_inv.asString());
+            "Est.twist="
+            << (hasMotionModel
+                    ? state_.last_motion_model_output->twist.asString()
+                    : "(none)"s)
+            << " dt=" << dt << " s. "
+            << " Est. pose cov_inv:\n"
+            << state_.last_motion_model_output->pose.cov_inv.asString());
         MRPT_LOG_DEBUG_STREAM(
             "Time since last scan=" << mrpt::system::formatTimeInterval(dt));
 
@@ -1148,7 +1149,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             "New SimpleMap KeyFrame. SF=" << obsSF->size() << " observations.");
 
         std::optional<mrpt::math::TTwist3D> curTwist;
-        if (hasMotionModel) curTwist = motionModelOutput->twist;
+        if (hasMotionModel) curTwist = state_.last_motion_model_output->twist;
 
         state_.reconstructed_simplemap.insert(
             // Pose: mean + covariance
@@ -1756,6 +1757,16 @@ void LidarOdometry::updateVisualization(
         }
     }
     gui_.lbQueue->setCaption("Input queue: " + std::to_string(worker_.size()));
+
+    if (state_.last_motion_model_output)
+    {
+        const auto&  tw    = state_.last_motion_model_output->twist;
+        const double speed = mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz).norm();
+
+        gui_.lbSpeed->setCaption(mrpt::format(
+            "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed,
+            speed * 3600.0 / 1000.0, speed / 0.44704));
+    }
 }
 
 void LidarOdometry::saveEstimatedTrajectoryToFile() const
@@ -1827,6 +1838,7 @@ void LidarOdometry::internalBuildGUI()
     gui_.lbIcpQuality  = tab1->add<nanogui::Label>(" ");
     gui_.lbSigma       = tab1->add<nanogui::Label>(" ");
     gui_.lbSensorRange = tab1->add<nanogui::Label>(" ");
+    gui_.lbSpeed       = tab1->add<nanogui::Label>(" ");
     gui_.lbTime        = tab1->add<nanogui::Label>(" ");
     gui_.lbPeriod      = tab1->add<nanogui::Label>(" ");
     gui_.lbQueue       = tab1->add<nanogui::Label>(" ");
