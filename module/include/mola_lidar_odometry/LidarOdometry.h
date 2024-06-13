@@ -311,6 +311,8 @@ class LidarOdometry : public FrontEndBase,
 
         TrajectoryOutputOptions estimated_trajectory;
 
+        std::optional<mrpt::math::TTwist3D> initial_twist;
+
         bool start_active = true;
 
         uint32_t max_worker_thread_queue_before_drop = 500;
@@ -371,8 +373,6 @@ class LidarOdometry : public FrontEndBase,
     };
     void run_one_icp(const ICP_Input& in, ICP_Output& out);
 
-    const std::string NAVSTATE_LIODOM_FRAME = "lidar_odom";
-
     /** All variables that hold the algorithm state */
     struct MethodState
     {
@@ -398,8 +398,7 @@ class LidarOdometry : public FrontEndBase,
         std::map<std::string /*label*/, mrpt::obs::CObservation::Ptr> sync_obs;
 
         // navstate_fuse to merge pose estimates, IMU, odom, estimate twist.
-        mola::NavStateFuse      navstate_fuse;
-        std::optional<NavState> last_motion_model_output;
+        mola::NavStateFuse navstate_fuse;
 
         /// The source of "dynamic variables" in ICP pipelines:
         mp2p_icp::ParameterSource parameter_source;

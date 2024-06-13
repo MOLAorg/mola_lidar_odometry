@@ -305,6 +305,17 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
     if (cfg.has("estimated_trajectory"))
         params_.estimated_trajectory.initialize(cfg["estimated_trajectory"]);
 
+    if (cfg.has("initial_twist"))
+    {
+        ASSERT_(
+            cfg["initial_twist"].isSequence() &&
+            cfg["initial_twist"].asSequence().size() == 6);
+
+        auto&      tw  = params_.initial_twist.emplace();
+        const auto seq = cfg["initial_twist"].asSequenceRange();
+        for (size_t i = 0; i < 6; i++) tw[i] = seq.at(i).as<double>();
+    }
+
     ENSURE_YAML_ENTRY_EXISTS(c, "navstate_fuse_params");
     state_.navstate_fuse.initialize(c["navstate_fuse_params"]);
 
@@ -728,10 +739,10 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
     ASSERT_(state_.local_map);
 
     // Request the current pose/twist estimation:
-    state_.last_motion_model_output = state_.navstate_fuse.estimated_navstate(
-        this_obs_tim, NAVSTATE_LIODOM_FRAME);
+    std::optional<NavState> motionModelOutput =
+        state_.navstate_fuse.estimated_navstate(this_obs_tim);
 
-    const bool hasMotionModel = state_.last_motion_model_output.has_value();
+    const bool hasMotionModel = motionModelOutput.has_value();
 
     if (state_.local_map->empty())
     {
@@ -757,8 +768,16 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         initPose.mean = mrpt::poses::CPose3D::Identity();
         initPose.cov.setDiagonal(1e-12);
 
-        state_.navstate_fuse.fuse_pose(
-            this_obs_tim, initPose, NAVSTATE_LIODOM_FRAME);
+        state_.navstate_fuse.fuse_pose(this_obs_tim, initPose);
+
+        // set optional initial twist:
+        if (params_.initial_twist)
+        {
+            state_.navstate_fuse.force_last_twist(*params_.initial_twist);
+
+            // and reset since we only want to enforce the a-priori twist once:
+            params_.initial_twist.reset();
+        }
     }
     else
     {
@@ -778,18 +797,18 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
         icp_in.init_guess_local_wrt_global = mrpt::math::TPose3D::Identity();
 
-        if (state_.last_motion_model_output)
+        if (motionModelOutput)
         {
             // ICP initial pose:
             icp_in.init_guess_local_wrt_global =
-                state_.last_motion_model_output->pose.mean.asTPose();
+                motionModelOutput->pose.mean.asTPose();
 
             // ICP prior term: any information!=0?
-            if (state_.last_motion_model_output->pose.cov_inv !=
+            if (motionModelOutput->pose.cov_inv !=
                 mrpt::math::CMatrixDouble66::Zero())
             {
                 // Send it to the ICP solver:
-                icp_in.prior.emplace(state_.last_motion_model_output->pose);
+                icp_in.prior.emplace(motionModelOutput->pose);
 
                 // Special case: 2D lidars mean we are working on SE(2):
                 if (std::dynamic_pointer_cast<
@@ -847,14 +866,9 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         if (icpIsGood)
         {
             state_.navstate_fuse.fuse_pose(
-                this_obs_tim, icp_out.found_pose_to_wrt_from,
-                NAVSTATE_LIODOM_FRAME);
+                this_obs_tim, icp_out.found_pose_to_wrt_from);
         }
-        else
-        {
-            // TODO(jlbc): Prevent resetting for a while?
-            // state_.navstate_fuse.reset();
-        }
+        else { state_.navstate_fuse.reset(); }
 
         // Update trajectory too:
         if (icpIsGood)
@@ -865,13 +879,12 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         }
 
         MRPT_LOG_DEBUG_STREAM(
-            "Est.twist="
-            << (hasMotionModel
-                    ? state_.last_motion_model_output->twist.asString()
-                    : "(none)"s)
-            << " dt=" << dt << " s. "
-            << " Est. pose cov_inv:\n"
-            << state_.last_motion_model_output->pose.cov_inv.asString());
+            "Est.twist=" << (hasMotionModel
+                                 ? motionModelOutput->twist.asString()
+                                 : "(none)"s)
+                         << " dt=" << dt << " s. "
+                         << " Est. pose cov_inv:\n"
+                         << motionModelOutput->pose.cov_inv.asString());
         MRPT_LOG_DEBUG_STREAM(
             "Time since last scan=" << mrpt::system::formatTimeInterval(dt));
 
@@ -1135,7 +1148,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             "New SimpleMap KeyFrame. SF=" << obsSF->size() << " observations.");
 
         std::optional<mrpt::math::TTwist3D> curTwist;
-        if (hasMotionModel) curTwist = state_.last_motion_model_output->twist;
+        if (hasMotionModel) curTwist = motionModelOutput->twist;
 
         state_.reconstructed_simplemap.insert(
             // Pose: mean + covariance
@@ -1464,8 +1477,8 @@ void LidarOdometry::updatePipelineDynamicVariables()
     // (e.g. de-skew methods)
     {
         mrpt::math::TTwist3D twistForIcpVars = {0, 0, 0, 0, 0, 0};
-        if (state_.last_motion_model_output)
-            twistForIcpVars = state_.last_motion_model_output->twist;
+        if (state_.navstate_fuse.get_last_twist())
+            twistForIcpVars = state_.navstate_fuse.get_last_twist().value();
 
         state_.parameter_source.updateVariable("vx", twistForIcpVars.vx);
         state_.parameter_source.updateVariable("vy", twistForIcpVars.vy);
@@ -1683,10 +1696,12 @@ void LidarOdometry::updateVisualization(
         ss << mrpt::format(
             "pose:%65s ", state_.last_lidar_pose.mean.asString().c_str());
 
-        if (state_.last_motion_model_output)
+        if (state_.navstate_fuse.get_last_twist())
             ss << mrpt::format(
-                "twist:%65s ",
-                state_.last_motion_model_output->twist.asString().c_str());
+                "twist:%65s ", state_.navstate_fuse.get_last_twist()
+                                   .value()
+                                   .asString()
+                                   .c_str());
 
         ss << mrpt::format(
             "path KFs: %4zu ", state_.estimated_trajectory.size());
