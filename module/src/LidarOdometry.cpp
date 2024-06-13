@@ -306,7 +306,6 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
         params_.estimated_trajectory.initialize(cfg["estimated_trajectory"]);
 
     ENSURE_YAML_ENTRY_EXISTS(c, "navstate_fuse_params");
-    state_.navstate_fuse.setMinLoggingLevel(this->getMinLoggingLevel());
     state_.navstate_fuse.initialize(c["navstate_fuse_params"]);
 
     ENSURE_YAML_ENTRY_EXISTS(c, "icp_settings_with_vel");
@@ -866,10 +865,15 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         }
 
         MRPT_LOG_DEBUG_STREAM(
-            "Motion model output for dt="
-            << dt << " s: "
-            << (hasMotionModel ? state_.last_motion_model_output->asString()
-                               : "(none)"s));
+            "Est.twist="
+            << (hasMotionModel
+                    ? state_.last_motion_model_output->twist.asString()
+                    : "(none)"s)
+            << " dt=" << dt << " s. "
+            << " Est. pose cov_inv:\n"
+            << state_.last_motion_model_output->pose.cov_inv.asString());
+        MRPT_LOG_DEBUG_STREAM(
+            "Time since last scan=" << mrpt::system::formatTimeInterval(dt));
 
         // KISS-ICP adaptive threshold method:
         if (params_.adaptive_threshold.enabled)
@@ -1736,18 +1740,7 @@ void LidarOdometry::updateVisualization(
                 1.0 / dtAvr));
         }
     }
-    gui_.lbQueue->setCaption(
-        "Input queue: " + std::to_string(worker_.pendingTasks()));
-
-    if (state_.last_motion_model_output)
-    {
-        const auto&  tw    = state_.last_motion_model_output->twist;
-        const double speed = mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz).norm();
-
-        gui_.lbSpeed->setCaption(mrpt::format(
-            "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed,
-            speed * 3600.0 / 1000.0, speed / 0.44704));
-    }
+    gui_.lbQueue->setCaption("Input queue: " + std::to_string(worker_.size()));
 }
 
 void LidarOdometry::saveEstimatedTrajectoryToFile() const
@@ -1819,7 +1812,6 @@ void LidarOdometry::internalBuildGUI()
     gui_.lbIcpQuality  = tab1->add<nanogui::Label>(" ");
     gui_.lbSigma       = tab1->add<nanogui::Label>(" ");
     gui_.lbSensorRange = tab1->add<nanogui::Label>(" ");
-    gui_.lbSpeed       = tab1->add<nanogui::Label>(" ");
     gui_.lbTime        = tab1->add<nanogui::Label>(" ");
     gui_.lbPeriod      = tab1->add<nanogui::Label>(" ");
     gui_.lbQueue       = tab1->add<nanogui::Label>(" ");

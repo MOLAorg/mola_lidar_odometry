@@ -91,8 +91,8 @@ navstate_fuse_params:
 
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
-  initial_twist_sigma_lin: 1.0 # [m/s]
-  initial_twist_sigma_ang: 1.0  # [rad/s]
+  initial_twist_sigma_lin: 20.0 # [m/s]
+  initial_twist_sigma_ang: 3.0  # [rad/s]
 
 
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'

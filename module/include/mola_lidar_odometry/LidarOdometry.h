@@ -472,7 +472,6 @@ class LidarOdometry : public FrontEndBase,
         nanogui::Label*  lbTime        = nullptr;
         nanogui::Label*  lbPeriod      = nullptr;
         nanogui::Label*  lbQueue       = nullptr;
-        nanogui::Label*  lbSpeed       = nullptr;
     };
 
     StateUI gui_;
