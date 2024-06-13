@@ -854,7 +854,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         else
         {
             // TODO(jlbc): Prevent resetting for a while?
-            state_.navstate_fuse.reset();
+            // state_.navstate_fuse.reset();
         }
 
         // Update trajectory too:
