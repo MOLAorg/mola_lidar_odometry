@@ -87,6 +87,11 @@ params:
   # until active is set to true (e.g. via the GUI).
   start_active: '${MOLA_START_ACTIVE|true}'
 
+  # Generate CSV with the evolution of internal variables:
+  debug_traces:
+    save_to_file: '${MOLA_SAVE_DEBUG_TRACES|false}'
+    output_file:  '${MOLA_DEBUG_TRACES_FILE|mola-lo-traces.csv}'
+
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
 
@@ -98,11 +103,11 @@ navstate_fuse_params:
   #  this threshold must be < 1.0 s for that dataset)
   max_time_to_use_velocity_model: 0.75 # [s]
   sliding_window_length: 0.8 # [s]
-  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|10.0} # [m/s²]
-  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|2.0} # [rad/s²]
+  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|1.0} # [m/s²]
+  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|1.0} # [rad/s²]
   
-  sigma_integrator_position: 0.20 # [m]
-  sigma_integrator_orientation:  0.20 # [rad]
+  sigma_integrator_position: 0.10 # [m]
+  sigma_integrator_orientation:  0.10 # [rad]
 
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
@@ -147,7 +152,7 @@ icp_settings_with_vel:
       params:
         maxIterations: 2
         robustKernel: 'RobustKernel::GemanMcClure'
-        robustKernelParam: '0.5*max(1.0*ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-1.0*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/20)'
+        robustKernelParam: '0.5*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-1.0*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/40)'
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -156,7 +161,7 @@ icp_settings_with_vel:
     - class: mp2p_icp::Matcher_Points_DistanceThreshold
       params:
         #threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
-        threshold: '2.0*max(1.0*ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-1.0*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/20)'
+        threshold: '2.0*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-1.0*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/40)'
         thresholdAngularDeg: 0  # deg
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster

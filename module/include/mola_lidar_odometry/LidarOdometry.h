@@ -51,6 +51,8 @@
 #include <mrpt/poses/CPose3DInterpolator.h>
 #include <mrpt/serialization/CSerializable.h>
 
+// STD:
+#include <fstream>
 #include <regex>
 
 namespace mola
@@ -311,7 +313,19 @@ class LidarOdometry : public FrontEndBase,
 
         TrajectoryOutputOptions estimated_trajectory;
 
-        std::optional<mrpt::math::TTwist3D> initial_twist;
+        // === TRACE LOG GENERATION ====
+        struct TraceOutputOptions
+        {
+            bool save_to_file = false;
+
+            /** If save_to_file==true, all internal variables will be saved to a
+             * csv file */
+            std::string output_file = "mola-lo-traces.csv";
+
+            void initialize(const Yaml& c);
+        };
+
+        TraceOutputOptions debug_traces;
 
         bool start_active = true;
 
@@ -350,6 +364,8 @@ class LidarOdometry : public FrontEndBase,
     /** @} */
 
    private:
+    const std::string NAVSTATE_LIODOM_FRAME = "liodom";
+
     struct ICP_Input
     {
         using Ptr = std::shared_ptr<ICP_Input>;
@@ -522,6 +538,9 @@ class LidarOdometry : public FrontEndBase,
         const mrpt::Clock::time_point& this_obs_tim);
 
     void doPublishUpdatedMap(const mrpt::Clock::time_point& this_obs_tim);
+
+    void doWriteDebugTracesFile(const mrpt::Clock::time_point& this_obs_tim);
+    std::optional<std::ofstream> debug_traces_of_;
 
     void unloadPastSimplemapObservations(const size_t maxSizeUnloadQueue) const;
 

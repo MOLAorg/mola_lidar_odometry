@@ -31,6 +31,7 @@ params:
   # How often to update the local map model:
   local_map_updates:
     enabled: '${MOLA_MAPPING_ENABLED|true}'
+    load_existing_local_map: ${MOLA_LOAD_MM|""}
     min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|0.025*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
     min_rotation_between_keyframes: 5.0 # [deg]
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
@@ -50,6 +51,7 @@ params:
   # to a ".simplemap" file for later use for localization, etc.
   simplemap:
     generate: ${MOLA_GENERATE_SIMPLEMAP|false}   # Can be overriden with CLI flag --output-simplemap
+    load_existing_simple_map: ${MOLA_LOAD_SM|""}
     min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|0.05}   # m
     min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|3.0}  # deg
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
@@ -65,6 +67,7 @@ params:
   visualization:
     map_update_decimation: 40
     show_trajectory: true
+    show_current_observation: true # shows "live raw" LiDAR points
     #current_pose_corner_size: 1.5
     local_map_point_size: 3
     local_map_render_voxelmap_free_space: ${MOLA_RENDER_VOXELMAP_FREESPACE|true}  # for 2D-LIDAR SLAM this may be affordable; for 3D it slows down too much
@@ -76,19 +79,31 @@ params:
   pipeline_profiler_enabled: true
   # Profile the internal steps of the ICP implementation:
   icp_profiler_enabled: true
+  
+  # If set to false, the odometry pipeline will ignore incoming observations
+  # until active is set to true (e.g. via the GUI).
+  start_active: '${MOLA_START_ACTIVE|true}'
 
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
 
-
-
 # Parameter block for the "navstate_fuse" module in charge of merging and 
 # extrapolating pose estimations, odometry, IMU, etc.
 navstate_fuse_params:
-  # Maximum time since last observation to consider the validity of the velocity model:
-  max_time_to_use_velocity_model: 2.0 # [seconds]
-  sigma_random_walk_acceleration_linear: 0.1 # [m/s²]
-  sigma_random_walk_acceleration_angular: 1.0 # [rad/s²]
+  max_time_to_use_velocity_model: 2.0 # [s]
+  sliding_window_length: 0.8 # [s]
+  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|0.1} # [m/s²]
+  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|1.0} # [rad/s²]
+  
+  sigma_integrator_position: 0.10 # [m]
+  sigma_integrator_orientation:  0.10 # [rad]
+
+  # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
+  initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
+  initial_twist_sigma_lin: 20.0 # [m/s]
+  initial_twist_sigma_ang: 3.0  # [rad/s]
+
+  robust_param: 0  # 0=no robust disabled
 
 
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
