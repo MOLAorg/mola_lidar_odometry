@@ -1373,10 +1373,11 @@ void LidarOdometry::doUpdateAdaptiveThreshold(
 
     const double ALPHA = 0.95;
 
-    double model_error = computeModelError(lastMotionModelError, max_range);
+    double model_error = 0;
+    // computeModelError(lastMotionModelError, max_range);
 
     const double new_sigma =
-        model_error *
+        params_.adaptive_threshold.min_motion *
         mrpt::saturate_val(10.0 - 9.0 * state_.last_icp_quality, 1.0, 10.0);
 
     if (state_.adapt_thres_sigma == 0)  // initial

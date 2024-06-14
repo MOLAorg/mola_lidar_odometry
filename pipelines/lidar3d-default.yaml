@@ -95,9 +95,12 @@ navstate_fuse_params:
   # (KITTI360 test_3 has some blackouts >=1.0 seconds while angular acceleration is high, so 
   #  this threshold must be < 1.0 s for that dataset)
   max_time_to_use_velocity_model: 0.75 # [s]
-  sliding_window_length: 1.0 # [s]
-  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|1.0} # [m/s²]
-  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|1.0} # [rad/s²]
+  sliding_window_length: 0.8 # [s]
+  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|10.0} # [m/s²]
+  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|2.0} # [rad/s²]
+  
+  sigma_integrator_position: 0.20 # [m]
+  sigma_integrator_orientation:  0.20 # [rad]
 
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
