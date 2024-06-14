@@ -729,10 +729,14 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
     ASSERT_(state_.local_map);
 
     // Request the current pose/twist estimation:
+    ProfilerEntry tleMotion(profiler_, "onLidar.2b.estimated_navstate");
+
     state_.last_motion_model_output = state_.navstate_fuse.estimated_navstate(
         this_obs_tim, NAVSTATE_LIODOM_FRAME);
 
     const bool hasMotionModel = state_.last_motion_model_output.has_value();
+
+    tleMotion.stop();
 
     if (state_.local_map->empty())
     {
@@ -1515,6 +1519,8 @@ void LidarOdometry::updatePipelineDynamicVariables()
 void LidarOdometry::updateVisualization(
     const mp2p_icp::metric_map_t& currentObservation)
 {
+    ProfilerEntry tle(profiler_, "updateVisualization");
+
     gui_.timestampLastUpdateUI = mrpt::Clock::nowDouble();
 
     // In this point, we are called by the LIDAR worker thread, so it's safe
@@ -1578,6 +1584,8 @@ void LidarOdometry::updateVisualization(
     if (currentObservation.layers.count("raw") &&
         params_.visualization.show_current_observation)
     {
+        ProfilerEntry tle1(profiler_, "updateVisualization.update_cur_obs");
+
         // Visualize the raw data only, not the filtered layers:
         mp2p_icp::metric_map_t mm;
         mm.layers["raw"] = currentObservation.layers.at("raw");
@@ -1586,7 +1594,8 @@ void LidarOdometry::updateVisualization(
         rp.points.allLayers.pointSize = 1.0f;
         auto& cm                      = rp.points.allLayers.colorMode.emplace();
         cm.colorMap                   = mrpt::img::cmJET;
-        cm.recolorizeByCoordinate     = mp2p_icp::Coordinate::Z;
+        cm.keep_original_cloud_color  = true;
+        // cm.recolorizeByCoordinate     = mp2p_icp::Coordinate::Z;
 
         // get visualization
         auto glCurrentObservation = mm.get_visualization(rp);
@@ -1604,6 +1613,8 @@ void LidarOdometry::updateVisualization(
     // ------------------------
     if (params_.visualization.show_trajectory)
     {
+        ProfilerEntry tle2(profiler_, "updateVisualization.update_traj");
+
         if (!state_.glEstimatedPath)
         {
             state_.glEstimatedPath = mrpt::opengl::CSetOfLines::Create();
@@ -1648,6 +1659,8 @@ void LidarOdometry::updateVisualization(
     // -----------------------------
     if (state_.mapUpdateCnt++ > params_.visualization.map_update_decimation)
     {
+        ProfilerEntry tle2(profiler_, "updateVisualization.update_local_map");
+
         state_.mapUpdateCnt = 0;
 
         mp2p_icp::render_params_t rp;
@@ -1670,6 +1683,8 @@ void LidarOdometry::updateVisualization(
     // -------------------------
     if (params_.visualization.show_console_messages)
     {
+        ProfilerEntry tle2(profiler_, "updateVisualization.console_msgs");
+
         std::stringstream ss;
         if (!state_.last_obs_tim_by_label.empty())
             ss << mrpt::format(
@@ -1716,6 +1731,8 @@ void LidarOdometry::updateVisualization(
 
         fut2.get();
     }
+
+    ProfilerEntry tle3(profiler_, "updateVisualization.update_gui");
 
     gui_.lbIcpQuality->setCaption(
         mrpt::format("ICP quality: %.01f%%", 100.0 * state_.last_icp_quality));
