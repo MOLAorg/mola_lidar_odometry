@@ -129,6 +129,8 @@ void LidarOdometry::Parameters::AdaptiveThreshold::initialize(const Yaml& cfg)
     YAML_LOAD_REQ(enabled, bool);
     YAML_LOAD_REQ(initial_sigma, double);
     YAML_LOAD_REQ(min_motion, double);
+    YAML_LOAD_REQ(kp, double);
+    YAML_LOAD_REQ(alpha, double);
 }
 
 void LidarOdometry::Parameters::Visualization::initialize(const Yaml& cfg)
@@ -822,6 +824,15 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                     icp_in.prior->cov_inv(4, 4) = large_certainty;  // ry
                 }
             }
+
+            MRPT_LOG_DEBUG_STREAM(
+                "Est.twist="
+                << (hasMotionModel
+                        ? state_.last_motion_model_output->twist.asString()
+                        : "(none)"s)
+                << " dt=" << dt << " s. "
+                << " Est. pose cov_inv:\n"
+                << state_.last_motion_model_output->pose.cov_inv.asString());
         }
         else
         {
@@ -874,16 +885,9 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                 this_obs_tim, state_.last_lidar_pose.mean);
         }
 
-        MRPT_LOG_DEBUG_STREAM(
-            "Est.twist="
-            << (hasMotionModel
-                    ? state_.last_motion_model_output->twist.asString()
-                    : "(none)"s)
-            << " dt=" << dt << " s. "
-            << " Est. pose cov_inv:\n"
-            << state_.last_motion_model_output->pose.cov_inv.asString());
-        MRPT_LOG_DEBUG_STREAM(
-            "Time since last scan=" << mrpt::system::formatTimeInterval(dt));
+        // Update for stats:
+        state_.parameter_source.updateVariable(
+            "icp_iterations", icp_out.icp_iterations);
 
         // KISS-ICP adaptive threshold method:
         if (params_.adaptive_threshold.enabled)
@@ -1213,6 +1217,7 @@ void LidarOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
 
         out.found_pose_to_wrt_from = icp_result.optimal_tf;
         out.goodness               = icp_result.quality;
+        out.icp_iterations         = icp_result.nIterations;
 
         MRPT_LOG_DEBUG_FMT(
             "ICP (kind=%u): goodness=%.02f%% iters=%u pose=%s "
@@ -1508,6 +1513,9 @@ void LidarOdometry::updatePipelineDynamicVariables()
             : params_.adaptive_threshold.initial_sigma);
 
     state_.parameter_source.updateVariable("ICP_ITERATION", 0);
+
+    if (!state_.parameter_source.getVariableValues().count("icp_iterations"))
+        state_.parameter_source.updateVariable("icp_iterations", 0);
 
     if (state_.estimated_sensor_max_range)
     {

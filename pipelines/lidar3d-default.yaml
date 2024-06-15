@@ -47,6 +47,8 @@ params:
     enabled: true
     initial_sigma: 2.0
     min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}
+    kp: 4.0
+    alpha: 0.80
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
@@ -106,8 +108,8 @@ navstate_fuse_params:
   sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|1.0} # [m/s²]
   sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|1.0} # [rad/s²]
   
-  sigma_integrator_position: 0.10 # [m]
-  sigma_integrator_orientation:  0.10 # [rad]
+  sigma_integrator_position: 0.05 # [m]
+  sigma_integrator_orientation:  0.05 # [rad]
 
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
@@ -152,7 +154,7 @@ icp_settings_with_vel:
       params:
         maxIterations: 2
         robustKernel: 'RobustKernel::GemanMcClure'
-        robustKernelParam: '0.5*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-1.0*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/40)'
+        robustKernelParam: '0.5*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-1.0*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/15)'
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -161,7 +163,7 @@ icp_settings_with_vel:
     - class: mp2p_icp::Matcher_Points_DistanceThreshold
       params:
         #threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
-        threshold: '2.0*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-1.0*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/40)'
+        threshold: '2.0*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-1.0*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/15)'
         thresholdAngularDeg: 0  # deg
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster

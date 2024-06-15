@@ -225,6 +225,8 @@ class LidarOdometry : public FrontEndBase,
             bool   enabled       = true;
             double initial_sigma = 0.5;
             double min_motion    = 0.10;
+            double kp            = 5.0;
+            double alpha         = 0.99;
 
             void initialize(const Yaml& c);
         };
@@ -384,8 +386,9 @@ class LidarOdometry : public FrontEndBase,
     };
     struct ICP_Output
     {
-        double                          goodness{.0};
+        double                          goodness = .0;
         mrpt::poses::CPose3DPDFGaussian found_pose_to_wrt_from;
+        uint32_t                        icp_iterations = 0;
     };
     void run_one_icp(const ICP_Input& in, ICP_Output& out);
 
