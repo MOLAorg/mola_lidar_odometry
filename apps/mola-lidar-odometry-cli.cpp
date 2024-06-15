@@ -357,7 +357,36 @@ static int main_odometry()
         liodom.setVerbosityLevel(logLevel);
     }
 
-    // Initialize:
+    // Add a logger hook to detect visible messages to the terminal
+    // and avoid overwriting them with the CLI progress bar:
+    bool       liodom_emitted_log = false;
+    std::mutex liodom_emitted_log_mtx;
+    const auto mark_emitted_log = [&]()
+    {
+        auto lck           = mrpt::lockHelper(liodom_emitted_log_mtx);
+        liodom_emitted_log = true;
+    };
+    const auto has_emitted_log = [&]() -> bool
+    {
+        auto lck = mrpt::lockHelper(liodom_emitted_log_mtx);
+        return liodom_emitted_log;
+    };
+    const auto unmark_emitted_log = [&]()
+    {
+        auto lck           = mrpt::lockHelper(liodom_emitted_log_mtx);
+        liodom_emitted_log = false;
+    };
+    liodom.mrpt::system::COutputLogger::logRegisterCallback(
+        [&]([[maybe_unused]] std::string_view              msg,
+            const mrpt::system::VerbosityLevel             level,
+            [[maybe_unused]] std::string_view              loggerName,
+            [[maybe_unused]] const mrpt::Clock::time_point timestamp)
+        {
+            if (level < liodom.getMinLoggingLevel()) return;
+            mark_emitted_log();
+        });
+
+    // Initialize LiDAR Odometry:
     const auto file_yml = argYAML.getValue();
     const auto cfg      = mola::load_yaml_file(file_yml);
 
@@ -499,8 +528,11 @@ static int main_odometry()
             const double ETA  = pc > 0 ? (tNow - tStart) * (1.0 / pc - 1) : .0;
             const double totalTime = ETA + (tNow - tStart);
 
+            // VT100 codes: cursor up and clear line
+            if (!has_emitted_log()) std::cout << "\033[A\33[2KT\r";
+            unmark_emitted_log();
+
             std::cout
-                << "\033[A\33[2KT\r"  // VT100 codes: cursor up and clear line
                 << mrpt::system::progress(pc, 30)
                 << mrpt::format(
                        " %6zu/%6zu (%.02f%%) ETA=%s / T=%s\n", i, N, 100 * pc,
