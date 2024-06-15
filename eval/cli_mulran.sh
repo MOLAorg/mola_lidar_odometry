@@ -7,7 +7,7 @@ DEFAULT_SEQUENCES="KAIST01 KAIST02 KAIST03 DCC01 DCC02 DCC03 Riverside01 Riversi
 SEQUENCES="${SEQUENCES:-${DEFAULT_SEQUENCES}}"
 
 echo "Sequences to run: $SEQUENCES"
-NUM_THREADS=3
+NUM_THREADS="${NUM_THREADS:-3}"
 
 if [ ! -f $PIPELINE_YAML ]; then
     echo "Error: Expected local file: '$PIPELINE_YAML'"

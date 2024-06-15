@@ -11,7 +11,7 @@ DEFAULT_SEQS_TO_RUN="test_0 test_1 test_2 test_3 00 03 04 05 06 07 09 10"
 # Removed 18: no timestamps.txt file?
 
 SEQS_TO_RUN="${SEQS_TO_RUN:-${DEFAULT_SEQS_TO_RUN}}"
-NUM_THREADS=3
+NUM_THREADS="${NUM_THREADS:-3}"
 
 if [ ! -f $PIPELINE_YAML ]; then
     echo "Error: Expected local file: '$PIPELINE_YAML'"
