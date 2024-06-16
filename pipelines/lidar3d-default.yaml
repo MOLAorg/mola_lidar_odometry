@@ -33,7 +33,7 @@ params:
     enabled: '${MOLA_MAPPING_ENABLED|true}'
     load_existing_local_map: ${MOLA_LOAD_MM|""}
 
-    min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(WX^2+WY^2+WZ^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
+    min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
     min_rotation_between_keyframes: 15.0 # [deg]
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
     max_distance_to_keep_keyframes: 'max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)' # [m]
@@ -47,8 +47,8 @@ params:
     enabled: true
     initial_sigma: 2.0
     min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}
-    kp: 4.0
-    alpha: 0.80
+    kp: 5.0
+    alpha: 0.90
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
@@ -104,12 +104,12 @@ navstate_fuse_params:
   # (KITTI360 test_3 has some blackouts >=1.0 seconds while angular acceleration is high, so 
   #  this threshold must be < 1.0 s for that dataset)
   max_time_to_use_velocity_model: 0.75 # [s]
-  sliding_window_length: 0.8 # [s]
-  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|1.0} # [m/s²]
-  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|1.0} # [rad/s²]
+  sliding_window_length: 0.50 # [s]
+  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|0.5} # [m/s²]
+  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|0.5} # [rad/s²]
   
-  sigma_integrator_position: 0.05 # [m]
-  sigma_integrator_orientation:  0.05 # [rad]
+  sigma_integrator_position: 0.10 # [m]
+  sigma_integrator_orientation:  0.10 # [rad]
 
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
@@ -117,6 +117,7 @@ navstate_fuse_params:
   initial_twist_sigma_ang: 3.0  # [rad/s]
 
   robust_param: 0  # 0=no robust disabled
+  max_rmse: 2 # max inconsistencies to discard solution
 
 
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
@@ -154,7 +155,8 @@ icp_settings_with_vel:
       params:
         maxIterations: 2
         robustKernel: 'RobustKernel::GemanMcClure'
-        robustKernelParam: '0.5*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-1.0*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/15)'
+        #robustKernelParam: '0.5*ADAPTIVE_THRESHOLD_SIGMA'
+        robustKernelParam: '0.5*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-1.0*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30)'
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -162,8 +164,8 @@ icp_settings_with_vel:
   matchers:
     - class: mp2p_icp::Matcher_Points_DistanceThreshold
       params:
-        #threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
-        threshold: '2.0*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-1.0*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/15)'
+        threshold: '2.0*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-1.0*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30)'
+        #threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'
         thresholdAngularDeg: 0  # deg
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
