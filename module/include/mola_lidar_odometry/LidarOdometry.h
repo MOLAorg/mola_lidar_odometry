@@ -187,7 +187,8 @@ class LidarOdometry : public FrontEndBase,
 
         /** Minimum ICP "goodness" (in the range [0,1]) for a new KeyFrame to be
          * accepted during regular lidar odometry & mapping */
-        double min_icp_goodness = 0.4;
+        double min_icp_goodness      = 0.4;
+        double max_icp_goodness_drop = 0.05;
 
         bool pipeline_profiler_enabled = false;
         bool icp_profiler_enabled      = false;
