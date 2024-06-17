@@ -1398,7 +1398,6 @@ void LidarOdometry::doUpdateAdaptiveThreshold(
     ASSERT_(KP > 1.0);
 
     const double new_sigma =
-        // params_.adaptive_threshold.min_motion *
         model_error *
         mrpt::saturate_val(KP * (1.0 - state_.last_icp_quality), 0.1, KP);
 
