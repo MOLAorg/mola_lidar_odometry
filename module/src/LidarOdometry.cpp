@@ -1210,12 +1210,47 @@ void LidarOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
 
         mrpt::math::TPose3D current_solution = in.init_guess_local_wrt_global;
 
+        auto& icpCase = params_.icp.at(in.align_kind);
+
+        auto last_partial_solution = mrpt::poses::CPose3D(current_solution);
+
+        icpCase.icp->setIterationHook(
+            [&](const mp2p_icp::ICP::IterationHook_Input& ih)
+            {
+                mp2p_icp::ICP::IterationHook_Output ho;
+
+                const auto solutionDelta =
+                    ih.currentSolution->optimalPose - last_partial_solution;
+
+                MRPT_LOG_WARN_STREAM(
+                    "hook: " << ih.currentIteration
+                             << " solutionDelta:" << solutionDelta);
+
+                MRPT_TODO("check minimum delta");
+                if (0)
+                {
+                    ho.request_stop       = true;
+                    last_partial_solution = ih.currentSolution->optimalPose;
+                }
+
+                return ho;
+            });
+
         mp2p_icp::Results icp_result;
 
-        params_.icp.at(in.align_kind)
-            .icp->align(
+        do {
+            icpCase.icp->align(
                 pcs_local, pcs_global, current_solution, in.icp_params,
                 icp_result, in.prior);
+
+            if (icp_result.terminationReason ==
+                mp2p_icp::IterTermReason::HookRequest)
+            {
+                MRPT_TODO("impl: re-run pipelines");
+            }
+
+        } while (icp_result.terminationReason ==
+                 mp2p_icp::IterTermReason::HookRequest);
 
         out.found_pose_to_wrt_from = icp_result.optimal_tf;
         out.goodness               = icp_result.quality;
