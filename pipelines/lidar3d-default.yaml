@@ -242,20 +242,9 @@ observations_filter:
   # and with the given parameters. Filters are run in definition order on the
   # input metric_map_t object.
   #
-  - class_name: mp2p_icp_filters::FilterDeskew
-    params:
-      input_pointcloud_layer: 'raw'
-      output_pointcloud_layer: 'deskewed'
-      silently_ignore_no_timestamps: true # To handle more dataset types
-      output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity & ring channels
-      
-      # These (vx,...,wz) are variable names that must be defined via the
-      # mp2p_icp::Parameterizable API to update them dynamically.
-      twist: [vx,vy,vz,wx,wy,wz]
-
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
-      input_pointcloud_layer: 'deskewed'
+      input_pointcloud_layer: 'raw'
       output_pointcloud_layer: 'decimated_for_map_raw'
       voxel_filter_resolution: max(0.20, 0.55*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
       minimum_input_points_to_filter: 2000  # don't decimate if smaller than this size
@@ -276,10 +265,20 @@ observations_filter:
   - class_name: mp2p_icp_filters::FilterBoundingBox
     params:
       input_pointcloud_layer: 'decimated_for_map_by_range'
-      outside_pointcloud_layer: 'decimated_for_map'
+      outside_pointcloud_layer: 'decimated_for_map_skewed'
       bounding_box_min: [ -0.20*INSTANTANEOUS_SENSOR_MAX_RANGE, -0.20*INSTANTANEOUS_SENSOR_MAX_RANGE, 0.01*INSTANTANEOUS_SENSOR_MAX_RANGE ]
       bounding_box_max: [  0.20*INSTANTANEOUS_SENSOR_MAX_RANGE,  0.20*INSTANTANEOUS_SENSOR_MAX_RANGE, 0.10*INSTANTANEOUS_SENSOR_MAX_RANGE ]
 
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      input_pointcloud_layer: 'decimated_for_map_skewed'
+      output_pointcloud_layer: 'decimated_for_map'
+      silently_ignore_no_timestamps: true # To handle more dataset types
+      #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
+
+      # These (vx,...,wz) are variable names that must be defined via the
+      # mp2p_icp::Parameterizable API to update them dynamically.
+      twist: [vx,vy,vz,wx,wy,wz]
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
@@ -293,7 +292,7 @@ observations_filter:
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ['raw','deskewed', 'decimated_for_map_by_range', 'decimated_for_map_raw']
+      pointcloud_layer_to_remove: ['raw','decimated_for_map_skewed', 'decimated_for_map_by_range', 'decimated_for_map_raw']
 
 # To populate the local map, one or more observation layers are merged
 # into the local map via this pipeline:
