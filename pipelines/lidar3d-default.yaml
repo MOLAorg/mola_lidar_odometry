@@ -242,6 +242,13 @@ observations_filter:
   # and with the given parameters. Filters are run in definition order on the
   # input metric_map_t object.
   #
+  - class_name: mp2p_icp_filters::FilterAdjustTimestamps
+    params:
+      pointcloud_layer: 'raw'
+      silently_ignore_no_timestamps: true
+      method: 'TimestampAdjustMethod::MiddleIsZero'
+      #method: 'TimestampAdjustMethod::EarliestIsZero'
+
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'raw'
