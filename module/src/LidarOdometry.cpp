@@ -292,7 +292,6 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
 
     YAML_LOAD_OPT(params_, min_time_between_scans, double);
     YAML_LOAD_REQ(params_, min_icp_goodness, double);
-    YAML_LOAD_OPT(params_, max_icp_goodness_drop, double);
     YAML_LOAD_OPT(params_, max_sensor_range_filter_coefficient, double);
     YAML_LOAD_OPT(params_, absolute_minimum_sensor_range, double);
 
@@ -864,17 +863,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             run_one_icp(icp_in, icp_out);
         }
 
-        // good = quality>threshold AND didn't drop abruptly
-        // (which probably means we are abruptly rotating now)
-        const double relativeGoodnessDecrease =
-            icp_out.goodness > 0
-                ? (state_.last_icp_quality - icp_out.goodness) /
-                      icp_out.goodness
-                : .0;
-
         const bool icpIsGood = (icp_out.goodness >= params_.min_icp_goodness);
-        const bool icpIsReliable =
-            (relativeGoodnessDecrease <= params_.max_icp_goodness_drop);
 
         state_.last_icp_was_good = icpIsGood;
         state_.last_icp_quality  = icp_out.goodness;
@@ -901,8 +890,6 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         // Update for stats:
         state_.parameter_source.updateVariable(
             "icp_iterations", icp_out.icp_iterations);
-        state_.parameter_source.updateVariable(
-            "relativeGoodnessDecrease", relativeGoodnessDecrease);
 
         // KISS-ICP adaptive threshold method:
         if (params_.adaptive_threshold.enabled)
@@ -943,7 +930,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
         // clang-format off
         updateLocalMap =
-            (icpIsGood && icpIsReliable &&
+            (icpIsGood &&
             // Only if we are in mapping mode:
             params_.local_map_updates.enabled &&
             // skip map update for the special ICP alignment without motion model
@@ -1005,7 +992,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         // clang-format off
         updateSimpleMap =
             params_.simplemap.generate &&
-            (icpIsGood && icpIsReliable &&
+            (icpIsGood && 
              (distance_enough_sm || params_.simplemap.add_non_keyframes_too)
             );
         // clang-format on
