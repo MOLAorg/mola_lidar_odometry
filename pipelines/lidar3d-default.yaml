@@ -28,13 +28,19 @@ params:
   max_sensor_range_filter_coefficient: 0.95
   absolute_minimum_sensor_range: 5.0
 
+  # If enabled (slower), vehicle twist will be optimized during ICP
+  # enabling better and more robust odometry in high dynamics motion.
+  optimize_twist: '${MOLA_OPTIMIZE_TWIST|false}'
+  optimize_twist_rerun_min_trans: 0.20 # [m]
+  optimize_twist_rerun_min_rot_deg: 1.00 # [deg]
+
   # How often to update the local map model:
   local_map_updates:
     enabled: '${MOLA_MAPPING_ENABLED|true}'
     load_existing_local_map: ${MOLA_LOAD_MM|""}
 
     # Idea: don't integrate scans with a high rotational speed since they are probably not correctly deskewed:
-    min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.5)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
+    min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
     min_rotation_between_keyframes: (15 + sqrt(wx^2+wy^2+wz^2)*500 ) # [deg]  
 
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
@@ -50,7 +56,7 @@ params:
     initial_sigma: 2.0
     min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}
     kp: 2.0
-    alpha: 0.98
+    alpha: 0.90
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
@@ -60,7 +66,7 @@ params:
 
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
     
-    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.75)*ESTIMATED_SENSOR_MAX_RANGE}  # m
+    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}  # m
     min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|15 + sqrt(wx^2+wy^2+wz^2)*500}  # deg
 
 
@@ -242,6 +248,9 @@ observations_filter:
   # and with the given parameters. Filters are run in definition order on the
   # input metric_map_t object.
   #
+  
+  # If twist estimation within ICP is enabled, this defines 
+  # the moment for which twist is estimated:
   - class_name: mp2p_icp_filters::FilterAdjustTimestamps
     params:
       pointcloud_layer: 'raw'

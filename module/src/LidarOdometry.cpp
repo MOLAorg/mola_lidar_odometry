@@ -294,8 +294,11 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
     YAML_LOAD_REQ(params_, min_icp_goodness, double);
     YAML_LOAD_OPT(params_, max_sensor_range_filter_coefficient, double);
     YAML_LOAD_OPT(params_, absolute_minimum_sensor_range, double);
-
     YAML_LOAD_OPT(params_, start_active, bool);
+
+    YAML_LOAD_OPT(params_, optimize_twist, bool);
+    YAML_LOAD_OPT(params_, optimize_twist_rerun_min_trans, double);
+    YAML_LOAD_OPT(params_, optimize_twist_rerun_min_rot_deg, double);
 
     if (cfg.has("adaptive_threshold"))
         params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
@@ -683,6 +686,10 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         mp2p_icp_filters::apply_generators(
             state_.obs_generators, *o, *observation);
 
+    // Keep a (shallow) copy of generators' output, for use in the
+    // twist estimation algorithm (if enabled):
+    const mp2p_icp::metric_map_t obsGenOutput = *observation;
+
     // Keep a copy of "raw" for visualization in the GUI:
     mp2p_icp::metric_map_t observationRawForViz;
     if (observation->layers.count("raw"))
@@ -789,15 +796,15 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                                              *last_obs_tim, this_obs_tim)
                                        : .0;
 
-        ICP_Output icp_out;
-        ICP_Input  icp_in;
+        ICP_Output out;
+        ICP_Input  in;
 
-        icp_in.init_guess_local_wrt_global = mrpt::math::TPose3D::Identity();
+        in.init_guess_local_wrt_global = mrpt::math::TPose3D::Identity();
 
         if (state_.last_motion_model_output)
         {
             // ICP initial pose:
-            icp_in.init_guess_local_wrt_global =
+            in.init_guess_local_wrt_global =
                 state_.last_motion_model_output->pose.mean.asTPose();
 
             // ICP prior term: any information!=0?
@@ -805,7 +812,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                 mrpt::math::CMatrixDouble66::Zero())
             {
                 // Send it to the ICP solver:
-                icp_in.prior.emplace(state_.last_motion_model_output->pose);
+                in.prior.emplace(state_.last_motion_model_output->pose);
 
                 // Special case: 2D lidars mean we are working on SE(2):
                 if (std::dynamic_pointer_cast<
@@ -814,14 +821,14 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                     // fix: z, pitch (rot_y), roll (rot_x):
                     const double large_certainty = 1e6;
 
-                    auto& m = icp_in.prior->mean;
+                    auto& m = in.prior->mean;
 
                     m.z(0);
                     m.setYawPitchRoll(m.yaw(), .0, .0);
 
-                    icp_in.prior->cov_inv(2, 2) = large_certainty;  // dz
-                    icp_in.prior->cov_inv(3, 3) = large_certainty;  // rx
-                    icp_in.prior->cov_inv(4, 4) = large_certainty;  // ry
+                    in.prior->cov_inv(2, 2) = large_certainty;  // dz
+                    in.prior->cov_inv(3, 3) = large_certainty;  // rx
+                    in.prior->cov_inv(4, 4) = large_certainty;  // ry
                 }
             }
 
@@ -839,42 +846,157 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             // Use the last pose without velocity motion model:
             MRPT_LOG_THROTTLE_WARN(
                 2.0, "Not able to use velocity motion model for this timestep");
-            icp_in.init_guess_local_wrt_global =
+            in.init_guess_local_wrt_global =
                 state_.last_lidar_pose.mean.asTPose();
         }
 
-        // Send out to icp:
-        icp_in.local_pc  = observation;
-        icp_in.global_pc = state_.local_map;
-        icp_in.debug_str = "lidar_odom";
-
         // If we don't have a valid twist estimation, use a larger ICP
         // correspondence threshold:
-        icp_in.align_kind = hasMotionModel ? AlignKind::RegularOdometry
-                                           : AlignKind::NoMotionModel;
+        in.align_kind = hasMotionModel ? AlignKind::RegularOdometry
+                                       : AlignKind::NoMotionModel;
 
-        icp_in.icp_params = params_.icp[icp_in.align_kind].icp_parameters;
+        in.icp_params         = params_.icp[in.align_kind].icp_parameters;
+        in.last_keyframe_pose = state_.last_lidar_pose.mean;
+
+        if (state_.last_icp_timestamp)
+            in.time_since_last_keyframe = mrpt::system::timeDifference(
+                *state_.last_icp_timestamp, this_obs_tim);
+        state_.last_icp_timestamp = this_obs_tim;
 
         profiler_.leave("onLidar.2c.prepare_icp_in");
 
-        // Run ICP:
-        {
-            ProfilerEntry tle(profiler_, "onLidar.3.icp_latest");
-            run_one_icp(icp_in, icp_out);
-        }
+        // ------------------------------------------------------
+        // Run ICP
+        // -----------------------------------------------------
+        ProfilerEntry tle_icp(profiler_, "onLidar.3.icp_latest");
 
-        const bool icpIsGood = (icp_out.goodness >= params_.min_icp_goodness);
+        mrpt::math::TPose3D current_solution = in.init_guess_local_wrt_global;
+
+        auto& icpCase = params_.icp.at(in.align_kind);
+
+        icpCase.icp->setIterationHook(
+            [&](const mp2p_icp::ICP::IterationHook_Input& ih)
+            {
+                mp2p_icp::ICP::IterationHook_Output ho;
+
+                if (!params_.optimize_twist) return ho;  // not enabled
+
+                const auto solutionDelta =
+                    ih.currentSolution->optimalPose -
+                    mrpt::poses::CPose3D(current_solution);
+
+                // check minimum deltas:
+                const double deltaTrans = solutionDelta.translation().norm();
+                const double deltaRot   = mrpt::poses::Lie::SO<3>::log(
+                                              solutionDelta.getRotationMatrix())
+                                            .norm();
+
+                if (deltaTrans > params_.optimize_twist_rerun_min_trans ||
+                    deltaRot >
+                        mrpt::DEG2RAD(params_.optimize_twist_rerun_min_rot_deg))
+                {
+                    MRPT_TODO("Add a check for ICP quality");
+                    MRPT_TODO("Add check for ellapsed time");
+                    // if (dt < params_.max_time_to_use_velocity_model &&
+                    // state_.last_pose)
+
+                    MRPT_LOG_DEBUG_STREAM(
+                        "ICP hook: " << ih.currentIteration
+                                     << " solutionDelta: trans=" << deltaTrans
+                                     << " deltaRot="
+                                     << mrpt::RAD2DEG(deltaRot));
+
+                    // request a restart, saving the new check point:
+                    ho.request_stop = true;
+                    current_solution =
+                        ih.currentSolution->optimalPose.asTPose();
+                }
+                return ho;
+            });
+
+        mp2p_icp::Results icp_result;
+
+        do {
+            icpCase.icp->align(
+                *observation, *state_.local_map, current_solution,
+                in.icp_params, icp_result, in.prior);
+
+            if (icp_result.terminationReason ==
+                    mp2p_icp::IterTermReason::HookRequest &&
+                in.time_since_last_keyframe > 0)
+            {
+                // Re-estimate twist:
+                const auto incrPose =
+                    icp_result.optimal_tf.mean - in.last_keyframe_pose;
+
+                const double At = in.time_since_last_keyframe;
+
+                mrpt::math::TTwist3D tw;
+                tw.vx = incrPose.x() / At;
+                tw.vy = incrPose.y() / At;
+                tw.vz = incrPose.z() / At;
+                const auto logRot =
+                    mrpt::poses::Lie::SO<3>::log(incrPose.getRotationMatrix());
+                tw.wx = logRot[0] / At;
+                tw.wy = logRot[1] / At;
+                tw.wz = logRot[2] / At;
+
+                MRPT_LOG_DEBUG_STREAM(
+                    "ICP hook dt="
+                    << At << ":\nnew estimated twist:" << tw.asString() << "\n"
+                    << "old estimated twist:"
+                    << state_.last_motion_model_output->twist.asString()
+                    << "\n");
+
+                // Update twist dynamic variables, then re-run pipelines:
+                updatePipelineTwistVariables(tw);
+                // Make all changes effective and evaluate the variables now:
+                state_.parameter_source.realize();
+
+                // Recover output from generators,
+                *observation = obsGenOutput;
+
+                // and re-apply pipeline:
+                ProfilerEntry tle1f(profiler_, "onLidar.1.filter_pointclouds");
+
+                mp2p_icp_filters::apply_filter_pipeline(
+                    state_.pc_filter, *observation, profiler_);
+
+                tle1f.stop();
+            }
+
+        } while (icp_result.terminationReason ==
+                 mp2p_icp::IterTermReason::HookRequest);
+
+        out.found_pose_to_wrt_from = icp_result.optimal_tf;
+        out.goodness               = icp_result.quality;
+        out.icp_iterations         = icp_result.nIterations;
+
+        MRPT_LOG_DEBUG_FMT(
+            "ICP (kind=%u): goodness=%.02f%% iters=%u pose=%s "
+            "termReason=%s",
+            static_cast<unsigned int>(in.align_kind), 100.0 * out.goodness,
+            static_cast<unsigned int>(icp_result.nIterations),
+            out.found_pose_to_wrt_from.getMeanVal().asString().c_str(),
+            mrpt::typemeta::enum2str(icp_result.terminationReason).c_str());
+
+        tle_icp.stop();
+        // ------------------------------------------------------
+        // (end, run ICP)
+        // ------------------------------------------------------
+
+        const bool icpIsGood = (out.goodness >= params_.min_icp_goodness);
 
         state_.last_icp_was_good = icpIsGood;
-        state_.last_icp_quality  = icp_out.goodness;
+        state_.last_icp_quality  = out.goodness;
 
-        if (icpIsGood) state_.last_lidar_pose = icp_out.found_pose_to_wrt_from;
+        if (icpIsGood) state_.last_lidar_pose = out.found_pose_to_wrt_from;
 
         // Update velocity model:
         if (icpIsGood)
         {
             state_.navstate_fuse.fuse_pose(
-                this_obs_tim, icp_out.found_pose_to_wrt_from,
+                this_obs_tim, out.found_pose_to_wrt_from,
                 NAVSTATE_LIODOM_FRAME);
         }
         else { state_.navstate_fuse.reset(); }
@@ -889,7 +1011,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
         // Update for stats:
         state_.parameter_source.updateVariable(
-            "icp_iterations", icp_out.icp_iterations);
+            "icp_iterations", out.icp_iterations);
 
         // KISS-ICP adaptive threshold method:
         if (params_.adaptive_threshold.enabled)
@@ -897,8 +1019,8 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             // Run this even if "!icpIsGood":
 
             const mrpt::poses::CPose3D motionModelError =
-                icp_out.found_pose_to_wrt_from.mean -
-                mrpt::poses::CPose3D(icp_in.init_guess_local_wrt_global);
+                out.found_pose_to_wrt_from.mean -
+                mrpt::poses::CPose3D(in.init_guess_local_wrt_global);
 
             doUpdateAdaptiveThreshold(motionModelError);
 
@@ -1194,80 +1316,6 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
     }
 }
 
-void LidarOdometry::run_one_icp(const ICP_Input& in, ICP_Output& out)
-{
-    using namespace std::string_literals;
-
-    MRPT_START
-
-    {
-        ProfilerEntry tle(profiler_, "run_one_icp");
-
-        ASSERT_(in.local_pc);
-        ASSERT_(in.global_pc);
-        const auto& pcs_local  = *in.local_pc;
-        const auto& pcs_global = *in.global_pc;
-
-        mrpt::math::TPose3D current_solution = in.init_guess_local_wrt_global;
-
-        auto& icpCase = params_.icp.at(in.align_kind);
-
-        auto last_partial_solution = mrpt::poses::CPose3D(current_solution);
-
-        icpCase.icp->setIterationHook(
-            [&](const mp2p_icp::ICP::IterationHook_Input& ih)
-            {
-                mp2p_icp::ICP::IterationHook_Output ho;
-
-                const auto solutionDelta =
-                    ih.currentSolution->optimalPose - last_partial_solution;
-
-                MRPT_LOG_WARN_STREAM(
-                    "hook: " << ih.currentIteration
-                             << " solutionDelta:" << solutionDelta);
-
-                MRPT_TODO("check minimum delta");
-                if (0)
-                {
-                    ho.request_stop       = true;
-                    last_partial_solution = ih.currentSolution->optimalPose;
-                }
-
-                return ho;
-            });
-
-        mp2p_icp::Results icp_result;
-
-        do {
-            icpCase.icp->align(
-                pcs_local, pcs_global, current_solution, in.icp_params,
-                icp_result, in.prior);
-
-            if (icp_result.terminationReason ==
-                mp2p_icp::IterTermReason::HookRequest)
-            {
-                MRPT_TODO("impl: re-run pipelines");
-            }
-
-        } while (icp_result.terminationReason ==
-                 mp2p_icp::IterTermReason::HookRequest);
-
-        out.found_pose_to_wrt_from = icp_result.optimal_tf;
-        out.goodness               = icp_result.quality;
-        out.icp_iterations         = icp_result.nIterations;
-
-        MRPT_LOG_DEBUG_FMT(
-            "ICP (kind=%u): goodness=%.02f%% iters=%u pose=%s "
-            "termReason=%s",
-            static_cast<unsigned int>(in.align_kind), 100.0 * out.goodness,
-            static_cast<unsigned int>(icp_result.nIterations),
-            out.found_pose_to_wrt_from.getMeanVal().asString().c_str(),
-            mrpt::typemeta::enum2str(icp_result.terminationReason).c_str());
-    }
-
-    MRPT_END
-}
-
 void LidarOdometry::onIMU(const CObservation::Ptr& o)
 {
     // All methods that are enqueued into a thread pool should have its own
@@ -1429,13 +1477,22 @@ void LidarOdometry::doUpdateAdaptiveThreshold(
     const double ALPHA = params_.adaptive_threshold.alpha;
 
     double model_error = computeModelError(lastMotionModelError, max_range);
+    double rot_error   = 0;
+    if (state_.last_motion_model_output)
+    {
+        const auto& tw = state_.last_motion_model_output->twist;
+        rot_error =
+            0.1 * mrpt::math::TVector3D(tw.wx, tw.wy, tw.wz).norm() * max_range;
+    }
+
+    computeModelError(lastMotionModelError, max_range);
 
     // proportional controller constant
     const double KP = params_.adaptive_threshold.kp;
     ASSERT_(KP > 1.0);
 
     const double new_sigma =
-        model_error *
+        (model_error + rot_error) *
         mrpt::saturate_val(KP * (1.0 - state_.last_icp_quality), 0.1, KP);
 
     if (state_.adapt_thres_sigma == 0)  // initial
@@ -1517,6 +1574,16 @@ void LidarOdometry::doUpdateEstimatedMaxSensorRange(
         "found in observation metric_map_t");
 }
 
+void LidarOdometry::updatePipelineTwistVariables(const mrpt::math::TTwist3D& tw)
+{
+    state_.parameter_source.updateVariable("vx", tw.vx);
+    state_.parameter_source.updateVariable("vy", tw.vy);
+    state_.parameter_source.updateVariable("vz", tw.vz);
+    state_.parameter_source.updateVariable("wx", tw.wx);
+    state_.parameter_source.updateVariable("wy", tw.wy);
+    state_.parameter_source.updateVariable("wz", tw.wz);
+}
+
 void LidarOdometry::updatePipelineDynamicVariables()
 {
     // Set dynamic variables for twist usage within ICP pipelines
@@ -1526,12 +1593,7 @@ void LidarOdometry::updatePipelineDynamicVariables()
         if (state_.last_motion_model_output)
             twistForIcpVars = state_.last_motion_model_output->twist;
 
-        state_.parameter_source.updateVariable("vx", twistForIcpVars.vx);
-        state_.parameter_source.updateVariable("vy", twistForIcpVars.vy);
-        state_.parameter_source.updateVariable("vz", twistForIcpVars.vz);
-        state_.parameter_source.updateVariable("wx", twistForIcpVars.wx);
-        state_.parameter_source.updateVariable("wy", twistForIcpVars.wy);
-        state_.parameter_source.updateVariable("wz", twistForIcpVars.wz);
+        this->updatePipelineTwistVariables(twistForIcpVars);
     }
 
     // robot pose:

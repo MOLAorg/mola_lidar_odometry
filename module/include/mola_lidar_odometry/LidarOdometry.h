@@ -118,6 +118,13 @@ class LidarOdometry : public FrontEndBase,
         double max_sensor_range_filter_coefficient = 0.999;
         double absolute_minimum_sensor_range       = 5.0;  // [m]
 
+        /** If enabled (slower), vehicle twist will be optimized during ICP
+         *  enabling better and more robust odometry in high dynamics motion.
+         */
+        bool   optimize_twist                   = false;
+        double optimize_twist_rerun_min_trans   = 0.1;  // [m]
+        double optimize_twist_rerun_min_rot_deg = 0.5;  // [deg]
+
         struct MultipleLidarOptions
         {
             /** If N>1, the system LO system will try to group "N" observations
@@ -378,11 +385,10 @@ class LidarOdometry : public FrontEndBase,
         mp2p_icp::metric_map_t::Ptr global_pc, local_pc;
         mrpt::math::TPose3D         init_guess_local_wrt_global;
         mp2p_icp::Parameters        icp_params;
+        mrpt::poses::CPose3D        last_keyframe_pose;
+        double                      time_since_last_keyframe = 0;
 
         std::optional<mrpt::poses::CPose3DPDFGaussianInf> prior;
-
-        /** used to identity where does this request come from */
-        std::string debug_str;
     };
     struct ICP_Output
     {
@@ -390,7 +396,6 @@ class LidarOdometry : public FrontEndBase,
         mrpt::poses::CPose3DPDFGaussian found_pose_to_wrt_from;
         uint32_t                        icp_iterations = 0;
     };
-    void run_one_icp(const ICP_Input& in, ICP_Output& out);
 
     /** All variables that hold the algorithm state */
     struct MethodState
@@ -412,6 +417,7 @@ class LidarOdometry : public FrontEndBase,
 
         std::optional<mrpt::Clock::time_point> first_ever_timestamp;
         std::optional<mrpt::Clock::time_point> last_obs_timestamp;
+        std::optional<mrpt::Clock::time_point> last_icp_timestamp;
 
         /// Cache for multiple LIDAR synchronization:
         std::map<std::string /*label*/, mrpt::obs::CObservation::Ptr> sync_obs;
@@ -532,6 +538,7 @@ class LidarOdometry : public FrontEndBase,
     void doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t& m);
 
     void updatePipelineDynamicVariables();
+    void updatePipelineTwistVariables(const mrpt::math::TTwist3D& tw);
 
     void updateVisualization(const mp2p_icp::metric_map_t& currentObservation);
 
