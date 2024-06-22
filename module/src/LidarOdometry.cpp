@@ -900,8 +900,13 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         else
         {
             // Use the last pose without velocity motion model:
-            MRPT_LOG_THROTTLE_WARN(
-                2.0, "Not able to use velocity motion model for this timestep");
+            MRPT_LOG_THROTTLE_WARN_FMT(
+                2.0,
+                "Not able to use velocity motion model for this timestep "
+                "(pathStep=%zu, timestamp=%s UTC)",
+                state_.estimated_trajectory.size(),
+                mrpt::system::dateTimeToString(this_obs_tim).c_str());
+
             in.init_guess_local_wrt_global =
                 state_.last_lidar_pose.mean.asTPose();
         }
@@ -1135,30 +1140,25 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             state_.distance_checker_local_map->insert(
                 state_.last_lidar_pose.mean);
 
-            if (params_.local_map_updates.max_distance_to_keep_keyframes > 0)
+            if (params_.local_map_updates.max_distance_to_keep_keyframes > 0 &&
+                (state_.localmap_check_removal_counter++ >=
+                 params_.local_map_updates.check_for_removal_every_n))
             {
-                if (state_.localmap_check_removal_counter++ >=
-                    params_.local_map_updates.check_for_removal_every_n)
-                {
-                    ProfilerEntry tleCleanup(
-                        profiler_, "onLidar.distant_kfs_cleanup");
+                ProfilerEntry tleCleanup(
+                    profiler_, "onLidar.distant_kfs_cleanup");
 
-                    state_.localmap_check_removal_counter = 0;
+                state_.localmap_check_removal_counter = 0;
 
-                    const auto nInit =
-                        state_.distance_checker_local_map->size();
+                const auto nInit = state_.distance_checker_local_map->size();
 
-                    state_.distance_checker_local_map->removeAllFartherThan(
-                        state_.last_lidar_pose.mean,
-                        params_.local_map_updates
-                            .max_distance_to_keep_keyframes);
+                state_.distance_checker_local_map->removeAllFartherThan(
+                    state_.last_lidar_pose.mean,
+                    params_.local_map_updates.max_distance_to_keep_keyframes);
 
-                    const auto nFinal =
-                        state_.distance_checker_local_map->size();
-                    MRPT_LOG_DEBUG_STREAM(
-                        "removeAllFartherThan: " << nInit << " => " << nFinal
-                                                 << " KFs");
-                }
+                const auto nFinal = state_.distance_checker_local_map->size();
+                MRPT_LOG_DEBUG_STREAM(
+                    "removeAllFartherThan: " << nInit << " => " << nFinal
+                                             << " KFs");
             }
         }
 
