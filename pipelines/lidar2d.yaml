@@ -32,8 +32,8 @@ params:
   local_map_updates:
     enabled: '${MOLA_MAPPING_ENABLED|true}'
     load_existing_local_map: ${MOLA_LOAD_MM|""}
-    min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|0.025*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
-    min_rotation_between_keyframes: 5.0 # [deg]
+    min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|0.02*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
+    min_rotation_between_keyframes: 15.0 # [deg]
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
     max_distance_to_keep_keyframes: 'max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)' # [m]
     check_for_removal_every_n: 100
@@ -45,7 +45,7 @@ params:
   adaptive_threshold:
     enabled: true
     initial_sigma: 0.20
-    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.05}
+    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}
     kp: 2.0
     alpha: 0.99
 
@@ -94,8 +94,8 @@ params:
 navstate_fuse_params:
   max_time_to_use_velocity_model: 2.0 # [s]
   sliding_window_length: 0.8 # [s]
-  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|0.1} # [m/s²]
-  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|1.0} # [rad/s²]
+  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|2.0} # [m/s²]
+  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|5.0} # [rad/s²]
   
   sigma_integrator_position: 0.10 # [m]
   sigma_integrator_orientation:  0.10 # [rad]
@@ -185,7 +185,7 @@ localmap_generator:
         class: mrpt::maps::CVoxelMap
         #plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
-          resolution: 0.075 # '$f{max(0.05, min(1.0, 0.005*ESTIMATED_SENSOR_MAX_RANGE))}' # [m]
+          resolution: 0.05 # '$f{max(0.05, min(1.0, 0.005*ESTIMATED_SENSOR_MAX_RANGE))}' # [m]
         insertOpts:
           prob_miss: 0.30
           prob_hit: 0.70
