@@ -199,7 +199,7 @@ localmap_generator:
 # LIDAR observations are, first, loaded using a generator
 # from "observations_generator".
 # then, optionally, filtered before being registered with ICP
-# against the local map with filter "observations_filter".
+# against the local map with filter "observations_filter_1st_pass".
 # ---------------------------------------------------------------------------------
 observations_generator:
   # Generators:
@@ -215,7 +215,7 @@ observations_generator:
       process_class_names_regex: '.*'
       process_sensor_labels_regex: '.*'
 
-observations_filter:
+observations_filter_1st_pass:
   # Filters:
   #
   # One filter object will be created for each entry, instancing the given class,

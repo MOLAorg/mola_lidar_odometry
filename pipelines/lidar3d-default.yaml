@@ -28,11 +28,12 @@ params:
   max_sensor_range_filter_coefficient: 0.95
   absolute_minimum_sensor_range: 5.0
 
-  # If enabled (slower), vehicle twist will be optimized during ICP
+  # If enabled, vehicle twist will be optimized during ICP
   # enabling better and more robust odometry in high dynamics motion.
-  optimize_twist: '${MOLA_OPTIMIZE_TWIST|false}'
-  optimize_twist_rerun_min_trans: 0.20 # [m]
-  optimize_twist_rerun_min_rot_deg: 1.00 # [deg]
+  optimize_twist: '${MOLA_OPTIMIZE_TWIST|true}'
+  optimize_twist_max_corrections: 8  # (max number of corrections)
+  optimize_twist_rerun_min_trans: 0.15 # [m]
+  optimize_twist_rerun_min_rot_deg: 0.75 # [deg]
 
   # How often to update the local map model:
   local_map_updates:
@@ -225,7 +226,7 @@ localmap_generator:
 # LIDAR observations are, first, loaded using a generator
 # from "observations_generator".
 # then, optionally, filtered before being registered with ICP
-# against the local map with filter "observations_filter".
+# against the local map with filter "observations_filter_1st_pass".
 # ---------------------------------------------------------------------------------
 observations_generator:
   # Generators:
@@ -241,7 +242,7 @@ observations_generator:
       process_class_names_regex: '.*'
       process_sensor_labels_regex: '.*'
 
-observations_filter:
+observations_filter_1st_pass:
   # Filters:
   #
   # One filter object will be created for each entry, instancing the given class,
@@ -285,6 +286,22 @@ observations_filter:
       bounding_box_min: [ -0.20*INSTANTANEOUS_SENSOR_MAX_RANGE, -0.20*INSTANTANEOUS_SENSOR_MAX_RANGE, 0.01*INSTANTANEOUS_SENSOR_MAX_RANGE ]
       bounding_box_max: [  0.20*INSTANTANEOUS_SENSOR_MAX_RANGE,  0.20*INSTANTANEOUS_SENSOR_MAX_RANGE, 0.10*INSTANTANEOUS_SENSOR_MAX_RANGE ]
 
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: 'decimated_for_map_skewed'
+      output_pointcloud_layer: 'decimated_for_icp_skewed'
+      voxel_filter_resolution: max(0.60, 1.6*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
+      minimum_input_points_to_filter: 2000  # don't decimate if smaller than this size
+      decimate_method: DecimateMethod::FirstPoint
+      #decimate_method: DecimateMethod::ClosestToAverage
+
+# 2nd pass:
+observations_filter_2nd_pass:
+  - class_name: mp2p_icp_filters::FilterDeleteLayer
+    params:
+      pointcloud_layer_to_remove: ['decimated_for_map','decimated_for_icp']
+      error_on_missing_input_layer: false
+
   - class_name: mp2p_icp_filters::FilterDeskew
     params:
       input_pointcloud_layer: 'decimated_for_map_skewed'
@@ -296,19 +313,24 @@ observations_filter:
       # mp2p_icp::Parameterizable API to update them dynamically.
       twist: [vx,vy,vz,wx,wy,wz]
 
-  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+  - class_name: mp2p_icp_filters::FilterDeskew
     params:
-      input_pointcloud_layer: 'decimated_for_map'
+      input_pointcloud_layer: 'decimated_for_icp_skewed'
       output_pointcloud_layer: 'decimated_for_icp'
-      voxel_filter_resolution: max(0.60, 1.6*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
-      minimum_input_points_to_filter: 2000  # don't decimate if smaller than this size
-      decimate_method: DecimateMethod::FirstPoint
-      #decimate_method: DecimateMethod::ClosestToAverage
+      silently_ignore_no_timestamps: true # To handle more dataset types
+      #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
 
+      # These (vx,...,wz) are variable names that must be defined via the
+      # mp2p_icp::Parameterizable API to update them dynamically.
+      twist: [vx,vy,vz,wx,wy,wz]
+
+
+# final pass:
+observations_filter_final_pass:
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ['raw','decimated_for_map_skewed', 'decimated_for_map_by_range', 'decimated_for_map_raw']
+      pointcloud_layer_to_remove: ['raw','decimated_for_map_skewed', 'decimated_for_icp_skewed', 'decimated_for_map_by_range', 'decimated_for_map_raw']
 
 # To populate the local map, one or more observation layers are merged
 # into the local map via this pipeline:

@@ -124,6 +124,7 @@ class LidarOdometry : public FrontEndBase,
         bool   optimize_twist                   = false;
         double optimize_twist_rerun_min_trans   = 0.1;  // [m]
         double optimize_twist_rerun_min_rot_deg = 0.5;  // [deg]
+        size_t optimize_twist_max_corrections   = 8;
 
         struct MultipleLidarOptions
         {
@@ -437,7 +438,7 @@ class LidarOdometry : public FrontEndBase,
         std::optional<double> instantaneous_sensor_max_range;
 
         mp2p_icp_filters::GeneratorSet   obs_generators;
-        mp2p_icp_filters::FilterPipeline pc_filter;
+        mp2p_icp_filters::FilterPipeline pc_filter1, pc_filter2, pc_filter3;
         mp2p_icp_filters::GeneratorSet   local_map_generators;
         mp2p_icp::metric_map_t::Ptr      local_map =
             mp2p_icp::metric_map_t::Create();

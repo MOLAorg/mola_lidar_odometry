@@ -299,6 +299,7 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
     YAML_LOAD_OPT(params_, optimize_twist, bool);
     YAML_LOAD_OPT(params_, optimize_twist_rerun_min_trans, double);
     YAML_LOAD_OPT(params_, optimize_twist_rerun_min_rot_deg, double);
+    YAML_LOAD_OPT(params_, optimize_twist_max_corrections, size_t);
 
     if (cfg.has("adaptive_threshold"))
         params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
@@ -381,15 +382,36 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
         mp2p_icp::AttachToParameterSource(
             state_.obs_generators, state_.parameter_source);
 
-        if (c.has("observations_filter"))
+        if (c.has("observations_filter_1st_pass"))
         {
             // Create, and copy my own verbosity level:
-            state_.pc_filter = mp2p_icp_filters::filter_pipeline_from_yaml(
-                c["observations_filter"], this->getMinLoggingLevel());
+            state_.pc_filter1 = mp2p_icp_filters::filter_pipeline_from_yaml(
+                c["observations_filter_1st_pass"], this->getMinLoggingLevel());
 
             // Attach to the parameter source for dynamic parameters:
             mp2p_icp::AttachToParameterSource(
-                state_.pc_filter, state_.parameter_source);
+                state_.pc_filter1, state_.parameter_source);
+        }
+        if (c.has("observations_filter_2nd_pass"))
+        {
+            // Create, and copy my own verbosity level:
+            state_.pc_filter2 = mp2p_icp_filters::filter_pipeline_from_yaml(
+                c["observations_filter_2nd_pass"], this->getMinLoggingLevel());
+
+            // Attach to the parameter source for dynamic parameters:
+            mp2p_icp::AttachToParameterSource(
+                state_.pc_filter2, state_.parameter_source);
+        }
+        if (c.has("observations_filter_final_pass"))
+        {
+            // Create, and copy my own verbosity level:
+            state_.pc_filter3 = mp2p_icp_filters::filter_pipeline_from_yaml(
+                c["observations_filter_final_pass"],
+                this->getMinLoggingLevel());
+
+            // Attach to the parameter source for dynamic parameters:
+            mp2p_icp::AttachToParameterSource(
+                state_.pc_filter3, state_.parameter_source);
         }
 
         // Local map generator:
@@ -686,10 +708,6 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         mp2p_icp_filters::apply_generators(
             state_.obs_generators, *o, *observation);
 
-    // Keep a (shallow) copy of generators' output, for use in the
-    // twist estimation algorithm (if enabled):
-    const mp2p_icp::metric_map_t obsGenOutput = *observation;
-
     // Keep a copy of "raw" for visualization in the GUI:
     mp2p_icp::metric_map_t observationRawForViz;
     if (observation->layers.count("raw"))
@@ -702,7 +720,10 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
     ProfilerEntry tle1(profiler_, "onLidar.1.filter_pointclouds");
 
     mp2p_icp_filters::apply_filter_pipeline(
-        state_.pc_filter, *observation, profiler_);
+        state_.pc_filter1, *observation, profiler_);
+
+    mp2p_icp_filters::apply_filter_pipeline(
+        state_.pc_filter2, *observation, profiler_);
 
     tle1.stop();
 
@@ -871,6 +892,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         ProfilerEntry tle_icp(profiler_, "onLidar.3.icp_latest");
 
         mrpt::math::TPose3D current_solution = in.init_guess_local_wrt_global;
+        size_t              twistCorrectionCount = 0;
 
         auto& icpCase = params_.icp.at(in.align_kind);
 
@@ -880,6 +902,10 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                 mp2p_icp::ICP::IterationHook_Output ho;
 
                 if (!params_.optimize_twist) return ho;  // not enabled
+
+                if (twistCorrectionCount >=
+                    params_.optimize_twist_max_corrections)
+                    return ho;
 
                 const auto solutionDelta =
                     ih.currentSolution->optimalPose -
@@ -895,6 +921,8 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                     deltaRot >
                         mrpt::DEG2RAD(params_.optimize_twist_rerun_min_rot_deg))
                 {
+                    params_.optimize_twist_max_corrections++;
+
                     MRPT_TODO("Add a check for ICP quality");
                     MRPT_TODO("Add check for ellapsed time");
                     // if (dt < params_.max_time_to_use_velocity_model &&
@@ -915,11 +943,20 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
             });
 
         mp2p_icp::Results icp_result;
+        auto              icp_params        = in.icp_params;
+        size_t            remainingIcpIters = icp_params.maxIterations;
 
         do {
+            icp_params.maxIterations = remainingIcpIters;
+
             icpCase.icp->align(
-                *observation, *state_.local_map, current_solution,
-                in.icp_params, icp_result, in.prior);
+                *observation, *state_.local_map, current_solution, icp_params,
+                icp_result, in.prior);
+
+            if (icp_result.nIterations <= remainingIcpIters)
+                remainingIcpIters -= icp_result.nIterations;
+            else  // who knows?...
+                remainingIcpIters = 0;
 
             if (icp_result.terminationReason ==
                     mp2p_icp::IterTermReason::HookRequest &&
@@ -953,14 +990,11 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                 // Make all changes effective and evaluate the variables now:
                 state_.parameter_source.realize();
 
-                // Recover output from generators,
-                *observation = obsGenOutput;
-
-                // and re-apply pipeline:
+                // and re-apply 2nd pass:
                 ProfilerEntry tle1f(profiler_, "onLidar.1.filter_pointclouds");
 
                 mp2p_icp_filters::apply_filter_pipeline(
-                    state_.pc_filter, *observation, profiler_);
+                    state_.pc_filter2, *observation, profiler_);
 
                 tle1f.stop();
             }
@@ -984,6 +1018,10 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         // ------------------------------------------------------
         // (end, run ICP)
         // ------------------------------------------------------
+
+        // Apply final filters:
+        mp2p_icp_filters::apply_filter_pipeline(
+            state_.pc_filter3, *observation, profiler_);
 
         const bool icpIsGood = (out.goodness >= params_.min_icp_goodness);
 

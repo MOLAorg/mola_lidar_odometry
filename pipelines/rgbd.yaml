@@ -221,7 +221,7 @@ localmap_generator:
 # LIDAR observations are, first, loaded using a generator
 # from "observations_generator".
 # then, optionally, filtered before being registered with ICP
-# against the local map with filter "observations_filter".
+# against the local map with filter "observations_filter_1st_pass".
 # ---------------------------------------------------------------------------------
 observations_generator:
   # Generators:
@@ -244,7 +244,7 @@ observations_generator:
       row_window_length: 6
 
 
-observations_filter:
+observations_filter_1st_pass:
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'planes'

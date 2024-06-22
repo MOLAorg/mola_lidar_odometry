@@ -16,7 +16,7 @@ params:
   imu_sensor_label: 'imu'
 
   # These sensor labels will be handled as wheel odometry observation (C++11 regex):
-  wheel_odometry_sensor_label: 'odometry|ODOMETRY'
+  wheel_odometry_sensor_label: '${MOLA_ODOMETRY_NAME|odometry}'
 
   # These sensor labels will be handled as GNNS (GPS) (For storage in simplemap only)
   gnns_sensor_label: 'gps'
@@ -28,13 +28,22 @@ params:
   max_sensor_range_filter_coefficient: 0.95
   absolute_minimum_sensor_range: 5.0
 
+  # If enabled, vehicle twist will be optimized during ICP
+  # enabling better and more robust odometry in high dynamics motion.
+  optimize_twist: '${MOLA_OPTIMIZE_TWIST|true}'
+  optimize_twist_max_corrections: 8  # (max number of corrections)
+  optimize_twist_rerun_min_trans: 0.15 # [m]
+  optimize_twist_rerun_min_rot_deg: 0.75 # [deg]
+
   # How often to update the local map model:
   local_map_updates:
     enabled: '${MOLA_MAPPING_ENABLED|true}'
     load_existing_local_map: ${MOLA_LOAD_MM|""}
 
-    min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(WX^2+WY^2+WZ^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
-    min_rotation_between_keyframes: 15.0 # [deg]
+    # Idea: don't integrate scans with a high rotational speed since they are probably not correctly deskewed:
+    min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
+    min_rotation_between_keyframes: (15 + sqrt(wx^2+wy^2+wz^2)*500 ) # [deg]  
+
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
     max_distance_to_keep_keyframes: 'max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)' # [m]
     check_for_removal_every_n: 100
@@ -47,6 +56,8 @@ params:
     enabled: true
     initial_sigma: 2.0
     min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}
+    kp: 2.0
+    alpha: 0.90
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
@@ -55,8 +66,11 @@ params:
     load_existing_simple_map: ${MOLA_LOAD_SM|""}
 
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
-    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|0.50}   # m
-    min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|10.0}  # deg
+    
+    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}  # m
+    min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|15 + sqrt(wx^2+wy^2+wz^2)*500}  # deg
+
+
     generate_lazy_load_scan_files: ${MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD|false} # If enabled, a directory will be create alongside the .simplemap and pointclouds will be externally serialized there.
     add_non_keyframes_too: ${MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES|false}  # If enabled, all frames are stored in the simplemap, but non-keyframes will be without associated observations.
     save_gnns_max_age: 1.0  # [s] max age of GNNS observations to keep in the keyframe
@@ -87,6 +101,11 @@ params:
   # until active is set to true (e.g. via the GUI).
   start_active: '${MOLA_START_ACTIVE|true}'
 
+  # Generate CSV with the evolution of internal variables:
+  debug_traces:
+    save_to_file: '${MOLA_SAVE_DEBUG_TRACES|false}'
+    output_file:  '${MOLA_DEBUG_TRACES_FILE|mola-lo-traces.csv}'
+
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
 
@@ -96,9 +115,21 @@ navstate_fuse_params:
   # Maximum time since last observation to consider the validity of the velocity model:
   # (KITTI360 test_3 has some blackouts >=1.0 seconds while angular acceleration is high, so 
   #  this threshold must be < 1.0 s for that dataset)
-  max_time_to_use_velocity_model: 0.75 # [seconds]
-  sigma_random_walk_acceleration_linear: 10.0 # [m/s²]
-  sigma_random_walk_acceleration_angular: 10.0 # [rad/s²]
+  max_time_to_use_velocity_model: 0.75 # [s]
+  sliding_window_length: 0.50 # [s]
+  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|1.0} # [m/s²]
+  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|10.0} # [rad/s²]
+  
+  sigma_integrator_position: 1.0 # [m]
+  sigma_integrator_orientation:  1.0 # [rad]
+
+  # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
+  initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
+  initial_twist_sigma_lin: 20.0 # [m/s]
+  initial_twist_sigma_ang: 3.0  # [rad/s]
+
+  robust_param: 0  # 0=no robust disabled
+  max_rmse: 2 # max inconsistencies to discard solution
 
 
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
@@ -136,7 +167,8 @@ icp_settings_with_vel:
       params:
         maxIterations: 2
         robustKernel: 'RobustKernel::GemanMcClure'
-        robustKernelParam: '0.5*max(0.5*ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-0.5*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30)'
+        #robustKernelParam: '0.5*ADAPTIVE_THRESHOLD_SIGMA'
+        robustKernelParam: '0.5*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-0.5*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30)'
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -144,7 +176,7 @@ icp_settings_with_vel:
   matchers:
     - class: mp2p_icp::Matcher_Points_DistanceThreshold
       params:
-        threshold: '3.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
+        threshold: '2.0*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-0.5*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30)'
         thresholdAngularDeg: 0  # deg
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
@@ -233,7 +265,7 @@ localmap_generator:
 # LIDAR observations are, first, loaded using a generator
 # from "observations_generator".
 # then, optionally, filtered before being registered with ICP
-# against the local map with filter "observations_filter".
+# against the local map with filter "observations_filter_1st_pass".
 # ---------------------------------------------------------------------------------
 observations_generator:
   # Generators:
@@ -249,30 +281,29 @@ observations_generator:
       process_class_names_regex: '.*'
       process_sensor_labels_regex: '.*'
 
-observations_filter:
+observations_filter_1st_pass:
   # Filters:
   #
   # One filter object will be created for each entry, instancing the given class,
   # and with the given parameters. Filters are run in definition order on the
   # input metric_map_t object.
   #
-  - class_name: mp2p_icp_filters::FilterDeskew
+  
+  # If twist estimation within ICP is enabled, this defines 
+  # the moment for which twist is estimated:
+  - class_name: mp2p_icp_filters::FilterAdjustTimestamps
     params:
-      input_pointcloud_layer: 'raw'
-      output_pointcloud_layer: 'deskewed'
-      silently_ignore_no_timestamps: true # To handle more dataset types
-      output_layer_class: 'mrpt::maps::CPointsMapXYZI'  # Keep intensity channel
-      
-      # These (vx,...,wz) are variable names that must be defined via the
-      # mp2p_icp::Parameterizable API to update them dynamically.
-      twist: [vx,vy,vz,wx,wy,wz]
+      pointcloud_layer: 'raw'
+      silently_ignore_no_timestamps: true
+      method: 'TimestampAdjustMethod::MiddleIsZero'
+      #method: 'TimestampAdjustMethod::EarliestIsZero'
 
   # Remove points too close, to prevent "noise" from the vehicle, 
   # the person next to the robot, etc. Remove too distant points since
   # the tiniest angular error projects to a large translational error.
   - class_name: mp2p_icp_filters::FilterByRange
     params:
-      input_pointcloud_layer: 'deskewed'
+      input_pointcloud_layer: 'raw'
       output_layer_between: 'filtered'
       range_min: 1.0 # max(1.0, 0.05*ESTIMATED_SENSOR_MAX_RANGE)
       range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
@@ -288,35 +319,89 @@ observations_filter:
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'near'
-      output_pointcloud_layer: 'decimated_for_icp_near'
+      output_pointcloud_layer: 'decimated_for_icp_near_skewed'
       voxel_filter_resolution: 0.75  # [m]
       decimate_method: DecimateMethod::FirstPoint
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'near'
-      output_pointcloud_layer: 'decimated_for_map_near'
+      output_pointcloud_layer: 'decimated_for_map_near_skewed'
       voxel_filter_resolution: 0.25  # [m]
       decimate_method: DecimateMethod::FirstPoint
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'far'
-      output_pointcloud_layer: 'decimated_for_map_far'
+      output_pointcloud_layer: 'decimated_for_map_far_skewed'
       voxel_filter_resolution: 0.5  # [m]
       decimate_method: DecimateMethod::FirstPoint
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'far'
-      output_pointcloud_layer: 'decimated_for_icp_far'
+      output_pointcloud_layer: 'decimated_for_icp_far_skewed'
       voxel_filter_resolution: 1.5  # [m]
       decimate_method: DecimateMethod::FirstPoint
 
+# 2nd pass:
+observations_filter_2nd_pass:
+  - class_name: mp2p_icp_filters::FilterDeleteLayer
+    params:
+      pointcloud_layer_to_remove: ['decimated_for_map_far','decimated_for_icp_far','decimated_for_map_near','decimated_for_icp_near']
+      error_on_missing_input_layer: false
+
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      input_pointcloud_layer: 'decimated_for_map_far_skewed'
+      output_pointcloud_layer: 'decimated_for_map_far'
+      silently_ignore_no_timestamps: true # To handle more dataset types
+      #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
+
+      # These (vx,...,wz) are variable names that must be defined via the
+      # mp2p_icp::Parameterizable API to update them dynamically.
+      twist: [vx,vy,vz,wx,wy,wz]
+
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      input_pointcloud_layer: 'decimated_for_icp_far_skewed'
+      output_pointcloud_layer: 'decimated_for_icp_far'
+      silently_ignore_no_timestamps: true # To handle more dataset types
+      #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
+
+      # These (vx,...,wz) are variable names that must be defined via the
+      # mp2p_icp::Parameterizable API to update them dynamically.
+      twist: [vx,vy,vz,wx,wy,wz]
+
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      input_pointcloud_layer: 'decimated_for_map_near_skewed'
+      output_pointcloud_layer: 'decimated_for_map_near'
+      silently_ignore_no_timestamps: true # To handle more dataset types
+      #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
+
+      # These (vx,...,wz) are variable names that must be defined via the
+      # mp2p_icp::Parameterizable API to update them dynamically.
+      twist: [vx,vy,vz,wx,wy,wz]
+
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      input_pointcloud_layer: 'decimated_for_icp_near_skewed'
+      output_pointcloud_layer: 'decimated_for_icp_near'
+      silently_ignore_no_timestamps: true # To handle more dataset types
+      #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
+
+      # These (vx,...,wz) are variable names that must be defined via the
+      # mp2p_icp::Parameterizable API to update them dynamically.
+      twist: [vx,vy,vz,wx,wy,wz]
+
+
+# final pass:
+observations_filter_final_pass:
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ['raw','deskewed', 'filtered', 'far', 'near']
+      pointcloud_layer_to_remove: ['raw','decimated_for_icp_near_skewed', 'decimated_for_map_near_skewed', 'decimated_for_icp_far_skewed', 'decimated_for_map_far_skewed']
 
 
 # To populate the local map, one or more observation layers are merged
