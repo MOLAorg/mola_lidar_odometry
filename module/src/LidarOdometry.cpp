@@ -382,6 +382,19 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
         mp2p_icp::AttachToParameterSource(
             state_.obs_generators, state_.parameter_source);
 
+        if (c.has("observations_filter_adjust_timestamps"))
+        {
+            // Create, and copy my own verbosity level:
+            state_.pc_filterAdjustTimes =
+                mp2p_icp_filters::filter_pipeline_from_yaml(
+                    c["observations_filter_adjust_timestamps"],
+                    this->getMinLoggingLevel());
+
+            // Attach to the parameter source for dynamic parameters:
+            mp2p_icp::AttachToParameterSource(
+                state_.pc_filterAdjustTimes, state_.parameter_source);
+        }
+
         if (c.has("observations_filter_1st_pass"))
         {
             // Create, and copy my own verbosity level:
@@ -704,9 +717,31 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
     ProfilerEntry tle0(profiler_, "onLidar.0.apply_generators");
 
+    ASSERT_(!sf.empty());
+    const auto timeOfFirstSFObs = sf.getObservationByIndex(0)->timestamp;
+
     for (const auto& o : sf)
-        mp2p_icp_filters::apply_generators(
-            state_.obs_generators, *o, *observation);
+    {
+        mp2p_icp::metric_map_t  thisObs;
+        mp2p_icp::metric_map_t* obsTrg =
+            sf.size() == 1 ? observation.get() : &thisObs;
+
+        mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *obsTrg);
+
+        // Update relative timestamps for multiple lidars:
+        const double dt =
+            mrpt::system::timeDifference(timeOfFirstSFObs, o->timestamp);
+
+        state_.parameter_source.updateVariable("SENSOR_TIME_OFFSET", dt);
+        // Make all changes effective and evaluate the variables now:
+        state_.parameter_source.realize();
+
+        mp2p_icp_filters::apply_filter_pipeline(
+            state_.pc_filterAdjustTimes, *obsTrg, profiler_);
+
+        // for multiple LiDAR setups:
+        if (obsTrg != observation.get()) observation->merge_with(*obsTrg);
+    }
 
     // Keep a copy of "raw" for visualization in the GUI:
     mp2p_icp::metric_map_t observationRawForViz;
@@ -922,11 +957,6 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                         mrpt::DEG2RAD(params_.optimize_twist_rerun_min_rot_deg))
                 {
                     params_.optimize_twist_max_corrections++;
-
-                    MRPT_TODO("Add a check for ICP quality");
-                    MRPT_TODO("Add check for ellapsed time");
-                    // if (dt < params_.max_time_to_use_velocity_model &&
-                    // state_.last_pose)
 
                     MRPT_LOG_DEBUG_STREAM(
                         "ICP hook: " << ih.currentIteration
@@ -1654,6 +1684,10 @@ void LidarOdometry::updatePipelineDynamicVariables()
     if (!state_.parameter_source.getVariableValues().count("icp_iterations"))
         state_.parameter_source.updateVariable("icp_iterations", 0);
 
+    if (!state_.parameter_source.getVariableValues().count(
+            "SENSOR_TIME_OFFSET"))
+        state_.parameter_source.updateVariable("SENSOR_TIME_OFFSET", 0);
+
     if (state_.estimated_sensor_max_range)
     {
         state_.parameter_source.updateVariable(
@@ -1904,16 +1938,11 @@ void LidarOdometry::updateVisualization(
         gui_.lbSensorRange->setCaption(mrpt::format(
             "Est. max range: %.02f m", *state_.estimated_sensor_max_range));
     {
-        const double dt    = profiler_.getLastTime("onLidar");
+        // const double dt    = profiler_.getLastTime("onLidar");
         const double dtAvr = profiler_.getMeanTime("onLidar");
         gui_.lbTime->setCaption(mrpt::format(
-            "Process time: %6.02f ms (avr: %6.02f ms)", 1e3 * dt, 1e3 * dtAvr));
-        if (dt > 0 && dtAvr > 0)
-        {
-            gui_.lbPeriod->setCaption(mrpt::format(
-                "Process rate: %6.02f Hz (avr: %6.02f Hz)", 1.0 / dt,
-                1.0 / dtAvr));
-        }
+            "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr,
+            dtAvr > 0 ? 1.0 / dtAvr : .0));
     }
     gui_.lbQueue->setCaption("Input queue: " + std::to_string(worker_.size()));
 
@@ -1999,7 +2028,6 @@ void LidarOdometry::internalBuildGUI()
     gui_.lbSensorRange = tab1->add<nanogui::Label>(" ");
     gui_.lbSpeed       = tab1->add<nanogui::Label>(" ");
     gui_.lbTime        = tab1->add<nanogui::Label>(" ");
-    gui_.lbPeriod      = tab1->add<nanogui::Label>(" ");
     gui_.lbQueue       = tab1->add<nanogui::Label>(" ");
 
     // tab 2: control

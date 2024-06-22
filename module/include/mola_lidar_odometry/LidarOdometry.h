@@ -438,6 +438,7 @@ class LidarOdometry : public FrontEndBase,
         std::optional<double> instantaneous_sensor_max_range;
 
         mp2p_icp_filters::GeneratorSet   obs_generators;
+        mp2p_icp_filters::FilterPipeline pc_filterAdjustTimes;
         mp2p_icp_filters::FilterPipeline pc_filter1, pc_filter2, pc_filter3;
         mp2p_icp_filters::GeneratorSet   local_map_generators;
         mp2p_icp::metric_map_t::Ptr      local_map =
@@ -496,7 +497,6 @@ class LidarOdometry : public FrontEndBase,
         nanogui::Label*  lbSigma       = nullptr;
         nanogui::Label*  lbSensorRange = nullptr;
         nanogui::Label*  lbTime        = nullptr;
-        nanogui::Label*  lbPeriod      = nullptr;
         nanogui::Label*  lbQueue       = nullptr;
         nanogui::Label*  lbSpeed       = nullptr;
     };

@@ -242,22 +242,27 @@ observations_generator:
       process_class_names_regex: '.*'
       process_sensor_labels_regex: '.*'
 
-observations_filter_1st_pass:
-  # Filters:
-  #
-  # One filter object will be created for each entry, instancing the given class,
-  # and with the given parameters. Filters are run in definition order on the
-  # input metric_map_t object.
-  #
-  
+
+# this pipeline is required so "SENSOR_TIME_OFFSET" has a different value for each independent LiDAR sensor
+# in setups with multiple LiDARs:
+observations_filter_adjust_timestamps:
   # If twist estimation within ICP is enabled, this defines 
   # the moment for which twist is estimated:
   - class_name: mp2p_icp_filters::FilterAdjustTimestamps
     params:
       pointcloud_layer: 'raw'
       silently_ignore_no_timestamps: true
+      time_offset: 'SENSOR_TIME_OFFSET'
       method: 'TimestampAdjustMethod::MiddleIsZero'
       #method: 'TimestampAdjustMethod::EarliestIsZero'
+
+observations_filter_1st_pass:
+  # Filters:
+  #
+  # One filter object will be created for each entry, instancing the given class,
+  # and with the given parameters. Filters are run in definition order on the
+  # input metric_map_t object.
+
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:

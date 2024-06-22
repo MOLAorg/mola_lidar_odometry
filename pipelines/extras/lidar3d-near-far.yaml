@@ -30,7 +30,7 @@ params:
 
   # If enabled, vehicle twist will be optimized during ICP
   # enabling better and more robust odometry in high dynamics motion.
-  optimize_twist: '${MOLA_OPTIMIZE_TWIST|true}'
+  optimize_twist: false # For NTU-Viral '${MOLA_OPTIMIZE_TWIST|true}'
   optimize_twist_max_corrections: 8  # (max number of corrections)
   optimize_twist_rerun_min_trans: 0.15 # [m]
   optimize_twist_rerun_min_rot_deg: 0.75 # [deg]
@@ -281,6 +281,21 @@ observations_generator:
       process_class_names_regex: '.*'
       process_sensor_labels_regex: '.*'
 
+
+# this pipeline is required so "SENSOR_TIME_OFFSET" has a different value for each independent LiDAR sensor
+# in setups with multiple LiDARs:
+observations_filter_adjust_timestamps:
+  # If twist estimation within ICP is enabled, this defines 
+  # the moment for which twist is estimated:
+  - class_name: mp2p_icp_filters::FilterAdjustTimestamps
+    params:
+      pointcloud_layer: 'raw'
+      silently_ignore_no_timestamps: true
+      time_offset: 'SENSOR_TIME_OFFSET'
+      method: 'TimestampAdjustMethod::MiddleIsZero'
+      #method: 'TimestampAdjustMethod::EarliestIsZero'
+
+
 observations_filter_1st_pass:
   # Filters:
   #
@@ -289,15 +304,6 @@ observations_filter_1st_pass:
   # input metric_map_t object.
   #
   
-  # If twist estimation within ICP is enabled, this defines 
-  # the moment for which twist is estimated:
-  - class_name: mp2p_icp_filters::FilterAdjustTimestamps
-    params:
-      pointcloud_layer: 'raw'
-      silently_ignore_no_timestamps: true
-      method: 'TimestampAdjustMethod::MiddleIsZero'
-      #method: 'TimestampAdjustMethod::EarliestIsZero'
-
   # Remove points too close, to prevent "noise" from the vehicle, 
   # the person next to the robot, etc. Remove too distant points since
   # the tiniest angular error projects to a large translational error.
