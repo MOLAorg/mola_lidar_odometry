@@ -179,6 +179,8 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml& cfg)
     }
 
     YAML_LOAD_OPT(gui_subwindow_starts_hidden, bool);
+    YAML_LOAD_OPT(camera_follows_vehicle, bool);
+    YAML_LOAD_OPT(camera_rotates_with_vehicle, bool);
 }
 
 void LidarOdometry::Parameters::SimpleMapOptions::initialize(
@@ -929,7 +931,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         // ------------------------------------------------------
         // Run ICP
         // -----------------------------------------------------
-        ProfilerEntry tle_icp(profiler_, "onLidar.3.icp_latest");
+        ProfilerEntry tle_icp(profiler_, "onLidar.3.run_icp");
 
         mrpt::math::TPose3D current_solution = in.init_guess_local_wrt_global;
         size_t              twistCorrectionCount = 0;
@@ -1844,12 +1846,28 @@ void LidarOdometry::updateVisualization(
 
     // GUI follow vehicle:
     // ---------------------------
-    updateTasks.emplace_back(
-        [this]()
-        {
-            visualizer_->update_viewport_look_at(
-                state_.last_lidar_pose.mean.translation());
-        });
+    if (params_.visualization.camera_follows_vehicle)
+        updateTasks.emplace_back(
+            [this]()
+            {
+                visualizer_->update_viewport_look_at(
+                    state_.last_lidar_pose.mean.translation());
+            });
+
+    if (params_.visualization.camera_rotates_with_vehicle)
+        updateTasks.emplace_back(
+            [this]()
+            {
+                thread_local std::optional<double> last_yaw;
+
+                const double yaw     = state_.last_lidar_pose.mean.yaw();
+                double       yawIncr = 0;
+                if (last_yaw) yawIncr = mrpt::math::wrapToPi(yaw - *last_yaw);
+                last_yaw = yaw;
+
+                visualizer_->update_viewport_camera_azimuth(
+                    yawIncr, false /*incremental*/);
+            });
 
     // Local map:
     // -----------------------------
@@ -1874,35 +1892,6 @@ void LidarOdometry::updateVisualization(
 
     // now, update all visual elements at once:
     for (const auto& ut : updateTasks) ut();
-
-    // Console messages:
-    // -------------------------
-    if (params_.visualization.show_console_messages)
-    {
-        ProfilerEntry tle2(profiler_, "updateVisualization.console_msgs");
-
-        std::stringstream ss;
-        if (!state_.last_obs_tim_by_label.empty())
-            ss << mrpt::format(
-                "t=%.03f ", mrpt::Clock::toDouble(
-                                state_.last_obs_tim_by_label.begin()->second));
-
-        ss << mrpt::format(
-            "pose:%65s ", state_.last_lidar_pose.mean.asString().c_str());
-
-        if (state_.last_motion_model_output)
-            ss << mrpt::format(
-                "twist:%65s ",
-                state_.last_motion_model_output->twist.asString().c_str());
-
-        ss << mrpt::format(
-            "path KFs: %4zu ", state_.estimated_trajectory.size());
-
-        ss << mrpt::format(
-            "simplemap KFs: %4zu ", state_.reconstructed_simplemap.size());
-
-        visualizer_->output_console_message(ss.str());
-    }
 
     // Show a warning if no lidar input is being received:
     if (state_.local_map->empty())
@@ -1944,7 +1933,6 @@ void LidarOdometry::updateVisualization(
             "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr,
             dtAvr > 0 ? 1.0 / dtAvr : .0));
     }
-    gui_.lbQueue->setCaption("Input queue: " + std::to_string(worker_.size()));
 
     if (state_.last_motion_model_output)
     {
@@ -2020,6 +2008,9 @@ void LidarOdometry::internalBuildGUI()
     auto* tab2 = tabWidget->createTab("Control");
     tab2->setLayout(new nanogui::GroupLayout());
 
+    auto* tab3 = tabWidget->createTab("View");
+    tab3->setLayout(new nanogui::GroupLayout());
+
     tabWidget->setActiveTab(0);
 
     // tab 1: status
@@ -2028,7 +2019,6 @@ void LidarOdometry::internalBuildGUI()
     gui_.lbSensorRange = tab1->add<nanogui::Label>(" ");
     gui_.lbSpeed       = tab1->add<nanogui::Label>(" ");
     gui_.lbTime        = tab1->add<nanogui::Label>(" ");
-    gui_.lbQueue       = tab1->add<nanogui::Label>(" ");
 
     // tab 2: control
     auto cbActive = tab2->add<nanogui::CheckBox>("Active");
@@ -2140,12 +2130,90 @@ void LidarOdometry::internalBuildGUI()
                                 { this->saveReconstructedMapToFile(); });
     }
 
-    auto btnReset = tab2->add<nanogui::Button>("Reset", ENTYPO_ICON_CCW);
-    btnReset->setCallback(
-        [&]() { this->enqueue_request([this]() { this->reset(); }); });
+    {
+        auto* panel = tab2->add<nanogui::Widget>();
+        panel->setLayout(new nanogui::BoxLayout(
+            nanogui::Orientation::Horizontal, nanogui::Alignment::Maximum, 1,
+            1));
 
-    auto btnQuit = tab2->add<nanogui::Button>("Quit", ENTYPO_ICON_ARROW_LEFT);
-    btnQuit->setCallback([&]() { this->requestShutdown(); });
+        auto btnReset = panel->add<nanogui::Button>("Reset", ENTYPO_ICON_CCW);
+        btnReset->setCallback(
+            [&]() { this->enqueue_request([this]() { this->reset(); }); });
+
+        auto btnQuit =
+            panel->add<nanogui::Button>("Quit", ENTYPO_ICON_ARROW_LEFT);
+        btnQuit->setCallback([&]() { this->requestShutdown(); });
+    }
+
+    // tab 3: view
+    auto* cbShowTraj = tab3->add<nanogui::CheckBox>("Show trajectory");
+    cbShowTraj->setChecked(params_.visualization.show_trajectory);
+    cbShowTraj->setCallback(
+        [&](bool checked)
+        {
+            this->enqueue_request(
+                [this, checked]()
+                { params_.visualization.show_trajectory = checked; });
+        });
+
+    auto* cbShowObs = tab3->add<nanogui::CheckBox>("Show raw observation");
+    cbShowObs->setChecked(params_.visualization.show_current_observation);
+    cbShowObs->setCallback(
+        [&](bool checked)
+        {
+            this->enqueue_request(
+                [this, checked]()
+                { params_.visualization.show_current_observation = checked; });
+        });
+
+    auto* cbFollowVeh = tab3->add<nanogui::CheckBox>("Camera follows vehicle");
+    cbFollowVeh->setChecked(params_.visualization.camera_follows_vehicle);
+    cbFollowVeh->setCallback(
+        [&](bool checked)
+        {
+            this->enqueue_request(
+                [this, checked]()
+                { params_.visualization.camera_follows_vehicle = checked; });
+        });
+
+    auto* cbRotateVeh =
+        tab3->add<nanogui::CheckBox>("Camera rotates with vehicle");
+    cbRotateVeh->setChecked(params_.visualization.camera_rotates_with_vehicle);
+    cbRotateVeh->setCallback(
+        [&](bool checked)
+        {
+            this->enqueue_request(
+                [this, checked]() {
+                    params_.visualization.camera_rotates_with_vehicle = checked;
+                });
+        });
+
+    auto* cbShowMsgs = tab3->add<nanogui::CheckBox>("Show log messages");
+    cbShowMsgs->setChecked(params_.visualization.show_console_messages);
+    cbShowMsgs->setCallback(
+        [&](bool checked)
+        {
+            this->enqueue_request(
+                [this, checked]()
+                { params_.visualization.show_console_messages = checked; });
+        });
+
+    this->mrpt::system::COutputLogger::logRegisterCallback(
+        [&](std::string_view msg, const mrpt::system::VerbosityLevel level,
+            std::string_view              loggerName,
+            const mrpt::Clock::time_point timestamp)
+        {
+            using namespace std::string_literals;
+
+            if (!params_.visualization.show_console_messages) return;
+
+            if (level < this->getMinLoggingLevel()) return;
+
+            visualizer_->output_console_message(
+                "["s + mrpt::system::timeLocalToString(timestamp) + "|"s +
+                mrpt::typemeta::enum2str(level) + " |"s +
+                std::string(loggerName) + "]"s + std::string(msg));
+        });
 }
 
 void LidarOdometry::doPublishUpdatedLocalization(

@@ -209,9 +209,10 @@ class LidarOdometry : public FrontEndBase,
             double current_pose_corner_size             = 1.5;  //! [m]
             float  local_map_point_size                 = 3.0f;
             bool   local_map_render_voxelmap_free_space = false;
-
-            bool gui_subwindow_starts_hidden = false;
-            bool show_console_messages       = true;
+            bool   gui_subwindow_starts_hidden          = false;
+            bool   show_console_messages                = true;
+            bool   camera_follows_vehicle               = true;
+            bool   camera_rotates_with_vehicle          = false;
 
             /** If not empty, an optional 3D model (.DAE, etc) to load for
              * visualizing the robot/vehicle pose */
@@ -497,7 +498,6 @@ class LidarOdometry : public FrontEndBase,
         nanogui::Label*  lbSigma       = nullptr;
         nanogui::Label*  lbSensorRange = nullptr;
         nanogui::Label*  lbTime        = nullptr;
-        nanogui::Label*  lbQueue       = nullptr;
         nanogui::Label*  lbSpeed       = nullptr;
     };
 
