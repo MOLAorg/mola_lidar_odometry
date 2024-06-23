@@ -352,6 +352,17 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
         // Attach all ICP instances to the parameter source for dynamic
         // parameters:
         icpCase.icp->attachToParameterSource(state_.parameter_source);
+
+        // Attach final filter pipeline:
+        // (mostly to save space & CPU when loggint to disk)
+        icpCase.icp_parameters.functor_before_logging_local =
+            [this](mp2p_icp::metric_map_t& m)
+        {
+            ProfilerEntry tle(profiler_, "icp_functor_before_logging");
+
+            mp2p_icp_filters::apply_filter_pipeline(
+                state_.pc_filter3, m, profiler_);
+        };
     }
     // system-wide profiler:
     profiler_.enable(params_.pipeline_profiler_enabled);
@@ -370,10 +381,10 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
         }
         else
         {
-            std::cout
-                << "[warning] Using default mp2p_icp_filters::Generator for "
-                   "observations since no YAML 'observations_generator' entry "
-                   "was given\n";
+            MRPT_LOG_WARN(
+                "Using default mp2p_icp_filters::Generator for "
+                "observations since no YAML 'observations_generator' entry "
+                "was given");
 
             auto defaultGen = mp2p_icp_filters::Generator::Create();
             defaultGen->initialize({});
@@ -396,6 +407,12 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
             mp2p_icp::AttachToParameterSource(
                 state_.pc_filterAdjustTimes, state_.parameter_source);
         }
+        else
+        {
+            MRPT_LOG_WARN(
+                "No YAML entry 'observations_filter_adjust_timestamps', this "
+                "filter stage will have no effect.");
+        }
 
         if (c.has("observations_filter_1st_pass"))
         {
@@ -407,6 +424,13 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
             mp2p_icp::AttachToParameterSource(
                 state_.pc_filter1, state_.parameter_source);
         }
+        else
+        {
+            MRPT_LOG_WARN(
+                "No YAML entry 'observations_filter_1st_pass', this "
+                "filter stage will have no effect.");
+        }
+
         if (c.has("observations_filter_2nd_pass"))
         {
             // Create, and copy my own verbosity level:
@@ -417,6 +441,13 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
             mp2p_icp::AttachToParameterSource(
                 state_.pc_filter2, state_.parameter_source);
         }
+        else
+        {
+            MRPT_LOG_WARN(
+                "No YAML entry 'observations_filter_2nd_pass', this "
+                "filter stage will have no effect.");
+        }
+
         if (c.has("observations_filter_final_pass"))
         {
             // Create, and copy my own verbosity level:
@@ -427,6 +458,12 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
             // Attach to the parameter source for dynamic parameters:
             mp2p_icp::AttachToParameterSource(
                 state_.pc_filter3, state_.parameter_source);
+        }
+        else
+        {
+            MRPT_LOG_WARN(
+                "No YAML entry 'observations_filter_final_pass', this "
+                "filter stage will have no effect.");
         }
 
         // Local map generator:
@@ -754,15 +791,18 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
     // Filter/segment the point cloud (optional, but normally will be
     // present):
-    ProfilerEntry tle1(profiler_, "onLidar.1.filter_pointclouds");
+    ProfilerEntry tle1(profiler_, "onLidar.1.filter_1st");
 
     mp2p_icp_filters::apply_filter_pipeline(
         state_.pc_filter1, *observation, profiler_);
+    tle1.stop();
+
+    ProfilerEntry tle1b(profiler_, "onLidar.1.filter_2nd");
 
     mp2p_icp_filters::apply_filter_pipeline(
         state_.pc_filter2, *observation, profiler_);
 
-    tle1.stop();
+    tle1b.stop();
 
     profiler_.enter("onLidar.2.copy_vars");
 
@@ -1028,12 +1068,12 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                 state_.parameter_source.realize();
 
                 // and re-apply 2nd pass:
-                ProfilerEntry tle1f(profiler_, "onLidar.1.filter_pointclouds");
+                ProfilerEntry tle1c(profiler_, "onLidar.1.filter_2nd");
 
                 mp2p_icp_filters::apply_filter_pipeline(
                     state_.pc_filter2, *observation, profiler_);
 
-                tle1f.stop();
+                tle1c.stop();
             }
 
         } while (icp_result.terminationReason ==
@@ -1055,10 +1095,6 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         // ------------------------------------------------------
         // (end, run ICP)
         // ------------------------------------------------------
-
-        // Apply final filters:
-        mp2p_icp_filters::apply_filter_pipeline(
-            state_.pc_filter3, *observation, profiler_);
 
         const bool icpIsGood = (out.goodness >= params_.min_icp_goodness);
 

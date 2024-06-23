@@ -263,7 +263,6 @@ observations_filter_1st_pass:
   # and with the given parameters. Filters are run in definition order on the
   # input metric_map_t object.
 
-
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: 'raw'
