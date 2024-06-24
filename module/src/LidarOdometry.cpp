@@ -1074,6 +1074,9 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
                     state_.pc_filter2, *observation, profiler_);
 
                 tle1c.stop();
+
+                // for stats:
+                profiler_.registerUserMeasure("onLidar.twist_corrections", 1.0);
             }
 
         } while (icp_result.terminationReason ==
@@ -1123,6 +1126,8 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
         // Update for stats:
         state_.parameter_source.updateVariable(
             "icp_iterations", out.icp_iterations);
+        state_.parameter_source.updateVariable(
+            "twistCorrectionCount", twistCorrectionCount);
 
         // KISS-ICP adaptive threshold method:
         if (params_.adaptive_threshold.enabled)
@@ -1719,12 +1724,15 @@ void LidarOdometry::updatePipelineDynamicVariables()
 
     state_.parameter_source.updateVariable("ICP_ITERATION", 0);
 
-    if (!state_.parameter_source.getVariableValues().count("icp_iterations"))
-        state_.parameter_source.updateVariable("icp_iterations", 0);
+    const auto ensureVarIsDefined = [&](const std::string& varName)
+    {
+        if (!state_.parameter_source.getVariableValues().count(varName))
+            state_.parameter_source.updateVariable(varName, 0);
+    };
 
-    if (!state_.parameter_source.getVariableValues().count(
-            "SENSOR_TIME_OFFSET"))
-        state_.parameter_source.updateVariable("SENSOR_TIME_OFFSET", 0);
+    ensureVarIsDefined("icp_iterations");
+    ensureVarIsDefined("SENSOR_TIME_OFFSET");
+    ensureVarIsDefined("twistCorrectionCount");
 
     if (state_.estimated_sensor_max_range)
     {
