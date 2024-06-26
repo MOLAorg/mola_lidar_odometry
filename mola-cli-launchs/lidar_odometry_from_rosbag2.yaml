@@ -52,6 +52,7 @@ modules:
       # We use an environment variable to force the user to specify a bag file:
       rosbag_filename: ${MOLA_INPUT_ROSBAG2}
       time_warp_scale: ${MOLA_TIME_WARP|1.0}
+      start_paused: ${MOLA_DATASET_START_PAUSED|false}
       base_link_frame_id: 'base_footprint'
 
       # 'sensors' contains maps from output "sensorLabel"s, to the
