@@ -4,8 +4,6 @@
 LiDAR odometry
 ============================
 
-.. rst-class:: fa fa-github
-
 `MOLA LiDAR odometry (MOLA-LO) <https://github.com/MOLAorg/mola_lidar_odometry/>`_ is
 the main MOLA component for 3D and 2D LiDAR odometry and localization.
 It is designed to provide accurate and robust motion tracking, with a 
