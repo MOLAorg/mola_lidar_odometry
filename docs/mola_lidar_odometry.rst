@@ -72,7 +72,7 @@ of input and output modules**, depending on what are the desired input data sour
 and that is defined by means of **mola-cli launch files**.
 
 :ref:`mola-cli <mola-launcher>` is a standalone command line interface (CLI) program
-provided by the `mola_launcher <https://github.com/MOLAorg/mola/tree/develop/mola_launcher>_` package.
+provided by the `mola_launcher <https://github.com/MOLAorg/mola/tree/develop/mola_launcher>`_ package.
 **Predefined launch files** `are provided <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_
 for common tasks like running MOLA-LO on well-known public datasets 
 or from rosbags.
