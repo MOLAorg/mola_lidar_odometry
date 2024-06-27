@@ -90,7 +90,12 @@ params:
     local_map_point_size: 3
     model:
       - file: ${MOLA_VEHICLE_MODEL_FILE|""} # Default: none
-        tf.roll: 90.0 # deg
+        tf.x: ${MOLA_VEHICLE_MODEL_X|0.0} # deg
+        tf.y: ${MOLA_VEHICLE_MODEL_Y|0.0} # deg
+        tf.z: ${MOLA_VEHICLE_MODEL_Z|0.0} # deg
+        tf.yaw: ${MOLA_VEHICLE_MODEL_YAW|0.0} # deg
+        tf.pitch: ${MOLA_VEHICLE_MODEL_PITCH|0.0} # deg
+        tf.roll: ${MOLA_VEHICLE_MODEL_ROLL|90.0} # deg
 
   # Profile the main steps of the odometry pipeline:
   pipeline_profiler_enabled: true
