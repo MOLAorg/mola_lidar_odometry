@@ -6,21 +6,22 @@ LiDAR odometry
 
 `MOLA LiDAR odometry (MOLA-LO) <https://github.com/MOLAorg/mola_lidar_odometry/>`_ is
 the main MOLA component for 3D and 2D LiDAR odometry and localization.
-It is designed to provide accurate and robust motion tracking, with a 
-default configuration provided to **work out of the box** for you without 
-parameter tuning: it works for 16 to 128 ring LiDARs, 
-in outdoor or indoor environments, with motion profiles ranging from
+It is designed to provide accurate and robust motion tracking, with a
+default configuration provided to **work out of the box** for you without
+parameter tuning: it works for **16 to 128** ring LiDARs,
+indoors or outdoors, with motion profiles ranging from
 hand-held, slow wheeled or quadruped robots, to fast vehicles on highways.
 
 This page explains the role of this component in the MOLA ecosystem,
-how to deal with generated maps, and gives a glimpse into its internal theoretical design.
+how to deal with generated maps, and gives a glimpse into its internal
+theoretical design.
 
-After getting familiar with the core ideas, you can jump into 
+After getting familiar with the core ideas, you can jump into
 :ref:`running some demos <mola_lo_demos>`,
 learning about :ref:`provided CLI entry points <mola_lo_apps>`,
 and how to :ref:`build a map from your own ROS 2 bag dataset <mola_lo_ros>`.
 
-.. contents:: Provided LO pipelines
+.. contents::
    :depth: 1
    :hidden:
    :local:
@@ -35,6 +36,8 @@ and how to :ref:`build a map from your own ROS 2 bag dataset <mola_lo_ros>`.
    </div>
 
 |
+
+.. _mola-lo-role:
 
 Role within the MOLA ecosystem
 ----------------------------------
