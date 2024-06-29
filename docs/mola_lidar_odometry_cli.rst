@@ -17,9 +17,6 @@ and compare the output TUM trajectories. If you prefer C++, you can also use
 to load and parse TUM files.
 
 
-.. contents:: :local:
-
-
 1. Usage examples
 -----------------
 
@@ -41,8 +38,8 @@ Process a ROS 2 bag
     :icon: alert
 
     By default, ``mola-lidar-odometry-cl`` will try to use ``tf2`` messages in the rosbag to find out the relative pose
-    of the LiDAR sensor with respect to the vehicle frame (default: ``base_link``). If your system **does not** have ``tf`` data,
-    for example, you just launched the LiDAR driver node, you must set the environment variable ``MOLA_USE_FIXED_LIDAR_POSE=true``
+    of the LiDAR sensor with respect to the vehicle frame (default: ``base_link``). If your system **does not** have ``tf`` data
+    (for example, if you only launched the LiDAR driver node) you must then set the environment variable ``MOLA_USE_FIXED_LIDAR_POSE=true``
     to use the default (identity) sensor pose on the vehicle. So, launch it like: 
 
     .. code-block:: bash
@@ -57,9 +54,8 @@ Process a ROS 2 bag
     ``mola-lidar-odometry-cli`` is explicitly designed to be as fast as possible by not interacting with any GUI or messaging system. 
     If you prefer to visualize the results as they are being processed, there are two options:
 
-    * Use the GUI app :ref:`mola-lo-gui-rosbag2 <mola_lo_apps>`.
-    * Replay the bag with `ros2 bag play` and launch the :ref:`ROS 2 launch file <mola_lo_ros>` so you can use RViz2 or FoxGlove for visualization.
-
+    * Use the built-in GUI in the provided apps: :ref:`mola-lo-gui-rosbag2 <mola_lo_apps>`.
+    * Replay the bag with `ros2 bag play` and launch the :ref:`ROS 2 launch file <mola_lo_ros>` so you can use RViz2 or FoxGlove for visualization.aunch
 .. dropdown:: More parameters
     :icon: list-unordered
 

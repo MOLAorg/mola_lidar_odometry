@@ -17,15 +17,14 @@ how to deal with generated maps, and gives a glimpse into its internal
 theoretical design.
 
 .. note::
-  After getting familiar with the core ideas, you can jump into
-  :ref:`running some demos <mola_lo_demos>`,
+  After :ref:`installing <installing>` and getting familiar with the core ideas,
+  you can jump into :ref:`running some demos <mola_lo_demos>`,
   learning about :ref:`provided GUI applications <mola_lo_apps>`,
   the :ref:`CLI interface <mola_lidar_odometry_cli>`,
   and how to :ref:`build a map from your own ROS 2 bag dataset <mola_lo_ros>`.
 
 .. contents::
    :depth: 1
-   :hidden:
    :local:
    :backlinks: none
 
@@ -33,7 +32,7 @@ theoretical design.
 
    <div style="width: 100%; overflow: hidden;">
      <video controls autoplay loop muted style="width: 512px;">
-       <source src="mola_main_page_video.mp4" type="video/mp4">
+       <source src="videos/mola_main_page_video.mp4" type="video/mp4">
      </video>
    </div>
 
@@ -69,7 +68,7 @@ MOLA-LO is provided as the C++ class `mola::LidarOdometry <class_mola_LidarOdome
 implements the `mola::ExecutableBase` interface so it is able to communicate
 with other input and output MOLA modules:
 
-.. figure:: mola_system_scheme.png
+.. figure:: imgs/mola_system_scheme.png
    :width: 690
 
    Scheme of MOLA launcher with input, output, and a LO module (modified from :cite:`blanco2019modular`).
@@ -103,17 +102,20 @@ Apart of this way to run MOLA-LO, two additional ways are provided for convenien
 
 |
 
+.. _mola-internal-arch:
+
 Internal architecture
 -------------------------
 
 Internally, MOLA LO is based on mp2p_icp filtering and ICP pipelines:
 
-.. figure:: mola_lidar_odometry_architecture.png
+.. figure:: imgs/mola_lidar_odometry_architecture.png
    :width: 690
 
    Block diagram of the MOLA-LO module (Figure adapted from :cite:`blanco2024mola_lo`).
 
 
+Most blocks in the diagram above can be redefined without coding, just changing the :ref:`MOLA-LO pipeline configuration YAML file <>`.
 Refer to the MOLA LO paper for further details.
 
 .. note::
