@@ -10,8 +10,11 @@ LiDAR odometry pipelines
    :backlinks: none
 
 
+.. _mola_3d_default_pipeline:
+
 Default pipeline for 3D LiDAR
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 Write me...
 
 

@@ -7,14 +7,20 @@ LiDAR odometry CLI
 ``mola-lidar-odometry-cli`` is a standalone command line program to run
 MOLA-LO on a dataset in an offline fashion.
 The dataset is processed as fast as possible using all available CPU cores.
-Available outputs include the trajectory (as a file in TUM format) and
-the :ref:`simple-map <mola-lo-role>`, which can be used to generate
-metric maps.
+Its outputs include the vehicle trajectory (as a file in `TUM format <https://github.com/MichaelGrupp/evo/wiki/Formats#tum---tum-rgb-d-dataset-trajectory-format>`_)
+and the :ref:`simple-map <mola-lo-role>`, which can be analyzed with :ref:`sm-cli <app_sm-cli>`
+and used to generate metric maps using :ref:`sm2mm <app_sm2mm>`.
+
+Recall that we recommend using `evo <https://github.com/MichaelGrupp/evo>`_ to visualize
+and compare the output TUM trajectories. If you prefer C++, you can also use
+`mrpt::poses::CPose3DInterpolator <https://docs.mrpt.org/reference/latest/class_mrpt_poses_CPose3DInterpolator.html>`_
+to load and parse TUM files.
+
 
 .. contents:: :local:
 
 
-Usage examples
+1. Usage examples
 -----------------
 
 Process a ROS 2 bag
@@ -28,8 +34,64 @@ Process a ROS 2 bag
           --lidar-sensor-label /ouster/points \
           --output-tum-path trajectory.tum
 
+.. note::
+    Remember changing ``--lidar-sensor-label /ouster/points`` to your actual raw (unfiltered) LiDAR topic (``sensor_msgs/PointCloud2``).
 
-Complete list of arguments
+.. dropdown:: Does your bag lack ``/tf``?
+    :icon: alert
+
+    By default, ``mola-lidar-odometry-cl`` will try to use ``tf2`` messages in the rosbag to find out the relative pose
+    of the LiDAR sensor with respect to the vehicle frame (default: ``base_link``). If your system **does not** have ``tf`` data,
+    for example, you just launched the LiDAR driver node, you must set the environment variable ``MOLA_USE_FIXED_LIDAR_POSE=true``
+    to use the default (identity) sensor pose on the vehicle. So, launch it like: 
+
+    .. code-block:: bash
+
+        MOLA_USE_FIXED_LIDAR_POSE=true \
+        mola-lidar-odometry-cli \
+          [...]  # the rest does not change.
+
+.. dropdown:: Want to visualize the output in real-time?
+    :icon: light-bulb
+
+    ``mola-lidar-odometry-cli`` is explicitly designed to be as fast as possible by not interacting with any GUI or messaging system. 
+    If you prefer to visualize the results as they are being processed, there are two options:
+
+    * Use the GUI app :ref:`mola-lo-gui-rosbag2 <mola_lo_apps>`.
+    * Replay the bag with `ros2 bag play` and launch the :ref:`ROS 2 launch file <mola_lo_ros>` so you can use RViz2 or FoxGlove for visualization.
+
+.. dropdown:: More parameters
+    :icon: list-unordered
+
+    The ``lidar3d-default.yaml`` pipeline file defines plenty of :ref:`additional parameters and options <mola_3d_default_pipeline>` that you can explore.
+
+|
+
+
+Process the KITTI dataset
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+First, make sure of downloading and extracting the dataset files following the layout
+expected by mola::KittiDataset.
+Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired sequence (e.g. ``00``) with:
+
+    .. code-block:: bash
+
+        export KITTI_BASE_DIR=/path/to/kitti_root
+
+        mola-lidar-odometry-cli \
+          -c $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-default.yaml \
+          --input-kitti-seq 00 \
+          --output-tum-path kitti-00.tum
+
+.. dropdown:: More parameters
+    :icon: list-unordered
+
+    The ``lidar3d-default.yaml`` pipeline file defines plenty of :ref:`additional parameters and options <mola_3d_default_pipeline>` that you can explore.
+
+|
+
+2. Complete list of arguments
 -------------------------------
 
     .. code-block:: bash

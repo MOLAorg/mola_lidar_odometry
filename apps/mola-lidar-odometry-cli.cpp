@@ -235,6 +235,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           type: CObservationPointCloud
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg'
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
 )"""",
         rosbag2file.c_str(), arg_lidarLabel.getValue().c_str())));
 
@@ -361,18 +362,15 @@ static int main_odometry()
     // and avoid overwriting them with the CLI progress bar:
     bool       liodom_emitted_log = false;
     std::mutex liodom_emitted_log_mtx;
-    const auto mark_emitted_log = [&]()
-    {
+    const auto mark_emitted_log = [&]() {
         auto lck           = mrpt::lockHelper(liodom_emitted_log_mtx);
         liodom_emitted_log = true;
     };
-    const auto has_emitted_log = [&]() -> bool
-    {
+    const auto has_emitted_log = [&]() -> bool {
         auto lck = mrpt::lockHelper(liodom_emitted_log_mtx);
         return liodom_emitted_log;
     };
-    const auto unmark_emitted_log = [&]()
-    {
+    const auto unmark_emitted_log = [&]() {
         auto lck           = mrpt::lockHelper(liodom_emitted_log_mtx);
         liodom_emitted_log = false;
     };
@@ -380,8 +378,7 @@ static int main_odometry()
         [&]([[maybe_unused]] std::string_view              msg,
             const mrpt::system::VerbosityLevel             level,
             [[maybe_unused]] std::string_view              loggerName,
-            [[maybe_unused]] const mrpt::Clock::time_point timestamp)
-        {
+            [[maybe_unused]] const mrpt::Clock::time_point timestamp) {
             if (level < liodom.getMinLoggingLevel()) return;
             mark_emitted_log();
         });
