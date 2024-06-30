@@ -11,10 +11,12 @@ Its outputs include the vehicle trajectory (as a file in `TUM format <https://gi
 and the :ref:`simple-map <mola-lo-role>`, which can be analyzed with :ref:`sm-cli <app_sm-cli>`
 and used to generate metric maps using :ref:`sm2mm <app_sm2mm>`.
 
-Recall that we recommend using `evo <https://github.com/MichaelGrupp/evo>`_ to visualize
-and compare the output TUM trajectories. If you prefer C++, you can also use
-`mrpt::poses::CPose3DInterpolator <https://docs.mrpt.org/reference/latest/class_mrpt_poses_CPose3DInterpolator.html>`_
-to load and parse TUM files.
+.. hint::
+
+    We recommend using `evo <https://github.com/MichaelGrupp/evo>`_ to visualize
+    and compare the output TUM trajectories. You can also use
+    `mrpt::poses::CPose3DInterpolator <https://docs.mrpt.org/reference/latest/class_mrpt_poses_CPose3DInterpolator.html>`_
+    to load and parse TUM files in C++, or its Python wrapped version within ``pymrpt``.
 
 
 1. Usage examples
@@ -64,8 +66,8 @@ Process a ROS 2 bag
 |
 
 
-Process the KITTI dataset
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Process a KITTI dataset sequence
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 First, make sure of downloading and extracting the dataset files following the layout
 expected by mola::KittiDataset.

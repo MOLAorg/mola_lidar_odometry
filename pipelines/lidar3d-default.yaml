@@ -19,7 +19,7 @@ params:
   wheel_odometry_sensor_label: '${MOLA_ODOMETRY_NAME|odometry}'
 
   # These sensor labels will be handled as GNNS (GPS) (For storage in simplemap only)
-  gnns_sensor_label: 'gps'
+  gnns_sensor_label: '${MOLA_GPS_NAME|gps}'
 
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 1e-3 # [seconds]
@@ -49,7 +49,7 @@ params:
     check_for_removal_every_n: 100
 
   # Minimum ICP quality to insert it into the map:
-  min_icp_goodness: 0.25
+  min_icp_goodness: ${MOLA_MINIMUM_ICP_QUALITY|0.25}
 
   # Adaptive threshold, as in the KISS-ICP paper:
   adaptive_threshold:
@@ -78,7 +78,7 @@ params:
   # Save the final trajectory in TUM format. Disabled by default.
   estimated_trajectory:
     save_to_file: ${MOLA_SAVE_TRAJECTORY|false}
-    output_file: ${MOLA_TUM_TRAJECTORY_OUTPUT|'estimated_trajectory.txt'}
+    output_file: ${MOLA_TUM_TRAJECTORY_OUTPUT|'estimated_trajectory.tum'}
 
   # If run within a mola-cli container, and mola_viz is present, use these options 
   # to show live progress:

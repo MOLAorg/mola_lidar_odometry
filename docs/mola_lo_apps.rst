@@ -1,7 +1,7 @@
 .. _mola_lo_apps:
 
 ============================
-LiDAR odometry applications
+MOLA-LO GUI applications
 ============================
 
 GUI apps.
