@@ -12,10 +12,11 @@ LiDAR odometry pipelines
 Most :ref:`parts <mola-internal-arch>` of the MOLA-LO system are **configured dynamically** from a YAML file.
 Basically, the whole design about how many **local map layers** exist, the pointcloud **processing pipelines**,
 **ICP matchers and optimizers**, etc. can be changed from this YAML file, without the need to touch the code or recompile.
+Users can design new systems by learning how to modify the provided pipeline files.
 
-The best way to understand the different parts of this file is to :ref:`browse the default pipeline <mola_3d_default_pipeline>`
-provided for 3D LiDARs, and the rest of provided alternative pipelines. Most of the times, comments in the YAML
-are self-explanatory. In case of doubts, do not hesitate in opening an issue to ask.
+The best way to understand the different parts of this file is to browse the YAML file of :ref:`the default pipeline <mola_3d_default_pipeline>`
+provided for 3D LiDARs. Most of the times, comments in the YAML are self-explanatory.
+In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLAorg/mola/issues>` to ask.
 
 .. note::
 
@@ -42,8 +43,8 @@ are self-explanatory. In case of doubts, do not hesitate in opening an issue to 
 
 .. _mola_3d_default_pipeline:
 
-1. Default pipeline for 3D LiDAR
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. Default pipeline for 3D LiDAR (``lidar3d-default.yaml``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 This is the **reference configuration** used for most examples in the MOLA-LO paper, and should work great
 out of the box for most common situations.
 As described in the paper :cite:`blanco2024mola_lo`, it defines a **voxel-based 3D point-cloud local map**,
@@ -51,6 +52,9 @@ and filtering pipelines to **downsample** incoming raw LiDAR data.
 
 .. image:: https://mrpt.github.io/imgs/mola-slam-kitti-demo.gif
 
+.. note::
+
+   See: :ref:`pipelines_env_vars`
 
 .. dropdown:: YAML listing
     :icon: code-review
@@ -62,13 +66,31 @@ and filtering pipelines to **downsample** incoming raw LiDAR data.
 
 |
 
-2. Pipeline for 2D LiDAR
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-This alternative configuration...
+2. Pipeline for 2D LiDAR (``lidar2d.yaml``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This alternative configuration uses an **occupancy voxel map** instead of point clouds
+as local map, and performs **ray-tracing** to accumulate evidence about the freeness
+or occupancy of voxels from 2D LiDAR scans.
+If it recommended to use wheels-based odometry to help the mapping process.
+
+.. image:: https://mrpt.github.io/imgs/lidar2d-radish-demo.gif
+
+.. note::
+
+   See: :ref:`pipelines_env_vars`
+
+.. dropdown:: YAML listing
+    :icon: code-review
+
+    File: `mola_lidar_odometry/pipelines/lidar2d.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/lidar2d.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/lidar2d.yaml
+       :language: yaml
 
 
 |
 
+.. _pipelines_env_vars:
 
 Configuring pipelines via environment variables
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -78,6 +100,14 @@ invoking any of the MOLA-LO programs (cli,gui, or ROS node), or directly as pref
 to the invocation line, e.g. ``VAR1=VALUE1 VAR2=VALUE2 mola-xxx``.
 
 Unless said otherwise, all variables are valid for all the pipelines described above.
+
+.. note::
+
+   If using MOLA-LO via mola-cli (which includes the GUI applications or the ROS 2 interface),
+   there are additional environment variables to tune each particular 
+   `mola-cli launch file <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`.
+   Those variables are documented together with :ref:`mola_lo_apps`.
+
 
 Sensor inputs
 ^^^^^^^^^^^^^

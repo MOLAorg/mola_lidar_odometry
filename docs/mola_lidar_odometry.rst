@@ -18,10 +18,10 @@ theoretical design.
 
 .. note::
   After :ref:`installing <installing>` and getting familiar with the core ideas,
-  you can jump into :ref:`running some demos <mola_lo_demos>`,
-  learning about :ref:`provided GUI applications <mola_lo_apps>`,
+  you can jump into running some demos with
+  the :ref:`provided GUI applications <mola_lo_apps>`,
   the :ref:`CLI interface <mola_lidar_odometry_cli>`,
-  and how to :ref:`build a map from your own ROS 2 bag dataset <mola_lo_ros>`.
+  or learn how to :ref:`build a map from your own ROS 2 bag dataset <mola_lo_ros>`.
 
 .. contents::
    :depth: 1
