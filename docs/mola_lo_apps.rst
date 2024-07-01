@@ -27,30 +27,119 @@ and CLI usage, next we list the environment variables common to all of them.
     associated to the LO pipeline YAML file, listed here.
 
 
+Common elements of all GUI apps
+---------------------------------
+``mola_viz`` provides a unified API for all MOLA modules to display custom UI subwindows, controls, and 3D objects.
+Next we describe how to manipulate or interpret the **common elements in this UI**, which is the same in all MOLA-LO
+programs, except ``mola-lidar-odometry-cli`` which is explicitly design not to have any GUI.
+
+.. image:: imgs/gui_parts.png
+
+The labeled parts in the GUI are:
+
+1. The **main space** of the "main" GUI window: used to render the latest 3D local map, together with the incoming raw scan,
+   the 3D vehicle model (if provided), etc. Use the `same mouse and keyboard shortcuts <https://docs.mrpt.org/reference/latest/tutorial-3d-navigation-cheatsheet.html>`_
+   than in any MRPT 3D window to rotate the view, pan and zoon, etc. The rest of small windows floating in this large windows are
+   dubbed **"subwindows"**.
+2. **Dataset source UI**: All dataset sources (offline datasets, rawlog, rosbag2, etc.) offer a common API that can be operated
+   through these controls to pause or resume the publication of observations to the LiDAR front-end or to change the playback speed.
+   Most datasets also support directly jumping forth and back in time by clicking on the time slider
+   (It is recommended to pause mapping and reset the map while doing so!).
+3. **Main subwindows control panel**: You can minimize, restore, etc. subwindows from here.
+4. **Raw LiDAR view**: A subwindow with the details (type of observation, timestamp, etc.) of incoming raw scans.
+5. **Camera view**: Although not used by the LO, it is useful sometimes to **see** the environment from camera images.
+6. **mola_lidar_odometry module own UI**: Direct access to the internals of the LO module. There are tabs providing direct access
+   to variables that :ref:`normally can be set via environment variables <pipelines_env_vars>`, to make it easier to record a simple-maps directly from the GUI.
+7. **Log messages** with priority higher than ``INFO`` will be dumped to both, the terminal, and to this scrolling transparent terminal at the bottom.
+
+|
+
 1.1. mola-lo-gui-kitti
 ------------------------------
-xxx
+Runs MOLA-LO on a sequence of the KITTI odometry dataset :cite:`geiger2013vision`.
+
+.. dropdown:: How to run it
+   :icon: checklist
+
+   - Download the KITTI Odometry dataset and extract them anywhere, such as the files layout matches
+     the expected tree structure described in :ref:`doxid-classmola_1_1_kitti_odometry_dataset`.
+   - Set the environment variable ``KITTI_BASE_DIR`` to the root "KITTI" directory in the tree layout above:
+
+     .. code-block:: bash
+
+        export KITTI_BASE_DIR=/path/to/dataset/
+
+   - And run it for the desired sequence number:
+
+     .. code-block:: bash
+
+        # mola-lo-gui-kitti SEQUENCE
+        # SEQUENCE: 00,01,...21
+        
+        # Example:
+        mola-lo-gui-kitti 00
+
+
+.. raw:: html
+
+   <div style="width: 100%; overflow: hidden;">
+     <video controls autoplay loop muted style="width: 100%;">
+       <source src="videos/mola-lo-gui-kitti_demo_00.mp4" type="video/mp4">
+     </video>
+   </div>
+
+.. dropdown:: Inner workings
+   :icon: light-bulb
+
+   - mola-cli launch file: `mola-cli-launchs/lidar_odometry_from_kitti.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/mola-cli-launchs/lidar_odometry_from_kitti.yaml>`_
+   - Dataset C++ MOLA module: :ref:`doxid-classmola_1_1_kitti_odometry_dataset`
+
+|
+
+
 
 1.2. mola-lo-gui-kitti360
 ------------------------------
 xxx
 
+
+|
+
+
 1.3. mola-lo-gui-mulran
 ------------------------------
 xxx
+
+
+|
+
 
 1.4. mola-lo-gui-rawlog
 ------------------------------
 xxx
 
+
+|
+
+
 1.5. mola-lo-gui-rosbag2
 ------------------------------
 xxx
 
+
+|
+
+
+.. _mola-gui-apps-common-env-vars:
+
 1.6. Common env variables
 ------------------------------
-xxx
 
+- ``MOLA_ODOMETRY_PIPELINE_YAML`` (Default: full path to installed ``lidar3d-default.yaml``): Can be set to override
+  the default pipeline and experiment with custom MOLA-LO systems described through a modified YAML file.
+
+
+|
 
 .. _mola_lidar_odometry_cli:
 
@@ -224,6 +313,9 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
 
         -h,  --help
             Displays usage information and exits.
+
+|
+
 
 
 .. _mola_lo_ros:

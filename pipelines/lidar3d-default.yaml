@@ -111,9 +111,6 @@ params:
     save_to_file: '${MOLA_SAVE_DEBUG_TRACES|false}'
     output_file:  '${MOLA_DEBUG_TRACES_FILE|mola-lo-traces.csv}'
 
-  # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
-  initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
-
 # Parameter block for the "navstate_fuse" module in charge of merging and 
 # extrapolating pose estimations, odometry, IMU, etc.
 navstate_fuse_params:
@@ -162,8 +159,8 @@ icp_settings_with_vel:
 
     #debugPrintIterationProgress: true  # Print iteration progress
     #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
-    saveIterationDetails: false  # Store partial solutions and pairings for each ICP iteration
-    decimationIterationDetails: 3
+    saveIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS|false}  # Store partial solutions and pairings for each ICP iteration
+    decimationIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS_DECIMATION|3}
     debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
     decimationDebugFiles: ${MP2P_ICP_LOG_FILES_DECIMATION|10}
 

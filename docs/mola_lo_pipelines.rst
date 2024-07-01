@@ -105,77 +105,82 @@ Unless said otherwise, all variables are valid for all the pipelines described a
 
    If using MOLA-LO via mola-cli (which includes the GUI applications or the ROS 2 interface),
    there are additional environment variables to tune each particular 
-   `mola-cli launch file <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`.
-   Those variables are documented together with :ref:`mola_lo_apps`.
+   `mola-cli launch file <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_.
+   Those variables are documented :ref:`here <mola-gui-apps-common-env-vars>`.
 
 
 Sensor inputs
 ^^^^^^^^^^^^^
 
-* ``MOLA_LIDAR_NAME`` (Default: ``['lidar', '/ouster/points']``): A **sensor label** (maybe including a regular expression) of what
-observations are to be treated as input LiDAR point clouds. For most dataset sources, the default ``lidar`` is enough.
-For ROS bags or live ROS 2 as sources, the default behavior is assigning **sensor labels** exactly the same than 
-incoming **ROS topic names**, but in principle both are different things.
-Read carefully the contents of the `mola-cli launch files <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_
-and the comments therein to understand the differences.
+- ``MOLA_LIDAR_NAME`` (Default: ``['lidar', '/ouster/points']``): A **sensor label** (maybe including a regular expression) of what
+  observations are to be treated as input LiDAR point clouds. For most dataset sources, the default ``lidar`` is enough.
+  For ROS bags or live ROS 2 as sources, the default behavior is assigning **sensor labels** exactly the same than 
+  incoming **ROS topic names**, but in principle both are different things.
+  Read carefully the contents of the `mola-cli launch files <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_
+  and the comments therein to understand the differences.
 
-* ``MOLA_LIDAR_COUNT`` (Default: ``1``): Useful only if using several lidar_sensor_labels or regex's. Can be used to
-work with vehicles with two or more LiDARs.
+- ``MOLA_LIDAR_COUNT`` (Default: ``1``): Useful only if using several lidar_sensor_labels or regex's. Can be used to
+  work with vehicles with two or more LiDARs.
 
-* ``MOLA_LIDAR_MAX_TIME_OFFSET`` (Default: ``0.1`` [s]): Maximum delay between different LiDAR observations to handle them together.
-Note that deskewing takes into account the exact delays between clouds from different LiDARs.
+- ``MOLA_LIDAR_MAX_TIME_OFFSET`` (Default: ``0.1`` [s]): Maximum delay between different LiDAR observations to handle them together.
+  Note that deskewing takes into account the exact delays between clouds from different LiDARs.
 
-* ``MOLA_ODOMETRY_NAME`` (Default: ``odometry``): **Sensor label** (or regex) of the observations
-with wheels odometry, if it exists.
+- ``MOLA_ODOMETRY_NAME`` (Default: ``odometry``): **Sensor label** (or regex) of the observations
+  with wheels odometry, if it exists.
 
-* ``MOLA_GPS_NAME`` (Default: ``gps``): **Sensor label** (or regex) of the observations to be treated as
-GNNS data. Used only for storage in simple-maps for post-processing (geo-referencing, etc.).
+- ``MOLA_GPS_NAME`` (Default: ``gps``): **Sensor label** (or regex) of the observations to be treated as
+  GNNS data. Used only for storage in simple-maps for post-processing (geo-referencing, etc.).
 
 
 General options
 ^^^^^^^^^^^^^^^^^^^^^^
 
-* ``MOLA_OPTIMIZE_TWIST`` (Default: ``true``): Whether to enable the optimization of vehicle twist (linear+angular velocity vectors)
-within the ICP loop. Useful for high-dynamics. Requires incoming point clouds with timestamps.
+- ``MOLA_OPTIMIZE_TWIST`` (Default: ``true``): Whether to enable the optimization of vehicle twist (linear+angular velocity vectors)
+  within the ICP loop. Useful for high-dynamics. Requires incoming point clouds with timestamps.
 
-* ``MOLA_MAPPING_ENABLED`` (Default: ``true``): Whether to update the local map. Might be temporarily disabled if so desired, 
-or permanently disabled if using MOLA-LO for localization from a prebuilt map.
+- ``MOLA_MAPPING_ENABLED`` (Default: ``true``): Whether to update the local map. Might be temporarily disabled if so desired, 
+  or permanently disabled if using MOLA-LO for localization from a prebuilt map.
 
-* ``MOLA_LOAD_MM`` (Default: none): An optional path to a metric map (``*.mm``) file with a prebuilt metric map. Useful for
-multisession mapping or localization-only mode.
+- ``MOLA_LOAD_MM`` (Default: none): An optional path to a metric map (``*.mm``) file with a prebuilt metric map. Useful for
+  multisession mapping or localization-only mode.
 
-* ``MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES`` (Default: a heuristic formula, see YAML file): Minimum distance in meters between updates to
-the local map.
+- ``MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES`` (Default: a heuristic formula, see YAML file): Minimum distance in meters between updates to
+  the local map.
 
-* ``MOLA_MINIMUM_ICP_QUALITY`` (Default: ``0.25``): Minimum quality (from the ``mpcp_icp`` quality evaluators), in the range [0,1], to
-consider an ICP optimization to be valid.
+- ``MOLA_MINIMUM_ICP_QUALITY`` (Default: ``0.25``): Minimum quality (from the ``mpcp_icp`` quality evaluators), in the range [0,1], to
+  consider an ICP optimization to be valid.
 
-* ``MOLA_SIGMA_MIN_MOTION`` (Default: ``0.10`` [m]): Absolute minimum adaptive "sigma" threshold (refer to the paper).
+- ``MOLA_SIGMA_MIN_MOTION`` (Default: ``0.10`` [m]): Absolute minimum adaptive "sigma" threshold (refer to the paper).
+
+- ``MOLA_START_ACTIVE`` (default: ``true``): If set to ``false``, the odometry pipeline will ignore incoming observations
+  until active is set to true (e.g. via the GUI).
+
+- 
 
 Simple-map generation
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-* ``MOLA_GENERATE_SIMPLEMAP`` (Default: ``false``): If enabled, a simple-map will be saved at the end of the mapping session.
-This can then be used as input to any of the ``mp2p_icp`` applications.
+- ``MOLA_GENERATE_SIMPLEMAP`` (Default: ``false``): If enabled, a simple-map will be saved at the end of the mapping session.
+  This can then be used as input to any of the ``mp2p_icp`` applications.
 
-* ``MOLA_SIMPLEMAP_OUTPUT`` (Default: ``final_map.simplemap``): Can be used to change the output file name for maps.
+- ``MOLA_SIMPLEMAP_OUTPUT`` (Default: ``final_map.simplemap``): Can be used to change the output file name for maps.
 
-* ``MOLA_SIMPLEMAP_MIN_XYZ`` (in meters), ``MOLA_SIMPLEMAP_MIN_ROT`` (in degrees): Minimum distance between simple-map keyframes.
-Useful to control the density of generated simple-maps. Defaults are heuristic formulas.
+- ``MOLA_SIMPLEMAP_MIN_XYZ`` (in meters), ``MOLA_SIMPLEMAP_MIN_ROT`` (in degrees): Minimum distance between simple-map keyframes.
+  Useful to control the density of generated simple-maps. Defaults are heuristic formulas.
 
-* ``MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD`` (Default: ``false``): If enabled, generated simple-map files will be much smaller since
-all heavy observations will be stored in external files, making much faster to process those maps afterwards.
+- ``MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD`` (Default: ``false``): If enabled, generated simple-map files will be much smaller since
+  all heavy observations will be stored in external files, making much faster to process those maps afterwards.
 
-* ``MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES`` (Default: ``false``): If enabled, all LiDAR observations will generate a KeyFrame in the
-simple-map, but without real raw sensory data if the keyframe does not fulfill the minimum distance criteria above.
-Useful to generate, in post-processing, the full reconstruction of the vehicle trajectory without missing any timestep.
+- ``MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES`` (Default: ``false``): If enabled, all LiDAR observations will generate a KeyFrame in the
+  simple-map, but without real raw sensory data if the keyframe does not fulfill the minimum distance criteria above.
+  Useful to generate, in post-processing, the full reconstruction of the vehicle trajectory without missing any timestep.
 
 Trajectory files generation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* ``MOLA_SAVE_TRAJECTORY`` (Default: ``false``): If enabled, a TUM file will be saved at the end with the full vehicle trajectory.
+- ``MOLA_SAVE_TRAJECTORY`` (Default: ``false``): If enabled, a TUM file will be saved at the end with the full vehicle trajectory.
 
-* ``MOLA_TUM_TRAJECTORY_OUTPUT`` (Default: ``estimated_trajectory.tum``): Can be used to change the output file name.
+- ``MOLA_TUM_TRAJECTORY_OUTPUT`` (Default: ``estimated_trajectory.tum``): Can be used to change the output file name.
 
 Visualization
 ^^^^^^^^^^^^^^^^^^^
@@ -183,6 +188,48 @@ Visualization
 .. note::
 These settings only have effects if launched via :ref:`MOLA-LO GUI applications <mola_lo_apps>`.
 
-* ``MOLA_VEHICLE_MODEL_FILE`` (Default: none): If provided, this is path to any 3D model file loadable via Assimp (e.g. Collada files ``*.dae``)
-with a representation of the vehicle/robot to show in the GUI.
+- ``MOLA_VEHICLE_MODEL_FILE`` (Default: none): If provided, this is path to any 3D model file loadable via Assimp (e.g. Collada files ``*.dae``)
+  with a representation of the vehicle/robot to show in the GUI.
+
+- ``MOLA_VEHICLE_MODEL_X``, ``MOLA_VEHICLE_MODEL_Y``, ``MOLA_VEHICLE_MODEL_Z``, ``MOLA_VEHICLE_MODEL_YAW``, ``MOLA_VEHICLE_MODEL_PITCH``,
+  ``MOLA_VEHICLE_MODEL_ROLL`` (default: 0): Define a transformation to apply to the 3D asset, if defined in ``MOLA_VEHICLE_MODEL_FILE``.
+  Translations are in meters, rotations in degrees.
+
+
+Motion model
+^^^^^^^^^^^^^^^^^^^^^^
+A constant velocity motion model is used by default, provided by the ``mola_navstate_fuse`` module.
+
+- ``MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC`` (Default: 1.0 m/s²): Linear acceleration standard deviation.
+- ``MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC`` (Default: 10.0 rad/s²): Angular acceleration standard deviation.
+
+
+ICP log files
+^^^^^^^^^^^^^^^^^^^^^^
+
+- ``MP2P_ICP_GENERATE_DEBUG_FILES`` (Default: ``false``): If enabled, ``mp2p_icp::ICP`` log files will be saved
+  into a subdirectory ``icp-logs`` under the current directory. Those logs can be analyzed 
+  with the GUI tool: :ref:`icp-log-viewer <app_icp-log-viewer>`.
+
+.. note::
+
+   Enabling ICP log files is the most powerful tool to **debug mapping or localization** issues or to understand what
+   is going on under the hook. However, **it introduces a significant cost** in both, CPU running time, and disk space.
+
+
+If ``MP2P_ICP_GENERATE_DEBUG_FILES`` is not enabled, the rest of parameters that follow have no effect:
+
+- ``MP2P_ICP_LOG_FILES_DECIMATION`` (Default: ``10``): How many ICP runs to drop before saving one to disk.
+- ``MP2P_ICP_LOG_FILES_SAVE_DETAILS`` (Default: ``false``): If enabled, results, and pairings of **intermediate** 
+  optimization steps are also stored in the ICP logs. Great to learn how ICP actually works, but will increase the log file sizes.
+- ``MP2P_ICP_LOG_FILES_SAVE_DETAILS_DECIMATION`` (Default: ``3``): If ``MP2P_ICP_LOG_FILES_SAVE_DETAILS`` is enabled, how many ICP
+  internal iterations to drop for each saved one.
+
+
+Trace debug files
+^^^^^^^^^^^^^^^^^^^^^^
+"Trace" files are optional CSV files with low-level debugging information, sampled once per time step.
+
+- ``MOLA_SAVE_DEBUG_TRACES`` (Default: ``false``): Whether to generate and save this debug information to a file.
+- ``MOLA_DEBUG_TRACES_FILE`` (Default: ``mola-lo-traces.csv``): The name of the file to store trace information, if enabled.
 
