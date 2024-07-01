@@ -89,7 +89,7 @@ provided by the `mola_launcher <https://github.com/MOLAorg/mola/tree/develop/mol
 for common tasks like running MOLA-LO on well-known public datasets 
 or from rosbags.
 However, to make thinks simpler, a set of executable scripts are provided
-to make launching them easier: :ref:`mola_lo_apps`.
+to make launching them easier: :ref:`MOLA GUI apps <mola_lo_apps>`.
 
 Apart of this way to run MOLA-LO, two additional ways are provided for convenience: 
 
