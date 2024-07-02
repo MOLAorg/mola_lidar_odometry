@@ -13,7 +13,6 @@ Launching MOLA-LO
 ============================
 1. MOLA-LO GUI applications
 ============================
-
 All these commands are actually shortcuts (small scripts) to launch ``mola-cli`` and
 one of the predefined mola-cli launch files containing one dataset source
 and the ``mola_viz`` module, which enables the real-time GUI visualization.
@@ -28,6 +27,8 @@ and CLI usage, next we list the environment variables common to all of them.
     remember that there are **many additional parameters**
     associated to the LO pipeline YAML file, listed here.
 
+
+.. _mola_lo_gui_common_parts:
 
 Common elements of all GUI apps
 ---------------------------------
@@ -130,6 +131,7 @@ xxx
 ------------------------------
 xxx
 
+Write me: flag to use fixed sensor pose.
 
 |
 
@@ -150,7 +152,6 @@ xxx
 ============================
 2. LiDAR odometry CLI
 ============================
-
 ``mola-lidar-odometry-cli`` is a standalone command line program to run
 MOLA-LO on a dataset in an offline fashion.
 The dataset is processed as fast as possible using all available CPU cores.
@@ -325,9 +326,36 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
 .. _mola_lo_ros:
 
 ====================================
-3. ROS 2 integration
+3. ROS 2 node
 ====================================
+A **ROS 2 node** is provided for running MOLA-LO *live* on a robot or vehicle where sensor drivers
+are already working and publishing ROS topics.
 
-For live ROS 2 systems.
+Write me!
+
+.. dropdown:: Does your system lack ``/tf``?
+    :icon: alert
+
+    By default, MOLA-LO will try to use ``tf2`` messages to find out the relative pose
+    of the LiDAR sensor with respect to the vehicle frame (default: ``base_link``). If your system **does not** have ``tf`` data
+    (for example, if you only launched the LiDAR driver node) you must then set the environment variable ``MOLA_USE_FIXED_LIDAR_POSE=true``
+    to use the default (identity) sensor pose on the vehicle.
+
+|
+
+.. _mola_lo_ros1:
+
+====================================
+4. Running from ROS 1 bags
+====================================
+ROS 1 bags are not directly supported by MOLA-LO. However, given the large amount of public datasets
+already published in this format, we provide two pathways to parse them.
+
+4.1. Porting to ROS 2 bags
+---------------------------------
+Write me!
 
 
+4.2. Converting to MRPT rawlog
+---------------------------------
+Write me!
