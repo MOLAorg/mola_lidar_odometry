@@ -1,3 +1,5 @@
+.. _launching_mola_lo:
+
 Launching MOLA-LO
 ^^^^^^^^^^^^^^^^^^^
 .. contents::
@@ -121,6 +123,8 @@ xxx
 
 |
 
+
+.. _mola_lo_gui_rosbag2:
 
 1.5. mola-lo-gui-rosbag2
 ------------------------------
@@ -324,6 +328,6 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
 3. ROS 2 integration
 ====================================
 
-Write me...
+For live ROS 2 systems.
 
 
