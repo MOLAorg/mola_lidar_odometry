@@ -179,7 +179,8 @@ Process a ROS 2 bag
           -c $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-default.yaml \
           --input-rosbag2 /PATH/TO/YOUR/rosbag.mcap \
           --lidar-sensor-label /ouster/points \
-          --output-tum-path trajectory.tum
+          --output-tum-path trajectory.tum \
+          --output-simplemap myMap.simplemap
 
 .. note::
     Remember changing ``--lidar-sensor-label /ouster/points`` to your actual raw (unfiltered) LiDAR topic (``sensor_msgs/PointCloud2``).
