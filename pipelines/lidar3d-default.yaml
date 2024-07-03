@@ -18,8 +18,8 @@ params:
   # These sensor labels will be handled as wheel odometry observation (C++11 regex):
   wheel_odometry_sensor_label: '${MOLA_ODOMETRY_NAME|odometry}'
 
-  # These sensor labels will be handled as GNNS (GPS) (For storage in simplemap only)
-  gnns_sensor_label: '${MOLA_GPS_NAME|gps}'
+  # These sensor labels will be handled as GNSS (GPS) (For storage in simplemap only)
+  gnss_sensor_label: '${MOLA_GPS_NAME|gps}'
 
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 1e-3 # [seconds]
@@ -73,7 +73,7 @@ params:
 
     generate_lazy_load_scan_files: ${MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD|false} # If enabled, a directory will be create alongside the .simplemap and pointclouds will be externally serialized there.
     add_non_keyframes_too: ${MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES|false}  # If enabled, all frames are stored in the simplemap, but non-keyframes will be without associated observations.
-    save_gnns_max_age: 1.0  # [s] max age of GNNS observations to keep in the keyframe
+    save_gnss_max_age: 1.0  # [s] max age of GNSS observations to keep in the keyframe
 
   # Save the final trajectory in TUM format. Disabled by default.
   estimated_trajectory:

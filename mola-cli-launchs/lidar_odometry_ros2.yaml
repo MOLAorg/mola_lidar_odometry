@@ -78,12 +78,12 @@ modules:
           fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
 
-        - topic: ${MOLA_GNNS_TOPIC|/gps}
+        - topic: ${MOLA_GNSS_TOPIC|/gps}
           msg_type: NavSatFix
           output_sensor_label: 'gps'
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg''
-          use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNNS_POSE|true}
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|true}
 
         #- topic: /odom
         #  msg_type: Odometry

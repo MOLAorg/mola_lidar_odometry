@@ -129,7 +129,7 @@ Sensor inputs
   with wheels odometry, if it exists.
 
 - ``MOLA_GPS_NAME`` (Default: ``gps``): **Sensor label** (or regex) of the observations to be treated as
-  GNNS data. Used only for storage in simple-maps for post-processing (geo-referencing, etc.).
+  GNSS data. Used only for storage in simple-maps for post-processing (geo-referencing, etc.).
 
 
 General options

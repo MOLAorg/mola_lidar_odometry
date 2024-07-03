@@ -106,9 +106,9 @@ class LidarOdometry : public FrontEndBase,
         std::optional<std::regex> wheel_odometry_sensor_label;
 
         /** Sensor labels or regex to be matched to input observations
-         *  to be used as GNNS (GPS) observations.
+         *  to be used as GNSS (GPS) observations.
          */
-        std::optional<std::regex> gnns_sensor_label;
+        std::optional<std::regex> gnss_sensor_label;
 
         /** Minimum time (seconds) between scans for being attempted to be
          * aligned. Scans faster than this rate will be just silently ignored.
@@ -285,13 +285,13 @@ class LidarOdometry : public FrontEndBase,
              * non-keyframes will be without associated observations. */
             bool add_non_keyframes_too = false;
 
-            /** If !=0, storing the latest GNNS observation together with the
+            /** If !=0, storing the latest GNSS observation together with the
              * Lidar observation in the simplemap CSensoryFrame (SF)
              * ("keyframe") will be enabled. This parameter sets the maximum age
-             * in seconds for a GNNS (GPS) observation to be considered valid to
+             * in seconds for a GNSS (GPS) observation to be considered valid to
              * be stored in the SF.
              */
-            double save_gnns_max_age = 1.0;  // [s]
+            double save_gnss_max_age = 1.0;  // [s]
 
             /** If enabled, a directory will be create alongside the .simplemap
              *  and pointclouds will be externally serialized there, for much
@@ -342,7 +342,7 @@ class LidarOdometry : public FrontEndBase,
 
         uint32_t max_worker_thread_queue_before_drop = 500;
 
-        uint32_t gnns_queue_max_size = 100;
+        uint32_t gnss_queue_max_size = 100;
     };
 
     /** Algorithm parameters */
@@ -458,12 +458,12 @@ class LidarOdometry : public FrontEndBase,
         uint32_t localmap_check_removal_counter     = 0;
         uint32_t localmap_advertise_updates_counter = 0;
 
-        // GNNS: keep a list of recent observations to later on search the one
+        // GNSS: keep a list of recent observations to later on search the one
         // closest to each LIDAR observation:
         std::map<
             mrpt::Clock::time_point,
             std::shared_ptr<mrpt::obs::CObservationGPS>>
-            last_gnns_;
+            last_gnss_;
 
         // Visualization:
         mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glPathGrp;

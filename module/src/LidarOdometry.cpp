@@ -193,7 +193,7 @@ void LidarOdometry::Parameters::SimpleMapOptions::initialize(
     YAML_LOAD_OPT(add_non_keyframes_too, bool);
     YAML_LOAD_OPT(measure_from_last_kf_only, bool);
     YAML_LOAD_OPT(generate_lazy_load_scan_files, bool);
-    YAML_LOAD_OPT(save_gnns_max_age, double);
+    YAML_LOAD_OPT(save_gnss_max_age, double);
 }
 
 void LidarOdometry::Parameters::MultipleLidarOptions::initialize(
@@ -283,8 +283,8 @@ void LidarOdometry::initialize_frontend(const Yaml& c)
         params_.wheel_odometry_sensor_label =
             cfg["wheel_odometry_sensor_label"].as<std::string>();
 
-    if (cfg.has("gnns_sensor_label"))
-        params_.gnns_sensor_label = cfg["gnns_sensor_label"].as<std::string>();
+    if (cfg.has("gnss_sensor_label"))
+        params_.gnss_sensor_label = cfg["gnss_sensor_label"].as<std::string>();
 
     ASSERT_(cfg.has("local_map_updates"));
     params_.local_map_updates.initialize(cfg["local_map_updates"], params_);
@@ -600,9 +600,9 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr& o)
         (void)fut;
     }
 
-    // Is it GNNS?
-    if (params_.gnns_sensor_label &&
-        std::regex_match(o->sensorLabel, params_.gnns_sensor_label.value()))
+    // Is it GNSS?
+    if (params_.gnss_sensor_label &&
+        std::regex_match(o->sensorLabel, params_.gnss_sensor_label.value()))
     {
         {
             auto lck = mrpt::lockHelper(is_busy_mtx_);
@@ -1323,16 +1323,16 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr& obs)
 
             const auto curLidarStamp = obs->getTimeStamp();
 
-            // insert GNNS too? Search for a close-enough observation:
+            // insert GNSS too? Search for a close-enough observation:
             std::optional<double>           closestTimeAbsDiff;
             mrpt::obs::CObservationGPS::Ptr closestGPS;
 
-            for (const auto& [gpsStamp, gpsObs] : state_.last_gnns_)
+            for (const auto& [gpsStamp, gpsObs] : state_.last_gnss_)
             {
                 const double timeDiff = std::abs(
                     mrpt::system::timeDifference(gpsStamp, curLidarStamp));
 
-                if (timeDiff > params_.simplemap.save_gnns_max_age) continue;
+                if (timeDiff > params_.simplemap.save_gnss_max_age) continue;
 
                 if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff)
                 {
@@ -1529,16 +1529,16 @@ void LidarOdometry::onGPSImpl(const CObservation::Ptr& o)
                  o->sensorLabel.c_str(), o->GetRuntimeClass()->className));
 
     MRPT_LOG_DEBUG_FMT(
-        "GNNS observation received, t=%.03f",
+        "GNSS observation received, t=%.03f",
         mrpt::Clock::toDouble(gps->timestamp));
 
     // Keep the latest GPS observations for simplemap insertion:
-    state_.last_gnns_.emplace(gps->timestamp, gps);
+    state_.last_gnss_.emplace(gps->timestamp, gps);
 
     // remove old ones:
-    while (state_.last_gnns_.size() > params_.gnns_queue_max_size)
+    while (state_.last_gnss_.size() > params_.gnss_queue_max_size)
     {
-        state_.last_gnns_.erase(state_.last_gnns_.begin());
+        state_.last_gnss_.erase(state_.last_gnss_.begin());
     }
 }
 

@@ -28,11 +28,11 @@ def generate_launch_description():
     fixed_sensorpose_env_var = SetEnvironmentVariable(
         name='MOLA_USE_FIXED_LIDAR_POSE', value=LaunchConfiguration('ignore_lidar_pose_from_tf'))
 
-    gnns_topic_name_arg = DeclareLaunchArgument(
-        "gnns_topic_name", default_value="/gps", description="Topic name to listen for NavSatFix input from a GNNS (for example '/gps')")
+    gnss_topic_name_arg = DeclareLaunchArgument(
+        "gnss_topic_name", default_value="/gps", description="Topic name to listen for NavSatFix input from a GNSS (for example '/gps')")
 
     gps_topic_env_var = SetEnvironmentVariable(
-        name='MOLA_GNNS_TOPIC', value=LaunchConfiguration('gnns_topic_name'))
+        name='MOLA_GNSS_TOPIC', value=LaunchConfiguration('gnss_topic_name'))
 
     mola_cli_node = Node(
         package='mola_launcher',
@@ -55,7 +55,7 @@ def generate_launch_description():
         topic_env_var,
         ignore_lidar_pose_from_tf_arg,
         fixed_sensorpose_env_var,
-        gnns_topic_name_arg,
+        gnss_topic_name_arg,
         gps_topic_env_var,
         mola_cli_node,
         rviz2_node

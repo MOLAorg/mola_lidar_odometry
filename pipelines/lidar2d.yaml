@@ -18,8 +18,8 @@ params:
   # These sensor labels will be handled as wheel odometry observation (C++11 regex):
   wheel_odometry_sensor_label: '${MOLA_ODOMETRY_NAME|odometry}'
 
-  # These sensor labels will be handled as GNNS (GPS) (For storage in simplemap only)
-  gnns_sensor_label: 'gps'
+  # These sensor labels will be handled as GNSS (GPS) (For storage in simplemap only)
+  gnss_sensor_label: 'gps'
 
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 1e-3 # [seconds]
@@ -57,7 +57,7 @@ params:
     min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|0.05}   # m
     min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|3.0}  # deg
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
-    save_gnns_max_age: 1.0  # [s] max age of GNNS observations to keep in the keyframe
+    save_gnss_max_age: 1.0  # [s] max age of GNSS observations to keep in the keyframe
 
   # Save the final trajectory in TUM format. Disabled by default.
   estimated_trajectory:
