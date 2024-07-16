@@ -25,7 +25,7 @@ and CLI usage, next we list the environment variables common to all of them.
     Apart of the environment variables defined here, which are **specific** to these
     mola-cli launch files (see: :ref:`role of MOLA-LO module <mola-lo-role>`),
     remember that there are **many additional parameters**
-    associated to the LO pipeline YAML file, listed here.
+    associated to the LO pipeline YAML file, listed `here <pipelines_env_vars>`_.
 
 
 .. _mola_lo_gui_common_parts:

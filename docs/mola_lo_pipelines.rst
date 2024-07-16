@@ -16,7 +16,7 @@ Users can design new systems by learning how to modify the provided pipeline fil
 
 The best way to understand the different parts of this file is to browse the YAML file of :ref:`the default pipeline <mola_3d_default_pipeline>`
 provided for 3D LiDARs. Most of the times, comments in the YAML are self-explanatory.
-In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLAorg/mola/issues>` to ask.
+In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLAorg/mola/issues>`_ to ask.
 
 .. note::
 
