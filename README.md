@@ -13,6 +13,9 @@ offline datasets.
 ## Build and install
 Refer to: https://docs.mola-slam.org/latest/#installing
 
+![mola-slam-kitti-demo](https://github.com/user-attachments/assets/45255aba-6ea2-44eb-b5e4-4cc52e8e7615)
+
+
 ## Documentation and tutorials
 See: https://docs.mola-slam.org/
 
