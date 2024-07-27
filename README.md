@@ -1,5 +1,5 @@
-# `mola_lidar_odometry`
-LIDAR odometry components, based on the MOLA and MRPT frameworks,
+# mola_lidar_odometry
+LIDAR odometry component based on the MOLA and MRPT frameworks,
 compatible with ROS 2.
 
 ## Contents
