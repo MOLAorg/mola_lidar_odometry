@@ -41,8 +41,8 @@ using namespace mola;
 
 MRPT_INITIALIZER(do_register_mola_lidar_odometry)
 {
-    using mrpt::rtti::registerClass;
+  using mrpt::rtti::registerClass;
 
-    // Register modules:
-    MOLA_REGISTER_MODULE(LidarOdometry);
+  // Register modules:
+  MOLA_REGISTER_MODULE(LidarOdometry);
 }

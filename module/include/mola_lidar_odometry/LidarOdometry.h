@@ -63,503 +63,494 @@ namespace mola
 {
 /** LIDAR-inertial odometry based on ICP against a local metric map model.
  */
-class LidarOdometry : public FrontEndBase,
-                      public LocalizationSourceBase,
-                      public MapSourceBase
+class LidarOdometry : public FrontEndBase, public LocalizationSourceBase, public MapSourceBase
 {
-    DEFINE_MRPT_OBJECT(LidarOdometry, mola)
+  DEFINE_MRPT_OBJECT(LidarOdometry, mola)
 
-   public:
-    LidarOdometry();
-    ~LidarOdometry();
+public:
+  LidarOdometry();
+  ~LidarOdometry();
 
-    /** @name Main API
+  /** @name Main API
      * @{ */
 
-    // See docs in base class
-    void initialize_frontend(const Yaml& cfg) override;
-    void spinOnce() override;
-    void onNewObservation(const CObservation::Ptr& o) override;
+  // See docs in base class
+  void initialize_frontend(const Yaml & cfg) override;
+  void spinOnce() override;
+  void onNewObservation(const CObservation::Ptr & o) override;
 
-    /** Re-initializes the odometry system. It effectively calls initialize()
+  /** Re-initializes the odometry system. It effectively calls initialize()
      *  once again with the same parameters that were used the first time.
      */
-    void reset();
+  void reset();
 
-    enum class AlignKind : uint8_t
-    {
-        RegularOdometry = 0,
-        NoMotionModel
-    };
+  enum class AlignKind : uint8_t
+  {
+    RegularOdometry = 0,
+    NoMotionModel
+  };
 
-    struct Parameters : public mp2p_icp::Parameterizable
-    {
-        /** List of sensor labels or regex's to be matched to input observations
+  struct Parameters : public mp2p_icp::Parameterizable
+  {
+    /** List of sensor labels or regex's to be matched to input observations
          *  to be used as raw lidar observations.
          */
-        std::vector<std::regex> lidar_sensor_labels;
+    std::vector<std::regex> lidar_sensor_labels;
 
-        /** Sensor labels or regex to be matched to input observations
+    /** Sensor labels or regex to be matched to input observations
          *  to be used as raw IMU observations.
          */
-        std::optional<std::regex> imu_sensor_label;
+    std::optional<std::regex> imu_sensor_label;
 
-        /** Sensor labels or regex to be matched to input observations
+    /** Sensor labels or regex to be matched to input observations
          *  to be used as wheel odometry observations.
          */
-        std::optional<std::regex> wheel_odometry_sensor_label;
+    std::optional<std::regex> wheel_odometry_sensor_label;
 
-        /** Sensor labels or regex to be matched to input observations
+    /** Sensor labels or regex to be matched to input observations
          *  to be used as GNSS (GPS) observations.
          */
-        std::optional<std::regex> gnss_sensor_label;
+    std::optional<std::regex> gnss_sensor_label;
 
-        /** Minimum time (seconds) between scans for being attempted to be
+    /** Minimum time (seconds) between scans for being attempted to be
          * aligned. Scans faster than this rate will be just silently ignored.
          */
-        double min_time_between_scans = 0.05;
+    double min_time_between_scans = 0.05;
 
-        double max_sensor_range_filter_coefficient = 0.999;
-        double absolute_minimum_sensor_range       = 5.0;  // [m]
+    double max_sensor_range_filter_coefficient = 0.999;
+    double absolute_minimum_sensor_range = 5.0;  // [m]
 
-        /** If enabled (slower), vehicle twist will be optimized during ICP
+    /** If enabled (slower), vehicle twist will be optimized during ICP
          *  enabling better and more robust odometry in high dynamics motion.
          */
-        bool   optimize_twist                   = false;
-        double optimize_twist_rerun_min_trans   = 0.1;  // [m]
-        double optimize_twist_rerun_min_rot_deg = 0.5;  // [deg]
-        size_t optimize_twist_max_corrections   = 8;
+    bool optimize_twist = false;
+    double optimize_twist_rerun_min_trans = 0.1;    // [m]
+    double optimize_twist_rerun_min_rot_deg = 0.5;  // [deg]
+    size_t optimize_twist_max_corrections = 8;
 
-        struct MultipleLidarOptions
-        {
-            /** If N>1, the system LO system will try to group "N" observations
+    struct MultipleLidarOptions
+    {
+      /** If N>1, the system LO system will try to group "N" observations
              * before attempting to use them for localization and map update.
              */
-            uint32_t lidar_count = 1;
+      uint32_t lidar_count = 1;
 
-            /** If using multiple LIDARs, the maximum delay between the first
+      /** If using multiple LIDARs, the maximum delay between the first
              * and last one in order to be treated as a "group". In seconds. */
-            double max_time_offset = 25e-3;
+      double max_time_offset = 25e-3;
 
-            void initialize(const Yaml& c, Parameters& parent);
-        };
+      void initialize(const Yaml & c, Parameters & parent);
+    };
 
-        MultipleLidarOptions multiple_lidars;
+    MultipleLidarOptions multiple_lidars;
 
-        struct MapUpdateOptions
-        {
-            /** If set to false, the odometry system can be used as
+    struct MapUpdateOptions
+    {
+      /** If set to false, the odometry system can be used as
              * localization-only.
              */
-            bool enabled = true;
+      bool enabled = true;
 
-            /** Minimum Euclidean distance (x,y,z) between keyframes inserted
+      /** Minimum Euclidean distance (x,y,z) between keyframes inserted
              * into the local map [meters]. */
-            double min_translation_between_keyframes = 1.0;
+      double min_translation_between_keyframes = 1.0;
 
-            /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether)
+      /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether)
              * between keyframes inserted into
              * the local map [in degrees]. */
-            double min_rotation_between_keyframes = 30.0;
+      double min_rotation_between_keyframes = 30.0;
 
-            /** If true, distance from the last map update are only considered.
+      /** If true, distance from the last map update are only considered.
              * Use if mostly mapping without "closed loops".
              *
              *  If false (default), a KD-tree will be used to check the distance
              * to *all* past map insert poses.
              */
-            bool measure_from_last_kf_only = false;
+      bool measure_from_last_kf_only = false;
 
-            /** Should match the "remove farther than" option of the local
+      /** Should match the "remove farther than" option of the local
              * metric map. 0 means deletion of distant keyframes is disabled.
              * In meters.
              */
-            double max_distance_to_keep_keyframes = 0;
+      double max_distance_to_keep_keyframes = 0;
 
-            /** If  `max_distance_to_keep_keyframes` is not zero, this indicates
+      /** If  `max_distance_to_keep_keyframes` is not zero, this indicates
              * how often to do the distant keyframes clean up.
              */
-            uint32_t check_for_removal_every_n = 100;
+      uint32_t check_for_removal_every_n = 100;
 
-            /** Publish updated map via mola::MapSourceBase once every N frames
+      /** Publish updated map via mola::MapSourceBase once every N frames
              */
-            uint32_t publish_map_updates_every_n = 10;
+      uint32_t publish_map_updates_every_n = 10;
 
-            /** If non-empty, the local map will be loaded from the given `*.mm`
+      /** If non-empty, the local map will be loaded from the given `*.mm`
              * file instead of generating it from scratch.
              * This can be used for multi-session SLAM, or for
              * localization-only.
              */
-            std::string load_existing_local_map;
+      std::string load_existing_local_map;
 
-            void initialize(const Yaml& c, Parameters& parent);
-        };
+      void initialize(const Yaml & c, Parameters & parent);
+    };
 
-        MapUpdateOptions local_map_updates;
+    MapUpdateOptions local_map_updates;
 
-        /** Minimum ICP "goodness" (in the range [0,1]) for a new KeyFrame to be
+    /** Minimum ICP "goodness" (in the range [0,1]) for a new KeyFrame to be
          * accepted during regular lidar odometry & mapping */
-        double min_icp_goodness = 0.4;
+    double min_icp_goodness = 0.4;
 
-        bool pipeline_profiler_enabled = false;
-        bool icp_profiler_enabled      = false;
-        bool icp_profiler_full_history = false;
+    bool pipeline_profiler_enabled = false;
+    bool icp_profiler_enabled = false;
+    bool icp_profiler_full_history = false;
 
-        struct Visualization
-        {
-            int    map_update_decimation                = 10;
-            bool   show_trajectory                      = true;
-            bool   show_current_observation             = true;
-            double current_pose_corner_size             = 1.5;  //! [m]
-            float  local_map_point_size                 = 3.0f;
-            bool   local_map_render_voxelmap_free_space = false;
-            bool   gui_subwindow_starts_hidden          = false;
-            bool   show_console_messages                = true;
-            bool   camera_follows_vehicle               = true;
-            bool   camera_rotates_with_vehicle          = false;
+    struct Visualization
+    {
+      int map_update_decimation = 10;
+      bool show_trajectory = true;
+      bool show_current_observation = true;
+      double current_pose_corner_size = 1.5;  //! [m]
+      float local_map_point_size = 3.0f;
+      bool local_map_render_voxelmap_free_space = false;
+      bool gui_subwindow_starts_hidden = false;
+      bool show_console_messages = true;
+      bool camera_follows_vehicle = true;
+      bool camera_rotates_with_vehicle = false;
 
-            /** If not empty, an optional 3D model (.DAE, etc) to load for
+      /** If not empty, an optional 3D model (.DAE, etc) to load for
              * visualizing the robot/vehicle pose */
-            struct ModelPart
-            {
-                std::string         file;
-                mrpt::math::TPose3D tf;  /// Optional 3D model offset/rotation
-                double              scale = 1.0;
-            };
-            std::vector<ModelPart> model;
+      struct ModelPart
+      {
+        std::string file;
+        mrpt::math::TPose3D tf;  /// Optional 3D model offset/rotation
+        double scale = 1.0;
+      };
+      std::vector<ModelPart> model;
 
-            void initialize(const Yaml& c);
-        };
-        Visualization visualization;
+      void initialize(const Yaml & c);
+    };
+    Visualization visualization;
 
-        // KISS-ICP adaptive threshold method:
-        struct AdaptiveThreshold
-        {
-            bool   enabled       = true;
-            double initial_sigma = 0.5;
-            double min_motion    = 0.10;
-            double kp            = 5.0;
-            double alpha         = 0.99;
+    // KISS-ICP adaptive threshold method:
+    struct AdaptiveThreshold
+    {
+      bool enabled = true;
+      double initial_sigma = 0.5;
+      double min_motion = 0.10;
+      double kp = 5.0;
+      double alpha = 0.99;
 
-            void initialize(const Yaml& c);
-        };
-        AdaptiveThreshold adaptive_threshold;
+      void initialize(const Yaml & c);
+    };
+    AdaptiveThreshold adaptive_threshold;
 
-        /** ICP parameters for the case of having, or not, a good velocity
+    /** ICP parameters for the case of having, or not, a good velocity
          * model that works a good prior. Each entry in the vector is an
          * "ICP stage", to be run as a sequence of coarser to finer detail
          */
-        struct ICP_case
-        {
-            mp2p_icp::ICP::Ptr   icp;
-            mp2p_icp::Parameters icp_parameters;
-        };
+    struct ICP_case
+    {
+      mp2p_icp::ICP::Ptr icp;
+      mp2p_icp::Parameters icp_parameters;
+    };
 
-        std::map<AlignKind, ICP_case> icp;
+    std::map<AlignKind, ICP_case> icp;
 
-        mola::NavStateFuseParams navstate_fuse_params;
+    mola::NavStateFuseParams navstate_fuse_params;
 
-        // === SIMPLEMAP GENERATION ====
-        struct SimpleMapOptions
-        {
-            bool generate = false;
+    // === SIMPLEMAP GENERATION ====
+    struct SimpleMapOptions
+    {
+      bool generate = false;
 
-            /** Minimum Euclidean distance (x,y,z) between keyframes inserted
+      /** Minimum Euclidean distance (x,y,z) between keyframes inserted
              * into the simplemap [meters]. */
-            double min_translation_between_keyframes = 1.0;
+      double min_translation_between_keyframes = 1.0;
 
-            /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether)
+      /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether)
              * between keyframes inserted into
              * the map [in degrees]. */
-            double min_rotation_between_keyframes = 30.0;
+      double min_rotation_between_keyframes = 30.0;
 
-            /** If true, distance from the last map update are only considered.
+      /** If true, distance from the last map update are only considered.
              * Use if mostly mapping without "closed loops".
              *
              *  If false (default), a KD-tree will be used to check the distance
              * to *all* past map insert poses.
              */
-            bool measure_from_last_kf_only = false;
+      bool measure_from_last_kf_only = false;
 
-            /** If not empty, the final simple map will be dumped to a file at
+      /** If not empty, the final simple map will be dumped to a file at
              * destruction time */
-            std::string save_final_map_to_file;
+      std::string save_final_map_to_file;
 
-            /** If enabled, all frames are stored in the simplemap, but
+      /** If enabled, all frames are stored in the simplemap, but
              * non-keyframes will be without associated observations. */
-            bool add_non_keyframes_too = false;
+      bool add_non_keyframes_too = false;
 
-            /** If !=0, storing the latest GNSS observation together with the
+      /** If !=0, storing the latest GNSS observation together with the
              * Lidar observation in the simplemap CSensoryFrame (SF)
              * ("keyframe") will be enabled. This parameter sets the maximum age
              * in seconds for a GNSS (GPS) observation to be considered valid to
              * be stored in the SF.
              */
-            double save_gnss_max_age = 1.0;  // [s]
+      double save_gnss_max_age = 1.0;  // [s]
 
-            /** If enabled, a directory will be create alongside the .simplemap
+      /** If enabled, a directory will be create alongside the .simplemap
              *  and pointclouds will be externally serialized there, for much
              * faster loading and processing of simplemaps.
              */
-            bool generate_lazy_load_scan_files = false;
+      bool generate_lazy_load_scan_files = false;
 
-            /** If non-empty, the simple map will be loaded from the given
+      /** If non-empty, the simple map will be loaded from the given
              * `*.simplemap` file instead of generating it from scratch. This
              * can be used for multi-session SLAM, or for localization-only.
              */
-            std::string load_existing_simple_map;
+      std::string load_existing_simple_map;
 
-            void initialize(const Yaml& c, Parameters& parent);
-        };
-
-        SimpleMapOptions simplemap;
-
-        // === OUTPUT TRAJECTORY ====
-        struct TrajectoryOutputOptions
-        {
-            bool save_to_file = false;
-
-            /** If save_to_file==true, the final estimated trajectory will be
-             * dumped to a file at destruction time */
-            std::string output_file = "output.txt";
-
-            void initialize(const Yaml& c);
-        };
-
-        TrajectoryOutputOptions estimated_trajectory;
-
-        // === TRACE LOG GENERATION ====
-        struct TraceOutputOptions
-        {
-            bool save_to_file = false;
-
-            /** If save_to_file==true, all internal variables will be saved to a
-             * csv file */
-            std::string output_file = "mola-lo-traces.csv";
-
-            void initialize(const Yaml& c);
-        };
-
-        TraceOutputOptions debug_traces;
-
-        bool start_active = true;
-
-        uint32_t max_worker_thread_queue_before_drop = 500;
-
-        uint32_t gnss_queue_max_size = 100;
+      void initialize(const Yaml & c, Parameters & parent);
     };
 
-    /** Algorithm parameters */
-    Parameters params_;
+    SimpleMapOptions simplemap;
 
-    bool isBusy() const;
+    // === OUTPUT TRAJECTORY ====
+    struct TrajectoryOutputOptions
+    {
+      bool save_to_file = false;
 
-    /** Returns a copy of the estimated trajectory, with timestamps for each
+      /** If save_to_file==true, the final estimated trajectory will be
+             * dumped to a file at destruction time */
+      std::string output_file = "output.txt";
+
+      void initialize(const Yaml & c);
+    };
+
+    TrajectoryOutputOptions estimated_trajectory;
+
+    // === TRACE LOG GENERATION ====
+    struct TraceOutputOptions
+    {
+      bool save_to_file = false;
+
+      /** If save_to_file==true, all internal variables will be saved to a
+             * csv file */
+      std::string output_file = "mola-lo-traces.csv";
+
+      void initialize(const Yaml & c);
+    };
+
+    TraceOutputOptions debug_traces;
+
+    bool start_active = true;
+
+    uint32_t max_worker_thread_queue_before_drop = 500;
+
+    uint32_t gnss_queue_max_size = 100;
+  };
+
+  /** Algorithm parameters */
+  Parameters params_;
+
+  bool isBusy() const;
+
+  /** Returns a copy of the estimated trajectory, with timestamps for each
      * lidar observation.
      * Multi-thread safe to call.
      */
-    mrpt::poses::CPose3DInterpolator estimatedTrajectory() const;
+  mrpt::poses::CPose3DInterpolator estimatedTrajectory() const;
 
-    /** Returns a copy of the estimated simplemap.
+  /** Returns a copy of the estimated simplemap.
      * Multi-thread safe to call.
      */
-    mrpt::maps::CSimpleMap reconstructedMap() const;
+  mrpt::maps::CSimpleMap reconstructedMap() const;
 
-    void saveEstimatedTrajectoryToFile() const;
-    void saveReconstructedMapToFile() const;
+  void saveEstimatedTrajectoryToFile() const;
+  void saveReconstructedMapToFile() const;
 
-    /** Enqueue a custom user request to be executed on the main LidarOdometry
+  /** Enqueue a custom user request to be executed on the main LidarOdometry
      *  thread on the next iteration.
      *
      *  So, this method is safe to be called from any other thread.
      *
      */
-    void enqueue_request(const std::function<void()>& userRequest);
+  void enqueue_request(const std::function<void()> & userRequest);
 
-    /** @} */
+  /** @} */
 
-   private:
-    const std::string NAVSTATE_LIODOM_FRAME = "liodom";
+private:
+  const std::string NAVSTATE_LIODOM_FRAME = "liodom";
 
-    struct ICP_Input
-    {
-        using Ptr = std::shared_ptr<ICP_Input>;
+  struct ICP_Input
+  {
+    using Ptr = std::shared_ptr<ICP_Input>;
 
-        AlignKind                   align_kind = AlignKind::RegularOdometry;
-        id_t                        global_id  = mola::INVALID_ID;
-        id_t                        local_id   = mola::INVALID_ID;
-        mp2p_icp::metric_map_t::Ptr global_pc, local_pc;
-        mrpt::math::TPose3D         init_guess_local_wrt_global;
-        mp2p_icp::Parameters        icp_params;
-        mrpt::poses::CPose3D        last_keyframe_pose;
-        double                      time_since_last_keyframe = 0;
+    AlignKind align_kind = AlignKind::RegularOdometry;
+    id_t global_id = mola::INVALID_ID;
+    id_t local_id = mola::INVALID_ID;
+    mp2p_icp::metric_map_t::Ptr global_pc, local_pc;
+    mrpt::math::TPose3D init_guess_local_wrt_global;
+    mp2p_icp::Parameters icp_params;
+    mrpt::poses::CPose3D last_keyframe_pose;
+    double time_since_last_keyframe = 0;
 
-        std::optional<mrpt::poses::CPose3DPDFGaussianInf> prior;
-    };
-    struct ICP_Output
-    {
-        double                          goodness = .0;
-        mrpt::poses::CPose3DPDFGaussian found_pose_to_wrt_from;
-        uint32_t                        icp_iterations = 0;
-    };
+    std::optional<mrpt::poses::CPose3DPDFGaussianInf> prior;
+  };
+  struct ICP_Output
+  {
+    double goodness = .0;
+    mrpt::poses::CPose3DPDFGaussian found_pose_to_wrt_from;
+    uint32_t icp_iterations = 0;
+  };
 
-    /** All variables that hold the algorithm state */
-    struct MethodState
-    {
-        bool initialized = false;
-        bool fatal_error = false;
+  /** All variables that hold the algorithm state */
+  struct MethodState
+  {
+    bool initialized = false;
+    bool fatal_error = false;
 
-        /// if false, input observations will be just ignored.
-        /// Useful for real-time execution on robots.
-        bool active = true;
+    /// if false, input observations will be just ignored.
+    /// Useful for real-time execution on robots.
+    bool active = true;
 
-        int worker_tasks = 0;
+    int worker_tasks = 0;
 
-        mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
+    mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 
-        std::map<std::string, mrpt::Clock::time_point> last_obs_tim_by_label;
-        bool                                           last_icp_was_good = true;
-        double                                         last_icp_quality  = .0;
+    std::map<std::string, mrpt::Clock::time_point> last_obs_tim_by_label;
+    bool last_icp_was_good = true;
+    double last_icp_quality = .0;
 
-        std::optional<mrpt::Clock::time_point> first_ever_timestamp;
-        std::optional<mrpt::Clock::time_point> last_obs_timestamp;
-        std::optional<mrpt::Clock::time_point> last_icp_timestamp;
+    std::optional<mrpt::Clock::time_point> first_ever_timestamp;
+    std::optional<mrpt::Clock::time_point> last_obs_timestamp;
+    std::optional<mrpt::Clock::time_point> last_icp_timestamp;
 
-        /// Cache for multiple LIDAR synchronization:
-        std::map<std::string /*label*/, mrpt::obs::CObservation::Ptr> sync_obs;
+    /// Cache for multiple LIDAR synchronization:
+    std::map<std::string /*label*/, mrpt::obs::CObservation::Ptr> sync_obs;
 
-        // navstate_fuse to merge pose estimates, IMU, odom, estimate twist.
-        mola::NavStateFuse      navstate_fuse;
-        std::optional<NavState> last_motion_model_output;
+    // navstate_fuse to merge pose estimates, IMU, odom, estimate twist.
+    mola::NavStateFuse navstate_fuse;
+    std::optional<NavState> last_motion_model_output;
 
-        /// The source of "dynamic variables" in ICP pipelines:
-        mp2p_icp::ParameterSource parameter_source;
+    /// The source of "dynamic variables" in ICP pipelines:
+    mp2p_icp::ParameterSource parameter_source;
 
-        // KISS-ICP-like adaptive threshold method:
-        double adapt_thres_sigma = 0;  // 0: initial
+    // KISS-ICP-like adaptive threshold method:
+    double adapt_thres_sigma = 0;  // 0: initial
 
-        // Automatic estimation of max range:
-        std::optional<double> estimated_sensor_max_range;
-        std::optional<double> instantaneous_sensor_max_range;
+    // Automatic estimation of max range:
+    std::optional<double> estimated_sensor_max_range;
+    std::optional<double> instantaneous_sensor_max_range;
 
-        mp2p_icp_filters::GeneratorSet   obs_generators;
-        mp2p_icp_filters::FilterPipeline pc_filterAdjustTimes;
-        mp2p_icp_filters::FilterPipeline pc_filter1, pc_filter2, pc_filter3;
-        mp2p_icp_filters::GeneratorSet   local_map_generators;
-        mp2p_icp::metric_map_t::Ptr      local_map =
-            mp2p_icp::metric_map_t::Create();
-        mp2p_icp_filters::FilterPipeline obs2map_merge;
+    mp2p_icp_filters::GeneratorSet obs_generators;
+    mp2p_icp_filters::FilterPipeline pc_filterAdjustTimes;
+    mp2p_icp_filters::FilterPipeline pc_filter1, pc_filter2, pc_filter3;
+    mp2p_icp_filters::GeneratorSet local_map_generators;
+    mp2p_icp::metric_map_t::Ptr local_map = mp2p_icp::metric_map_t::Create();
+    mp2p_icp_filters::FilterPipeline obs2map_merge;
 
-        mrpt::poses::CPose3DInterpolator estimated_trajectory;
-        mrpt::maps::CSimpleMap           reconstructed_simplemap;
+    mrpt::poses::CPose3DInterpolator estimated_trajectory;
+    mrpt::maps::CSimpleMap reconstructed_simplemap;
 
-        // to check for map updates. Defined as optional<> so we enforce
-        // setting their type in the ctor:
-        std::optional<SearchablePoseList> distance_checker_local_map;
-        std::optional<SearchablePoseList> distance_checker_simplemap;
+    // to check for map updates. Defined as optional<> so we enforce
+    // setting their type in the ctor:
+    std::optional<SearchablePoseList> distance_checker_local_map;
+    std::optional<SearchablePoseList> distance_checker_simplemap;
 
-        /// See check_for_removal_every_n
-        uint32_t localmap_check_removal_counter     = 0;
-        uint32_t localmap_advertise_updates_counter = 0;
+    /// See check_for_removal_every_n
+    uint32_t localmap_check_removal_counter = 0;
+    uint32_t localmap_advertise_updates_counter = 0;
 
-        // GNSS: keep a list of recent observations to later on search the one
-        // closest to each LIDAR observation:
-        std::map<
-            mrpt::Clock::time_point,
-            std::shared_ptr<mrpt::obs::CObservationGPS>>
-            last_gnss_;
+    // GNSS: keep a list of recent observations to later on search the one
+    // closest to each LIDAR observation:
+    std::map<mrpt::Clock::time_point, std::shared_ptr<mrpt::obs::CObservationGPS>> last_gnss_;
 
-        // Visualization:
-        mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glPathGrp;
-        mrpt::opengl::CSetOfLines::Ptr   glEstimatedPath;
-        int mapUpdateCnt = std::numeric_limits<int>::max();
+    // Visualization:
+    mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glPathGrp;
+    mrpt::opengl::CSetOfLines::Ptr glEstimatedPath;
+    int mapUpdateCnt = std::numeric_limits<int>::max();
 
-        // List of old observations to be unload()'ed, to save RAM if:
-        // 1) building a simplemap, and
-        // 2) Using a dataset source that supports lazy-load:
-        mutable std::map<mrpt::Clock::time_point, mrpt::obs::CSensoryFrame::Ptr>
-            past_simplemaps_observations;
-    };
+    // List of old observations to be unload()'ed, to save RAM if:
+    // 1) building a simplemap, and
+    // 2) Using a dataset source that supports lazy-load:
+    mutable std::map<mrpt::Clock::time_point, mrpt::obs::CSensoryFrame::Ptr>
+      past_simplemaps_observations;
+  };
 
-    /** The worker thread pool with 1 thread for processing incomming
+  /** The worker thread pool with 1 thread for processing incomming
      * IMU or LIDAR observations*/
-    mrpt::WorkerThreadsPool worker_{
-        1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO,
-        "worker_lidar_odom"};
+  mrpt::WorkerThreadsPool worker_{
+    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_lidar_odom"};
 
-    MethodState        state_;
-    const MethodState& state() const { return state_; }
-    MethodState        stateCopy() const { return state_; }
+  MethodState state_;
+  const MethodState & state() const { return state_; }
+  MethodState stateCopy() const { return state_; }
 
-    struct StateUI
-    {
-        StateUI() = default;
+  struct StateUI
+  {
+    StateUI() = default;
 
-        double timestampLastUpdateUI = 0;
+    double timestampLastUpdateUI = 0;
 
-        nanogui::Window* ui            = nullptr;
-        nanogui::Label*  lbIcpQuality  = nullptr;
-        nanogui::Label*  lbSigma       = nullptr;
-        nanogui::Label*  lbSensorRange = nullptr;
-        nanogui::Label*  lbTime        = nullptr;
-        nanogui::Label*  lbSpeed       = nullptr;
-    };
+    nanogui::Window * ui = nullptr;
+    nanogui::Label * lbIcpQuality = nullptr;
+    nanogui::Label * lbSigma = nullptr;
+    nanogui::Label * lbSensorRange = nullptr;
+    nanogui::Label * lbTime = nullptr;
+    nanogui::Label * lbSpeed = nullptr;
+  };
 
-    StateUI gui_;
+  StateUI gui_;
 
-    /// The configuration used in the last call to initialize()
-    Yaml lastInitConfig_;
+  /// The configuration used in the last call to initialize()
+  Yaml lastInitConfig_;
 
-    bool                         destructor_called_ = false;
-    mutable std::mutex           is_busy_mtx_;
-    mutable std::recursive_mutex state_mtx_;
-    mutable std::mutex           state_trajectory_mtx_;
-    mutable std::recursive_mutex state_simplemap_mtx_;
+  bool destructor_called_ = false;
+  mutable std::mutex is_busy_mtx_;
+  mutable std::recursive_mutex state_mtx_;
+  mutable std::mutex state_trajectory_mtx_;
+  mutable std::recursive_mutex state_simplemap_mtx_;
 
-    /// The list of pending tasks from enqueue_request():
-    std::vector<std::function<void()>> requests_;
-    std::mutex                         requests_mtx_;
+  /// The list of pending tasks from enqueue_request():
+  std::vector<std::function<void()>> requests_;
+  std::mutex requests_mtx_;
 
-    // Process requests_(), at the spinOnce() rate.
-    void processPendingUserRequests();
+  // Process requests_(), at the spinOnce() rate.
+  void processPendingUserRequests();
 
-    void onLidar(const CObservation::Ptr& o);
-    void onLidarImpl(const CObservation::Ptr& obs);
+  void onLidar(const CObservation::Ptr & o);
+  void onLidarImpl(const CObservation::Ptr & obs);
 
-    void onIMU(const CObservation::Ptr& o);
-    void onIMUImpl(const CObservation::Ptr& o);
+  void onIMU(const CObservation::Ptr & o);
+  void onIMUImpl(const CObservation::Ptr & o);
 
-    void onWheelOdometry(const CObservation::Ptr& o);
-    void onWheelOdometryImpl(const CObservation::Ptr& o);
+  void onWheelOdometry(const CObservation::Ptr & o);
+  void onWheelOdometryImpl(const CObservation::Ptr & o);
 
-    void onGPS(const CObservation::Ptr& o);
-    void onGPSImpl(const CObservation::Ptr& o);
+  void onGPS(const CObservation::Ptr & o);
+  void onGPSImpl(const CObservation::Ptr & o);
 
-    // KISS-ICP adaptive threshold method:
-    void doUpdateAdaptiveThreshold(
-        const mrpt::poses::CPose3D& lastMotionModelError);
+  // KISS-ICP adaptive threshold method:
+  void doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastMotionModelError);
 
-    void doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObservation& o);
-    void doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t& m);
+  void doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObservation & o);
+  void doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t & m);
 
-    void updatePipelineDynamicVariables();
-    void updatePipelineTwistVariables(const mrpt::math::TTwist3D& tw);
+  void updatePipelineDynamicVariables();
+  void updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw);
 
-    void updateVisualization(const mp2p_icp::metric_map_t& currentObservation);
+  void updateVisualization(const mp2p_icp::metric_map_t & currentObservation);
 
-    void internalBuildGUI();
+  void internalBuildGUI();
 
-    void doPublishUpdatedLocalization(
-        const mrpt::Clock::time_point& this_obs_tim);
+  void doPublishUpdatedLocalization(const mrpt::Clock::time_point & this_obs_tim);
 
-    void doPublishUpdatedMap(const mrpt::Clock::time_point& this_obs_tim);
+  void doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs_tim);
 
-    void doWriteDebugTracesFile(const mrpt::Clock::time_point& this_obs_tim);
-    std::optional<std::ofstream> debug_traces_of_;
+  void doWriteDebugTracesFile(const mrpt::Clock::time_point & this_obs_tim);
+  std::optional<std::ofstream> debug_traces_of_;
 
-    void unloadPastSimplemapObservations(const size_t maxSizeUnloadQueue) const;
+  void unloadPastSimplemapObservations(const size_t maxSizeUnloadQueue) const;
 
-    void handleUnloadSinglePastObservation(CObservation::Ptr& o) const;
+  void handleUnloadSinglePastObservation(CObservation::Ptr & o) const;
 };
 
 }  // namespace mola
