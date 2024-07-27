@@ -131,6 +131,14 @@ Sensor inputs
 - ``MOLA_GPS_NAME`` (Default: ``gps``): **Sensor label** (or regex) of the observations to be treated as
   GNSS data. Used only for storage in simple-maps for post-processing (geo-referencing, etc.).
 
+Scan de-skew options
+^^^^^^^^^^^^^^^^^^^^^^
+
+- ``MOLA_IGNORE_NO_POINT_STAMPS`` (Default: ``true``): If enabled (default), input point clouds without per-point timestamps
+  will be just processed without doing any de-skew on them. If this variable is set to ``false``, an exception will be triggered
+  in such event, which can be used as a fail-safe check against missing stamps, important in high velocity scenarios.
+
+- ``MOLA_SKIP_DESKEW`` (Default: ``false``): If enabled, scan de-skew (motion compensation) will be skipped.
 
 General options
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -155,7 +163,6 @@ General options
 - ``MOLA_START_ACTIVE`` (default: ``true``): If set to ``false``, the odometry pipeline will ignore incoming observations
   until active is set to true (e.g. via the GUI).
 
-- 
 
 Simple-map generation
 ^^^^^^^^^^^^^^^^^^^^^^^^
