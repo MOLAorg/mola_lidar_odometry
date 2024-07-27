@@ -468,12 +468,18 @@ static int main_odometry()
   // Run:
   for (size_t i = firstDatasetEntry; i < lastDatasetEntry; i++) {
     // Get observations from the dataset:
-    using namespace mrpt::obs;
+    using mrpt::obs::CObservation2DRangeScan;
+    using mrpt::obs::CObservation3DRangeScan;
+    using mrpt::obs::CObservationGPS;
+    using mrpt::obs::CObservationOdometry;
+    using mrpt::obs::CObservationPointCloud;
+    using mrpt::obs::CObservationRotatingScan;
+    using mrpt::obs::CObservationVelodyneScan;
 
     const auto sf = dataset->datasetGetObservations(i);
     ASSERT_(sf);
 
-    CObservation::Ptr obs;
+    mrpt::obs::CObservation::Ptr obs;
     obs = sf->getObservationByClass<CObservationRotatingScan>();
     if (!obs) obs = sf->getObservationByClass<CObservationPointCloud>();
     if (!obs) obs = sf->getObservationByClass<CObservation3DRangeScan>();

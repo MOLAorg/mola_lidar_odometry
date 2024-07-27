@@ -37,12 +37,10 @@
 #include <mrpt/core/initializer.h>
 #include <mrpt/rtti/CObject.h>
 
-using namespace mola;
-
 MRPT_INITIALIZER(do_register_mola_lidar_odometry)
 {
   using mrpt::rtti::registerClass;
 
   // Register modules:
-  MOLA_REGISTER_MODULE(LidarOdometry);
+  MOLA_REGISTER_MODULE(mola::LidarOdometry);
 }

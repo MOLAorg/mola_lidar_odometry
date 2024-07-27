@@ -1026,7 +1026,9 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
              hasMotionModel &&
              (isFirstPoseInChecker ||
               dist_eucl_since_last > params_.local_map_updates.min_translation_between_keyframes ||
-              rot_since_last > mrpt::DEG2RAD(params_.local_map_updates.min_rotation_between_keyframes)));
+              rot_since_last >
+              mrpt::DEG2RAD(params_.local_map_updates.min_rotation_between_keyframes))
+            );
     // clang-format on
 
     if (updateLocalMap) {
@@ -1065,7 +1067,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
     // clang-format off
         updateSimpleMap =
             params_.simplemap.generate &&
-            (icpIsGood && 
+            (icpIsGood &&
              (distance_enough_sm || params_.simplemap.add_non_keyframes_too)
             );
     // clang-format on
@@ -1269,8 +1271,6 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
   ASSERT_(o);
 
   ProfilerEntry tleg(profiler_, "onIMU");
-
-  // TODO!
 }
 
 void LidarOdometry::onWheelOdometry(const CObservation::Ptr & o)
@@ -1655,12 +1655,13 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
   // GUI follow vehicle:
   // ---------------------------
-  if (params_.visualization.camera_follows_vehicle)
+  if (params_.visualization.camera_follows_vehicle) {
     updateTasks.emplace_back([this]() {
       visualizer_->update_viewport_look_at(state_.last_lidar_pose.mean.translation());
     });
+  }
 
-  if (params_.visualization.camera_rotates_with_vehicle)
+  if (params_.visualization.camera_rotates_with_vehicle) {
     updateTasks.emplace_back([this]() {
       thread_local std::optional<double> last_yaw;
 
@@ -1671,6 +1672,7 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
       visualizer_->update_viewport_camera_azimuth(yawIncr, false /*incremental*/);
     });
+  }
 
   // Local map:
   // -----------------------------
