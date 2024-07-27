@@ -1,13 +1,19 @@
 # Unit tests:
 
 find_package(mola_test_datasets QUIET)
-
 if(NOT mola_test_datasets_FOUND)
   message(STATUS "WARNING: Skipping unit tests since mola_test_datasets was not found")
   return()
 endif()
 
-message(STATUS "mola_test_datasets: ${mola_test_datasets_DIR}")
+find_package(mola_metric_maps QUIET)
+if(NOT mola_metric_maps_FOUND)
+  message(STATUS "WARNING: Skipping unit tests since mola_metric_maps was not found")
+  return()
+endif()
+
+message(STATUS "mola_test_datasets : ${mola_test_datasets_DIR}")
+message(STATUS "mola_metric_maps   : ${mola_metric_maps_DIR}")
 
 set(DEFAULT_PIPELINE_YAML ${mola_lidar_odometry_SOURCE_DIR}/pipelines/lidar3d-default.yaml)
 
@@ -31,5 +37,3 @@ set_property(
   PROPERTY ENVIRONMENT
   "LO_PIPELINE_YAML=${DEFAULT_PIPELINE_YAML};LO_TEST_RAWLOG=${KITTI00_DATASET_FILE};LO_TEST_GT_TUM=${KITTI00_GT_TUM}"
 )
-
-
