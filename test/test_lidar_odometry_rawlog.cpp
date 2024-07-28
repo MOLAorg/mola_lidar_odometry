@@ -45,9 +45,10 @@ static int main_odometry(
   // Initialize LiDAR Odometry:
   const auto cfg = mola::load_yaml_file(yamlConfigFile);
 
-  liodom.initialize(cfg);
+  // quiet for the unit tests:
+  liodom.setMinLoggingLevel(mrpt::system::LVL_ERROR);
 
-  liodom.profiler_.disable();
+  liodom.initialize(cfg);
 
   liodom.params_.simplemap.generate = false;
   liodom.params_.estimated_trajectory.output_file.clear();
@@ -90,6 +91,8 @@ static int main_odometry(
   ASSERT_EQUAL_(trajectory.size(), 3U);
   ASSERT_EQUAL_(gt.size(), trajectory.size());
 
+  int failed_tests = 0;
+
   auto itP = trajectory.cbegin();
   auto itGT = gt.cbegin();
 
@@ -101,28 +104,32 @@ static int main_odometry(
 
     EXPECT_LT(err, 0.1) << "Estimated trajectory pose mismatch:\n"
                         << " LO pose: " << pose << "\n"
-                        << " GT pose: " << gt << "\n";
+                        << " GT pose: " << gt << "\n"
+                        << ++failed_tests;
   }
+
+  if (failed_tests)
+    std::cout << "Test failed\n";
+  else
+    std::cout << "Test passed\n";
 
   return 0;
 }
 
 }  // namespace
 
+TEST(RunDataset, FromRawlog)
+{
+  const std::string yamlConfigFile = mrpt::get_env<std::string>("LO_PIPELINE_YAML");
+  const std::string rawlogFile = mrpt::get_env<std::string>("LO_TEST_RAWLOG");
+  const std::string gtTrajectory = mrpt::get_env<std::string>("LO_TEST_GT_TUM");
+
+  main_odometry(yamlConfigFile, rawlogFile, gtTrajectory);
+}
+
+// The main function running all the tests
 int main([[maybe_unused]] int argc, [[maybe_unused]] char ** argv)
 {
-  try {
-    const std::string yamlConfigFile = mrpt::get_env<std::string>("LO_PIPELINE_YAML");
-
-    const std::string rawlogFile = mrpt::get_env<std::string>("LO_TEST_RAWLOG");
-
-    const std::string gtTrajectory = mrpt::get_env<std::string>("LO_TEST_GT_TUM");
-
-    main_odometry(yamlConfigFile, rawlogFile, gtTrajectory);
-
-    return 0;
-  } catch (const std::exception & e) {
-    mola::pretty_print_exception(e, "Exit due to exception:");
-    return 1;
-  }
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

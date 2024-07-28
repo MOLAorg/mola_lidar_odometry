@@ -98,9 +98,9 @@ params:
         tf.roll: ${MOLA_VEHICLE_MODEL_ROLL|90.0} # deg
 
   # Profile the main steps of the odometry pipeline:
-  pipeline_profiler_enabled: true
+  pipeline_profiler_enabled: ${MOLA_PROFILER|true}
   # Profile the internal steps of the ICP implementation:
-  icp_profiler_enabled: true
+  icp_profiler_enabled: ${MOLA_PROFILER|true}
   
   # If set to false, the odometry pipeline will ignore incoming observations
   # until active is set to true (e.g. via the GUI).
