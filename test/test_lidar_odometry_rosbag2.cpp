@@ -22,6 +22,7 @@
 // -----------------------------------------------------------------------------
 
 #include <gtest/gtest.h>
+#include <mola_input_rosbag2/Rosbag2Dataset.h>
 #include <mola_kernel/interfaces/OfflineDatasetSource.h>
 #include <mola_kernel/pretty_print_exception.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
@@ -36,9 +37,40 @@
 namespace
 {
 
+std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
+  const std::string & rosbag2file, const std::string & lidarTopic,
+  const mrpt::system::VerbosityLevel logLevel)
+{
+  auto o = std::make_shared<mola::Rosbag2Dataset>();
+  o->setMinLoggingLevel(logLevel);
+
+  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+    R""""(
+    params:
+      rosbag_filename: '%s'
+      base_link_frame_id: 'base_footprint'
+      sensors:
+        - topic: '%s'
+          type: CObservationPointCloud
+          # If present, this will override whatever /tf tells about the sensor pose:
+          fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg'
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
+        - topic: ${MOLA_GNSS_TOPIC|'/gps'}
+          sensorLabel: 'gps'
+          type: CObservationGPS
+          fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg'
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
+)"""",
+    rosbag2file.c_str(), lidarTopic.c_str())));
+
+  o->initialize(cfg);
+
+  return o;
+}
+
 static int main_odometry(
-  const std::string & yamlConfigFile, const std::string & rawlogFile,
-  const std::string & gtTrajectory)
+  const std::string & yamlConfigFile, const std::string & rosbag2File,
+  const std::string & lidarTopic, const std::string & gtTrajectory)
 {
   mola::LidarOdometry liodom;
 
@@ -53,25 +85,30 @@ static int main_odometry(
   liodom.params_.simplemap.generate = false;
   liodom.params_.estimated_trajectory.output_file.clear();
 
-  liodom.params_.lidar_sensor_labels.assign(1, std::regex("lidar"));
+  liodom.params_.lidar_sensor_labels.assign(1, std::regex(lidarTopic));
 
   // dataset input:
-  mrpt::obs::CRawlog dataset;
-  bool datasetReadOk = dataset.loadFromRawLogFile(rawlogFile);
-  ASSERT_(datasetReadOk);
-  ASSERT_GT_(dataset.size(), 2);
+  std::shared_ptr<mola::OfflineDatasetSource> dataset;
+  dataset = dataset_from_rosbag2(rosbag2File, lidarTopic, mrpt::system::LVL_ERROR);
 
   // Run:
-  for (size_t i = 0; i < dataset.size(); i++) {
+  for (size_t i = 0; i < dataset->datasetSize(); i++) {
     // Get observations from the dataset:
-    using namespace mrpt::obs;
+    using mrpt::obs::CObservation2DRangeScan;
+    using mrpt::obs::CObservation3DRangeScan;
+    using mrpt::obs::CObservationGPS;
+    using mrpt::obs::CObservationOdometry;
+    using mrpt::obs::CObservationPointCloud;
+    using mrpt::obs::CObservationRotatingScan;
+    using mrpt::obs::CObservationVelodyneScan;
 
-    mrpt::obs::CSensoryFrame sf;
-    sf.insert(dataset.getAsObservation(i));
+    const auto sf = dataset->datasetGetObservations(i);
+    ASSERT_(sf);
 
-    CObservation::Ptr obs;
-    if (!obs) obs = sf.getObservationByClass<CObservationPointCloud>();
-    if (!obs) obs = sf.getObservationByClass<CObservationOdometry>();
+    mrpt::obs::CObservation::Ptr obs;
+    obs = sf->getObservationByClass<CObservationPointCloud>();
+    if (!obs) obs = sf->getObservationByClass<CObservationOdometry>();
+
     if (!obs) continue;
 
     // Send it to the odometry pipeline:
@@ -84,11 +121,12 @@ static int main_odometry(
 
   const mrpt::poses::CPose3DInterpolator trajectory = liodom.estimatedTrajectory();
 
+  trajectory.saveToTextFile_TUM("/tmp/gt.tum");
+
   mrpt::poses::CPose3DInterpolator gt;
   const bool gtLoadOk = gt.loadFromTextFile_TUM(gtTrajectory);
   ASSERT_(gtLoadOk);
 
-  ASSERT_EQUAL_(trajectory.size(), 3U);
   ASSERT_EQUAL_(gt.size(), trajectory.size());
 
   auto itP = trajectory.cbegin();
@@ -110,13 +148,14 @@ static int main_odometry(
 
 }  // namespace
 
-TEST(RunDataset, FromRawlog)
+TEST(RunDataset, FromRosbag2)
 {
   const std::string yamlConfigFile = mrpt::get_env<std::string>("LO_PIPELINE_YAML");
-  const std::string rawlogFile = mrpt::get_env<std::string>("LO_TEST_RAWLOG");
+  const std::string rosbag2File = mrpt::get_env<std::string>("LO_TEST_ROSBAG2");
+  const std::string lidarTopic = mrpt::get_env<std::string>("LO_TEST_LIDAR_TOPIC");
   const std::string gtTrajectory = mrpt::get_env<std::string>("LO_TEST_GT_TUM");
 
-  main_odometry(yamlConfigFile, rawlogFile, gtTrajectory);
+  main_odometry(yamlConfigFile, rosbag2File, lidarTopic, gtTrajectory);
 }
 
 // The main function running all the tests
