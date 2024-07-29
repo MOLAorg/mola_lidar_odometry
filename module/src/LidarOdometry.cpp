@@ -1174,6 +1174,8 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
     tle3.stop();
 
+    state_.local_map_needs_viz_update = true;
+
   }  // end done add a new KF to local map
 
   // Optional build simplemap:
@@ -1711,10 +1713,13 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
   // Local map:
   // -----------------------------
-  if (state_.mapUpdateCnt++ > params_.visualization.map_update_decimation) {
+  if (
+    (state_.mapUpdateCnt++ > params_.visualization.map_update_decimation) &&
+    state_.local_map_needs_viz_update) {
     ProfilerEntry tle2(profiler_, "updateVisualization.update_local_map");
 
     state_.mapUpdateCnt = 0;
+    state_.local_map_needs_viz_update = false;
 
     mp2p_icp::render_params_t rp;
     rp.points.allLayers.pointSize = params_.visualization.local_map_point_size;

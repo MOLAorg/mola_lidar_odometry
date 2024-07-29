@@ -517,6 +517,9 @@ private:
     uint32_t localmap_check_removal_counter = 0;
     uint32_t localmap_advertise_updates_counter = 0;
 
+    /// To update the map in the viz only if really needed
+    bool local_map_needs_viz_update = true;
+
     // GNSS: keep a list of recent observations to later on search the one
     // closest to each LIDAR observation:
     std::map<mrpt::Clock::time_point, std::shared_ptr<mrpt::obs::CObservationGPS>> last_gnss_;
