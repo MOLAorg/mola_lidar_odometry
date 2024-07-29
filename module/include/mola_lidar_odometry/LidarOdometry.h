@@ -33,6 +33,7 @@
 #include <mola_kernel/interfaces/FrontEndBase.h>
 #include <mola_kernel/interfaces/LocalizationSourceBase.h>
 #include <mola_kernel/interfaces/MapSourceBase.h>
+#include <mola_kernel/interfaces/Relocalization.h>
 
 // Other packages:
 #include <mola_navstate_fuse/NavStateFuse.h>
@@ -68,7 +69,10 @@ namespace mola
 {
 /** LIDAR-inertial odometry based on ICP against a local metric map model.
  */
-class LidarOdometry : public FrontEndBase, public LocalizationSourceBase, public MapSourceBase
+class LidarOdometry : public mola::FrontEndBase,
+                      public mola::LocalizationSourceBase,
+                      public mola::MapSourceBase,
+                      public mola::Relocalization
 {
   DEFINE_MRPT_OBJECT(LidarOdometry, mola)
 
@@ -93,6 +97,12 @@ public:
   {
     RegularOdometry = 0,
     NoMotionModel
+  };
+
+  enum class InitLocalization : uint8_t
+  {
+    FixedPose = 0,
+    FromGNSS
   };
 
   struct Parameters : public mp2p_icp::Parameterizable
@@ -345,6 +355,20 @@ public:
 
     TraceOutputOptions debug_traces;
 
+    struct InitialLocalizationOptions
+    {
+      InitialLocalizationOptions() = default;
+
+      bool enabled = false;
+      InitLocalization method = InitLocalization::FixedPose;
+
+      mrpt::math::TPose3D fixed_initial_pose;
+
+      void initialize(const Yaml & c);
+    };
+
+    InitialLocalizationOptions initial_localization;
+
     bool start_active = true;
 
     uint32_t max_worker_thread_queue_before_drop = 500;
@@ -381,6 +405,22 @@ public:
 
   /** @} */
 
+  /** @name Virtual interface of Relocalization
+     *{ */
+
+  /** Re-localize near this pose, including uncetainty.
+     *  \param[in] pose The pose, in the local map frame.
+     *  There is no return value from this method.
+     */
+  void relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussian & p) override;
+
+  /** Re-localize with the next incoming GNSS message.
+     *  There is no return value from this method.
+     */
+  void relocalize_from_gnss() override;
+
+  /** @} */
+
 private:
   const std::string NAVSTATE_LIODOM_FRAME = "liodom";
 
@@ -411,6 +451,9 @@ private:
   {
     bool initialized = false;
     bool fatal_error = false;
+
+    // will be true after the first incoming LiDAR frame and re-localization is enabled and run
+    bool initial_localization_done = false;
 
     /// if false, input observations will be just ignored.
     /// Useful for real-time execution on robots.

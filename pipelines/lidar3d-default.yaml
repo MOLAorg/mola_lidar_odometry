@@ -134,6 +134,13 @@ navstate_fuse_params:
   max_rmse: 2 # max inconsistencies to discard solution
 
 
+# Whether to use a re-localization method at start up:
+initial_localization:
+  enabled: ${MOLA_INITIAL_LOCALIZATION_ENABLED|false}
+  method: 'InitLocalization::FixedPose'
+  fixed_initial_pose: ['${MOLA_INITIAL_X|0.0}', '${MOLA_INITIAL_Y|0.0}', '${MOLA_INITIAL_Z|0.0}',  '${MOLA_INITIAL_YAW|0.0}', '${MOLA_INITIAL_PITCH|0.0}', '${MOLA_INITIAL_ROLL|0.0}']
+
+
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
 # ICP settings can be included from an external YAML file if desired, or defined
 # in this same YAML for self-completeness:

@@ -217,6 +217,21 @@ void LidarOdometry::Parameters::TraceOutputOptions::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(output_file, std::string);
 }
 
+void LidarOdometry::Parameters::InitialLocalizationOptions::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(enabled, bool);
+  // TODO(jlbc): define enum "method"
+
+  if (cfg.has("fixed_initial_pose")) {
+    ASSERT_(
+      cfg["fixed_initial_pose"].isSequence() && cfg["fixed_initial_pose"].asSequence().size() == 6);
+
+    auto & p = fixed_initial_pose;
+    const auto seq = cfg["fixed_initial_pose"].asSequenceRange();
+    for (size_t i = 0; i < 6; i++) p[i] = seq.at(i).as<double>();
+  }
+}
+
 void LidarOdometry::initialize_frontend(const Yaml & c)
 {
   MRPT_TRY_START
@@ -300,6 +315,9 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     params_.estimated_trajectory.initialize(cfg["estimated_trajectory"]);
 
   if (cfg.has("debug_traces")) params_.debug_traces.initialize(cfg["debug_traces"]);
+
+  if (c.has("initial_localization"))
+    params_.initial_localization.initialize(c["initial_localization"]);
 
   ENSURE_YAML_ENTRY_EXISTS(c, "navstate_fuse_params");
   state_.navstate_fuse.setMinLoggingLevel(this->getMinLoggingLevel());
@@ -443,6 +461,7 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     ASSERT_(loadOk);
   }
 
+  // end of initialization:
   state_.initialized = true;
   state_.active = params_.start_active;
 
@@ -732,6 +751,23 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
                               << "` could not be converted into a "
                                  "pointcloud. Doing nothing.");
     return;
+  }
+
+  // Handle initial localization options:
+  if (params_.initial_localization.enabled && !state_.initial_localization_done) {
+    mrpt::poses::CPose3DPDFGaussian initPose;
+    initPose.mean = mrpt::poses::CPose3D(params_.initial_localization.fixed_initial_pose);
+    initPose.cov.setDiagonal(1e-12);
+
+    // Fake an evolution to be able to have an initial velocity estimation:
+    const auto t1 = mrpt::Clock::fromDouble(mrpt::Clock::toDouble(this_obs_tim) - 0.2);
+    const auto t2 = mrpt::Clock::fromDouble(mrpt::Clock::toDouble(this_obs_tim) - 0.1);
+    state_.navstate_fuse.fuse_pose(t1, initPose, NAVSTATE_LIODOM_FRAME);
+    state_.navstate_fuse.fuse_pose(t2, initPose, NAVSTATE_LIODOM_FRAME);
+
+    MRPT_LOG_INFO_STREAM("Initial re-localization done with pose: " << initPose.mean);
+
+    state_.initial_localization_done = true;
   }
 
   // local map: used for LIDAR odometry:
@@ -2095,6 +2131,16 @@ void LidarOdometry::enqueue_request(const std::function<void()> & userRequest)
 {
   auto lck = mrpt::lockHelper(requests_mtx_);
   requests_.push_back(userRequest);
+}
+
+void LidarOdometry::relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussian & p)
+{
+  //TODO!
+}
+
+void LidarOdometry::relocalize_from_gnss()
+{
+  //TODO!
 }
 
 void LidarOdometry::processPendingUserRequests()
