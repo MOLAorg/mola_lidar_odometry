@@ -104,9 +104,8 @@ LidarOdometry::~LidarOdometry()
       saveReconstructedMapToFile();
 
     if (params_.estimated_trajectory.save_to_file) saveEstimatedTrajectoryToFile();
-  } catch (const std::exception & e) {
-    std::cerr << "[~LidarOdometry] Exception: " << e.what();
   }
+  catch (const std::exception & e) { std::cerr << "[~LidarOdometry] Exception: " << e.what(); }
 }
 
 namespace
@@ -2133,6 +2132,7 @@ void LidarOdometry::enqueue_request(const std::function<void()> & userRequest)
   requests_.push_back(userRequest);
 }
 
+#ifdef HAVE_MOLA_KERNEL_RELOCALIZE_API
 void LidarOdometry::relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussian & p)
 {
   //TODO!
@@ -2142,6 +2142,7 @@ void LidarOdometry::relocalize_from_gnss()
 {
   //TODO!
 }
+#endif
 
 void LidarOdometry::processPendingUserRequests()
 {
