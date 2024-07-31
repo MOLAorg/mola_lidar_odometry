@@ -27,6 +27,12 @@ See: https://docs.mola-slam.org/
 | ROS 2 Jazzy @ u24.04 | [![Build Status](https://build.ros2.org/job/Jdev__mola_lidar_odometry__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Jdev__mola_lidar_odometry__ubuntu_noble_amd64/) | [![Build Status](https://build.ros2.org/job/Jbin_uN64__mola_lidar_odometry__ubuntu_noble_amd64__binary/badge/icon)](https://build.ros2.org/job/Jbin_uN64__mola_lidar_odometry__ubuntu_noble_amd64__binary/) | [![Version](https://img.shields.io/ros/v/jazzy/mola_lidar_odometry)](https://index.ros.org/search/?term=mola_lidar_odometry) | 
 | ROS 2 Rolling (u24.04) | [![Build Status](https://build.ros2.org/job/Rdev__mola_lidar_odometry__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Rdev__mola_lidar_odometry__ubuntu_noble_amd64/) | [![Build Status](https://build.ros2.org/job/Rbin_uN64__mola_lidar_odometry__ubuntu_noble_amd64__binary/badge/icon)](https://build.ros2.org/job/Rbin_uN64__mola_lidar_odometry__ubuntu_noble_amd64__binary/) | [![Version](https://img.shields.io/ros/v/rolling/mola_lidar_odometry)](https://index.ros.org/search/?term=mola_lidar_odometry) |
 
+## Citation
+
+    José Luis Blanco-Claraco, A flexible framework for accurate LiDAR odometry, map manipulation, and localization, 
+    ArXiV 2024.
+    https://arxiv.org/abs/2407.20465
+
 
 ## License
 Copyright (C) 2018-2024 Jose Luis Blanco <jlblanco@ual.es>, University of Almeria

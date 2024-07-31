@@ -130,5 +130,5 @@ How to cite it
 The ``mola_lidar_odometry`` system was presented in :cite:`blanco2024mola_lo`:
 
   J.L. Blanco,
-  `A flexible framework for accurate LiDAR odometry, map manipulation, and localization <TBD>`_, in
+  `A flexible framework for accurate LiDAR odometry, map manipulation, and localization <https://arxiv.org/abs/2407.20465>`_, in
   ArXiV, 2024.
