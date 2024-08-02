@@ -26,7 +26,7 @@ params:
 
   # Parameters for max sensor range automatic estimation:
   max_sensor_range_filter_coefficient: 0.95
-  absolute_minimum_sensor_range: 5.0
+  absolute_minimum_sensor_range: ${MOLA_ABS_MIN_SENSOR_RANGE|5.0}
 
   # If enabled, vehicle twist will be optimized during ICP
   # enabling better and more robust odometry in high dynamics motion.

@@ -125,6 +125,9 @@ Sensor inputs
 - ``MOLA_LIDAR_MAX_TIME_OFFSET`` (Default: ``0.1`` [s]): Maximum delay between different LiDAR observations to handle them together.
   Note that deskewing takes into account the exact delays between clouds from different LiDARs.
 
+- ``MOLA_ABS_MIN_SENSOR_RANGE`` (Default: ``5.0`` [m]): Absolute minimum for the otherwise automatically 
+  detected maximum sensor range.
+
 - ``MOLA_ODOMETRY_NAME`` (Default: ``odometry``): **Sensor label** (or regex) of the observations
   with wheels odometry, if it exists.
 
