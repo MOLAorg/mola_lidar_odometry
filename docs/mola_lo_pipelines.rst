@@ -163,6 +163,10 @@ General options
 
 - ``MOLA_SIGMA_MIN_MOTION`` (Default: ``0.10`` [m]): Absolute minimum adaptive "sigma" threshold (refer to the paper).
 
+
+- ``MOLA_ADAPT_THRESHOLD_ALPHA`` (Default: ``0.9``): Alpha parameter of the IIR low-pass filter for adaptive threshold 
+  proportional controller (refer to the paper).
+
 - ``MOLA_START_ACTIVE`` (default: ``true``): If set to ``false``, the odometry pipeline will ignore incoming observations
   until active is set to true (e.g. via the GUI).
 

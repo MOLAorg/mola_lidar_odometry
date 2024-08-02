@@ -57,7 +57,7 @@ params:
     initial_sigma: 2.0
     min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}
     kp: 2.0
-    alpha: 0.90
+    alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.90}
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
