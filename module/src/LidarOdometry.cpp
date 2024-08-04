@@ -104,6 +104,8 @@ LidarOdometry::~LidarOdometry()
       saveReconstructedMapToFile();
 
     if (params_.estimated_trajectory.save_to_file) saveEstimatedTrajectoryToFile();
+  } catch (const std::exception & e) {
+    std::cerr << "[~LidarOdometry] Exception: " << e.what();
   }
   catch (const std::exception & e) { std::cerr << "[~LidarOdometry] Exception: " << e.what(); }
 }
@@ -231,6 +233,13 @@ void LidarOdometry::Parameters::InitialLocalizationOptions::initialize(const Yam
   }
 }
 
+void LidarOdometry::Parameters::ObservationValidityChecks::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(enabled, bool);
+  YAML_LOAD_OPT(check_layer_name, std::string);
+  YAML_LOAD_OPT(minimum_point_count, uint32_t);
+}
+
 void LidarOdometry::initialize_frontend(const Yaml & c)
 {
   MRPT_TRY_START
@@ -314,6 +323,9 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     params_.estimated_trajectory.initialize(cfg["estimated_trajectory"]);
 
   if (cfg.has("debug_traces")) params_.debug_traces.initialize(cfg["debug_traces"]);
+
+  if (cfg.has("observation_validity_checks"))
+    params_.observation_validity_checks.initialize(cfg["observation_validity_checks"]);
 
   if (c.has("initial_localization"))
     params_.initial_localization.initialize(c["initial_localization"]);
@@ -729,6 +741,15 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
   // Update sensor max range from the obs map layers:
   doUpdateEstimatedMaxSensorRange(*observation);
+
+  // check observation validity:
+  if (bool obsValid = doCheckIsValidObservation(*observation); !obsValid) {
+    MRPT_LOG_WARN_FMT(
+      "Observation discarded as non-valid for pathStep=%zu, timestamp=%s UTC",
+      state_.estimated_trajectory.size(), mrpt::system::dateTimeToString(this_obs_tim).c_str());
+
+    return;
+  }
 
   // Store for next step:
   std::optional<mrpt::Clock::time_point> last_obs_tim;
@@ -1514,6 +1535,29 @@ void LidarOdometry::doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t
   MRPT_LOG_DEBUG(
     "Estimated sensor max range could NOT be updated, no points layer "
     "found in observation metric_map_t");
+}
+
+bool LidarOdometry::doCheckIsValidObservation(const mp2p_icp::metric_map_t & m)
+{
+  if (!params_.observation_validity_checks.enabled) return true;  // it's valid
+
+  auto it = m.layers.find(params_.observation_validity_checks.check_layer_name);
+  ASSERTMSG_(
+    it != m.layers.end(),
+    mrpt::format(
+      "Observation validity check expected observation layer '%s' but did not exist",
+      params_.observation_validity_checks.check_layer_name.c_str()));
+
+  auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(it->second);
+  ASSERTMSG_(
+    pts, mrpt::format(
+           "Observation validity check expected observation layer '%s' of type CPointsMap",
+           params_.observation_validity_checks.check_layer_name.c_str()));
+
+  bool valid = pts->size() > params_.observation_validity_checks.minimum_point_count;
+
+  MRPT_LOG_DEBUG_STREAM("Observation validity check: layer size=" << pts->size());
+  return valid;
 }
 
 void LidarOdometry::updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw)

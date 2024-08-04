@@ -110,6 +110,14 @@ params:
   debug_traces:
     save_to_file: '${MOLA_SAVE_DEBUG_TRACES|false}'
     output_file:  '${MOLA_DEBUG_TRACES_FILE|mola-lo-traces.csv}'
+  
+  # Optional filters to discard incomplete 3D scans from 
+  # faulty network, missing UDP packets, etc.
+  observation_validity_checks:
+    enabled: '${MOLA_ENABLE_OBS_VALIDITY_FILTER|false}'
+    check_layer_name: 'raw'
+    minimum_point_count: '${MOLA_OBS_VALIDITY_MIN_POINTS|1000}'
+
 
 # Parameter block for the "navstate_fuse" module in charge of merging and 
 # extrapolating pose estimations, odometry, IMU, etc.

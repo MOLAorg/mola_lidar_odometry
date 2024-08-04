@@ -258,6 +258,7 @@ public:
     {
       bool enabled = true;
       double initial_sigma = 0.5;
+      double maximum_sigma = 3.0;
       double min_motion = 0.10;
       double kp = 5.0;
       double alpha = 0.99;
@@ -376,6 +377,19 @@ public:
     };
 
     InitialLocalizationOptions initial_localization;
+
+    struct ObservationValidityChecks
+    {
+      ObservationValidityChecks() = default;
+
+      bool enabled = false;
+      std::string check_layer_name = "raw";
+      uint32_t minimum_point_count = 1000;
+
+      void initialize(const Yaml & c);
+    };
+
+    ObservationValidityChecks observation_validity_checks;
 
     bool start_active = true;
 
@@ -594,6 +608,9 @@ private:
 
   void doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObservation & o);
   void doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t & m);
+
+  /// Returns false if the scan/observation is not valid:
+  bool doCheckIsValidObservation(const mp2p_icp::metric_map_t & m);
 
   void updatePipelineDynamicVariables();
   void updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw);
