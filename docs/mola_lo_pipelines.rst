@@ -128,6 +128,9 @@ Sensor inputs
 - ``MOLA_ABS_MIN_SENSOR_RANGE`` (Default: ``5.0`` [m]): Absolute minimum for the otherwise automatically 
   detected maximum sensor range.
 
+- ``MOLA_MINIMUM_RANGE_FILTER`` (Default: 3% of max sensor range). Minimum range for 3D points. This removes points from 
+  the robot/vehicle itself.
+
 - ``MOLA_ODOMETRY_NAME`` (Default: ``odometry``): **Sensor label** (or regex) of the observations
   with wheels odometry, if it exists.
 

@@ -42,7 +42,7 @@ params:
 
     # Idea: don't integrate scans with a high rotational speed since they are probably not correctly deskewed:
     min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
-    min_rotation_between_keyframes: (15 + sqrt(wx^2+wy^2+wz^2)*500 ) # [deg]  
+    min_rotation_between_keyframes: (15 + sqrt(wx^2+wy^2+wz^2)*500 ) # [deg]
 
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
     max_distance_to_keep_keyframes: 'max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)' # [m]
@@ -70,7 +70,6 @@ params:
     
     min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}  # m
     min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|15 + sqrt(wx^2+wy^2+wz^2)*500}  # deg
-
 
     generate_lazy_load_scan_files: ${MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD|false} # If enabled, a directory will be create alongside the .simplemap and pointclouds will be externally serialized there.
     add_non_keyframes_too: ${MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES|false}  # If enabled, all frames are stored in the simplemap, but non-keyframes will be without associated observations.
@@ -231,7 +230,7 @@ localmap_generator:
         creationOpts:
           voxel_size: '$f{max(0.5, min(1.0, 0.015*ESTIMATED_SENSOR_MAX_RANGE))}' # [m]
         insertOpts:
-          max_points_per_voxel: 20
+          max_points_per_voxel: ${MOLA_LOCALMAP_MAX_POINTS_PER_VOXEL|20}
           min_distance_between_points: 0  # [m]
           # if !=0, remove voxels farther (L1) than the current observation insert point
           remove_voxels_farther_than: '$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
@@ -297,7 +296,7 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: 'decimated_for_map_raw'
       output_layer_between: 'decimated_for_map_by_range'
-      range_min: max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)
+      range_min: '${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}'
       range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
 
   # Remove close ceilings (problematic in most cases!)
