@@ -107,7 +107,6 @@ LidarOdometry::~LidarOdometry()
   } catch (const std::exception & e) {
     std::cerr << "[~LidarOdometry] Exception: " << e.what();
   }
-  catch (const std::exception & e) { std::cerr << "[~LidarOdometry] Exception: " << e.what(); }
 }
 
 namespace
@@ -129,6 +128,7 @@ void LidarOdometry::Parameters::AdaptiveThreshold::initialize(const Yaml & cfg)
   YAML_LOAD_REQ(min_motion, double);
   YAML_LOAD_REQ(kp, double);
   YAML_LOAD_REQ(alpha, double);
+  YAML_LOAD_OPT(maximum_sigma, double);
 }
 
 void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
@@ -1469,7 +1469,9 @@ void LidarOdometry::doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastM
 
   state_.adapt_thres_sigma = ALPHA * state_.adapt_thres_sigma + (1.0 - ALPHA) * new_sigma;
 
-  mrpt::keep_max(state_.adapt_thres_sigma, params_.adaptive_threshold.min_motion);
+  mrpt::saturate(
+    state_.adapt_thres_sigma, params_.adaptive_threshold.min_motion,
+    params_.adaptive_threshold.maximum_sigma);
 
   MRPT_LOG_DEBUG_FMT(
     "model_error: %f  new_sigma: %f ICP q=%f sigma=%f", model_error, new_sigma,
