@@ -46,7 +46,7 @@ modules:
       # Whenever a MOLA odometry/SLAM system publishes a new pose estimate
       # it will be forwarded to /tf as a transformation between: 
       # `reference_frame` -> `base_link_frame`
-      base_link_frame: base_link
+      base_link_frame: '${MOLA_TF_BASE_FOOTPRINT|base_link}'
       odom_frame: odom
       
       # If true, the /tf 'odom_frame'->'base_link_frame' will be forwarded to MOLA as CObservationOdometry.

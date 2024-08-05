@@ -221,7 +221,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
     R""""(
     params:
       rosbag_filename: '%s'
-      base_link_frame_id: 'base_footprint'
+      base_link_frame_id: 'base_link'
       sensors:
         - topic: '%s'
           type: CObservationPointCloud

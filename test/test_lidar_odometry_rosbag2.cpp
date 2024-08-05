@@ -36,7 +36,6 @@
 
 namespace
 {
-
 std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
   const std::string & rosbag2file, const std::string & lidarTopic,
   const mrpt::system::VerbosityLevel logLevel)
@@ -48,7 +47,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
     R""""(
     params:
       rosbag_filename: '%s'
-      base_link_frame_id: 'base_footprint'
+      base_link_frame_id: 'base_link'
       sensors:
         - topic: '%s'
           type: CObservationPointCloud

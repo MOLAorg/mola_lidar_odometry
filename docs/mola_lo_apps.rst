@@ -133,8 +133,27 @@ xxx
 
 Write me: flag to use fixed sensor pose.
 
+
+Environment variables for ``mola-lo-gui-rosbag2``:
+
+.. dropdown:: See complete mola launch YAML listing
+    :icon: code-review
+
+    File: `mola-cli-launchs/lidar_odometry_from_rosbag2.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/mola-cli-launchs/lidar_odometry_from_rosbag2.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/mola-cli-launchs/lidar_odometry_from_rosbag2.yaml
+       :language: yaml
+
 |
 
+- ``MOLA_TIME_WARP`` (Default: 1.0): Time wrapping for rosbag replay.
+
+- ``MOLA_DATASET_START_PAUSED`` (Default: false): Start with replay paused. Then can be resumed from the GUI.
+
+- ``MOLA_TF_BASE_FOOTPRINT`` (Default: ``base_link``): Set to something else if your ``/tf`` tree does not have a ``base_link`` frame.
+
+
+|
 
 .. _mola-gui-apps-common-env-vars:
 
