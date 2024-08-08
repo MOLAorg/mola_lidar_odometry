@@ -1,7 +1,7 @@
 .. _mola_lidar_odometry:
 
 ============================
-LiDAR odometry
+3D LiDAR odometry
 ============================
 
 :octicon:`mark-github` `MOLA LiDAR odometry (MOLA-LO) <https://github.com/MOLAorg/mola_lidar_odometry/>`_ is
