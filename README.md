@@ -5,7 +5,7 @@ compatible with ROS 2.
 ## Contents
 This repository provides a C++ library `mola_lidar_odometry` implementing LIDAR
 odometry. Sensor input is provided via MOLA components, and ROS 2 example launch files are
-provided in [launch](launch/).
+provided in [ros2-launchs](ros2-launchs/).
 
 A CLI interface `mola-lidar-odometry-cli` is also provided for running on
 offline datasets.
