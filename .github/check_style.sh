@@ -14,7 +14,7 @@ set +e
 set +x
 
 DIRS_IN="apps module test"
-DIRS_OUT=""
+DIRS_OUT="docs"
 LANGS=cpp
 FORMAT_CODE_BIN=".github/clang_git_format/format_code.py"
 
