@@ -42,7 +42,7 @@ The labeled parts in the GUI are:
 
 1. The **main space** of the "main" GUI window: used to render the latest 3D local map, together with the incoming raw scan,
    the 3D vehicle model (if provided), etc. Use the `same mouse and keyboard shortcuts <https://docs.mrpt.org/reference/latest/tutorial-3d-navigation-cheatsheet.html>`_
-   than in any MRPT 3D window to rotate the view, pan and zoon, etc. The rest of small windows floating in this large windows are
+   than in any MRPT 3D window to rotate the view, pan and zoom, etc. The rest of small windows floating in this large windows are
    dubbed **"subwindows"**.
 2. **Dataset source UI**: All dataset sources (offline datasets, rawlog, rosbag2, etc.) offer a common API that can be operated
    through these controls to pause or resume the publication of observations to the LiDAR front-end or to change the playback speed.
