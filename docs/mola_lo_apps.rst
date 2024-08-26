@@ -129,12 +129,36 @@ xxx
 
 1.5. mola-lo-gui-rosbag2
 ------------------------------
-xxx
+This command will open the mola_viz GUI and build a map from ROS 2 bags:
 
-Write me: flag to use fixed sensor pose.
+     .. code-block:: bash
+
+        # Usage for a single bag file:
+        MOLA_LIDAR_TOPIC=/ouster/points \
+        mola-lo-gui-rosbag2 /path/to/your/dataset.mcap
+
+        # Usage for a directory with split bag files:
+        # Note: in this case, the directory is expected to contain a metadata.yaml to determine "rosbag_storage_id".
+        MOLA_LIDAR_TOPIC=/ouster/points \
+        mola-lo-gui-rosbag2 /path/to/your/dataset_directory/
 
 
-Environment variables for ``mola-lo-gui-rosbag2``:
+.. dropdown:: Does your bag lack ``/tf``?
+    :icon: alert
+
+    By default, MOLA will try to use ``tf2`` messages in the rosbag to find out the relative pose
+    of the LiDAR sensor with respect to the vehicle frame (default: ``base_link``). If your system **does not** have ``tf`` data
+    (for example, if you only launched the LiDAR driver node) you must then set the environment variable ``MOLA_USE_FIXED_LIDAR_POSE=true``
+    to use the default (identity) sensor pose on the vehicle. So, launch it like: 
+
+    .. code-block:: bash
+
+        MOLA_USE_FIXED_LIDAR_POSE=true \
+        MOLA_LIDAR_TOPIC=/ouster/points \
+        mola-lo-gui-rosbag2 /path/to/your/dataset.mcap
+
+
+Environment variables specific for ``mola-lo-gui-rosbag2``:
 
 .. dropdown:: See complete mola launch YAML listing
     :icon: code-review
