@@ -2,6 +2,11 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Support input dataset directories for split bags
+* Contributors: Jose Luis Blanco-Claraco
+
 0.3.1 (2024-08-22)
 ------------------
 * add missing exec dependencies to package.xml for mola-lo-* commands.
