@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.2 (2024-08-26)
+------------------
 * Support input dataset directories for split bags
 * Contributors: Jose Luis Blanco-Claraco
 
