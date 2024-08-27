@@ -19,8 +19,10 @@
   <depend>mola_kernel</depend>
   <depend>mp2p_icp</depend>
   <depend>mola_navstate_fuse</depend>
-  <depend>mrpt2</depend>
   <depend>mola_pose_list</depend>
+
+  <depend>mrpt_libtclap</depend>
+  <depend>mrpt_libmaps</depend>
 
   <!-- dataset input sources (all are actually optional) -->
   <depend>mola_input_kitti_dataset</depend>
