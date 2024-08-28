@@ -108,6 +108,7 @@ Unless said otherwise, all variables are valid for all the pipelines described a
    `mola-cli launch file <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_.
    Those variables are documented :ref:`here <mola-gui-apps-common-env-vars>`.
 
+.. _mola_lo_pipeline_sensor_inputs:
 
 Sensor inputs
 ^^^^^^^^^^^^^
