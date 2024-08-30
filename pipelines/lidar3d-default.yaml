@@ -42,7 +42,7 @@ params:
 
     # Idea: don't integrate scans with a high rotational speed since they are probably not correctly deskewed:
     min_translation_between_keyframes: '${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}' # [m]
-    min_rotation_between_keyframes: (15 + sqrt(wx^2+wy^2+wz^2)*500 ) # [deg]
+    min_rotation_between_keyframes: '${MOLA_MIN_ROT_BETWEEN_MAP_UPDATES|(15 + sqrt(wx^2+wy^2+wz^2)*500 )}' # [deg]
 
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
     max_distance_to_keep_keyframes: 'max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)' # [m]
@@ -125,7 +125,7 @@ navstate_fuse_params:
   # Maximum time since last observation to consider the validity of the velocity model:
   # (KITTI360 test_3 has some blackouts >=1.0 seconds while angular acceleration is high, so 
   #  this threshold must be < 1.0 s for that dataset)
-  max_time_to_use_velocity_model: 0.75 # [s]
+  max_time_to_use_velocity_model: ${MOLA_MAX_TIME_TO_USE_VELOCITY_MODEL|0.75} # [s]
   sliding_window_length: 0.50 # [s]
   sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|1.0} # [m/s²]
   sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|10.0} # [rad/s²]
