@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.3 (2024-09-01)
+------------------
 * default 3D pipeline: Expose a couple more parameters as env variables
 * Depend on new mrpt_lib packages (deprecate mrpt2)
 * Contributors: Jose Luis Blanco-Claraco
