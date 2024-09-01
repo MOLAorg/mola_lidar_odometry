@@ -2,6 +2,12 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* default 3D pipeline: Expose a couple more parameters as env variables
+* Depend on new mrpt_lib packages (deprecate mrpt2)
+* Contributors: Jose Luis Blanco-Claraco
+
 0.3.2 (2024-08-26)
 ------------------
 * Support input dataset directories for split bags
