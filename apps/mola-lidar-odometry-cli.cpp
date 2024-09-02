@@ -226,12 +226,12 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
         - topic: '%s'
           type: CObservationPointCloud
           # If present, this will override whatever /tf tells about the sensor pose:
-          fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg'
+          fixed_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
         - topic: ${MOLA_GNSS_TOPIC|'/gps'}
           sensorLabel: 'gps'
           type: CObservationGPS
-          fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg'
+          fixed_sensor_pose: "${GPS_POSE_X|0} ${GPS_POSE_Y|0} ${GPS_POSE_Z|0} ${GPS_POSE_YAW|0} ${GPS_POSE_PITCH|0} ${GPS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
 )"""",
     rosbag2file.c_str(), arg_lidarLabel.getValue().c_str())));
