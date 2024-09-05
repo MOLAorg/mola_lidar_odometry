@@ -19,7 +19,7 @@ params:
   wheel_odometry_sensor_label: '${MOLA_ODOMETRY_NAME|odometry}'
 
   # These sensor labels will be handled as GNSS (GPS) (For storage in simplemap only)
-  gnss_sensor_label: '${MOLA_GPS_NAME|gps}'
+  gnss_sensor_label: '${MOLA_GNSS_TOPIC|gps}'
 
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 1e-3 # [seconds]

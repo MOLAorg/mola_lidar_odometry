@@ -135,7 +135,7 @@ Sensor inputs
 - ``MOLA_ODOMETRY_NAME`` (Default: ``odometry``): **Sensor label** (or regex) of the observations
   with wheels odometry, if it exists.
 
-- ``MOLA_GPS_NAME`` (Default: ``gps``): **Sensor label** (or regex) of the observations to be treated as
+- ``MOLA_GNSS_TOPIC`` (Default: ``gps``): **Sensor label** (or regex) of the observations to be treated as
   GNSS data. Used only for storage in simple-maps for post-processing (geo-referencing, etc.).
 
 Scan de-skew options
