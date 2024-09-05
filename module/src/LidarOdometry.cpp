@@ -2183,7 +2183,6 @@ void LidarOdometry::enqueue_request(const std::function<void()> & userRequest)
   requests_.push_back(userRequest);
 }
 
-#ifdef HAVE_MOLA_KERNEL_RELOCALIZE_API
 void LidarOdometry::relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussian & p)
 {
   //TODO!
@@ -2193,7 +2192,6 @@ void LidarOdometry::relocalize_from_gnss()
 {
   //TODO!
 }
-#endif
 
 void LidarOdometry::processPendingUserRequests()
 {

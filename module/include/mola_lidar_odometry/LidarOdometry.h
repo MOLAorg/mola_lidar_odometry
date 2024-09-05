@@ -29,16 +29,11 @@
  */
 #pragma once
 
-// Uncomment after ROS release cycle
-//#define HAVE_MOLA_KERNEL_RELOCALIZE_API
-
 // MOLA interfaces:
 #include <mola_kernel/interfaces/FrontEndBase.h>
 #include <mola_kernel/interfaces/LocalizationSourceBase.h>
 #include <mola_kernel/interfaces/MapSourceBase.h>
-#ifdef HAVE_MOLA_KERNEL_RELOCALIZE_API
 #include <mola_kernel/interfaces/Relocalization.h>
-#endif
 
 // Other packages:
 #include <mola_navstate_fuse/NavStateFuse.h>
@@ -76,11 +71,8 @@ namespace mola
  */
 class LidarOdometry : public mola::FrontEndBase,
                       public mola::LocalizationSourceBase,
-                      public mola::MapSourceBase
-#ifdef HAVE_MOLA_KERNEL_RELOCALIZE_API
-,
+                      public mola::MapSourceBase,
                       public mola::Relocalization
-#endif
 {
   DEFINE_MRPT_OBJECT(LidarOdometry, mola)
 
@@ -427,7 +419,6 @@ public:
 
   /** @} */
 
-#ifdef HAVE_MOLA_KERNEL_RELOCALIZE_API
   /** @name Virtual interface of Relocalization
      *{ */
 
@@ -443,7 +434,6 @@ public:
   void relocalize_from_gnss() override;
 
   /** @} */
-#endif
 
 private:
   const std::string NAVSTATE_LIODOM_FRAME = "liodom";
