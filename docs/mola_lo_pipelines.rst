@@ -185,6 +185,8 @@ Local map update
   distance, measured from the current robot pose, will be removed. This is to both, save memory usage, and to avoid inconsistencies 
   before closing loops (which shall be processed outside of the LO module).
 
+- ``MOLA_LOCAL_VOXELMAP_RESOLUTION`` (In meters; default: heuristic formula, see YAML file): Size of voxels for the local map.
+
 
 Simple-map generation
 ^^^^^^^^^^^^^^^^^^^^^^^^
