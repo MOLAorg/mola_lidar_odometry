@@ -159,12 +159,6 @@ General options
 - ``MOLA_LOAD_MM`` (Default: none): An optional path to a metric map (``*.mm``) file with a prebuilt metric map. Useful for
   multisession mapping or localization-only mode.
 
-- ``MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES`` (Default: a heuristic formula, see YAML file): Minimum distance in meters between updates to
-  the local map.
-
-- ``MOLA_MIN_ROT_BETWEEN_MAP_UPDATES`` (In degrees. Default: a heuristic formula, see YAML file): Minimum angle in degrees between updates to
-  the local map.
-
 - ``MOLA_MINIMUM_ICP_QUALITY`` (Default: ``0.25``): Minimum quality (from the ``mpcp_icp`` quality evaluators), in the range [0,1], to
   consider an ICP optimization to be valid.
 
@@ -176,6 +170,20 @@ General options
 
 - ``MOLA_START_ACTIVE`` (default: ``true``): If set to ``false``, the odometry pipeline will ignore incoming observations
   until active is set to true (e.g. via the GUI).
+
+
+Local map update
+^^^^^^^^^^^^^^^^^^^^^^
+
+- ``MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES`` (Default: a heuristic formula, see YAML file): Minimum distance in meters between updates to
+  the local map.
+
+- ``MOLA_MIN_ROT_BETWEEN_MAP_UPDATES`` (In degrees. Default: a heuristic formula, see YAML file): Minimum angle in degrees between updates to
+  the local map.
+
+- ``MOLA_LOCAL_MAP_MAX_SIZE`` (In meters; default: heuristic formula, see YAML file): Parts of the local metric map farther away then this 
+  distance, measured from the current robot pose, will be removed. This is to both, save memory usage, and to avoid inconsistencies 
+  before closing loops (which shall be processed outside of the LO module).
 
 
 Simple-map generation

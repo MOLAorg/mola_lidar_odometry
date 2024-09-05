@@ -45,7 +45,7 @@ params:
     min_rotation_between_keyframes: '${MOLA_MIN_ROT_BETWEEN_MAP_UPDATES|(15 + sqrt(wx^2+wy^2+wz^2)*500 )}' # [deg]
 
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
-    max_distance_to_keep_keyframes: 'max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)' # [m]
+    max_distance_to_keep_keyframes: '${MOLA_LOCAL_MAP_MAX_SIZE|max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
     check_for_removal_every_n: 100
 
   # Minimum ICP quality to insert it into the map:
@@ -233,7 +233,7 @@ localmap_generator:
           max_points_per_voxel: ${MOLA_LOCALMAP_MAX_POINTS_PER_VOXEL|20}
           min_distance_between_points: 0  # [m]
           # if !=0, remove voxels farther (L1) than the current observation insert point
-          remove_voxels_farther_than: '$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
+          remove_voxels_farther_than: '${MOLA_LOCAL_MAP_MAX_SIZE|$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}}' # [m]
         likelihoodOpts:
           sigma_dist: 1.0    # [m]
           max_corr_distance: 2.0  #[m]
