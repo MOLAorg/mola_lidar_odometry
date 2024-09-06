@@ -236,6 +236,8 @@ A constant velocity motion model is used by default, provided by the ``mola_navs
 - ``MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC`` (Default: 10.0 rad/s²): Angular acceleration standard deviation.
 
 
+.. _pipeline_icp_log_files:
+
 ICP log files
 ^^^^^^^^^^^^^^^^^^^^^^
 
