@@ -138,7 +138,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(show_trajectory, bool);
   YAML_LOAD_OPT(show_current_observation, bool);
   YAML_LOAD_OPT(show_ground_grid, bool);
-YAML_LOAD_OPT(ground_grid_spacing, float);
+  YAML_LOAD_OPT(ground_grid_spacing, float);
   YAML_LOAD_OPT(show_console_messages, bool);
   YAML_LOAD_OPT(current_pose_corner_size, double);
   YAML_LOAD_OPT(local_map_point_size, float);
@@ -1839,8 +1839,9 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     mrpt::format("ICP quality: %.01f%%", 100.0 * state_.last_icp_quality));
   gui_.lbSigma->setCaption(mrpt::format("Threshold sigma: %.02f", state_.adapt_thres_sigma));
   if (state_.estimated_sensor_max_range)
-    gui_.lbSensorRange->setCaption(
-      mrpt::format("Est. max range: %.02f m", *state_.estimated_sensor_max_range));
+    gui_.lbSensorRange->setCaption(mrpt::format(
+      "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
+      state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
   {
     // const double dt    = profiler_.getLastTime("onLidar");
     const double dtAvr = profiler_.getMeanTime("onLidar");
