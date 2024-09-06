@@ -223,6 +223,7 @@ public:
       int map_update_decimation = 10;
       bool show_trajectory = true;
       bool show_ground_grid = true;
+      float ground_grid_spacing = 5.0f;
       bool show_current_observation = true;
       double current_pose_corner_size = 1.5;  //! [m]
       float local_map_point_size = 3.0f;

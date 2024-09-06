@@ -138,6 +138,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(show_trajectory, bool);
   YAML_LOAD_OPT(show_current_observation, bool);
   YAML_LOAD_OPT(show_ground_grid, bool);
+YAML_LOAD_OPT(ground_grid_spacing, float);
   YAML_LOAD_OPT(show_console_messages, bool);
   YAML_LOAD_OPT(current_pose_corner_size, double);
   YAML_LOAD_OPT(local_map_point_size, float);
@@ -1793,7 +1794,7 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
         bbox = bbox.unionWith(lyMap->boundingBox());
       }
 
-      glGrid->setGridFrequency(1.0f);
+      glGrid->setGridFrequency(params_.visualization.ground_grid_spacing);
       glGrid->setColor_u8(0xff, 0xff, 0xff, 0x80);
       glGrid->setPlaneLimits(bbox.min.x, bbox.max.x, bbox.min.y, bbox.max.y);
 

@@ -87,6 +87,7 @@ params:
     show_trajectory: true
     show_current_observation: true # shows "live raw" LiDAR points
     show_ground_grid: true
+    ground_grid_spacing: 5.0 # [m]
     #current_pose_corner_size: 1.5
     local_map_point_size: 3
     model:
