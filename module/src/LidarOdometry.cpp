@@ -740,10 +740,10 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
   tle1b.stop();
 
-  profiler_.enter("onLidar.2.copy_vars");
-
   // Update sensor max range from the obs map layers:
   doUpdateEstimatedMaxSensorRange(*observation);
+
+  profiler_.enter("onLidar.2.copy_vars");
 
   // check observation validity:
   if (bool obsValid = doCheckIsValidObservation(*observation); !obsValid) {
@@ -1498,7 +1498,7 @@ void LidarOdometry::doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObserv
   if (pts->empty()) return;
 
   const auto bb = pts->boundingBox();
-  double radius = 0.5 * (bb.max - bb.min).norm();
+  double radius = std::max(bb.max.norm(), bb.min.norm());
 
   mrpt::keep_max(radius, params_.absolute_minimum_sensor_range);
 
@@ -1521,7 +1521,7 @@ void LidarOdometry::doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t
     if (!pts) continue;
 
     const auto bb = pts->boundingBox();
-    double radius = 0.5 * (bb.max - bb.min).norm();
+    double radius = std::max(bb.max.norm(), bb.min.norm());
 
     mrpt::keep_max(radius, params_.absolute_minimum_sensor_range);
 
