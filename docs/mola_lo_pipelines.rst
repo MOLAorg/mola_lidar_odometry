@@ -36,7 +36,7 @@ In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLA
    defined below. To use the alternative 2D pipeline or any other custom pipeline, please set the corresponding environment
    variable before invoking the :ref:`GUI application <mola_lo_apps>` (or derive your own script by copying and modifying the provided ones).
 
-   If you use the `CLI interface <mola_lidar_odometry_cli>`, the pipeline file to use needs to be always explicitly specified, there is none by default.
+   If you use the `CLI interface <mola_lidar_odometry_cli>`_, the pipeline file to use needs to be always explicitly specified, there is none by default.
 
 
 |
