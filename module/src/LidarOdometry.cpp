@@ -51,6 +51,7 @@
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/opengl/CAssimpModel.h>
+#include <mrpt/opengl/CGridPlaneXY.h>
 #include <mrpt/opengl/COpenGLScene.h>
 #include <mrpt/opengl/CText.h>
 #include <mrpt/opengl/stock_objects.h>
@@ -136,6 +137,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(map_update_decimation, int);
   YAML_LOAD_OPT(show_trajectory, bool);
   YAML_LOAD_OPT(show_current_observation, bool);
+  YAML_LOAD_OPT(show_ground_grid, bool);
   YAML_LOAD_OPT(show_console_messages, bool);
   YAML_LOAD_OPT(current_pose_corner_size, double);
   YAML_LOAD_OPT(local_map_point_size, float);
@@ -1778,9 +1780,33 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     rp.points.allLayers.render_voxelmaps_free_space =
       params_.visualization.local_map_render_voxelmap_free_space;
 
+    // ground grid:
+    auto glGroundGrid = mrpt::opengl::CSetOfObjects::Create();
+    if (params_.visualization.show_ground_grid) {
+      auto glGrid = mrpt::opengl::CGridPlaneXY::Create();
+
+      mrpt::math::TBoundingBoxf bbox;
+      bbox.min = {-10.0f, -10.0f, -1.0f};
+      bbox.max = {+10.0f, +10.0f, +1.0f};
+
+      for (const auto & [lyName, lyMap] : state_.local_map->layers) {
+        bbox = bbox.unionWith(lyMap->boundingBox());
+      }
+
+      glGrid->setGridFrequency(1.0f);
+      glGrid->setColor_u8(0xff, 0xff, 0xff, 0x80);
+      glGrid->setPlaneLimits(bbox.min.x, bbox.max.x, bbox.min.y, bbox.max.y);
+
+      glGroundGrid->insert(glGrid);
+    }
+
+    // local map:
     auto glMap = state_.local_map->get_visualization(rp);
 
-    updateTasks.emplace_back([=]() { visualizer_->update_3d_object("liodom/localmap", glMap); });
+    updateTasks.emplace_back([=]() {
+      visualizer_->update_3d_object("liodom/localmap", glMap);
+      visualizer_->update_3d_object("liodom/groundgrid", glGroundGrid);
+    });
   }
 
   // now, update all visual elements at once:

@@ -86,6 +86,7 @@ params:
     map_update_decimation: 10
     show_trajectory: true
     show_current_observation: true # shows "live raw" LiDAR points
+    show_ground_grid: true
     #current_pose_corner_size: 1.5
     local_map_point_size: 3
     model:
