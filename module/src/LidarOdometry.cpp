@@ -1704,6 +1704,11 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     // and enqueue for updating in the opengl thread:
     updateTasks.emplace_back(
       [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
+  } else {
+    // Remove possible old 3D objects if the user disabled visualization on the fly:
+    auto glCurrentObservation = mrpt::opengl::CSetOfObjects::Create();
+    updateTasks.emplace_back(
+      [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
   }
 
   // Estimated path:
