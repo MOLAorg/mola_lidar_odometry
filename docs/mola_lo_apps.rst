@@ -184,7 +184,7 @@ Environment variables specific for ``mola-lo-gui-rosbag2``:
 1.6. Common env variables
 ------------------------------
 
-- ``MOLA_ODOMETRY_PIPELINE_YAML`` (Default: full path to installed ``lidar3d-default.yaml``): Can be set to override
+- ``PIPELINE_YAML`` (Default: full path to installed ``lidar3d-default.yaml``): Can be set to override
   the default pipeline and experiment with custom MOLA-LO systems described through a modified YAML file.
 
 
