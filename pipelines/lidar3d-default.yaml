@@ -68,7 +68,7 @@ params:
 
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
     
-    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}  # m
+    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|(1.0e-2 + sqrt(wx^2+wy^2+wz^2)*1.0)*ESTIMATED_SENSOR_MAX_RANGE}  # m
     min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|15 + sqrt(wx^2+wy^2+wz^2)*500}  # deg
 
     generate_lazy_load_scan_files: ${MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD|false} # If enabled, a directory will be create alongside the .simplemap and pointclouds will be externally serialized there.
