@@ -103,7 +103,8 @@ Runs MOLA-LO on a sequence of the KITTI odometry dataset :cite:`geiger2013vision
 
 1.2. mola-lo-gui-kitti360
 ------------------------------
-xxx
+Runs MOLA-LO on a sequence of the KITTI-360 dataset.
+
 
 
 |
@@ -111,7 +112,7 @@ xxx
 
 1.3. mola-lo-gui-mulran
 ------------------------------
-xxx
+Runs MOLA-LO on a sequence of the Mulran dataset.
 
 
 |
@@ -119,7 +120,25 @@ xxx
 
 1.4. mola-lo-gui-rawlog
 ------------------------------
-xxx
+This command will open the mola_viz GUI and build a map from dataset stored as a ``.rawlog`` file.
+
+Environment variables specific for ``mola-lo-gui-rawlog``:
+
+.. dropdown:: See complete mola launch YAML listing
+    :icon: code-review
+
+    File: `mola-cli-launchs/lidar_odometry_from_rawlog.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/mola-cli-launchs/lidar_odometry_from_rawlog.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/mola-cli-launchs/lidar_odometry_from_rawlog.yaml
+       :language: yaml
+
+|
+
+- ``MOLA_TIME_WARP`` (Default: 1.0): Time wrapping for rosbag replay.
+
+- ``MOLA_DATASET_START_PAUSED`` (Default: false): Start with replay paused. Then can be resumed from the GUI.
+
+- ``MOLA_INPUT_RAWLOG_READ_ALL_FIRST`` (Default: ``false``): Set to ``true`` to load the whole .rawlog file at start up, enabling the use of the dataset timeline slider in the UI.
 
 
 |
