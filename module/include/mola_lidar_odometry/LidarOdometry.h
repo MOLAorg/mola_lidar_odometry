@@ -102,7 +102,8 @@ public:
   enum class InitLocalization : uint8_t
   {
     FixedPose = 0,
-    FromGNSS
+    FromGNSS_Static,
+    FromGNSS_Motion,
   };
 
   struct Parameters : public mp2p_icp::Parameterizable
