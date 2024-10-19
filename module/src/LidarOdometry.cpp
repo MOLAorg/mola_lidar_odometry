@@ -884,13 +884,16 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
                      << state_.last_motion_model_output->pose.cov_inv.asString());
     } else {
       // Use the last pose without velocity motion model:
-      MRPT_LOG_THROTTLE_WARN_FMT(
-        2.0,
-        "Not able to use velocity motion model for this timestep "
-        "(pathStep=%zu, timestamp=%s UTC)",
-        state_.estimated_trajectory.size(), mrpt::system::dateTimeToString(this_obs_tim).c_str());
-
       in.init_guess_local_wrt_global = state_.last_lidar_pose.mean.asTPose();
+
+      // (Skip the warning message if we are in the first timestep, since that's totally normal and expected, and the warning becomes confusing):
+      if (state_.estimated_trajectory.size() > 1) {
+        MRPT_LOG_THROTTLE_WARN_FMT(
+          2.0,
+          "Not able to use velocity motion model for this timestep "
+          "(pathStep=%zu, timestamp=%s UTC)",
+          state_.estimated_trajectory.size(), mrpt::system::dateTimeToString(this_obs_tim).c_str());
+      }
     }
 
     // If we don't have a valid twist estimation, use a larger ICP
