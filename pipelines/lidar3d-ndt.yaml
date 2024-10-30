@@ -56,7 +56,7 @@ params:
     enabled: true
     initial_sigma: 2.0  # [m]
     min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}  # [m]
-    maximum_sigma: 3.0  # [m]
+    maximum_sigma: ${MOLA_SIGMA_MAX|0.20}  # [m]
     kp: 2.0
     alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.90}
 
