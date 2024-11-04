@@ -4,6 +4,7 @@
 from launch import LaunchDescription
 from launch.substitutions import TextSubstitution
 from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.actions import SetEnvironmentVariable
@@ -14,26 +15,32 @@ import os
 def generate_launch_description():
     myDir = get_package_share_directory("mola_lidar_odometry")
 
-    # args that can be set from the command line or a default will be used
+    # -------------------
+    #     Arguments
+    # -------------------
     # Mandatory
     lidar_topic_name_arg = DeclareLaunchArgument(
         "lidar_topic_name", description="Topic name to listen for PointCloud2 input from the LiDAR (for example '/ouster/points')")
-
     topic_env_var = SetEnvironmentVariable(
         name='MOLA_LIDAR_TOPIC', value=LaunchConfiguration('lidar_topic_name'))
-
+    # ~~~~~~~~~~~~
     ignore_lidar_pose_from_tf_arg = DeclareLaunchArgument(
         "ignore_lidar_pose_from_tf", default_value="false", description="If true, the LiDAR pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf")
-
     fixed_sensorpose_env_var = SetEnvironmentVariable(
         name='MOLA_USE_FIXED_LIDAR_POSE', value=LaunchConfiguration('ignore_lidar_pose_from_tf'))
-
+    # ~~~~~~~~~~~~
     gnss_topic_name_arg = DeclareLaunchArgument(
         "gnss_topic_name", default_value="/gps", description="Topic name to listen for NavSatFix input from a GNSS (for example '/gps')")
-
     gps_topic_env_var = SetEnvironmentVariable(
         name='MOLA_GNSS_TOPIC', value=LaunchConfiguration('gnss_topic_name'))
+    # ~~~~~~~~~~~~
+    use_rviz = LaunchConfiguration('use_rviz')
+    use_rviz_arg = DeclareLaunchArgument(
+        "use_rviz", default_value="True", description="Whether to launch RViz2 with default lidar-odometry.rviz configuration")
 
+    # -------------------
+    #        Node
+    # -------------------
     mola_cli_node = Node(
         package='mola_launcher',
         executable='mola-cli',
@@ -43,6 +50,7 @@ def generate_launch_description():
     )
 
     rviz2_node = Node(
+        condition=IfCondition(use_rviz),
         package='rviz2',
         executable='rviz2',
         name='rviz2',
@@ -58,5 +66,6 @@ def generate_launch_description():
         gnss_topic_name_arg,
         gps_topic_env_var,
         mola_cli_node,
+        use_rviz_arg,
         rviz2_node
     ])
