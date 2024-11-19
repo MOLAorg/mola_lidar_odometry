@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
+# Alternative NDT-3D pipeline, launch with:
+# PIPELINE_PREFIX=_ndt PIPELINE_YAML=src/mola_lidar_odometry/pipelines/lidar3d-ndt.yaml SEQS_TO_RUN="00 01" src/mola_lidar_odometry/eval/cli_kitti.sh
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 
 # Default pipeline YAML file:
 PIPELINE_YAML="${PIPELINE_YAML:-$SCRIPT_DIR/../pipelines/lidar3d-default.yaml}"
@@ -31,7 +35,7 @@ parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   mola-lidar-odometry-cli \
     -c $PIPELINE_YAML\
     --input-kitti-seq {} \
-    --output-tum-path results/kitti_{}_mola.tum \
+    --output-tum-path results/kitti_{}_mola${PIPELINE_PREFIX}.tum \
     $@ \
 ::: $SEQS_TO_RUN
 
@@ -39,12 +43,12 @@ parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
 
 # Eval kitti metrics for each sequence alone:
 for d in $SEQS_TO_RUN; do
-  if [ -f results/kitti_${d}_mola_gt.tum ]; then
-    kitti-metrics-eval -r results/kitti_${d}_mola.tum -s ${d} --no-figures
+  if [ -f results/kitti_${d}_mola${PIPELINE_PREFIX}_gt.tum ]; then
+    kitti-metrics-eval -r results/kitti_${d}_mola${PIPELINE_PREFIX}.tum -s ${d} --no-figures
   fi
 done
 
 # Eval overall kitti metrics:
 if [ "$DEFAULT_SEQS_TO_RUN" = "$SEQS_TO_RUN" ]; then
-  kitti-metrics-eval -r results/kitti_%02i_mola.tum -s 00 -s 01 -s 02 -s 03 -s 04 -s 05 -s 06 -s 07 -s 08 -s 09 -s 10 --no-figures
+  kitti-metrics-eval -r results/kitti_%02i_mola${PIPELINE_PREFIX}.tum -s 00 -s 01 -s 02 -s 03 -s 04 -s 05 -s 06 -s 07 -s 08 -s 09 -s 10 --no-figures
 fi
