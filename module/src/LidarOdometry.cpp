@@ -2231,14 +2231,16 @@ void LidarOdometry::relocalize_from_gnss()
 
 MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
 {
+  MapServer::ReturnStatus ret;
   //TODO!
-  XX;
+  return ret;
 }
 
 MapServer::ReturnStatus LidarOdometry::map_save(const std::string & path)
 {
+  MapServer::ReturnStatus ret;
   //TODO!
-  XX;
+  return ret;
 }
 
 void LidarOdometry::processPendingUserRequests()
