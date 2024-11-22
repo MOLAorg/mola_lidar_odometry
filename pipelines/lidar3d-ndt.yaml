@@ -56,7 +56,7 @@ params:
     enabled: true
     initial_sigma: 2.0  # [m]
     min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}  # [m]
-    maximum_sigma: ${MOLA_SIGMA_MAX|0.20}  # [m]
+    maximum_sigma: ${MOLA_SIGMA_MAX|0.5}  # [m]
     kp: 2.0
     alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.90}
 
@@ -202,7 +202,7 @@ icp_settings_with_vel:
     - class: mp2p_icp::Matcher_Points_DistanceThreshold
       params:
         threshold: '2.0*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-0.5*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30)'
-        #threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'
+        #threshold: '5.0*ADAPTIVE_THRESHOLD_SIGMA'
         thresholdAngularDeg: 0  # deg
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
@@ -236,10 +236,11 @@ localmap_generator:
         class: mola::NDT
         plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
-          voxel_size: 1.0 #'${MOLA_LOCAL_VOXELMAP_RESOLUTION|$f{max(1.0, min(2.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE))}}' # [m]
+          #voxel_size: '${MOLA_LOCAL_VOXELMAP_RESOLUTION|2.0}' # [m]
+          voxel_size: '${MOLA_LOCAL_VOXELMAP_RESOLUTION|$f{max(0.5, min(2.5, 0.75*ESTIMATED_SENSOR_MAX_RANGE))}}' # [m]
         insertOpts:
           max_points_per_voxel: ${MOLA_LOCALMAP_MAX_POINTS_PER_VOXEL|0}
-          min_distance_between_points: 0.2 # '${$f{MOLA_LOCAL_VOXELMAP_RESOLUTION*0.2}|$f{max(0.3, min(0.6, 0.01*ESTIMATED_SENSOR_MAX_RANGE))}}' # [m]
+          min_distance_between_points: '$f{${MOLA_LOCAL_VOXELMAP_RESOLUTION|2.0}*0.1}' # [m]
           # if !=0, remove voxels farther (L1) than the current observation insert point
           remove_voxels_farther_than: '${MOLA_LOCAL_MAP_MAX_SIZE|$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}}' # [m]
           # Max ratio between eigenvalues for considering an NDT a plane:
@@ -298,7 +299,7 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: 'raw'
       output_pointcloud_layer: 'decimated_for_map_raw'
-      voxel_filter_resolution: max(0.20, 0.25*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
+      voxel_filter_resolution: max(0.10, 0.10*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
       minimum_input_points_to_filter: 2000  # don't decimate if smaller than this size
       decimate_method: DecimateMethod::FirstPoint
       #decimate_method: DecimateMethod::ClosestToAverage
@@ -325,7 +326,7 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: 'decimated_for_map_skewed'
       output_pointcloud_layer: 'decimated_for_icp_skewed'
-      voxel_filter_resolution: max(0.60, 1.6*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
+      voxel_filter_resolution: max(0.60, 0.20*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
       minimum_input_points_to_filter: 2000  # don't decimate if smaller than this size
       decimate_method: DecimateMethod::FirstPoint
       #decimate_method: DecimateMethod::ClosestToAverage
