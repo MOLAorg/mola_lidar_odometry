@@ -261,6 +261,17 @@ Process a ROS 2 bag
         mola-lidar-odometry-cli \
           [...]  # the rest does not change.
 
+    If you forget adding this flag, tons of errors like this will show up:
+
+    .. code-block:: bash
+
+        [ERROR|mola::Rosbag2Dataset:dataset_input] findOutSensorPose (label='lidar', hesai_lidar<-base_link): "base_link" passed to lookupTransform argument target_frame does not exist. 
+        [ERROR|mola::Rosbag2Dataset:dataset_input] Exception while processing topic message (ignore if the error stops later one, e.g. missing /tf):
+        ==== MRPT exception ====
+        Message:  Assert condition failed: sensorPoseOK
+
+
+
 .. dropdown:: Want to visualize the output in real-time?
     :icon: light-bulb
 
