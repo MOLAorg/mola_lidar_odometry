@@ -329,10 +329,10 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
                                     <Number of dataset entries to skip>]
                                     [--only-first-n <Number of dataset entries to
                                     run>] [--output-simplemap
-                                    <output-map.simplemap>] [--output-tum-path
+                                    <output-map.simplemap>] [--output-twist
+                                    <output-twist.txt>] [--output-tum-path
                                     <output-trajectory.txt>] [-l <foobar.so>] [-v
                                     <INFO>] -c <demo.yml> [--] [--version] [-h]
-
 
         Where: 
 
@@ -371,6 +371,9 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
 
         --output-simplemap <output-map.simplemap>
             Enables building and saving the simplemap for the mapping session
+
+        --output-twist <output-twist.txt>
+            Save the estimated twist as a TXT file
 
         --output-tum-path <output-trajectory.txt>
             Save the estimated path as a TXT file using the TUM file format (see

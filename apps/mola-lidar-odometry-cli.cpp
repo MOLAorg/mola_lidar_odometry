@@ -80,86 +80,138 @@
 #include <iostream>
 #include <string>
 
-// Declare supported cli switches ===========
-static TCLAP::CmdLine cmd("mola-lidar-odometry-cli");
+struct Cli
+{
+  // Declare supported cli switches ===========
+  TCLAP::CmdLine cmd{"mola-lidar-odometry-cli"};
 
-static TCLAP::ValueArg<std::string> argYAML(
-  "c", "config", "Input YAML config file (required) (*.yml)", true, "", "demo.yml", cmd);
+  TCLAP::ValueArg<std::string> argYAML{
+    "c", "config", "Input YAML config file (required) (*.yml)", true, "", "demo.yml", cmd};
 
-static TCLAP::ValueArg<std::string> arg_verbosity_level(
-  "v", "verbosity", "Verbosity level: ERROR|WARN|INFO|DEBUG (Default: INFO)", false, "", "INFO",
-  cmd);
+  TCLAP::ValueArg<std::string> arg_verbosity_level{
+    "v",    "verbosity", "Verbosity level: ERROR|WARN|INFO|DEBUG {Default: INFO}", false, "",
+    "INFO", cmd};
 
-static TCLAP::ValueArg<std::string> arg_plugins(
-  "l", "load-plugins", "One or more (comma separated) *.so files to load as plugins", false,
-  "foobar.so", "foobar.so", cmd);
+  TCLAP::ValueArg<std::string> arg_plugins{
+    "l",   "load-plugins", "One or more {comma separated} *.so files to load as plugins",
+    false, "foobar.so",    "foobar.so",
+    cmd};
 
-static TCLAP::ValueArg<std::string> arg_outPath(
-  "", "output-tum-path",
-  "Save the estimated path as a TXT file using the TUM file format (see evo "
-  "docs)",
-  false, "output-trajectory.txt", "output-trajectory.txt", cmd);
+  TCLAP::ValueArg<std::string> arg_outPath{
+    "",
+    "output-tum-path",
+    "Save the estimated path as a TXT file using the TUM file format {see evo "
+    "docs}",
+    false,
+    "output-trajectory.txt",
+    "output-trajectory.txt",
+    cmd};
 
-static TCLAP::ValueArg<std::string> arg_outSimpleMap(
-  "", "output-simplemap", "Enables building and saving the simplemap for the mapping session",
-  false, "output-map.simplemap", "output-map.simplemap", cmd);
+  TCLAP::ValueArg<std::string> arg_outTwist{
+    "",    "output-twist",     "Save the estimated twist as a TXT file",
+    false, "output-twist.txt", "output-twist.txt",
+    cmd};
 
-static TCLAP::ValueArg<int> arg_firstN(
-  "", "only-first-n", "Run for the first N steps only (0=default, not used)", false, 0,
-  "Number of dataset entries to run", cmd);
+  TCLAP::ValueArg<std::string> arg_outSimpleMap{
+    "",
+    "output-simplemap",
+    "Enables building and saving the simplemap for the mapping session",
+    false,
+    "output-map.simplemap",
+    "output-map.simplemap",
+    cmd};
 
-static TCLAP::ValueArg<int> arg_skipFirstN(
-  "", "skip-first-n", "Skip the first N dataset entries (0=default, not used)", false, 0,
-  "Number of dataset entries to skip", cmd);
+  TCLAP::ValueArg<int> arg_firstN{
+    "",
+    "only-first-n",
+    "Run for the first N steps only {0=default, not used}",
+    false,
+    0,
+    "Number of dataset entries to run",
+    cmd};
 
-static TCLAP::ValueArg<std::string> arg_lidarLabel(
-  "", "lidar-sensor-label",
-  "If provided, this supersedes the values in the 'lidar_sensor_labels' "
-  "entry of the odometry pipeline, defining the sensorLabel/topic name to "
-  "read LIDAR data from. It can be a regular expression (std::regex)",
-  false, "lidar1", "lidar1", cmd);
+  TCLAP::ValueArg<int> arg_skipFirstN{
+    "",
+    "skip-first-n",
+    "Skip the first N dataset entries {0=default, not used}",
+    false,
+    0,
+    "Number of dataset entries to skip",
+    cmd};
+
+  TCLAP::ValueArg<std::string> arg_lidarLabel{
+    "",
+    "lidar-sensor-label",
+    "If provided, this supersedes the values in the 'lidar_sensor_labels' "
+    "entry of the odometry pipeline, defining the sensorLabel/topic name to "
+    "read LIDAR data from. It can be a regular expression {std::regex}",
+    false,
+    "lidar1",
+    "lidar1",
+    cmd};
 
 // Input dataset can come from one of these:
 // --------------------------------------------
 #if defined(HAVE_MOLA_INPUT_RAWLOG)
-static TCLAP::ValueArg<std::string> argRawlog(
-  "", "input-rawlog", "INPUT DATASET: rawlog. Input dataset in rawlog format (*.rawlog)", false,
-  "dataset.rawlog", "dataset.rawlog", cmd);
+  TCLAP::ValueArg<std::string> argRawlog{
+    "",    "input-rawlog",   "INPUT DATASET: rawlog. Input dataset in rawlog format {*.rawlog}",
+    false, "dataset.rawlog", "dataset.rawlog",
+    cmd};
 #endif
 
 #if defined(HAVE_MOLA_INPUT_ROSBAG2)
-static TCLAP::ValueArg<std::string> argRosbag2(
-  "", "input-rosbag2", "INPUT DATASET: rosbag2. Input dataset in rosbag2 format (*.mcap)", false,
-  "dataset.mcap", "dataset.mcap", cmd);
+  TCLAP::ValueArg<std::string> argRosbag2{
+    "",    "input-rosbag2", "INPUT DATASET: rosbag2. Input dataset in rosbag2 format {*.mcap}",
+    false, "dataset.mcap",  "dataset.mcap",
+    cmd};
 #endif
 
 #if defined(HAVE_MOLA_INPUT_KITTI)
-static TCLAP::ValueArg<std::string> argKittiSeq(
-  "", "input-kitti-seq", "INPUT DATASET: Use KITTI dataset sequence number 00|01|...", false, "00",
-  "00", cmd);
-static TCLAP::ValueArg<double> argKittiAngleDeg(
-  "", "kitti-correction-angle-deg", "Correction vertical angle offset (see Deschaud,2018)", false,
-  0.205, "0.205 [degrees]", cmd);
+  TCLAP::ValueArg<std::string> argKittiSeq{
+    "",
+    "input-kitti-seq",
+    "INPUT DATASET: Use KITTI dataset sequence number 00|01|...",
+    false,
+    "00",
+    "00",
+    cmd};
+  TCLAP::ValueArg<double> argKittiAngleDeg{
+    "",
+    "kitti-correction-angle-deg",
+    "Correction vertical angle offset {see Deschaud,2018}",
+    false,
+    0.205,
+    "0.205 [degrees]",
+    cmd};
 #endif
 
 #if defined(HAVE_MOLA_INPUT_KITTI360)
-static TCLAP::ValueArg<std::string> argKitti360Seq(
-  "", "input-kitti360-seq",
-  "INPUT DATASET: Use KITTI360 dataset sequence number 00|01|...|test_00|...", false, "00", "00",
-  cmd);
+  TCLAP::ValueArg<std::string> argKitti360Seq{
+    "",
+    "input-kitti360-seq",
+    "INPUT DATASET: Use KITTI360 dataset sequence number 00|01|...|test_00|...",
+    false,
+    "00",
+    "00",
+    cmd};
 #endif
 
 #if defined(HAVE_MOLA_INPUT_MULRAN)
-static TCLAP::ValueArg<std::string> argMulranSeq(
-  "", "input-mulran-seq", "INPUT DATASET: Use Mulran dataset sequence KAIST01|KAIST01|...", false,
-  "KAIST01", "KAIST01", cmd);
+  TCLAP::ValueArg<std::string> argMulranSeq{
+    "",    "input-mulran-seq", "INPUT DATASET: Use Mulran dataset sequence KAIST01|KAIST01|...",
+    false, "KAIST01",          "KAIST01",
+    cmd};
 #endif
 
 #if defined(HAVE_MOLA_INPUT_PARIS_LUCO)
-static TCLAP::SwitchArg argParisLucoSeq(
-  "", "input-paris-luco", "INPUT DATASET: Use Paris Luco dataset (unique sequence=00)", cmd);
+  TCLAP::SwitchArg argParisLucoSeq{
+    "", "input-paris-luco", "INPUT DATASET: Use Paris Luco dataset (unique sequence=00)", cmd};
 #endif
 
+};  // end struct "Cli"
+
+namespace
+{
 #if defined(HAVE_MOLA_INPUT_RAWLOG)
 std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rawlog(
   const std::string & rawlogFile, const mrpt::system::VerbosityLevel logLevel)
@@ -207,10 +259,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
 
 #if defined(HAVE_MOLA_INPUT_ROSBAG2)
 std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
-  const std::string & rosbag2file, const mrpt::system::VerbosityLevel logLevel)
+  Cli & cli, const std::string & rosbag2file, const mrpt::system::VerbosityLevel logLevel)
 {
   ASSERTMSG_(
-    arg_lidarLabel.isSet(),
+    cli.arg_lidarLabel.isSet(),
     "Using a rosbag2 as input requires telling what is the lidar topic "
     "with --lidar-sensor-label <TOPIC_NAME>");
 
@@ -234,7 +286,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           fixed_sensor_pose: "${GPS_POSE_X|0} ${GPS_POSE_Y|0} ${GPS_POSE_Z|0} ${GPS_POSE_YAW|0} ${GPS_POSE_PITCH|0} ${GPS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
 )"""",
-    rosbag2file.c_str(), arg_lidarLabel.getValue().c_str())));
+    rosbag2file.c_str(), cli.arg_lidarLabel.getValue().c_str())));
 
   o->initialize(cfg);
 
@@ -244,7 +296,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
 
 #if defined(HAVE_MOLA_INPUT_KITTI)
 std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
-  const std::string & kittiSeqNumber, const mrpt::system::VerbosityLevel logLevel)
+  Cli & cli, const std::string & kittiSeqNumber, const mrpt::system::VerbosityLevel logLevel)
 {
   auto o = std::make_shared<mola::KittiOdometryDataset>();
   o->setMinLoggingLevel(logLevel);
@@ -265,8 +317,8 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
 
   o->initialize(cfg);
 
-  if (argKittiAngleDeg.isSet())
-    o->VERTICAL_ANGLE_OFFSET = mrpt::DEG2RAD(argKittiAngleDeg.getValue());
+  if (cli.argKittiAngleDeg.isSet())
+    o->VERTICAL_ANGLE_OFFSET = mrpt::DEG2RAD(cli.argKittiAngleDeg.getValue());
 
   return o;
 }
@@ -341,14 +393,14 @@ void mola_install_signal_handler()
   sigaction(SIGINT, &sigIntHandler, nullptr);
 }
 
-static int main_odometry()
+int main_odometry(Cli & cli)
 {
   mola::LidarOdometry liodom;
 
   mrpt::system::VerbosityLevel logLevel = liodom.getMinLoggingLevel();
-  if (arg_verbosity_level.isSet()) {
+  if (cli.arg_verbosity_level.isSet()) {
     using vl = mrpt::typemeta::TEnumType<mrpt::system::VerbosityLevel>;
-    logLevel = vl::name2value(arg_verbosity_level.getValue());
+    logLevel = vl::name2value(cli.arg_verbosity_level.getValue());
     liodom.setVerbosityLevel(logLevel);
   }
 
@@ -378,7 +430,7 @@ static int main_odometry()
     });
 
   // Initialize LiDAR Odometry:
-  const auto file_yml = argYAML.getValue();
+  const auto file_yml = cli.argYAML.getValue();
   const auto cfg = mola::load_yaml_file(file_yml);
 
   // Enable time profiling: // can be enabled via YAML options
@@ -388,46 +440,46 @@ static int main_odometry()
   // system
   liodom.initialize(cfg);
 
-  if (arg_outSimpleMap.isSet()) {
+  if (cli.arg_outSimpleMap.isSet()) {
     liodom.params_.simplemap.generate = true;
     // don't save within the LidarOdometry object, we will do it here in
     // this cli app:
     liodom.params_.simplemap.save_final_map_to_file.clear();
   }
 
-  if (arg_lidarLabel.isSet())
-    liodom.params_.lidar_sensor_labels.assign(1, std::regex(arg_lidarLabel.getValue()));
+  if (cli.arg_lidarLabel.isSet())
+    liodom.params_.lidar_sensor_labels.assign(1, std::regex(cli.arg_lidarLabel.getValue()));
 
   // Select dataset input:
   std::shared_ptr<mola::OfflineDatasetSource> dataset;
 
 #if defined(HAVE_MOLA_INPUT_RAWLOG)
-  if (argRawlog.isSet()) {
-    dataset = dataset_from_rawlog(argRawlog.getValue(), logLevel);
+  if (cli.argRawlog.isSet()) {
+    dataset = dataset_from_rawlog(cli.argRawlog.getValue(), logLevel);
   } else
 #endif
 #if defined(HAVE_MOLA_INPUT_KITTI)
-    if (argKittiSeq.isSet()) {
-    dataset = dataset_from_kitti(argKittiSeq.getValue(), logLevel);
+    if (cli.argKittiSeq.isSet()) {
+    dataset = dataset_from_kitti(cli, cli.argKittiSeq.getValue(), logLevel);
   } else
 #endif
 #if defined(HAVE_MOLA_INPUT_KITTI360)
-    if (argKitti360Seq.isSet()) {
-    dataset = dataset_from_kitti360(argKitti360Seq.getValue(), logLevel);
+    if (cli.argKitti360Seq.isSet()) {
+    dataset = dataset_from_kitti360(cli.argKitti360Seq.getValue(), logLevel);
   } else
 #endif
 #if defined(HAVE_MOLA_INPUT_MULRAN)
-    if (argMulranSeq.isSet()) {
-    dataset = dataset_from_mulran(argMulranSeq.getValue(), logLevel);
+    if (cli.argMulranSeq.isSet()) {
+    dataset = dataset_from_mulran(cli.argMulranSeq.getValue(), logLevel);
   } else
 #endif
 #if defined(HAVE_MOLA_INPUT_ROSBAG2)
-    if (argRosbag2.isSet()) {
-    dataset = dataset_from_rosbag2(argRosbag2.getValue(), logLevel);
+    if (cli.argRosbag2.isSet()) {
+    dataset = dataset_from_rosbag2(cli, cli.argRosbag2.getValue(), logLevel);
   } else
 #endif
 #if defined(HAVE_MOLA_INPUT_PARIS_LUCO)
-    if (argParisLucoSeq.isSet()) {
+    if (cli.argParisLucoSeq.isSet()) {
     dataset = dataset_from_paris_luco(logLevel);
   } else
 #endif
@@ -438,14 +490,18 @@ static int main_odometry()
   }
   ASSERT_(dataset);
 
+  // Optional output twist:
+  std::optional<mrpt::poses::CPose3DInterpolator> outTwist;
+  if (cli.arg_outTwist.isSet()) outTwist.emplace();
+
   // Save GT, if available:
-  if (arg_outPath.isSet() && dataset->hasGroundTruthTrajectory()) {
+  if (cli.arg_outPath.isSet() && dataset->hasGroundTruthTrajectory()) {
     using namespace std::string_literals;
 
     const auto gtPath = dataset->getGroundTruthTrajectory();
 
-    const auto gtOutFile = mrpt::system::fileNameChangeExtension(arg_outPath.getValue(), "") +
-                           "_gt."s + mrpt::system::extractFileExtension(arg_outPath.getValue());
+    const auto gtOutFile = mrpt::system::fileNameChangeExtension(cli.arg_outPath.getValue(), "") +
+                           "_gt."s + mrpt::system::extractFileExtension(cli.arg_outPath.getValue());
 
     std::cout << "Ground truth available. Saving it to: " << gtOutFile << std::endl;
 
@@ -457,9 +513,9 @@ static int main_odometry()
   size_t lastDatasetEntry = dataset->datasetSize();
   size_t firstDatasetEntry = 0;
 
-  if (arg_skipFirstN.isSet()) firstDatasetEntry = arg_skipFirstN.getValue();
+  if (cli.arg_skipFirstN.isSet()) firstDatasetEntry = cli.arg_skipFirstN.getValue();
 
-  if (arg_firstN.isSet()) lastDatasetEntry = firstDatasetEntry + arg_firstN.getValue();
+  if (cli.arg_firstN.isSet()) lastDatasetEntry = firstDatasetEntry + cli.arg_firstN.getValue();
 
   mrpt::keep_min(lastDatasetEntry, dataset->datasetSize());
 
@@ -519,10 +575,19 @@ static int main_odometry()
     while (liodom.isBusy()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+
+    // Keep track of vehicle velocities?
+    if (outTwist) {
+      if (const auto optPoseAndTwist = liodom.lastEstimatedState(); optPoseAndTwist) {
+        const auto & [pose, tw] = optPoseAndTwist.value();
+        outTwist->insert(
+          obs->timestamp, mrpt::math::TPose3D(tw.vx, tw.vy, tw.vz, tw.wz, tw.wy, tw.wx));
+      }
+    }
   }
 
-  if (arg_outPath.isSet()) {
-    const auto fil = arg_outPath.getValue();
+  if (cli.arg_outPath.isSet()) {
+    const auto fil = cli.arg_outPath.getValue();
     std::cout << "\nSaving estimated path in TUM format to: " << fil << std::endl;
 
     mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory = liodom.estimatedTrajectory();
@@ -530,8 +595,8 @@ static int main_odometry()
     lastEstimatedTrajectory.saveToTextFile_TUM(fil);
   }
 
-  if (arg_outSimpleMap.isSet()) {
-    const auto fil = arg_outSimpleMap.getValue();
+  if (cli.arg_outSimpleMap.isSet()) {
+    const auto fil = cli.arg_outSimpleMap.getValue();
 
     auto sm = liodom.reconstructedMap();
 
@@ -541,19 +606,28 @@ static int main_odometry()
     sm.saveToFile(fil);
   }
 
+  if (outTwist) {
+    const auto fil = cli.arg_outTwist.getValue();
+    std::cout << "\nSaving estimated twist to: " << fil << std::endl;
+    outTwist->saveToTextFile(fil);
+  }
+
   return 0;
 }
+}  // namespace
 
 int main(int argc, char ** argv)
 {
   try {
+    Cli cli;
+
     // Parse arguments:
-    if (!cmd.parse(argc, argv)) return 1;  // should exit.
+    if (!cli.cmd.parse(argc, argv)) return 1;  // should exit.
 
     // Load plugins:
-    if (arg_plugins.isSet()) {
+    if (cli.arg_plugins.isSet()) {
       std::string errMsg;
-      const auto plugins = arg_plugins.getValue();
+      const auto plugins = cli.arg_plugins.getValue();
       std::cout << "Loading plugin(s): " << plugins << std::endl;
       if (!mrpt::system::loadPluginModules(plugins, errMsg)) {
         std::cerr << errMsg << std::endl;
@@ -563,7 +637,7 @@ int main(int argc, char ** argv)
 
     mola_install_signal_handler();
 
-    main_odometry();
+    main_odometry(cli);
 
     return 0;
   } catch (std::exception & e) {
