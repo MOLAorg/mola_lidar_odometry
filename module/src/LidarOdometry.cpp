@@ -1434,6 +1434,19 @@ mrpt::maps::CSimpleMap LidarOdometry::reconstructedMap() const
   return state_.reconstructed_simplemap;
 }
 
+std::optional<std::tuple<mrpt::poses::CPose3DPDFGaussian, mrpt::math::TTwist3D>>
+LidarOdometry::lastEstimatedState() const
+{
+  auto lck = mrpt::lockHelper(state_mtx_);
+
+  if (!state_.initialized || state_.fatal_error) return {};
+
+  if (!state_.last_motion_model_output) return {};
+  const auto & tw = state_.last_motion_model_output->twist;
+  const auto & pose = state_.last_lidar_pose;
+  return {{pose, tw}};
+}
+
 // KISS-ICP adaptive threshold method (MIT License; code adapted to MRPT)
 namespace
 {

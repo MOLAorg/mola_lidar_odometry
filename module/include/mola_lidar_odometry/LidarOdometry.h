@@ -404,6 +404,14 @@ public:
      */
   mrpt::poses::CPose3DInterpolator estimatedTrajectory() const;
 
+  /** Returns the last estimated kinematic state: pose of the vehicle in the LiDAR odometry
+   *  frame, and its estimated local (body-frame) twist vector.
+   *  This method will block if LO is running in another thread, until it is safe to get the data.
+   *  It will return std::nullopt if pose information is not available yet, e.g. still initializing.
+   */
+  std::optional<std::tuple<mrpt::poses::CPose3DPDFGaussian, mrpt::math::TTwist3D>>
+  lastEstimatedState() const;
+
   /** Returns a copy of the estimated simplemap.
      * Multi-thread safe to call.
      */
