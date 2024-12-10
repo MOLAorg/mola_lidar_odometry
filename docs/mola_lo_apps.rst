@@ -106,13 +106,58 @@ Runs MOLA-LO on a sequence of the KITTI odometry dataset :cite:`geiger2013vision
 Runs MOLA-LO on a sequence of the KITTI-360 dataset.
 
 
-
 |
+
+
+.. _mola_lo_gui_mulran:
 
 
 1.3. mola-lo-gui-mulran
 ------------------------------
 Runs MOLA-LO on a sequence of the Mulran dataset.
+
+.. dropdown:: How to run it
+   :icon: checklist
+
+    - Download the MulRan dataset (:cite:`gskim-2020-mulran`) from their `website <https://sites.google.com/view/mulran-pr/>`_,
+      and extract the files anywhere in your system such as the files layout is as expected by :ref:`mola::MulranDataset <doxid-classmola_1_1_mulran_dataset>`.
+
+    - Set the environment variable ``MULRAN_BASE_DIR`` to the root directory of your dataset, for example: 
+
+    .. code-block:: bash
+
+        export MULRAN_BASE_DIR=/home/myuser/mulran/
+
+    - And run it for the desired sequence:
+
+    .. code-block:: bash
+
+        # mola-lo-gui-mulran SEQUENCE
+        # SEQUENCE: KAIST01, KAIST02,..., DCC03,...
+        
+        # Example:
+        mola-lo-gui-mulran KAIST01
+
+        # Example using the 3D-NDT alternative pipeline:
+        PIPELINE_YAML=$(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-ndt.yaml \
+        MOLA_LOCAL_VOXELMAP_RESOLUTION=5.0 \
+        mola-lo-gui-mulran KAIST01
+
+.. raw:: html
+
+   <div style="width: 100%; overflow: hidden;">
+     <video controls autoplay loop muted style="width: 100%;">
+       <source src="https://mrpt.github.io/videos/mola-slam-mulran-demo-ndt.mp4" type="video/mp4">
+     </video>
+   </div>
+
+
+
+.. dropdown:: Inner workings
+   :icon: light-bulb
+
+   - mola-cli launch file: `mola-cli-launchs/lidar_odometry_from_mulran.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/mola-cli-launchs/lidar_odometry_from_mulran.yaml>`_
+   - Dataset C++ MOLA module: :ref:`mola::MulranDataset <doxid-classmola_1_1_mulran_dataset>`
 
 
 |
@@ -205,6 +250,7 @@ Environment variables specific for ``mola-lo-gui-rosbag2``:
 
 - ``PIPELINE_YAML`` (Default: full path to installed ``lidar3d-default.yaml``): Can be set to override
   the default pipeline and experiment with custom MOLA-LO systems described through a modified YAML file.
+  Example: see the example for :ref:`mola-lo-gui-mulran <mola_lo_gui_mulran>`.
 
 
 |

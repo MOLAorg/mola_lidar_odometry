@@ -4,10 +4,15 @@
 LiDAR odometry pipelines
 ============================
 
+____________________________________________
+
 .. contents::
    :depth: 1
    :local:
    :backlinks: none
+
+____________________________________________
+
 
 Most :ref:`parts <mola-internal-arch>` of the MOLA-LO system are **configured dynamically** from a YAML file.
 Basically, the whole design about how many **local map layers** exist, the pointcloud **processing pipelines**,
@@ -41,6 +46,11 @@ In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLA
 
 |
 
+____________________________________________
+
+|
+
+
 .. _mola_3d_default_pipeline:
 
 1. Default pipeline for 3D LiDAR (``lidar3d-default.yaml``)
@@ -64,9 +74,53 @@ and filtering pipelines to **downsample** incoming raw LiDAR data.
     .. literalinclude:: ../../../mola_lidar_odometry/pipelines/lidar3d-default.yaml
        :language: yaml
 
+
 |
 
-2. Pipeline for 2D LiDAR (``lidar2d.yaml``)
+____________________________________________
+
+|
+
+
+.. _mola_3d_ndt_pipeline:
+
+2. 3D mapping pipeline using 3D-NDT (``lidar3d-ndt.yaml``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This is an **alternative configuration** for 3D mapping used in the MOLA-LO paper, and should also work great
+out of the box for most common situations where, *at least*, part of the environment has flat surfaces.
+
+As described in the paper :cite:`blanco2024mola_lo`, this pipeline uses an NDT-like :cite:`magnusson2007scan` local map, based on **3D voxels**
+whose contents switch between bare points and Gaussians depending on how planar and how many points are.
+This pipeline exploits the **point-to-plane pairings**.
+
+.. raw:: html
+
+   <div style="width: 100%; overflow: hidden;">
+     <video controls autoplay loop muted style="width: 100%;">
+       <source src="https://mrpt.github.io/videos/mola-slam-mulran-demo-ndt.mp4" type="video/mp4">
+     </video>
+   </div>
+
+.. note::
+
+   See: :ref:`pipelines_env_vars`
+
+.. dropdown:: YAML listing
+    :icon: code-review
+
+    File: `mola_lidar_odometry/pipelines/lidar3d-ndt.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/lidar3d-ndt.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/lidar3d-ndt.yaml
+       :language: yaml
+
+
+|
+____________________________________________
+
+|
+
+
+3. Pipeline for 2D LiDAR (``lidar2d.yaml``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 This alternative configuration uses an **occupancy voxel map** instead of point clouds
 as local map, and performs **ray-tracing** to accumulate evidence about the freeness
@@ -87,6 +141,10 @@ If it recommended to use wheels-based odometry to help the mapping process.
     .. literalinclude:: ../../../mola_lidar_odometry/pipelines/lidar2d.yaml
        :language: yaml
 
+
+|
+
+____________________________________________
 
 |
 
