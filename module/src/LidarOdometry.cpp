@@ -2242,6 +2242,20 @@ void LidarOdometry::relocalize_from_gnss()
   //TODO!
 }
 
+MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
+{
+  MapServer::ReturnStatus ret;
+  //TODO!
+  return ret;
+}
+
+MapServer::ReturnStatus LidarOdometry::map_save(const std::string & path)
+{
+  MapServer::ReturnStatus ret;
+  //TODO!
+  return ret;
+}
+
 void LidarOdometry::processPendingUserRequests()
 {
   auto lckState = mrpt::lockHelper(state_mtx_);

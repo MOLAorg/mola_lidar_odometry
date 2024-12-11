@@ -32,6 +32,7 @@
 // MOLA interfaces:
 #include <mola_kernel/interfaces/FrontEndBase.h>
 #include <mola_kernel/interfaces/LocalizationSourceBase.h>
+#include <mola_kernel/interfaces/MapServer.h>
 #include <mola_kernel/interfaces/MapSourceBase.h>
 #include <mola_kernel/interfaces/Relocalization.h>
 
@@ -72,6 +73,7 @@ namespace mola
 class LidarOdometry : public mola::FrontEndBase,
                       public mola::LocalizationSourceBase,
                       public mola::MapSourceBase,
+                      public mola::MapServer,
                       public mola::Relocalization
 {
   DEFINE_MRPT_OBJECT(LidarOdometry, mola)
@@ -443,6 +445,29 @@ public:
      *  There is no return value from this method.
      */
   void relocalize_from_gnss() override;
+
+  /** @} */
+
+  /** @name Virtual interface of MapServer
+     *{ */
+
+  /** Loads a map from file(s) and sets it as active current map.
+     * Different implementations may use one or more files to store map as
+     * files.
+     *
+     *  \param[in] path File name(s) prefix for the map to load. Do not add file
+     * extension.
+     */
+  MapServer::ReturnStatus map_load(const std::string & path) override;
+
+  /** Saves a map from file(s) and sets it as active current map.
+     * Different implementations may use one or more files to store map as
+     * files.
+     *
+     *  \param[in] path File name(s) prefix for the map to save. Do not add file
+     * extension.
+     */
+  MapServer::ReturnStatus map_save(const std::string & path) override;
 
   /** @} */
 
