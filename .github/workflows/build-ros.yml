@@ -24,11 +24,6 @@ jobs:
             ros_distribution: humble
             ros_version: 2
 
-          # Iron Irwini (May 2023 - November 2024)
-          - docker_image: ubuntu:jammy
-            ros_distribution: iron
-            ros_version: 2
-
           # Jazzy (2024 - ??)
           - docker_image: ubuntu:noble
             ros_distribution: jazzy
