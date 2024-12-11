@@ -777,10 +777,16 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
   }
 
   // Handle initial localization options:
-  if (params_.initial_localization.enabled && !state_.initial_localization_done) {
+  if (auto & il = params_.initial_localization; il.enabled && !state_.initial_localization_done) {
     mrpt::poses::CPose3DPDFGaussian initPose;
-    initPose.mean = mrpt::poses::CPose3D(params_.initial_localization.fixed_initial_pose);
-    initPose.cov.setDiagonal(1e-12);
+    initPose.mean = mrpt::poses::CPose3D(il.fixed_initial_pose);
+    if (!il.initial_pose_cov) {
+      initPose.cov.setDiagonal(1e-12);
+    } else {
+      initPose.cov = *il.initial_pose_cov;
+    }
+
+    state_.navstate_fuse.reset();  // needed after a re-localization to forget the past
 
     // Fake an evolution to be able to have an initial velocity estimation:
     const auto t1 = mrpt::Clock::fromDouble(mrpt::Clock::toDouble(this_obs_tim) - 0.2);
@@ -2246,7 +2252,16 @@ void LidarOdometry::enqueue_request(const std::function<void()> & userRequest)
 
 void LidarOdometry::relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussian & p)
 {
-  //TODO!
+  auto lckState = mrpt::lockHelper(state_mtx_);
+
+  auto & il = params_.initial_localization;
+
+  // Enforce re-localizatio on the next iteration:
+  il.enabled = true;
+  state_.initial_localization_done = false;
+  // In this pose:
+  il.fixed_initial_pose = p.mean.asTPose();
+  il.initial_pose_cov = p.cov;
 }
 
 void LidarOdometry::relocalize_from_gnss()
@@ -2256,13 +2271,32 @@ void LidarOdometry::relocalize_from_gnss()
 
 MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
 {
+  using namespace std::string_literals;
+
+  auto lckState = mrpt::lockHelper(state_mtx_);
+
   MapServer::ReturnStatus ret;
-  //TODO!
+
+  const auto mmFile = path + ".mm"s;
+  const auto smFile = path + ".simplemap"s;
+
+  MRPT_LOG_INFO_STREAM("[map_load] Trying to load mm: " << mmFile << " and sm: " << smFile);
+
+  bool mmLoadOk = state_.local_map->load_from_file(mmFile);
+  bool smLoadOk = state_.reconstructed_simplemap.loadFromFile(smFile);
+
+  ret.success = mmLoadOk && smLoadOk;
+
+  if (!mmLoadOk) ret.error_message = "Error loading metric local map from: "s + mmFile + ". ";
+  if (!smLoadOk) ret.error_message = "Error loading simplemap (keyframes) from: "s + smFile + ". ";
+
   return ret;
 }
 
 MapServer::ReturnStatus LidarOdometry::map_save(const std::string & path)
 {
+  auto lckState = mrpt::lockHelper(state_mtx_);
+
   MapServer::ReturnStatus ret;
   //TODO!
   return ret;

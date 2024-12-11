@@ -369,6 +369,7 @@ public:
       InitLocalization method = InitLocalization::FixedPose;
 
       mrpt::math::TPose3D fixed_initial_pose;
+      std::optional<mrpt::math::CMatrixDouble66> initial_pose_cov;
 
       void initialize(const Yaml & c);
     };
