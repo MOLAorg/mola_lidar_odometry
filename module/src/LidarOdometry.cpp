@@ -1335,6 +1335,18 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
   ASSERT_(o);
 
   ProfilerEntry tleg(profiler_, "onIMU");
+
+  auto imu = std::dynamic_pointer_cast<mrpt::obs::CObservationIMU>(o);
+  ASSERTMSG_(
+    imu, mrpt::format(
+           "IMU observation with label '%s' does not have the expected "
+           "type 'mrpt::obs::CObservationIMU', it is '%s' instead",
+           o->sensorLabel.c_str(), o->GetRuntimeClass()->className));
+
+  MRPT_LOG_DEBUG_STREAM(
+    "onIMU called for timestamp=" << mrpt::system::dateTimeLocalToString(imu->timestamp));
+
+  state_.navstate_fuse.fuse_imu(*imu);
 }
 
 void LidarOdometry::onWheelOdometry(const CObservation::Ptr & o)
