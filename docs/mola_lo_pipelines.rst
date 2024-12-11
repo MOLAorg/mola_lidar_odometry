@@ -32,7 +32,7 @@ In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLA
 
     MOLA-LO uses the C++ library ``mola_yaml`` to parse YAML files, hence all YAML language extensions defined there
     applies to input YAML files used anywhere in a MOLA-LO system, e.g. ``${VAR|default}`` means "replace by environment
-    variable ``VAR`` or, if it does not exist, by ``default``".
+    variable ``VAR`` or, if it does not exist, by ``default``". Read all about :ref:`MOLA YAML extensions <yaml_extensions>`.
 
 .. dropdown:: Specifying the pipeline file in MOLA-LO apps
    :icon: checklist
