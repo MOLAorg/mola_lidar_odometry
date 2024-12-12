@@ -2262,6 +2262,9 @@ void LidarOdometry::relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussi
   // In this pose:
   il.fixed_initial_pose = p.mean.asTPose();
   il.initial_pose_cov = p.cov;
+
+  // Reset adaptative sigma to initial value:
+  state_.adapt_thres_sigma = 0;  // do initialization upon next call
 }
 
 void LidarOdometry::relocalize_from_gnss()
