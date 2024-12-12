@@ -2270,6 +2270,7 @@ void LidarOdometry::relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussi
 void LidarOdometry::relocalize_from_gnss()
 {
   //TODO!
+  MRPT_LOG_WARN("relocalize_from_gnss() not implemented yet!");
 }
 
 MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
@@ -2293,15 +2294,40 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
   if (!mmLoadOk) ret.error_message = "Error loading metric local map from: "s + mmFile + ". ";
   if (!smLoadOk) ret.error_message = "Error loading simplemap (keyframes) from: "s + smFile + ". ";
 
+  if (ret.success)
+    MRPT_LOG_INFO_STREAM("[map_load] Successful.");
+  else
+    MRPT_LOG_ERROR_STREAM("[map_load] Error loading from map prefix: " << path);
+
   return ret;
 }
 
 MapServer::ReturnStatus LidarOdometry::map_save(const std::string & path)
 {
+  using namespace std::string_literals;
+
   auto lckState = mrpt::lockHelper(state_mtx_);
 
   MapServer::ReturnStatus ret;
-  //TODO!
+
+  const auto mmFile = path + ".mm"s;
+  const auto smFile = path + ".simplemap"s;
+
+  MRPT_LOG_INFO_STREAM("[map_save] Trying to save mm: " << mmFile << " and sm: " << smFile);
+
+  bool mmSaveOk = state_.local_map->load_from_file(mmFile);
+  bool smSaveOk = state_.reconstructed_simplemap.loadFromFile(smFile);
+
+  ret.success = mmSaveOk && smSaveOk;
+
+  if (!mmSaveOk) ret.error_message = "Error saving metric local map from: "s + mmFile + ". ";
+  if (!smSaveOk) ret.error_message = "Error saving simplemap (keyframes) from: "s + smFile + ". ";
+
+  if (ret.success)
+    MRPT_LOG_INFO_STREAM("[map_save] Successful.");
+  else
+    MRPT_LOG_ERROR_STREAM("[map_save] Error saving map to map prefix: " << path);
+
   return ret;
 }
 
