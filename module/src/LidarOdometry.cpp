@@ -2315,19 +2315,23 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
   MRPT_LOG_INFO_STREAM("[map_load] Trying to load mm: " << mmFile << " and sm: " << smFile);
 
   bool mmLoadOk = false;
-  bool smLoadOk = false;
-
   try {
     mmLoadOk = state_.local_map->load_from_file(mmFile);
-    smLoadOk = state_.reconstructed_simplemap.loadFromFile(smFile);
   } catch (const std::exception &) {
-    // xxLoadOk will then be false.
   }
 
-  ret.success = mmLoadOk && smLoadOk;
+  bool smLoadOk = false;
+  try {
+    smLoadOk = state_.reconstructed_simplemap.loadFromFile(smFile);
+  } catch (const std::exception &) {
+  }
+
+  ret.success = mmLoadOk;  // smLoadOk: not mandatory
 
   if (!mmLoadOk) ret.error_message = "Error loading metric local map from: "s + mmFile + ". ";
-  if (!smLoadOk) ret.error_message = "Error loading simplemap (keyframes) from: "s + smFile + ". ";
+  if (!smLoadOk)
+    ret.error_message = "Warning: no simplemap (keyframes) file found (expected: '"s + smFile +
+                        "'). Required for multisession mapping. ";
 
   if (ret.success) {
     state_.local_map_needs_viz_update = true;  // refresh map in GUI, if enabled
