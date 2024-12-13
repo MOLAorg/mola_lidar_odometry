@@ -371,6 +371,9 @@ public:
       mrpt::math::TPose3D fixed_initial_pose;
       std::optional<mrpt::math::CMatrixDouble66> initial_pose_cov;
 
+      // Right after a re-localization, do not update the pose state estimator for a few iterations
+      uint32_t additional_uncertainty_after_reloc_how_many_timesteps = 5;
+
       void initialize(const Yaml & c);
     };
 
@@ -560,6 +563,9 @@ private:
 
     /// To update the map in the viz only if really needed
     bool local_map_needs_viz_update = true;
+
+    /// To handle post-re-localization. >0 means we are "recovering" from a request to re-localize:
+    uint32_t step_counter_post_relocalization = 0;
 
     // GNSS: keep a list of recent observations to later on search the one
     // closest to each LIDAR observation:

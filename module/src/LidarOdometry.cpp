@@ -224,6 +224,9 @@ void LidarOdometry::Parameters::TraceOutputOptions::initialize(const Yaml & cfg)
 void LidarOdometry::Parameters::InitialLocalizationOptions::initialize(const Yaml & cfg)
 {
   YAML_LOAD_OPT(enabled, bool);
+
+  YAML_LOAD_OPT(additional_uncertainty_after_reloc_how_many_timesteps, uint32_t);
+
   // TODO(jlbc): define enum "method"
 
   if (cfg.has("fixed_initial_pose")) {
@@ -820,7 +823,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
   tleMotion.stop();
 
-  if (state_.local_map->empty()) {
+  if (state_.local_map->empty() && params_.local_map_updates.enabled) {
     // Skip ICP.
     MRPT_LOG_DEBUG("First pointcloud: skipping ICP and directly adding to local map.");
 
@@ -916,7 +919,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
     profiler_.leave("onLidar.2c.prepare_icp_in");
 
-    // ------------------------------------------------------
+    // -----------------------------------------------------
     // Run ICP
     // -----------------------------------------------------
     ProfilerEntry tle_icp(profiler_, "onLidar.3.run_icp");
@@ -964,6 +967,13 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
     do {
       icp_params.maxIterations = remainingIcpIters;
 
+      // Skip ICP if we started without map and with mapping disabled:
+      if (state_.local_map->empty()) {
+        ASSERT_(!params_.local_map_updates.enabled);
+        break;
+      }
+
+      // Run ICP:
       icpCase.icp->align(
         *observation, *state_.local_map, current_solution, icp_params, icp_result, in.prior);
 
@@ -1038,9 +1048,19 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
     // Update velocity model:
     if (icpIsGood) {
-      state_.navstate_fuse.fuse_pose(
-        this_obs_tim, out.found_pose_to_wrt_from, NAVSTATE_LIODOM_FRAME);
+      // Good ICP, update state estimation filter with new data from ICP:
+
+      if (state_.step_counter_post_relocalization == 0) {
+        // Do integrate info:
+        state_.navstate_fuse.fuse_pose(
+          this_obs_tim, out.found_pose_to_wrt_from, NAVSTATE_LIODOM_FRAME);
+      } else {
+        // Skip during post-relocalization:
+        state_.step_counter_post_relocalization--;
+      }
+
     } else {
+      // Bad ICP:
       state_.navstate_fuse.reset();
     }
 
@@ -2264,7 +2284,15 @@ void LidarOdometry::relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussi
   il.initial_pose_cov = p.cov;
 
   // Reset adaptative sigma to initial value:
-  state_.adapt_thres_sigma = 0;  // do initialization upon next call
+  state_.adapt_thres_sigma = std::sqrt(p.cov.asEigen().block<2, 2>(0, 0).trace());
+
+  // Handle uncertainty in next steps:
+  state_.step_counter_post_relocalization =
+    il.additional_uncertainty_after_reloc_how_many_timesteps;
+
+  MRPT_LOG_INFO_STREAM(
+    "relocalize_near_pose_pdf(): Using thres_sigma="  //
+    << state_.adapt_thres_sigma << " to relocalize near: " << p.mean);
 }
 
 void LidarOdometry::relocalize_from_gnss()
@@ -2286,17 +2314,26 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
 
   MRPT_LOG_INFO_STREAM("[map_load] Trying to load mm: " << mmFile << " and sm: " << smFile);
 
-  bool mmLoadOk = state_.local_map->load_from_file(mmFile);
-  bool smLoadOk = state_.reconstructed_simplemap.loadFromFile(smFile);
+  bool mmLoadOk = false;
+  bool smLoadOk = false;
+
+  try {
+    mmLoadOk = state_.local_map->load_from_file(mmFile);
+    smLoadOk = state_.reconstructed_simplemap.loadFromFile(smFile);
+  } catch (const std::exception &) {
+    // xxLoadOk will then be false.
+  }
 
   ret.success = mmLoadOk && smLoadOk;
 
   if (!mmLoadOk) ret.error_message = "Error loading metric local map from: "s + mmFile + ". ";
   if (!smLoadOk) ret.error_message = "Error loading simplemap (keyframes) from: "s + smFile + ". ";
 
-  if (ret.success)
+  if (ret.success) {
+    state_.local_map_needs_viz_update = true;  // refresh map in GUI, if enabled
+
     MRPT_LOG_INFO_STREAM("[map_load] Successful.");
-  else
+  } else
     MRPT_LOG_ERROR_STREAM("[map_load] Error loading from map prefix: " << path);
 
   return ret;
@@ -2315,8 +2352,8 @@ MapServer::ReturnStatus LidarOdometry::map_save(const std::string & path)
 
   MRPT_LOG_INFO_STREAM("[map_save] Trying to save mm: " << mmFile << " and sm: " << smFile);
 
-  bool mmSaveOk = state_.local_map->load_from_file(mmFile);
-  bool smSaveOk = state_.reconstructed_simplemap.loadFromFile(smFile);
+  bool mmSaveOk = state_.local_map->save_to_file(mmFile);
+  bool smSaveOk = state_.reconstructed_simplemap.saveToFile(smFile);
 
   ret.success = mmSaveOk && smSaveOk;
 
