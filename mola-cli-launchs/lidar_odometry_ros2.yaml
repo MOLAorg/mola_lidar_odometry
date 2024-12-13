@@ -58,6 +58,11 @@ modules:
       # do not publish to /tf from ground_truth, if available
       publish_tf_from_robot_pose_observations: false
 
+      # If not empty, this defines a topic name (type: geometry_msgs/PoseWithCovarianceStamped)
+      # to subscribe to. Each received message will map to requests to re-localize to MOLA modules
+      # in the system implementing `mola::Relocalization`:
+      relocalize_from_topic: '/initialpose'
+
       # Everything published to ROS2 will have timestamps from:
       #  - true: the original dataset timestamps.
       #  - false: the wall-clock time.

@@ -463,8 +463,44 @@ are already working and publishing ROS topics.
     (for example, if you only launched the LiDAR driver node) you must then set the environment variable ``MOLA_USE_FIXED_LIDAR_POSE=true``
     to use the default (identity) sensor pose on the vehicle.
 
+3.1. ROS 2 launch file: live LiDAR odometry
+--------------------------------------------------
 
-3.1. ROS 2 launch file: LiDAR odometry for KITTI
+This launch file (`view sources <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/ros2-launchs/ros2-lidar-odometry.launch.py>`_)
+runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrating a few features**:
+
+* Launching and visualizing LO in both, ``mola_viz`` and ``RViz2`` (or use FoxGlove if preferred).
+* How MOLA ``mola_lidar_odometry`` publishes the local map,
+  the estimated trajectory, and `/tf` for the estimated odometry.
+
+.. image:: https://mrpt.github.io/imgs/mola-lo-ros2-launch-demo-live-forest.png
+
+.. dropdown:: How to run it
+   :icon: checklist
+
+   .. code-block:: bash
+
+      # Basic usage (requires correct LiDAR sensor /tf):
+      MOLA_GENERATE_SIMPLEMAP=true \
+      ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
+        lidar_topic_name:=/ouster/points
+
+      # Usage without sensor /tf:
+      MOLA_GENERATE_SIMPLEMAP=true \
+      ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
+        lidar_topic_name:=/ouster/points \
+        ignore_lidar_pose_from_tf:=True
+
+.. dropdown:: More parameters
+    :icon: list-unordered
+
+    The ``lidar3d-default.yaml`` pipeline file defines plenty of :ref:`additional parameters and options <mola_3d_default_pipeline>` that you can explore.
+    See also the docs for the :ref:`ROS 2 API <mola_ros2api>` and :ref:`this tutorial <tutorial-mola-lo-map-and-localize>` on how to save and load a map using ROS 2 MOLA-LO nodes.
+
+|
+
+
+3.2. ROS 2 launch file: LiDAR odometry for KITTI
 --------------------------------------------------
 
 This demo launch file (`view sources <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/ros2-launchs/ros2-lidar-odometry-kitti.launch.py>`_)
@@ -496,39 +532,6 @@ runs **MOLA-LO** on a sequence of the KITTI odometry dataset :cite:`geiger2013vi
 
 |
 
-3.2. ROS 2 launch file: live LiDAR odometry
---------------------------------------------------
-
-This launch file (`view sources <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/ros2-launchs/ros2-lidar-odometry.launch.py>`_)
-runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrating a few features**:
-
-* Launching and visualizing LO in both, ``mola_viz`` and ``RViz2`` (or use FoxGlove if preferred).
-* How MOLA ``mola_lidar_odometry``publishes the local map,
-  the estimated trajectory, and `/tf` for the estimated odometry.
-
-.. image:: https://mrpt.github.io/imgs/mola-lo-ros2-launch-demo-live-forest.png
-
-.. dropdown:: How to run it
-   :icon: checklist
-
-   .. code-block:: bash
-
-      # Basic usage (requires correct LiDAR sensor /tf):
-      ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
-        lidar_topic_name:=/ouster/points
-
-      # Usage without sensor /tf:
-      ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
-        lidar_topic_name:=/ouster/points \
-        ignore_lidar_pose_from_tf:=True
-
-.. dropdown:: More parameters
-    :icon: list-unordered
-
-    The ``lidar3d-default.yaml`` pipeline file defines plenty of :ref:`additional parameters and options <mola_3d_default_pipeline>` that you can explore.
-
-
-|
 
 .. _mola_lo_ros1:
 
