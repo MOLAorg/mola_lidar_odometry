@@ -482,8 +482,12 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   state_.initialized = true;
   state_.active = params_.start_active;
 
+  // Make runtime params exposed:
+  onExposeParameters();
+
   MRPT_TRY_END
 }
+
 void LidarOdometry::spinOnce()
 {
   MRPT_TRY_START
@@ -2422,4 +2426,29 @@ void LidarOdometry::doWriteDebugTracesFile(const mrpt::Clock::time_point & this_
   for (const auto & [name, value] : vars)  //
     of << mrpt::format("%f,", value);
   of << "\n";
+}
+
+#if MOLA_VERSION_CHECK(1, 4, 0)
+void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_values)
+{
+  if (names_values.isNullNode() || names_values.empty()) return;
+
+  ASSERT_(names_values.isMap());
+
+  auto lckState = mrpt::lockHelper(state_mtx_);
+
+  state_.active = names_values.getOrDefault("active", state_.active);
+  params_.local_map_updates.enabled =
+    names_values.getOrDefault("mapping_enabled", params_.local_map_updates.enabled);
+}
+#endif
+
+void LidarOdometry::onExposeParameters()
+{
+#if MOLA_VERSION_CHECK(1, 4, 0)
+  mrpt::containers::yaml nv = mrpt::containers::yaml::Map();
+  nv["active"] = state_.active;
+  nv["mapping_enabled"] = params_.local_map_updates.enabled;
+  this->exposeParameters(nv);
+#endif
 }

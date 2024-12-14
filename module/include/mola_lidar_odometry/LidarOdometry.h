@@ -35,6 +35,7 @@
 #include <mola_kernel/interfaces/MapServer.h>
 #include <mola_kernel/interfaces/MapSourceBase.h>
 #include <mola_kernel/interfaces/Relocalization.h>
+#include <mola_kernel/version.h>
 
 // Other packages:
 #include <mola_navstate_fuse/NavStateFuse.h>
@@ -474,6 +475,13 @@ public:
   MapServer::ReturnStatus map_save(const std::string & path) override;
 
   /** @} */
+
+protected:
+#if MOLA_VERSION_CHECK(1, 4, 0)  // Parameters added in MOLA v1.4.0
+  // See docs in base class.
+  void onParameterUpdate(const mrpt::containers::yaml & names_values) override;
+#endif
+  void onExposeParameters();  // called after initialization
 
 private:
   const std::string NAVSTATE_LIODOM_FRAME = "liodom";
