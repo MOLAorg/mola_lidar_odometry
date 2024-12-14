@@ -2143,6 +2143,9 @@ void LidarOdometry::doPublishUpdatedLocalization(const mrpt::Clock::time_point &
   lu.timestamp = this_obs_tim;
   lu.pose = state_.last_lidar_pose.mean.asTPose();
   lu.cov = state_.last_lidar_pose.cov;
+#if MOLA_VERSION_CHECK(1, 4, 0)
+  lu.quality = state_.last_icp_quality;
+#endif
 
   advertiseUpdatedLocalization(lu);
 }
