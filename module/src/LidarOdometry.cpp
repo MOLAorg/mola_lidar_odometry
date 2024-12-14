@@ -1100,8 +1100,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
     if (!state_.distance_checker_simplemap)
       state_.distance_checker_simplemap.emplace(params_.simplemap.measure_from_last_kf_only);
 
-    // Create a new KF if the distance since the last one is large
-    // enough:
+    // Create a new KF if the distance since the last one is large enough:
     const auto [isFirstPoseInChecker, distanceToClosest] =
       state_.distance_checker_local_map->check(state_.last_lidar_pose.mean);
 
@@ -1110,17 +1109,17 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
       mrpt::poses::Lie::SO<3>::log(distanceToClosest.getRotationMatrix()).norm();
 
     // clang-format off
-        updateLocalMap =
-            (icpIsGood &&
-            // Only if we are in mapping mode:
-            params_.local_map_updates.enabled &&
-            // skip map update for the special ICP alignment without motion model
-             hasMotionModel &&
-             (isFirstPoseInChecker ||
-              dist_eucl_since_last > params_.local_map_updates.min_translation_between_keyframes ||
-              rot_since_last >
-              mrpt::DEG2RAD(params_.local_map_updates.min_rotation_between_keyframes))
-            );
+    updateLocalMap =
+      (icpIsGood &&
+       // Only if we are in mapping mode:
+       params_.local_map_updates.enabled &&
+       // skip map update for the special ICP alignment without motion model
+       hasMotionModel &&
+       (isFirstPoseInChecker ||
+        dist_eucl_since_last > params_.local_map_updates.min_translation_between_keyframes ||
+        rot_since_last >
+          mrpt::DEG2RAD(params_.local_map_updates.min_rotation_between_keyframes))
+       );
     // clang-format on
 
     if (updateLocalMap) {
@@ -1157,11 +1156,11 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
       rot_since_last_sm > mrpt::DEG2RAD(params_.simplemap.min_rotation_between_keyframes);
 
     // clang-format off
-        updateSimpleMap =
-            params_.simplemap.generate &&
-            (icpIsGood &&
-             (distance_enough_sm || params_.simplemap.add_non_keyframes_too)
-            );
+    updateSimpleMap =
+      params_.simplemap.generate &&
+      (icpIsGood &&
+       (distance_enough_sm || params_.simplemap.add_non_keyframes_too)
+       );
     // clang-format on
 
     if (updateSimpleMap && distance_enough_sm)
@@ -1175,8 +1174,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
   }  // end: yes, we can do ICP
 
-  // If this was a bad ICP, and we just started with an empty map, re-start
-  // again:
+  // If this was a bad ICP, and we just started with an empty map, re-start again:
   if (!state_.last_icp_was_good && state_.estimated_trajectory.size() == 1) {
     // Re-start the local map:
     state_.local_map->clear();
@@ -1991,14 +1989,14 @@ void LidarOdometry::internalBuildGUI()
   gui_.lbTime = tab1->add<nanogui::Label>(" ");
 
   // tab 2: control
-  auto cbActive = tab2->add<nanogui::CheckBox>("Active");
-  cbActive->setChecked(state_.active);
-  cbActive->setCallback(
+  gui_.cbActive = tab2->add<nanogui::CheckBox>("Active");
+  gui_.cbActive->setChecked(state_.active);
+  gui_.cbActive->setCallback(
     [&](bool checked) { this->enqueue_request([this, checked]() { state_.active = checked; }); });
 
-  auto cbMapping = tab2->add<nanogui::CheckBox>("Mapping enabled");
-  cbMapping->setChecked(params_.local_map_updates.enabled);
-  cbMapping->setCallback([&](bool checked) {
+  gui_.cbMapping = tab2->add<nanogui::CheckBox>("Mapping enabled");
+  gui_.cbMapping->setChecked(params_.local_map_updates.enabled);
+  gui_.cbMapping->setCallback([&](bool checked) {
     this->enqueue_request([this, checked]() { params_.local_map_updates.enabled = checked; });
   });
 
@@ -2440,9 +2438,18 @@ void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_value
 
   auto lckState = mrpt::lockHelper(state_mtx_);
 
+  // Load parameters:
   state_.active = names_values.getOrDefault("active", state_.active);
   params_.local_map_updates.enabled =
     names_values.getOrDefault("mapping_enabled", params_.local_map_updates.enabled);
+
+  // and reflect changes in the GUI, if used.
+  this->enqueue_request([this]() {
+    if (gui_.cbActive) {
+      gui_.cbActive->setChecked(state_.active);
+      gui_.cbMapping->setChecked(params_.local_map_updates.enabled);
+    }
+  });
 }
 #endif
 

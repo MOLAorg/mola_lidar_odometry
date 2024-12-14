@@ -612,6 +612,8 @@ private:
     nanogui::Label * lbSensorRange = nullptr;
     nanogui::Label * lbTime = nullptr;
     nanogui::Label * lbSpeed = nullptr;
+    nanogui::CheckBox * cbActive = nullptr;
+    nanogui::CheckBox * cbMapping = nullptr;
   };
 
   StateUI gui_;
