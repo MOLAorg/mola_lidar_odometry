@@ -1325,9 +1325,9 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
   }  // end update simple map
 
-  // In any case, publish the vehicle pose, no matter if it's a keyframe or
-  // not:
-  doPublishUpdatedLocalization(this_obs_tim);
+  // In any case, publish the vehicle pose, no matter if it's a keyframe or not,
+  // but if ICP quality was good enough:
+  if (state_.last_icp_was_good) doPublishUpdatedLocalization(this_obs_tim);
 
   // Publish new local map:
   doPublishUpdatedMap(this_obs_tim);
