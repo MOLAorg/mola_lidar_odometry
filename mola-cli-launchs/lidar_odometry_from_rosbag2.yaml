@@ -16,7 +16,7 @@ modules:
   # =====================
   # LIDAR ODOMETRY
   # =====================
-  - name: icp_odom
+  - name: lidar_odom
     type: mola::LidarOdometry
     #verbosity_level: DEBUG
     raw_data_source: 'dataset_input'

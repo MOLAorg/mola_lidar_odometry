@@ -17,7 +17,7 @@ modules:
   # =====================
   # LidarOdometry
   # =====================
-  - name: icp_odom
+  - name: lidar_odom
     type: mola::LidarOdometry
     #verbosity_level: DEBUG
     raw_data_source: 'ros2_bridge'
