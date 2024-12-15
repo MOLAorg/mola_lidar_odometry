@@ -57,6 +57,8 @@ The labeled parts in the GUI are:
 
 |
 
+.. _mola-lo-gui-kitti:
+
 1.1. mola-lo-gui-kitti
 ------------------------------
 Runs MOLA-LO on a sequence of the KITTI odometry dataset :cite:`geiger2013vision`.
