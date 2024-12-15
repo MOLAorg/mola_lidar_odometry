@@ -168,8 +168,8 @@ Unless said otherwise, all variables are valid for all the pipelines described a
 
 .. _mola_lo_pipeline_sensor_inputs:
 
-Sensor inputs
-^^^^^^^^^^^^^
+Sensor inputs: LiDAR
+^^^^^^^^^^^^^^^^^^^^^
 
 - ``MOLA_LIDAR_NAME`` (Default: ``['lidar', '/ouster/points']``): A **sensor label** (maybe including a regular expression) of what
   observations are to be treated as input LiDAR point clouds. For most dataset sources, the default ``lidar`` is enough.
@@ -190,11 +190,20 @@ Sensor inputs
 - ``MOLA_MINIMUM_RANGE_FILTER`` (Default: 3% of max sensor range). Minimum range for 3D points. This removes points from 
   the robot/vehicle itself.
 
+Sensor inputs: Wheels odometry
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 - ``MOLA_ODOMETRY_NAME`` (Default: ``odometry``): **Sensor label** (or regex) of the observations
   with wheels odometry, if it exists.
 
-- ``MOLA_GNSS_TOPIC`` (Default: ``gps``): **Sensor label** (or regex) of the observations to be treated as
+Sensor inputs: GPS (GNSS)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- ``MOLA_GNSS_TOPIC`` (Default: ``/gps``): For ROS 2 live node or rosbags, the **topic name** to be treated as
   GNSS data. Used only for storage in simple-maps for post-processing (geo-referencing, etc.).
+
+MOLA_USE_FIXED_IMU_POSE
+
 
 Scan de-skew options
 ^^^^^^^^^^^^^^^^^^^^^^

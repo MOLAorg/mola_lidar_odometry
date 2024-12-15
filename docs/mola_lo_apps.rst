@@ -238,7 +238,7 @@ Environment variables specific for ``mola-lo-gui-rosbag2``:
 
 - ``MOLA_DATASET_START_PAUSED`` (Default: false): Start with replay paused. Then can be resumed from the GUI.
 
-- ``MOLA_TF_BASE_FOOTPRINT`` (Default: ``base_link``): Set to something else if your ``/tf`` tree does not have a ``base_link`` frame.
+Also, see :ref:`variables to control sensor inputs <mola_lo_ros_mola-cli-env-vars>`.
 
 
 |
@@ -491,11 +491,55 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
         lidar_topic_name:=/ouster/points \
         ignore_lidar_pose_from_tf:=True
 
-.. dropdown:: More parameters
+.. note::
+
+    See also the complete :ref:`ROS 2 API reference <mola_ros2api>`.
+
+.. _mola_lo_ros_mola-cli-env-vars:
+
+.. dropdown:: Configure sensor inputs for ROS 2 node and rosbag2 input
+    :icon: list-unordered
+
+    The following environment variables can be set to change the behavior of how ``BridgeROS2``
+    handles input ROS 2 messages on sensor inputs.
+    Please, refer to the actual mola-cli launch files where these variables are defined:
+
+    - `mola-cli-launchs/lidar_odometry_from_rosbag2.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/mola-cli-launchs/lidar_odometry_from_rosbag2.yaml>`_
+    - `mola-cli-launchs/lidar_odometry_ros2.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/mola-cli-launchs/lidar_odometry_ros2.yaml>`_
+
+    Environment variables:
+
+    - ``MOLA_TF_BASE_FOOTPRINT`` (Default: ``"base_link"``): The robot reference frame id in ``/tf``. Used to get sensor poses with respect to the vehicle.
+
+    - ``MOLA_LIDAR_TOPIC`` (Default: ``'/ouster/points'``): The ``sensor_msgs/PointCloud2`` topic with raw LiDAR data (mandatory).
+
+    - ``MOLA_USE_FIXED_LIDAR_POSE`` (Default: ``false``): If false, sensor pose will be retrieved from ``/tf``. You can also set it to true and then the sensor pose will be given by these env. variables:
+
+        - ``LIDAR_POSE_X``, ``LIDAR_POSE_Y``, ``LIDAR_POSE_Z`` (in meters).
+        - ``LIDAR_POSE_YAW``, ``LIDAR_POSE_PITCH``, ``LIDAR_POSE_ROLL`` (in degrees).
+
+    - ``MOLA_GNSS_TOPIC`` (Default: ``'/gps'``): The ``sensor_msgs/NavSatFix`` topic with GNSS data (optional).
+    
+    - ``MOLA_USE_FIXED_GNSS_POSE`` (Default: ``true``): If false, sensor pose will be retrieved from ``/tf``. You can also set it to true and then the sensor pose will be given by these env. variables:
+
+        - ``GNSS_POSE_X``, ``GNSS_POSE_Y``, ``GNSS_POSE_Z`` (in meters).
+        - ``GNSS_POSE_YAW``, ``GNSS_POSE_PITCH``, ``GNSS_POSE_ROLL`` (in degrees).
+
+    - ``MOLA_IMU_TOPIC`` (Default: ``'/imu'``): The ``sensor_msgs/Imu`` topic with IMU data (optional).
+    
+    - ``MOLA_USE_FIXED_IMU_POSE`` (Default: ``true``): If false, sensor pose will be retrieved from ``/tf``. You can also set it to true and then the sensor pose will be given by these env. variables:
+
+        - ``IMU_POSE_X``, ``IMU_POSE_Y``, ``IMU_POSE_Z`` (in meters).
+        - ``IMU_POSE_YAW``, ``IMU_POSE_PITCH``, ``IMU_POSE_ROLL`` (in degrees).
+
+
+.. dropdown:: More LO parameters
     :icon: list-unordered
 
     The ``lidar3d-default.yaml`` pipeline file defines plenty of :ref:`additional parameters and options <mola_3d_default_pipeline>` that you can explore.
     See also the docs for the :ref:`ROS 2 API <mola_ros2api>` and :ref:`this tutorial <tutorial-mola-lo-map-and-localize>` on how to save and load a map using ROS 2 MOLA-LO nodes.
+
+
 
 |
 
@@ -541,11 +585,5 @@ runs **MOLA-LO** on a sequence of the KITTI odometry dataset :cite:`geiger2013vi
 ROS 1 bags are not directly supported by MOLA-LO. However, given the large amount of public datasets
 already published in this format, we provide two pathways to parse them.
 
-4.1. Porting to ROS 2 bags
----------------------------------
-Write me!
-
-
-4.2. Converting to MRPT rawlog
----------------------------------
-Write me!
+- Porting to ROS 2 bags:  :ref:`ros1_to_ros2`.
+- Converting to MRPT rawlog: :ref:`rosbag2rawlog`
