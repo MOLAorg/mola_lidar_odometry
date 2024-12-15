@@ -614,6 +614,7 @@ private:
     nanogui::Label * lbSpeed = nullptr;
     nanogui::CheckBox * cbActive = nullptr;
     nanogui::CheckBox * cbMapping = nullptr;
+    nanogui::CheckBox * cbSaveSimplemap = nullptr;
   };
 
   StateUI gui_;

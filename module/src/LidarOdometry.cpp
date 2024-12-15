@@ -2033,9 +2033,9 @@ void LidarOdometry::internalBuildGUI()
     panel->setLayout(
       new nanogui::BoxLayout(nanogui::Orientation::Horizontal, nanogui::Alignment::Maximum, 1, 1));
 
-    auto * cbSaveSimplemap = panel->add<nanogui::CheckBox>("Generate simplemap");
-    cbSaveSimplemap->setChecked(params_.simplemap.generate);
-    cbSaveSimplemap->setCallback([this](bool checked) {
+    gui_.cbSaveSimplemap = panel->add<nanogui::CheckBox>("Generate simplemap");
+    gui_.cbSaveSimplemap->setChecked(params_.simplemap.generate);
+    gui_.cbSaveSimplemap->setCallback([this](bool checked) {
       this->enqueue_request([this, checked]() { params_.simplemap.generate = checked; });
     });
 
@@ -2442,12 +2442,15 @@ void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_value
   state_.active = names_values.getOrDefault("active", state_.active);
   params_.local_map_updates.enabled =
     names_values.getOrDefault("mapping_enabled", params_.local_map_updates.enabled);
+  params_.simplemap.generate =
+    names_values.getOrDefault("generate_simplemap", params_.simplemap.generate);
 
   // and reflect changes in the GUI, if used.
   this->enqueue_request([this]() {
     if (gui_.cbActive) {
       gui_.cbActive->setChecked(state_.active);
       gui_.cbMapping->setChecked(params_.local_map_updates.enabled);
+      gui_.cbSaveSimplemap->setChecked(params_.simplemap.generate);
     }
   });
 }
@@ -2459,6 +2462,7 @@ void LidarOdometry::onExposeParameters()
   mrpt::containers::yaml nv = mrpt::containers::yaml::Map();
   nv["active"] = state_.active;
   nv["mapping_enabled"] = params_.local_map_updates.enabled;
+  nv["generate_simplemap"] = params_.simplemap.generate;
   this->exposeParameters(nv);
 #endif
 }
