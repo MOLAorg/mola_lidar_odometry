@@ -34,9 +34,24 @@ def generate_launch_description():
     gps_topic_env_var = SetEnvironmentVariable(
         name='MOLA_GNSS_TOPIC', value=LaunchConfiguration('gnss_topic_name'))
     # ~~~~~~~~~~~~
+    imu_topic_name_arg = DeclareLaunchArgument(
+        "imu_topic_name", default_value="/imu", description="Topic name to listen for Imu input (for example '/imu')")
+    imu_topic_env_var = SetEnvironmentVariable(
+        name='MOLA_IMU_TOPIC', value=LaunchConfiguration('imu_topic_name'))
+    # ~~~~~~~~~~~~
     use_rviz = LaunchConfiguration('use_rviz')
     use_rviz_arg = DeclareLaunchArgument(
         "use_rviz", default_value="True", description="Whether to launch RViz2 with default lidar-odometry.rviz configuration")
+    # ~~~~~~~~~~~~
+    use_mola_gui_arg = DeclareLaunchArgument(
+        "use_mola_gui", default_value="True", description="Whether to open MolaViz GUI interface for watching live mapping and control UI")
+    use_mola_gui_env_var = SetEnvironmentVariable(
+        name='MOLA_IMU_TOPIC', value=LaunchConfiguration('use_mola_gui'))
+
+    # MOLA subsystem configuration YAML file
+    # ------------------------------------------
+    mola_system_yaml_file = os.path.join(
+        myDir, 'mola-cli-launchs', 'lidar_odometry_ros2.yaml')
 
     # -------------------
     #        Node
@@ -45,8 +60,7 @@ def generate_launch_description():
         package='mola_launcher',
         executable='mola-cli',
         output='screen',
-        arguments=[
-                os.path.join(myDir, 'mola-cli-launchs', 'lidar_odometry_ros2.yaml')]
+        arguments=[mola_system_yaml_file]
     )
 
     rviz2_node = Node(
@@ -65,6 +79,10 @@ def generate_launch_description():
         fixed_sensorpose_env_var,
         gnss_topic_name_arg,
         gps_topic_env_var,
+        imu_topic_name_arg,
+        imu_topic_env_var,
+        use_mola_gui_arg,
+        use_mola_gui_env_var,
         mola_cli_node,
         use_rviz_arg,
         rviz2_node
