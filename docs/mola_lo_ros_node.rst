@@ -33,31 +33,39 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
       .. code-block:: bash
 
-         $ ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py --show-args
-         Arguments (pass arguments as '<name>:=<value>'):
+            $ ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py --show-args
+            Arguments (pass arguments as '<name>:=<value>'):
 
-            'lidar_topic_name':
-               Topic name to listen for PointCloud2 input from the LiDAR (for example '/ouster/points')
+               'namespace':
+                  Top-level namespace
+                  (default: '')
 
-            'ignore_lidar_pose_from_tf':
-               If true, the LiDAR pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf
-               (default: 'false')
+               'use_namespace':
+                  Whether to apply a namespace to the navigation stack
+                  (default: 'false')
 
-            'gnss_topic_name':
-               Topic name to listen for NavSatFix input from a GNSS (for example '/gps')
-               (default: '/gps')
+               'lidar_topic_name':
+                  Topic name to listen for PointCloud2 input from the LiDAR (for example '/ouster/points')
 
-            'imu_topic_name':
-               Topic name to listen for Imu input (for example '/imu')
-               (default: '/imu')
+               'ignore_lidar_pose_from_tf':
+                  If true, the LiDAR pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf
+                  (default: 'false')
 
-            'use_mola_gui':
-               Whether to open MolaViz GUI interface for watching live mapping and control UI
-               (default: 'True')
+               'gnss_topic_name':
+                  Topic name to listen for NavSatFix input from a GNSS (for example '/gps')
+                  (default: 'gps')
 
-            'use_rviz':
-               Whether to launch RViz2 with default lidar-odometry.rviz configuration
-               (default: 'True')
+               'imu_topic_name':
+                  Topic name to listen for Imu input (for example '/imu')
+                  (default: 'imu')
+
+               'use_mola_gui':
+                  Whether to open MolaViz GUI interface for watching live mapping and control UI
+                  (default: 'True')
+
+               'use_rviz':
+                  Whether to launch RViz2 with default lidar-odometry.rviz configuration
+                  (default: 'True')
 
 
 

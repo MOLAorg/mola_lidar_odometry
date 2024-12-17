@@ -6,8 +6,10 @@ from launch.substitutions import TextSubstitution
 from launch.substitutions import LaunchConfiguration
 from launch.conditions import IfCondition
 from launch_ros.actions import Node
+from launch_ros.actions import PushRosNamespace
 from launch.actions import DeclareLaunchArgument
 from launch.actions import SetEnvironmentVariable
+from launch.actions import GroupAction
 from ament_index_python import get_package_share_directory
 import os
 
@@ -30,12 +32,12 @@ def generate_launch_description():
         name='MOLA_USE_FIXED_LIDAR_POSE', value=LaunchConfiguration('ignore_lidar_pose_from_tf'))
     # ~~~~~~~~~~~~
     gnss_topic_name_arg = DeclareLaunchArgument(
-        "gnss_topic_name", default_value="/gps", description="Topic name to listen for NavSatFix input from a GNSS (for example '/gps')")
+        "gnss_topic_name", default_value="gps", description="Topic name to listen for NavSatFix input from a GNSS (for example '/gps')")
     gps_topic_env_var = SetEnvironmentVariable(
         name='MOLA_GNSS_TOPIC', value=LaunchConfiguration('gnss_topic_name'))
     # ~~~~~~~~~~~~
     imu_topic_name_arg = DeclareLaunchArgument(
-        "imu_topic_name", default_value="/imu", description="Topic name to listen for Imu input (for example '/imu')")
+        "imu_topic_name", default_value="imu", description="Topic name to listen for Imu input (for example '/imu')")
     imu_topic_env_var = SetEnvironmentVariable(
         name='MOLA_IMU_TOPIC', value=LaunchConfiguration('imu_topic_name'))
     # ~~~~~~~~~~~~
@@ -47,6 +49,22 @@ def generate_launch_description():
         "use_mola_gui", default_value="True", description="Whether to open MolaViz GUI interface for watching live mapping and control UI")
     use_mola_gui_env_var = SetEnvironmentVariable(
         name='MOLA_WITH_GUI', value=LaunchConfiguration('use_mola_gui'))
+    # ~~~~~~~~~~~~
+
+    # Namespace (Based on Nav2's bring-up launch file!)
+    # ---------------------------------------------------
+    namespace = LaunchConfiguration('namespace')
+    use_namespace = LaunchConfiguration('use_namespace')
+
+    declare_namespace_cmd = DeclareLaunchArgument(
+        'namespace',
+        default_value='',
+        description='Top-level namespace')
+
+    declare_use_namespace_cmd = DeclareLaunchArgument(
+        'use_namespace',
+        default_value='false',
+        description='Whether to apply a namespace to the navigation stack')
 
     # MOLA subsystem configuration YAML file
     # ------------------------------------------
@@ -56,23 +74,31 @@ def generate_launch_description():
     # -------------------
     #        Node
     # -------------------
-    mola_cli_node = Node(
-        package='mola_launcher',
-        executable='mola-cli',
-        output='screen',
-        arguments=[mola_system_yaml_file]
-    )
+    node_group = GroupAction([
+        PushRosNamespace(
+            condition=IfCondition(use_namespace),
+            namespace=namespace),
 
-    rviz2_node = Node(
-        condition=IfCondition(use_rviz),
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        arguments=[
+        Node(
+            package='mola_launcher',
+            executable='mola-cli',
+            output='screen',
+            arguments=[mola_system_yaml_file]
+        ),
+
+        Node(
+            condition=IfCondition(use_rviz),
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2',
+            arguments=[
                 '-d', [os.path.join(myDir, 'rviz2', 'lidar-odometry.rviz')]]
-    )
+        )
+    ])
 
     return LaunchDescription([
+        declare_namespace_cmd,
+        declare_use_namespace_cmd,
         lidar_topic_name_arg,
         topic_env_var,
         ignore_lidar_pose_from_tf_arg,
@@ -83,7 +109,6 @@ def generate_launch_description():
         imu_topic_env_var,
         use_mola_gui_arg,
         use_mola_gui_env_var,
-        mola_cli_node,
         use_rviz_arg,
-        rviz2_node
+        node_group
     ])
