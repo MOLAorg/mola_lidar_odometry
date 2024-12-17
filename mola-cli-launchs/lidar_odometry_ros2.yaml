@@ -37,7 +37,6 @@ modules:
     # All other subscribed sensors are forwarded to the MOLA
     # system without delay as they are received from ROS.
     execution_rate: 20 # Hz
-    #verbosity_level: INFO
 
     gui_preview_sensors:
       - raw_sensor_label: ${MOLA_LIDAR_NAME|lidar}
@@ -76,6 +75,10 @@ modules:
 
       # Period [s] to publish the updated map to ROS2 from the MOLA SLAM solution:
       period_publish_new_map: 3.0 # [s]
+
+      # A placeholder for optional flags from "ros2 launch", captured
+      # as all cli arguments after "--ros-args":
+      ros_args: '${ROS_ARGS|"[]"}'
 
       # ROS2 topics to be forwarded to the MOLA system:
       subscribe:
