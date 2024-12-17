@@ -22,12 +22,25 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
          # Minimal use case (requires correct LiDAR sensor /tf):
          ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
-         lidar_topic_name:=/ouster/points
+            lidar_topic_name:=ouster/points
 
          # Usage without sensor /tf:
          ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
-         lidar_topic_name:=/ouster/points \
-         ignore_lidar_pose_from_tf:=True
+            lidar_topic_name:=ouster/points \
+            ignore_lidar_pose_from_tf:=True
+
+   .. tab-item:: Robot with NS
+      :selected:
+
+      If your robot uses a ROS 2 namespace ``ROBOT_NS`` for all its sensor and tf topics, use:
+
+      .. code-block:: bash
+
+         # Minimal use case:
+         ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
+            lidar_topic_name:=ouster/points \
+            use_namespace:=True \
+            namespace:=ROBOT_NS
 
    .. tab-item:: All launch arguments
 

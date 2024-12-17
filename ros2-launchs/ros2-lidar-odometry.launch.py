@@ -66,6 +66,17 @@ def generate_launch_description():
         default_value='false',
         description='Whether to apply a namespace to the navigation stack')
 
+    # Map fully qualified names to relative ones so the node's namespace can be prepended.
+    # In case of the transforms (tf), currently, there doesn't seem to be a better alternative
+    # https://github.com/ros/geometry2/issues/32
+    # https://github.com/ros/robot_state_publisher/pull/30
+    #
+    # (JLBC further explanation) The problem is the "tf2" library. It's hardcoded to subscribe
+    # to "/tf". This remapping allows "/robot/tf" to be seen as "/tf" so tf2_ros (and RViz) can see it.
+    #
+    tf_remaps = [('/tf', 'tf'),
+                 ('/tf_static', 'tf_static')]
+
     # MOLA subsystem configuration YAML file
     # ------------------------------------------
     mola_system_yaml_file = os.path.join(
@@ -83,6 +94,7 @@ def generate_launch_description():
             package='mola_launcher',
             executable='mola-cli',
             output='screen',
+            remappings=tf_remaps,
             arguments=[mola_system_yaml_file]
         ),
 
@@ -91,6 +103,7 @@ def generate_launch_description():
             package='rviz2',
             executable='rviz2',
             name='rviz2',
+            remappings=tf_remaps,
             arguments=[
                 '-d', [os.path.join(myDir, 'rviz2', 'lidar-odometry.rviz')]]
         )
