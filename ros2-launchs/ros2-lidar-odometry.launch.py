@@ -46,7 +46,7 @@ def generate_launch_description():
     use_mola_gui_arg = DeclareLaunchArgument(
         "use_mola_gui", default_value="True", description="Whether to open MolaViz GUI interface for watching live mapping and control UI")
     use_mola_gui_env_var = SetEnvironmentVariable(
-        name='MOLA_IMU_TOPIC', value=LaunchConfiguration('use_mola_gui'))
+        name='MOLA_WITH_GUI', value=LaunchConfiguration('use_mola_gui'))
 
     # MOLA subsystem configuration YAML file
     # ------------------------------------------
