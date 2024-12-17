@@ -12,7 +12,7 @@ modules:
   - name: viz
     type: mola::MolaViz
     enabled: ${MOLA_WITH_GUI|true}
-    #verbosity_level: DEBUG
+    verbosity_level: '${MOLA_VERBOSITY_MOLA_VIZ|INFO}'
     params: ~ # none
 
   # =====================
@@ -20,7 +20,7 @@ modules:
   # =====================
   - name: lidar_odom
     type: mola::LidarOdometry
-    #verbosity_level: DEBUG
+    verbosity_level: '${MOLA_VERBOSITY_MOLA_LO|INFO}'
     raw_data_source: 'ros2_bridge'
     # This includes here a whole block "params: (...)"
     # with the LIDAR-Odometry pipeline configuration:
@@ -31,6 +31,7 @@ modules:
   # =====================
   - type: mola::BridgeROS2
     name: ros2_bridge
+    verbosity_level: '${MOLA_VERBOSITY_BRIDGE_ROS2|INFO}'
     # In BridgeROS2, this execution rate (Hz) determines the
     # rate of publishing odometry observations, if enabled.
     # All other subscribed sensors are forwarded to the MOLA
