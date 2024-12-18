@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.4.0 (2024-12-18)
+------------------
 * demo rviz file: fix lidar topic name
 * Include /tf remaps too in ros2 launch
 * mola launch for ROS 2: Add placeholder for ros args parsing
