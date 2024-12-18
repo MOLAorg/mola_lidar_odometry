@@ -7,6 +7,7 @@ Panels:
         - /Global Options1
         - /TF1/Tree1
         - /LidarOdometry1/Shape1
+        - /LocalMap1
       Splitter Ratio: 0.5
     Tree Height: 719
   - Class: rviz_common/Selection
@@ -26,7 +27,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: raw lidar
   - Class: rviz_common/Transformation
     Name: Transformation
 Visualization Manager:
@@ -55,13 +56,34 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        base_footprint:
+          Value: true
+        base_link:
+          Value: true
+        cam1:
+          Value: true
+        lidar1_points:
+          Value: true
+        odom:
+          Value: true
+        scanner1:
+          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
       Tree:
-        {}
+        odom:
+          base_link:
+            base_footprint:
+              {}
+            cam1:
+              {}
+            lidar1_points:
+              {}
+            scanner1:
+              {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -94,7 +116,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /lidar_points
+        Value: /lidar1_points
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
@@ -174,7 +196,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: map
+    Fixed Frame: base_link
     Frame Rate: 30
   Name: root
   Tools:
@@ -217,25 +239,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/ThirdPersonFollower
-      Distance: 73.3988037109375
+      Distance: 19.05862045288086
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 13.67979621887207
-        Y: 13.799094200134277
-        Z: -1.6454393863677979
+        X: 3.0683364868164062
+        Y: 3.5527753829956055
+        Z: -1.6454346179962158
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5897611379623413
+      Pitch: 0.9347610473632812
       Target Frame: base_link
       Value: ThirdPersonFollower (rviz_default_plugins)
-      Yaw: 0.5053831934928894
+      Yaw: 0.7853829264640808
     Saved: ~
 Window Geometry:
   Displays:
@@ -256,4 +278,4 @@ Window Geometry:
     collapsed: false
   Width: 1850
   X: 70
-  Y: 534
+  Y: 27
