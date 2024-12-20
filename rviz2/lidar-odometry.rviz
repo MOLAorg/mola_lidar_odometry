@@ -64,6 +64,8 @@ Visualization Manager:
           Value: true
         lidar1_points:
           Value: true
+        map:
+          Value: true
         odom:
           Value: true
         scanner1:
@@ -74,6 +76,8 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
+        map:
+          {}
         odom:
           base_link:
             base_footprint:
@@ -174,9 +178,9 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 5.1363911628723145
+      Max Intensity: 6.177739143371582
       Min Color: 0; 0; 0
-      Min Intensity: -25.75153160095215
+      Min Intensity: -0.21623460948467255
       Name: LocalMap
       Position Transformer: XYZ
       Selectable: true
@@ -196,7 +200,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: base_link
+    Fixed Frame: map
     Frame Rate: 30
   Name: root
   Tools:
@@ -238,26 +242,26 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Class: rviz_default_plugins/ThirdPersonFollower
-      Distance: 19.05862045288086
+      Class: rviz_default_plugins/Orbit
+      Distance: 30.77323341369629
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 3.0683364868164062
-        Y: 3.5527753829956055
-        Z: -1.6454346179962158
+        X: -1.4953603744506836
+        Y: -2.3086156845092773
+        Z: 1.7610645294189453
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9347610473632812
+      Pitch: 0.9347609877586365
       Target Frame: base_link
-      Value: ThirdPersonFollower (rviz_default_plugins)
-      Yaw: 0.7853829264640808
+      Value: Orbit (rviz_default_plugins)
+      Yaw: 0.7853829860687256
     Saved: ~
 Window Geometry:
   Displays:
