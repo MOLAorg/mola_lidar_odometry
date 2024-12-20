@@ -50,6 +50,11 @@ def generate_launch_description():
     use_mola_gui_env_var = SetEnvironmentVariable(
         name='MOLA_WITH_GUI', value=LaunchConfiguration('use_mola_gui'))
     # ~~~~~~~~~~~~
+    publish_localization_following_rep105_arg = DeclareLaunchArgument(
+        "publish_localization_following_rep105", default_value="True", description="Whether to publish localization TFs in between map->odom (true) or directly map->base_link (false)")
+    publish_localization_following_rep105_env_var = SetEnvironmentVariable(
+        name='MOLA_LOCALIZ_USE_REP105', value=LaunchConfiguration('publish_localization_following_rep105'))
+    # ~~~~~~~~~~~~
 
     # Namespace (Based on Nav2's bring-up launch file!)
     # ---------------------------------------------------
@@ -122,6 +127,8 @@ def generate_launch_description():
         imu_topic_env_var,
         use_mola_gui_arg,
         use_mola_gui_env_var,
+        publish_localization_following_rep105_arg,
+        publish_localization_following_rep105_env_var,
         use_rviz_arg,
         node_group
     ])
