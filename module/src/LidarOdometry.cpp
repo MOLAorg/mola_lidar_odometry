@@ -539,7 +539,13 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
   }
 
   // SLAM enabled?
-  if (!state_.active) return;
+  if (!state_.active) {
+    // Even if it's not, refresh the current map as usual:
+    doPublishUpdatedMap(o->timestamp);
+
+    // and do not process the observation:
+    return;
+  }
 
   // Is it an IMU obs?
   if (
