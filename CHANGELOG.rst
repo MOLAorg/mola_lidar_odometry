@@ -2,6 +2,13 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* ROS2 launch: add ros argument for new option publish_localization_following_rep105
+* rviz2 demo file: better orbit view
+* ROS2 config file: define env vars for all tf frames (odom, map, base_link)
+* Contributors: Jose Luis Blanco-Claraco
+
 0.4.0 (2024-12-18)
 ------------------
 * demo rviz file: fix lidar topic name
