@@ -24,6 +24,7 @@ endif()
 #message(STATUS "mola_metric_maps   : ${mola_metric_maps_DIR}")
 
 set(DEFAULT_PIPELINE_YAML ${mola_lidar_odometry_SOURCE_DIR}/pipelines/lidar3d-default.yaml)
+set(DEFAULT_STATE_ESTIMATOR_YAML ${mola_lidar_odometry_SOURCE_DIR}/state-estimator-params/state-estimation-simple.yaml)
 
 # Test: from rawlog file, using KITTI fragment
 # ---------------------------------------------------
@@ -32,6 +33,7 @@ set(KITTI00_GT_TUM ${mola_lidar_odometry_SOURCE_DIR}/test/kitti_00_fragment_gt.t
 
 ament_add_gtest(test_lidar_odometry_kitti test_lidar_odometry_rawlog.cpp
   ENV LO_PIPELINE_YAML=${DEFAULT_PIPELINE_YAML}
+  ENV LO_STATE_ESTIM_YAML=${DEFAULT_STATE_ESTIMATOR_YAML}
   ENV LO_TEST_RAWLOG=${KITTI00_DATASET_FILE}
   ENV LO_TEST_GT_TUM=${KITTI00_GT_TUM}
   ENV MOLA_PROFILER=false
@@ -62,6 +64,7 @@ endif()
 if(EXISTS "${RSLIDAR_DATASET_FILE}")
   ament_add_gtest(test_lidar_odometry_rslidar test_lidar_odometry_rosbag2.cpp
     ENV LO_PIPELINE_YAML=${DEFAULT_PIPELINE_YAML}
+    ENV LO_STATE_ESTIM_YAML=${DEFAULT_STATE_ESTIMATOR_YAML}
     ENV LO_TEST_ROSBAG2=${RSLIDAR_DATASET_FILE}
     ENV LO_TEST_LIDAR_TOPIC=${RSLIDAR_TOPIC}
     ENV LO_TEST_GT_TUM=${RSLIDAR_GT_TUM}

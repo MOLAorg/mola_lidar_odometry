@@ -53,7 +53,7 @@ int main_odometry(
   const auto cfg = mola::load_yaml_file(yamlConfigFile);
 
   // quiet for the unit tests:
-  liodom->setMinLoggingLevel(mrpt::system::LVL_ERROR);
+  liodom->setMinLoggingLevel(mrpt::system::LVL_DEBUG);
 
   liodom->initialize(cfg);
 
@@ -63,9 +63,9 @@ int main_odometry(
   liodom->params_.lidar_sensor_labels.assign(1, std::regex("lidar"));
 
   // Initialize estimator (default settings):
-  stateEstimator->setMinLoggingLevel(mrpt::system::LVL_ERROR);
+  stateEstimator->setMinLoggingLevel(mrpt::system::LVL_DEBUG);
   const auto cfgEstimator = mola::load_yaml_file(stateEstimConfigFile);
-  stateEstimator->initialize(cfgEstimator);
+  stateEstimator->initialize(cfgEstimator["params"]);
 
   // dataset input:
   mrpt::obs::CRawlog dataset;

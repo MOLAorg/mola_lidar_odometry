@@ -1,5 +1,4 @@
-# This file holds parameters for the "simple" state estimator mola::NavStateFuse
-# module in charge of merging and extrapolating pose estimations, odometry, IMU, etc.
+# This file holds parameters for mola::state_estimation_simple::StateEstimationSimple
 #
 # Refer to:
 # https://github.com/MOLAorg/mola_lidar_odometry/
