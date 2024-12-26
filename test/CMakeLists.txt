@@ -36,8 +36,15 @@ ament_add_gtest(test_lidar_odometry_kitti test_lidar_odometry_rawlog.cpp
   ENV LO_TEST_GT_TUM=${KITTI00_GT_TUM}
   ENV MOLA_PROFILER=false
 )
-ament_target_dependencies(test_lidar_odometry_kitti  mrpt-obs)
-target_link_libraries(test_lidar_odometry_kitti mola::mola_lidar_odometry)
+ament_target_dependencies(test_lidar_odometry_kitti
+  mrpt-obs
+  mola_state_estimation_simple
+)
+target_link_libraries(test_lidar_odometry_kitti
+    mola::mola_lidar_odometry
+    mola::mola_state_estimation_simple
+)
+
 
 
 # Test: from rosbag2 file, RSLIDAR data with XYZIRT channels
@@ -62,10 +69,14 @@ if(EXISTS "${RSLIDAR_DATASET_FILE}")
     MOLA_USE_FIXED_LIDAR_POSE=true  # so we don't need /tf topic in test dataset
     MOLA_IGNORE_NO_POINT_STAMPS=${IGNORE_POINT_STAMPS} # make it fail if no timestamps are found
   )
-  ament_target_dependencies(test_lidar_odometry_rslidar  mrpt-obs)
+  ament_target_dependencies(test_lidar_odometry_rslidar 
+    mrpt-obs
+    mola_state_estimation_simple
+  )
   target_link_libraries(test_lidar_odometry_rslidar
     mola::mola_lidar_odometry
     mola::mola_input_rosbag2
+    mola::mola_state_estimation_simple
   )
 else()
   message(STATUS "Skipping test for missing dataset: ${RSLIDAR_DATASET_FILE}")

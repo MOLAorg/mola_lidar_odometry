@@ -27,7 +27,7 @@
 #include <mola_kernel/interfaces/OfflineDatasetSource.h>
 #include <mola_kernel/pretty_print_exception.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
-#include <mola_navstate_fuse/NavStateFuse.h>
+#include <mola_state_estimation_simple/StateEstimationSimple.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/core/exceptions.h>
 #include <mrpt/core/get_env.h>
@@ -75,10 +75,10 @@ int main_odometry(
   const std::string & rosbag2File, const std::string & lidarTopic, const std::string & gtTrajectory)
 {
   auto liodom = mola::LidarOdometry::Create();
-  auto stateEstimator = mola::NavStateFuse::Create();
+  auto stateEstimator = mola::state_estimation_simple::StateEstimationSimple::Create();
 
   // Put both modules together so LO can find the state estimator:
-  mola::MinimalModuleContainer moduleContainer = {liodom, stateEstimator};
+  mola::MinimalModuleContainer moduleContainer = {{liodom, stateEstimator}};
 
   // Initialize LiDAR Odometry:
   const auto cfg = mola::load_yaml_file(yamlConfigFile);
