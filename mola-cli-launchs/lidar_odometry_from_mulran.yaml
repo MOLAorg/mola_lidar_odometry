@@ -10,7 +10,7 @@ modules:
   # =====================
   - name: viz
     type: mola::MolaViz
-    #verbosity_level: DEBUG
+    verbosity_level: '${MOLA_VERBOSITY_MOLA_VIZ|INFO}'
     params: ~ # none
 
 # Offline or online sensory data sources =====================
@@ -38,7 +38,7 @@ modules:
 
   - name: lidar_odom
     type: mola::LidarOdometry
-    #verbosity_level: DEBUG
+    verbosity_level: '${MOLA_VERBOSITY_MOLA_LO|INFO}'
     raw_data_source: 'dataset_input'
     # This includes here a whole block "params: (...)"
     # with the LIDAR-Odometry pipeline configuration:

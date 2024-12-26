@@ -138,6 +138,7 @@ install(
     pipelines
     ros2-launchs
     rviz2
+    state-estimator-params
   DESTINATION
     share/${PROJECT_NAME}
 )

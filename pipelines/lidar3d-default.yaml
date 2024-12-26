@@ -80,7 +80,7 @@ params:
     save_to_file: ${MOLA_SAVE_TRAJECTORY|false}
     output_file: ${MOLA_TUM_TRAJECTORY_OUTPUT|'estimated_trajectory.tum'}
 
-  # If run within a mola-cli container, and mola_viz is present, use these options 
+  # If run within a mola-cli container, and mola_viz is present, use these options
   # to show live progress:
   visualization:
     map_update_decimation: 10
@@ -119,29 +119,6 @@ params:
     enabled: '${MOLA_ENABLE_OBS_VALIDITY_FILTER|false}'
     check_layer_name: 'raw'
     minimum_point_count: '${MOLA_OBS_VALIDITY_MIN_POINTS|1000}'
-
-
-# Parameter block for the "navstate_fuse" module in charge of merging and 
-# extrapolating pose estimations, odometry, IMU, etc.
-navstate_fuse_params:
-  # Maximum time since last observation to consider the validity of the velocity model:
-  # (KITTI360 test_3 has some blackouts >=1.0 seconds while angular acceleration is high, so 
-  #  this threshold must be < 1.0 s for that dataset)
-  max_time_to_use_velocity_model: ${MOLA_MAX_TIME_TO_USE_VELOCITY_MODEL|0.75} # [s]
-  sliding_window_length: 0.50 # [s]
-  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|1.0} # [m/s²]
-  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|10.0} # [rad/s²]
-  
-  sigma_integrator_position: 1.0 # [m]
-  sigma_integrator_orientation:  1.0 # [rad]
-
-  # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
-  initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
-  initial_twist_sigma_lin: 20.0 # [m/s]
-  initial_twist_sigma_ang: 3.0  # [rad/s]
-
-  robust_param: 0  # 0=no robust disabled
-  max_rmse: 2 # max inconsistencies to discard solution
 
 
 # Whether to use a re-localization method at start up:

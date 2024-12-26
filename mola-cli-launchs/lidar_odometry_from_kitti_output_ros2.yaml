@@ -10,7 +10,7 @@ modules:
   # =====================
   - name: viz
     type: mola::MolaViz
-    #verbosity_level: DEBUG
+    verbosity_level: '${MOLA_VERBOSITY_MOLA_VIZ|INFO}'
     params: ~ # none
 
 # Offline or online sensory data sources =====================
@@ -42,7 +42,7 @@ modules:
 
   - name: lidar_odom
     type: mola::LidarOdometry
-    #verbosity_level: DEBUG
+    verbosity_level: '${MOLA_VERBOSITY_MOLA_LO|INFO}'
     raw_data_source: 'dataset_input'
     # This includes here a whole block "params: (...)"
     # with the LIDAR-Odometry pipeline configuration:
@@ -51,6 +51,7 @@ modules:
   # MOLA -> ROS 2 bridge  =====================
   - name: ros2_bridge
     type: mola::BridgeROS2
+    verbosity_level: '${MOLA_VERBOSITY_BRIDGE_ROS2|INFO}'
 
     execution_rate: 20 # Hz
 

@@ -47,6 +47,7 @@
 #include <mrpt/maps/CColouredPointsMap.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservationGPS.h>
+#include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
@@ -63,16 +64,12 @@
 #include <mrpt/system/filesystem.h>
 #include <mrpt/system/string_utils.h>
 
+// GUI:
+#include <mrpt/gui/CDisplayWindowGUI.h>
+
 // STD:
 #include <chrono>
 #include <thread>
-
-// fix for older mrpt versions:
-#include <mrpt/config.h>
-#if MRPT_VERSION <= 0x020d00  // < v2.13.0
-// YAML API:
-#define asSequenceRange asSequence
-#endif
 
 using namespace mola;
 
@@ -336,9 +333,12 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   if (c.has("initial_localization"))
     params_.initial_localization.initialize(c["initial_localization"]);
 
-  ENSURE_YAML_ENTRY_EXISTS(c, "navstate_fuse_params");
-  state_.navstate_fuse.setMinLoggingLevel(this->getMinLoggingLevel());
-  state_.navstate_fuse.initialize(c["navstate_fuse_params"]);
+  // Watch for legacy (mola_lidar_odometry version <0.5.0) organization:
+  if (c.has("navstate_fuse_params")) {
+    THROW_EXCEPTION(
+      "It seems you are using a legacy mola_lo pipeline config file. Please, refer to release "
+      "notes for mola_lidar_odometry 0.5.0");
+  }
 
   ENSURE_YAML_ENTRY_EXISTS(c, "icp_settings_with_vel");
   load_icp_set_of_params(params_.icp[AlignKind::RegularOdometry], c["icp_settings_with_vel"]);
@@ -476,6 +476,19 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     bool loadOk =
       state_.reconstructed_simplemap.loadFromFile(params_.simplemap.load_existing_simple_map);
     ASSERT_(loadOk);
+  }
+
+  // Attach to the state estimation module, which since MOLA-LO v0.5.0,
+  // must run as a separate MOLA module:
+  {
+    auto mods = findService<mola::NavStateFilter>();
+    ASSERTMSG_(
+      mods.size() == 1,
+      "No state estimation MOLA module (mola::NavStateFilter) was found. Please, check your MOLA "
+      "system .yaml file");
+    state_.navstate_fuse = std::dynamic_pointer_cast<NavStateFilter>(mods[0]);
+    ASSERT_(state_.navstate_fuse);
+    MRPT_LOG_DEBUG("Attached to the state estimation module");
   }
 
   // end of initialization:
@@ -799,13 +812,14 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
       initPose.cov = *il.initial_pose_cov;
     }
 
-    state_.navstate_fuse.reset();  // needed after a re-localization to forget the past
+    ASSERT_(state_.navstate_fuse);
+    state_.navstate_fuse->reset();  // needed after a re-localization to forget the past
 
     // Fake an evolution to be able to have an initial velocity estimation:
     const auto t1 = mrpt::Clock::fromDouble(mrpt::Clock::toDouble(this_obs_tim) - 0.2);
     const auto t2 = mrpt::Clock::fromDouble(mrpt::Clock::toDouble(this_obs_tim) - 0.1);
-    state_.navstate_fuse.fuse_pose(t1, initPose, NAVSTATE_LIODOM_FRAME);
-    state_.navstate_fuse.fuse_pose(t2, initPose, NAVSTATE_LIODOM_FRAME);
+    state_.navstate_fuse->fuse_pose(t1, initPose, NAVSTATE_LIODOM_FRAME);
+    state_.navstate_fuse->fuse_pose(t2, initPose, NAVSTATE_LIODOM_FRAME);
 
     MRPT_LOG_INFO_STREAM("Initial re-localization done with pose: " << initPose.mean);
 
@@ -827,7 +841,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
   ProfilerEntry tleMotion(profiler_, "onLidar.2b.estimated_navstate");
 
   state_.last_motion_model_output =
-    state_.navstate_fuse.estimated_navstate(this_obs_tim, NAVSTATE_LIODOM_FRAME);
+    state_.navstate_fuse->estimated_navstate(this_obs_tim, NAVSTATE_LIODOM_FRAME);
 
   const bool hasMotionModel = state_.last_motion_model_output.has_value();
 
@@ -854,7 +868,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
     initPose.mean = mrpt::poses::CPose3D::Identity();
     initPose.cov.setDiagonal(1e-12);
 
-    state_.navstate_fuse.fuse_pose(this_obs_tim, initPose, NAVSTATE_LIODOM_FRAME);
+    state_.navstate_fuse->fuse_pose(this_obs_tim, initPose, NAVSTATE_LIODOM_FRAME);
   } else {
     // Register point clouds using ICP:
     // ------------------------------------
@@ -1062,7 +1076,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
       if (state_.step_counter_post_relocalization == 0) {
         // Do integrate info:
-        state_.navstate_fuse.fuse_pose(
+        state_.navstate_fuse->fuse_pose(
           this_obs_tim, out.found_pose_to_wrt_from, NAVSTATE_LIODOM_FRAME);
       } else {
         // Skip during post-relocalization:
@@ -1071,7 +1085,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
     } else {
       // Bad ICP:
-      state_.navstate_fuse.reset();
+      state_.navstate_fuse->reset();
     }
 
     // Update trajectory too:
@@ -1380,7 +1394,8 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
   MRPT_LOG_DEBUG_STREAM(
     "onIMU called for timestamp=" << mrpt::system::dateTimeLocalToString(imu->timestamp));
 
-  state_.navstate_fuse.fuse_imu(*imu);
+  ASSERT_(state_.navstate_fuse);
+  state_.navstate_fuse->fuse_imu(*imu);
 }
 
 void LidarOdometry::onWheelOdometry(const CObservation::Ptr & o)
@@ -1415,7 +1430,7 @@ void LidarOdometry::onWheelOdometryImpl(const CObservation::Ptr & o)
 
   MRPT_LOG_DEBUG_STREAM("onWheelOdometry: odom=" << odo->odometry);
 
-  state_.navstate_fuse.fuse_odometry(*odo);
+  state_.navstate_fuse->fuse_odometry(*odo);
 }
 
 void LidarOdometry::onGPS(const CObservation::Ptr & o)

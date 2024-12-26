@@ -34,12 +34,11 @@
 #include <mola_kernel/interfaces/LocalizationSourceBase.h>
 #include <mola_kernel/interfaces/MapServer.h>
 #include <mola_kernel/interfaces/MapSourceBase.h>
+#include <mola_kernel/interfaces/NavStateFilter.h>
 #include <mola_kernel/interfaces/Relocalization.h>
 #include <mola_kernel/version.h>
 
 // Other packages:
-#include <mola_navstate_fuse/NavStateFuse.h>
-#include <mola_navstate_fuse/NavStateFuseParams.h>
 #include <mola_pose_list/SearchablePoseList.h>
 
 // MP2P_ICP
@@ -66,6 +65,13 @@
 #include <regex>
 #include <string>
 #include <vector>
+
+// Fwrd decls:
+namespace nanogui
+{
+class Label;
+class CheckBox;
+}  // namespace nanogui
 
 namespace mola
 {
@@ -276,8 +282,6 @@ public:
     };
 
     std::map<AlignKind, ICP_case> icp;
-
-    mola::NavStateFuseParams navstate_fuse_params;
 
     // === SIMPLEMAP GENERATION ====
     struct SimpleMapOptions
@@ -490,27 +494,30 @@ private:
   {
     using Ptr = std::shared_ptr<ICP_Input>;
 
-    AlignKind align_kind = AlignKind::RegularOdometry;
+    mrpt::poses::CPose3D last_keyframe_pose;
+    std::optional<mrpt::poses::CPose3DPDFGaussianInf> prior;
     id_t global_id = mola::INVALID_ID;
     id_t local_id = mola::INVALID_ID;
+    double time_since_last_keyframe = 0;
     mp2p_icp::metric_map_t::Ptr global_pc, local_pc;
     mrpt::math::TPose3D init_guess_local_wrt_global;
     mp2p_icp::Parameters icp_params;
-    mrpt::poses::CPose3D last_keyframe_pose;
-    double time_since_last_keyframe = 0;
-
-    std::optional<mrpt::poses::CPose3DPDFGaussianInf> prior;
+    AlignKind align_kind = AlignKind::RegularOdometry;
   };
   struct ICP_Output
   {
-    double goodness = .0;
+    ICP_Output() = default;
+
     mrpt::poses::CPose3DPDFGaussian found_pose_to_wrt_from;
+    double goodness = .0;
     uint32_t icp_iterations = 0;
   };
 
   /** All variables that hold the algorithm state */
   struct MethodState
   {
+    MethodState() = default;
+
     bool initialized = false;
     bool fatal_error = false;
 
@@ -537,7 +544,8 @@ private:
     std::map<std::string /*label*/, mrpt::obs::CObservation::Ptr> sync_obs;
 
     // navstate_fuse to merge pose estimates, IMU, odom, estimate twist.
-    mola::NavStateFuse navstate_fuse;
+    std::shared_ptr<mola::NavStateFilter> navstate_fuse;
+
     std::optional<NavState> last_motion_model_output;
 
     /// The source of "dynamic variables" in ICP pipelines:

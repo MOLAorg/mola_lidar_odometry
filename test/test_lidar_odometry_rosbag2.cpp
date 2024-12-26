@@ -23,12 +23,15 @@
 
 #include <gtest/gtest.h>
 #include <mola_input_rosbag2/Rosbag2Dataset.h>
+#include <mola_kernel/MinimalModuleContainer.h>
 #include <mola_kernel/interfaces/OfflineDatasetSource.h>
 #include <mola_kernel/pretty_print_exception.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
+#include <mola_navstate_fuse/NavStateFuse.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/core/exceptions.h>
 #include <mrpt/core/get_env.h>
+#include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/poses/Lie/SE.h>
@@ -67,24 +70,33 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
   return o;
 }
 
-static int main_odometry(
-  const std::string & yamlConfigFile, const std::string & rosbag2File,
-  const std::string & lidarTopic, const std::string & gtTrajectory)
+int main_odometry(
+  const std::string & yamlConfigFile, const std::string & stateEstimConfigFile,
+  const std::string & rosbag2File, const std::string & lidarTopic, const std::string & gtTrajectory)
 {
-  mola::LidarOdometry liodom;
+  auto liodom = mola::LidarOdometry::Create();
+  auto stateEstimator = mola::NavStateFuse::Create();
+
+  // Put both modules together so LO can find the state estimator:
+  mola::MinimalModuleContainer moduleContainer = {liodom, stateEstimator};
 
   // Initialize LiDAR Odometry:
   const auto cfg = mola::load_yaml_file(yamlConfigFile);
 
   // quiet for the unit tests:
-  liodom.setMinLoggingLevel(mrpt::system::LVL_ERROR);
+  liodom->setMinLoggingLevel(mrpt::system::LVL_ERROR);
 
-  liodom.initialize(cfg);
+  liodom->initialize(cfg);
 
-  liodom.params_.simplemap.generate = false;
-  liodom.params_.estimated_trajectory.output_file.clear();
+  liodom->params_.simplemap.generate = false;
+  liodom->params_.estimated_trajectory.output_file.clear();
 
-  liodom.params_.lidar_sensor_labels.assign(1, std::regex(lidarTopic));
+  liodom->params_.lidar_sensor_labels.assign(1, std::regex(lidarTopic));
+
+  // Initialize estimator (default settings):
+  stateEstimator->setMinLoggingLevel(mrpt::system::LVL_ERROR);
+  const auto cfgEstimator = mola::load_yaml_file(stateEstimConfigFile);
+  stateEstimator->initialize(cfgEstimator);
 
   // dataset input:
   std::shared_ptr<mola::OfflineDatasetSource> dataset;
@@ -111,14 +123,14 @@ static int main_odometry(
     if (!obs) continue;
 
     // Send it to the odometry pipeline:
-    liodom.onNewObservation(obs);
+    liodom->onNewObservation(obs);
 
-    while (liodom.isBusy()) {
+    while (liodom->isBusy()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   }
 
-  const mrpt::poses::CPose3DInterpolator trajectory = liodom.estimatedTrajectory();
+  const mrpt::poses::CPose3DInterpolator trajectory = liodom->estimatedTrajectory();
 
   trajectory.saveToTextFile_TUM("/tmp/gt.tum");
 
@@ -150,11 +162,12 @@ static int main_odometry(
 TEST(RunDataset, FromRosbag2)
 {
   const std::string yamlConfigFile = mrpt::get_env<std::string>("LO_PIPELINE_YAML");
+  const std::string yamlEstimatorFile = mrpt::get_env<std::string>("LO_STATE_ESTIM_YAML");
   const std::string rosbag2File = mrpt::get_env<std::string>("LO_TEST_ROSBAG2");
   const std::string lidarTopic = mrpt::get_env<std::string>("LO_TEST_LIDAR_TOPIC");
   const std::string gtTrajectory = mrpt::get_env<std::string>("LO_TEST_GT_TUM");
 
-  main_odometry(yamlConfigFile, rosbag2File, lidarTopic, gtTrajectory);
+  main_odometry(yamlConfigFile, yamlEstimatorFile, rosbag2File, lidarTopic, gtTrajectory);
 }
 
 // The main function running all the tests
