@@ -22,12 +22,15 @@
 // -----------------------------------------------------------------------------
 
 #include <gtest/gtest.h>
+#include <mola_kernel/MinimalModuleContainer.h>
 #include <mola_kernel/interfaces/OfflineDatasetSource.h>
 #include <mola_kernel/pretty_print_exception.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
+#include <mola_state_estimation_simple/StateEstimationSimple.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/core/exceptions.h>
 #include <mrpt/core/get_env.h>
+#include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/poses/Lie/SE.h>
@@ -36,24 +39,33 @@
 namespace
 {
 
-static int main_odometry(
-  const std::string & yamlConfigFile, const std::string & rawlogFile,
-  const std::string & gtTrajectory)
+int main_odometry(
+  const std::string & yamlConfigFile, const std::string & stateEstimConfigFile,
+  const std::string & rawlogFile, const std::string & gtTrajectory)
 {
-  mola::LidarOdometry liodom;
+  auto liodom = mola::LidarOdometry::Create();
+  auto stateEstimator = mola::state_estimation_simple::StateEstimationSimple::Create();
+
+  // Put both modules together so LO can find the state estimator:
+  mola::MinimalModuleContainer moduleContainer = {{liodom, stateEstimator}};
 
   // Initialize LiDAR Odometry:
   const auto cfg = mola::load_yaml_file(yamlConfigFile);
 
   // quiet for the unit tests:
-  liodom.setMinLoggingLevel(mrpt::system::LVL_ERROR);
+  liodom->setMinLoggingLevel(mrpt::system::LVL_DEBUG);
 
-  liodom.initialize(cfg);
+  liodom->initialize(cfg);
 
-  liodom.params_.simplemap.generate = false;
-  liodom.params_.estimated_trajectory.output_file.clear();
+  liodom->params_.simplemap.generate = false;
+  liodom->params_.estimated_trajectory.output_file.clear();
 
-  liodom.params_.lidar_sensor_labels.assign(1, std::regex("lidar"));
+  liodom->params_.lidar_sensor_labels.assign(1, std::regex("lidar"));
+
+  // Initialize estimator (default settings):
+  stateEstimator->setMinLoggingLevel(mrpt::system::LVL_DEBUG);
+  const auto cfgEstimator = mola::load_yaml_file(stateEstimConfigFile);
+  stateEstimator->initialize(cfgEstimator["params"]);
 
   // dataset input:
   mrpt::obs::CRawlog dataset;
@@ -75,14 +87,14 @@ static int main_odometry(
     if (!obs) continue;
 
     // Send it to the odometry pipeline:
-    liodom.onNewObservation(obs);
+    liodom->onNewObservation(obs);
 
-    while (liodom.isBusy()) {
+    while (liodom->isBusy()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   }
 
-  const mrpt::poses::CPose3DInterpolator trajectory = liodom.estimatedTrajectory();
+  const mrpt::poses::CPose3DInterpolator trajectory = liodom->estimatedTrajectory();
 
   mrpt::poses::CPose3DInterpolator gt;
   const bool gtLoadOk = gt.loadFromTextFile_TUM(gtTrajectory);
@@ -113,10 +125,11 @@ static int main_odometry(
 TEST(RunDataset, FromRawlog)
 {
   const std::string yamlConfigFile = mrpt::get_env<std::string>("LO_PIPELINE_YAML");
+  const std::string yamlEstimatorFile = mrpt::get_env<std::string>("LO_STATE_ESTIM_YAML");
   const std::string rawlogFile = mrpt::get_env<std::string>("LO_TEST_RAWLOG");
   const std::string gtTrajectory = mrpt::get_env<std::string>("LO_TEST_GT_TUM");
 
-  main_odometry(yamlConfigFile, rawlogFile, gtTrajectory);
+  main_odometry(yamlConfigFile, yamlEstimatorFile, rawlogFile, gtTrajectory);
 }
 
 // The main function running all the tests

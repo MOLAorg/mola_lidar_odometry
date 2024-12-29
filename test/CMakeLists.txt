@@ -24,6 +24,7 @@ endif()
 #message(STATUS "mola_metric_maps   : ${mola_metric_maps_DIR}")
 
 set(DEFAULT_PIPELINE_YAML ${mola_lidar_odometry_SOURCE_DIR}/pipelines/lidar3d-default.yaml)
+set(DEFAULT_STATE_ESTIMATOR_YAML ${mola_lidar_odometry_SOURCE_DIR}/state-estimator-params/state-estimation-simple.yaml)
 
 # Test: from rawlog file, using KITTI fragment
 # ---------------------------------------------------
@@ -32,12 +33,20 @@ set(KITTI00_GT_TUM ${mola_lidar_odometry_SOURCE_DIR}/test/kitti_00_fragment_gt.t
 
 ament_add_gtest(test_lidar_odometry_kitti test_lidar_odometry_rawlog.cpp
   ENV LO_PIPELINE_YAML=${DEFAULT_PIPELINE_YAML}
+  ENV LO_STATE_ESTIM_YAML=${DEFAULT_STATE_ESTIMATOR_YAML}
   ENV LO_TEST_RAWLOG=${KITTI00_DATASET_FILE}
   ENV LO_TEST_GT_TUM=${KITTI00_GT_TUM}
   ENV MOLA_PROFILER=false
 )
-ament_target_dependencies(test_lidar_odometry_kitti  mrpt-obs)
-target_link_libraries(test_lidar_odometry_kitti mola::mola_lidar_odometry)
+ament_target_dependencies(test_lidar_odometry_kitti
+  mrpt-obs
+  mola_state_estimation_simple
+)
+target_link_libraries(test_lidar_odometry_kitti
+    mola::mola_lidar_odometry
+    mola::mola_state_estimation_simple
+)
+
 
 
 # Test: from rosbag2 file, RSLIDAR data with XYZIRT channels
@@ -55,6 +64,7 @@ endif()
 if(EXISTS "${RSLIDAR_DATASET_FILE}")
   ament_add_gtest(test_lidar_odometry_rslidar test_lidar_odometry_rosbag2.cpp
     ENV LO_PIPELINE_YAML=${DEFAULT_PIPELINE_YAML}
+    ENV LO_STATE_ESTIM_YAML=${DEFAULT_STATE_ESTIMATOR_YAML}
     ENV LO_TEST_ROSBAG2=${RSLIDAR_DATASET_FILE}
     ENV LO_TEST_LIDAR_TOPIC=${RSLIDAR_TOPIC}
     ENV LO_TEST_GT_TUM=${RSLIDAR_GT_TUM}
@@ -62,10 +72,14 @@ if(EXISTS "${RSLIDAR_DATASET_FILE}")
     MOLA_USE_FIXED_LIDAR_POSE=true  # so we don't need /tf topic in test dataset
     MOLA_IGNORE_NO_POINT_STAMPS=${IGNORE_POINT_STAMPS} # make it fail if no timestamps are found
   )
-  ament_target_dependencies(test_lidar_odometry_rslidar  mrpt-obs)
+  ament_target_dependencies(test_lidar_odometry_rslidar 
+    mrpt-obs
+    mola_state_estimation_simple
+  )
   target_link_libraries(test_lidar_odometry_rslidar
     mola::mola_lidar_odometry
     mola::mola_input_rosbag2
+    mola::mola_state_estimation_simple
   )
 else()
   message(STATUS "Skipping test for missing dataset: ${RSLIDAR_DATASET_FILE}")

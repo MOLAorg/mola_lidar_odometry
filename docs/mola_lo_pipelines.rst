@@ -296,7 +296,7 @@ These settings only have effects if launched via :ref:`MOLA-LO GUI applications 
 
 Motion model
 ^^^^^^^^^^^^^^^^^^^^^^
-A constant velocity motion model is used by default, provided by the ``mola_navstate_fuse`` module.
+A constant velocity motion model is used by default, provided by the ``mola_state_estimation_simple`` module.
 
 - ``MOLA_MAX_TIME_TO_USE_VELOCITY_MODEL`` (Default: 0.75 s): Maximum time between LiDAR frames to use the velocity model. Larger delays will cause using the latest vehicle pose as initial guess.
 - ``MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC`` (Default: 1.0 m/s²): Linear acceleration standard deviation.

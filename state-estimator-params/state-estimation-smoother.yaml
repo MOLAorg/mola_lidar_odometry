@@ -1,0 +1,31 @@
+# This file holds parameters for mola::state_estimation_smoother::StateEstimationSmoother
+#
+# Refer to:
+# https://docs.mola-slam.org/latest/mola_state_estimators.html
+
+params:
+  # Maximum time since last observation to consider the validity of the velocity model:
+  # (KITTI360 test_3 has some blackouts >=1.0 seconds while angular acceleration is high, so 
+  #  this threshold must be < 1.0 s for that dataset)
+  max_time_to_use_velocity_model: ${MOLA_MAX_TIME_TO_USE_VELOCITY_MODEL|0.75} # [s]
+
+  # Time to keep past observations in the filter
+  sliding_window_length: 0.50 # [s]
+
+  # If the time between two keyframes is larger than this, a warning will be
+  # emitted; but the algorithm will keep trying its best.
+  time_between_frames_to_warning: 3.0 # [s]
+
+  sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|1.0} # [m/s²]
+  sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|10.0} # [rad/s²]
+
+  sigma_integrator_position: 1.0 # [m]
+  sigma_integrator_orientation:  1.0 # [rad]
+
+  # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
+  initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
+  initial_twist_sigma_lin: 20.0 # [m/s]
+  initial_twist_sigma_ang: 3.0  # [rad/s]
+
+  robust_param: 0  # 0=no robust disabled
+  max_rmse: 2 # max inconsistencies to discard solution

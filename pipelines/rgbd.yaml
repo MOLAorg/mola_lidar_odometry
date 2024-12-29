@@ -80,16 +80,6 @@ params:
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
 
 
-
-# Parameter block for the "navstate_fuse" module in charge of merging and 
-# extrapolating pose estimations, odometry, IMU, etc.
-navstate_fuse_params:
-  # Maximum time since last observation to consider the validity of the velocity model:
-  max_time_to_use_velocity_model: 2.0 # [seconds]
-  sigma_random_walk_acceleration_linear: 10.0 # [m/s²]
-  sigma_random_walk_acceleration_angular: 10.0 # [rad/s²]
-
-
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
 # ICP settings can be included from an external YAML file if desired, or defined
 # in this same YAML for self-completeness:

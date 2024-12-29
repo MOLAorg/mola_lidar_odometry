@@ -18,7 +18,6 @@
   <depend>mola_common</depend>
   <depend>mola_kernel</depend>
   <depend>mp2p_icp</depend>
-  <depend>mola_navstate_fuse</depend>
   <depend>mola_pose_list</depend>
 
   <depend>mrpt_libtclap</depend>
@@ -47,6 +46,9 @@
   <test_depend>ament_cmake_xmllint</test_depend>
   <test_depend>ament_lint_cmake</test_depend>
   <test_depend>ament_cmake_gtest</test_depend>
+  
+  <!-- for C++ unit tests -->
+  <test_depend>mola_state_estimation_simple</test_depend>
 
   <!-- Needed by the mola-lo-* scripts: -->
   <exec_depend>mola_launcher</exec_depend>
