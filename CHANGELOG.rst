@@ -2,6 +2,20 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* cmake test logic: add find_package() for state_estimation_simple
+* Merge pull request #7 from MOLAorg/wip/new-state-estimators
+  New state estimators (Merge after MOLA 1.5.0 is installable via apt)
+* Split state estimation params so each implementation has its own yaml file
+* CI: build against both, ROS testing and stable
+* Add new state estimator module in all MOLA-CLI yaml files
+* Update to new state estimation packages
+* Reorganization such as state estimator is now an independent external module
+* docs: add new ros-arg publish_localization_following_rep105
+* FIX: publish local map even when not active
+* Contributors: Jose Luis Blanco-Claraco
+
 0.4.1 (2024-12-20)
 ------------------
 * ROS2 launch: add ros argument for new option publish_localization_following_rep105
