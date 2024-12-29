@@ -3,10 +3,12 @@
 find_package(mola_test_datasets)
 find_package(mola_metric_maps)
 find_package(mola_input_rosbag2)
+find_package(mola_state_estimation_simple)
 
 if((NOT mola_test_datasets_FOUND) OR
    (NOT mola_metric_maps_FOUND) OR
-   (NOT mola_input_rosbag2_FOUND)
+   (NOT mola_input_rosbag2_FOUND) OR
+   (NOT mola_state_estimation_simple_FOUND)
   )
   message(STATUS "**********************************************************************")
   message(STATUS " WARNING: Skipping unit tests since test dependencies were not found  ")
