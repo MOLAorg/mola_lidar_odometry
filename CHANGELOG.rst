@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.5.0 (2024-12-29)
+------------------
 * cmake test logic: add find_package() for state_estimation_simple
 * Merge pull request #7 from MOLAorg/wip/new-state-estimators
   New state estimators (Merge after MOLA 1.5.0 is installable via apt)
