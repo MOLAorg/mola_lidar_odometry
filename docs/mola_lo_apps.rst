@@ -379,8 +379,14 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
                                     run>] [--output-simplemap
                                     <output-map.simplemap>] [--output-twist
                                     <output-twist.txt>] [--output-tum-path
-                                    <output-trajectory.txt>] [-l <foobar.so>] [-v
-                                    <INFO>] -c <demo.yml> [--] [--version] [-h]
+                                    <output-trajectory.txt>]
+                                    [--state-estimator-param-file
+                                    </path/to/params.yaml>] [--state-estimator
+                                    <(StateEstimationSimple
+                                    |StateEstimationSmoother)>] [-l <foobar.so>]
+                                    [-v <INFO>] -c <demo.yml> [--] [--version]
+                                    [-h]
+
 
         Where: 
 
@@ -395,27 +401,27 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
             |...
 
         --kitti-correction-angle-deg <0.205 [degrees]>
-            Correction vertical angle offset (see Deschaud,2018)
+            Correction vertical angle offset {see Deschaud,2018}
 
         --input-kitti-seq <00>
             INPUT DATASET: Use KITTI dataset sequence number 00|01|...
 
         --input-rosbag2 <dataset.mcap>
-            INPUT DATASET: rosbag2. Input dataset in rosbag2 format (*.mcap)
+            INPUT DATASET: rosbag2. Input dataset in rosbag2 format {*.mcap}
 
         --input-rawlog <dataset.rawlog>
-            INPUT DATASET: rawlog. Input dataset in rawlog format (*.rawlog)
+            INPUT DATASET: rawlog. Input dataset in rawlog format {*.rawlog}
 
         --lidar-sensor-label <lidar1>
             If provided, this supersedes the values in the 'lidar_sensor_labels'
             entry of the odometry pipeline, defining the sensorLabel/topic name to
-            read LIDAR data from. It can be a regular expression (std::regex)
+            read LIDAR data from. It can be a regular expression {std::regex}
 
         --skip-first-n <Number of dataset entries to skip>
-            Skip the first N dataset entries (0=default, not used)
+            Skip the first N dataset entries {0=default, not used}
 
         --only-first-n <Number of dataset entries to run>
-            Run for the first N steps only (0=default, not used)
+            Run for the first N steps only {0=default, not used}
 
         --output-simplemap <output-map.simplemap>
             Enables building and saving the simplemap for the mapping session
@@ -424,14 +430,20 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
             Save the estimated twist as a TXT file
 
         --output-tum-path <output-trajectory.txt>
-            Save the estimated path as a TXT file using the TUM file format (see
-            evo docs)
+            Save the estimated path as a TXT file using the TUM file format {see
+            evo docs}
+
+        --state-estimator-param-file </path/to/params.yaml>
+            Path to YAML parameters file to configure the state estimator.
+
+        --state-estimator <(StateEstimationSimple|StateEstimationSmoother)>
+            The C++ class name of the state estimator to use
 
         -l <foobar.so>,  --load-plugins <foobar.so>
-            One or more (comma separated) *.so files to load as plugins
+            One or more {comma separated} *.so files to load as plugins
 
         -v <INFO>,  --verbosity <INFO>
-            Verbosity level: ERROR|WARN|INFO|DEBUG (Default: INFO)
+            Verbosity level: ERROR|WARN|INFO|DEBUG {Default: INFO}
 
         -c <demo.yml>,  --config <demo.yml>
             (required)  Input YAML config file (required) (*.yml)
@@ -446,8 +458,6 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
             Displays usage information and exits.
 
 |
-
-
 
 .. _mola_lo_ros:
 

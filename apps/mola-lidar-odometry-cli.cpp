@@ -29,6 +29,7 @@
  * @date   Sep 22, 2023
  */
 
+#include <mola_kernel/MinimalModuleContainer.h>
 #include <mola_kernel/interfaces/OfflineDatasetSource.h>
 #include <mola_kernel/pretty_print_exception.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
@@ -50,6 +51,10 @@
 #include <mrpt/system/filesystem.h>
 #include <mrpt/system/os.h>
 #include <mrpt/system/progress.h>
+
+#if defined(HAVE_MOLA_SE_SIMPLE)
+#include <mola_state_estimation_simple/StateEstimationSimple.h>
+#endif
 
 #if defined(HAVE_MOLA_INPUT_KITTI)
 #include <mola_input_kitti_dataset/KittiOdometryDataset.h>
@@ -95,6 +100,24 @@ struct Cli
   TCLAP::ValueArg<std::string> arg_plugins{
     "l",   "load-plugins", "One or more {comma separated} *.so files to load as plugins",
     false, "foobar.so",    "foobar.so",
+    cmd};
+
+  TCLAP::ValueArg<std::string> arg_stateEstimatorClass{
+    "",
+    "state-estimator",
+    "The C++ class name of the state estimator to use",
+    false,
+    "(StateEstimationSimple|StateEstimationSmoother)",
+    "(StateEstimationSimple|StateEstimationSmoother)",
+    cmd};
+
+  TCLAP::ValueArg<std::string> arg_stateEstimatorParams{
+    "",
+    "state-estimator-param-file",
+    "Path to YAML parameters file to configure the state estimator.",
+    false,
+    "/path/to/params.yaml",
+    "/path/to/params.yaml",
     cmd};
 
   TCLAP::ValueArg<std::string> arg_outPath{
@@ -395,13 +418,55 @@ void mola_install_signal_handler()
 
 int main_odometry(Cli & cli)
 {
-  mola::LidarOdometry liodom;
+  // Declare main LO module:
+  // ------------------------------------------
+  auto liodom = mola::LidarOdometry::Create();
 
-  mrpt::system::VerbosityLevel logLevel = liodom.getMinLoggingLevel();
+  // Declare state estimator module:
+  // ------------------------------------------
+  mola::NavStateFilter::Ptr stateEstimator;
+  if (cli.arg_stateEstimatorClass.isSet()) {
+    const auto sClass = cli.arg_stateEstimatorClass.getValue();
+    auto o = mrpt::rtti::classFactory(sClass);
+    ASSERTMSG_(
+      o, mrpt::format(
+           "Apparently unknown class name: '%s' (missing plugin .so file?)", sClass.c_str()));
+    stateEstimator = std::dynamic_pointer_cast<mola::NavStateFilter>(o);
+    ASSERTMSG_(
+      stateEstimator,
+      mrpt::format(
+        "Class '%s' does not implemented the expected interface mola::NavStateFilter",
+        sClass.c_str()));
+  }
+
+#if defined(HAVE_MOLA_SE_SIMPLE)
+  // Default?
+  if (!stateEstimator)
+    stateEstimator = mola::state_estimation_simple::StateEstimationSimple::Create();
+#endif
+
+  ASSERTMSG_(
+    stateEstimator,
+    "Either provide an explicit --state-estimator flag or build against "
+    "mola::state_estimation_simple");
+
+  if (cli.arg_stateEstimatorParams.isSet()) {
+    const auto seParamsFile = cli.arg_stateEstimatorParams.getValue();
+    auto seParams = mrpt::containers::yaml::FromFile(seParamsFile);
+    stateEstimator->initialize(seParams["params"]);
+  }
+
+  // Make both modules discoverables to each other:
+  // -------------------------------------------------
+  mola::MinimalModuleContainer moduleContainer = {{liodom, stateEstimator}};
+
+  // Logging level:
+  mrpt::system::VerbosityLevel logLevel = liodom->getMinLoggingLevel();
   if (cli.arg_verbosity_level.isSet()) {
     using vl = mrpt::typemeta::TEnumType<mrpt::system::VerbosityLevel>;
     logLevel = vl::name2value(cli.arg_verbosity_level.getValue());
-    liodom.setVerbosityLevel(logLevel);
+    liodom->setVerbosityLevel(logLevel);
+    stateEstimator->setVerbosityLevel(logLevel);
   }
 
   // Add a logger hook to detect visible messages to the terminal
@@ -420,12 +485,12 @@ int main_odometry(Cli & cli)
     auto lck = mrpt::lockHelper(liodom_emitted_log_mtx);
     liodom_emitted_log = false;
   };
-  liodom.mrpt::system::COutputLogger::logRegisterCallback(
+  liodom->mrpt::system::COutputLogger::logRegisterCallback(
     [&](
       [[maybe_unused]] std::string_view msg, const mrpt::system::VerbosityLevel level,
       [[maybe_unused]] std::string_view loggerName,
       [[maybe_unused]] const mrpt::Clock::time_point timestamp) {
-      if (level < liodom.getMinLoggingLevel()) return;
+      if (level < liodom->getMinLoggingLevel()) return;
       mark_emitted_log();
     });
 
@@ -434,21 +499,21 @@ int main_odometry(Cli & cli)
   const auto cfg = mola::load_yaml_file(file_yml);
 
   // Enable time profiling: // can be enabled via YAML options
-  // liodom.profiler_.enable();
+  // liodom->profiler_.enable();
 
-  // liodom.initialize_common(cfg); // can be skipped for a non-MOLA
+  // liodom->initialize_common(cfg); // can be skipped for a non-MOLA
   // system
-  liodom.initialize(cfg);
+  liodom->initialize(cfg);
 
   if (cli.arg_outSimpleMap.isSet()) {
-    liodom.params_.simplemap.generate = true;
+    liodom->params_.simplemap.generate = true;
     // don't save within the LidarOdometry object, we will do it here in
     // this cli app:
-    liodom.params_.simplemap.save_final_map_to_file.clear();
+    liodom->params_.simplemap.save_final_map_to_file.clear();
   }
 
   if (cli.arg_lidarLabel.isSet())
-    liodom.params_.lidar_sensor_labels.assign(1, std::regex(cli.arg_lidarLabel.getValue()));
+    liodom->params_.lidar_sensor_labels.assign(1, std::regex(cli.arg_lidarLabel.getValue()));
 
   // Select dataset input:
   std::shared_ptr<mola::OfflineDatasetSource> dataset;
@@ -547,7 +612,7 @@ int main_odometry(Cli & cli)
     if (!obs) continue;
 
     // Send it to the odometry pipeline:
-    liodom.onNewObservation(obs);
+    liodom->onNewObservation(obs);
 
     // Show stats:
     static int cnt = 0;
@@ -572,13 +637,13 @@ int main_odometry(Cli & cli)
       std::cout.flush();
     }
 
-    while (liodom.isBusy()) {
+    while (liodom->isBusy()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     // Keep track of vehicle velocities?
     if (outTwist) {
-      if (const auto optPoseAndTwist = liodom.lastEstimatedState(); optPoseAndTwist) {
+      if (const auto optPoseAndTwist = liodom->lastEstimatedState(); optPoseAndTwist) {
         const auto & [pose, tw] = optPoseAndTwist.value();
         outTwist->insert(
           obs->timestamp, mrpt::math::TPose3D(tw.vx, tw.vy, tw.vz, tw.wz, tw.wy, tw.wx));
@@ -590,7 +655,7 @@ int main_odometry(Cli & cli)
     const auto fil = cli.arg_outPath.getValue();
     std::cout << "\nSaving estimated path in TUM format to: " << fil << std::endl;
 
-    mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory = liodom.estimatedTrajectory();
+    mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory = liodom->estimatedTrajectory();
 
     lastEstimatedTrajectory.saveToTextFile_TUM(fil);
   }
@@ -598,7 +663,7 @@ int main_odometry(Cli & cli)
   if (cli.arg_outSimpleMap.isSet()) {
     const auto fil = cli.arg_outSimpleMap.getValue();
 
-    auto sm = liodom.reconstructedMap();
+    auto sm = liodom->reconstructedMap();
 
     std::cout << "\nSaving reconstructed map with " << sm.size() << " keyframes to: " << fil
               << std::endl;

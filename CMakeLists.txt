@@ -70,6 +70,7 @@ find_package(mola_input_mulran_dataset) # optional
 find_package(mola_input_rawlog) # optional
 find_package(mola_input_rosbag2) # optional
 find_package(mola_input_paris_luco_dataset) # optional
+find_package(mola_state_estimation_simple) # optional
 
 mola_add_executable(
   TARGET  mola-lidar-odometry-cli
@@ -79,6 +80,14 @@ mola_add_executable(
   mrpt::maps
   mrpt::tclap
 )
+if(mola_state_estimation_simple_FOUND)
+  message(STATUS "mola-lidar-odometry-cli: With mola_state_estimation_simple = YES")
+  target_link_libraries(mola-lidar-odometry-cli mola::mola_state_estimation_simple)
+  target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_SE_SIMPLE)
+else()
+  message(STATUS "mola-lidar-odometry-cli: With mola_state_estimation_simple = NO")
+endif()
+
 if(mola_input_kitti_dataset_FOUND)
   message(STATUS "mola-lidar-odometry-cli: With Kitti = YES")
   target_link_libraries(mola-lidar-odometry-cli mola::mola_input_kitti_dataset)
