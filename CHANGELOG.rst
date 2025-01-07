@@ -2,6 +2,11 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* mola-lidar-odometry-cli: add flags to select the state estimation method
+* Contributors: Jose Luis Blanco-Claraco
+
 0.5.0 (2024-12-29)
 ------------------
 * cmake test logic: add find_package() for state_estimation_simple
