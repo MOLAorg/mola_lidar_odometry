@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.5.1 (2025-01-07)
+------------------
 * mola-lidar-odometry-cli: add flags to select the state estimation method
 * Contributors: Jose Luis Blanco-Claraco
 
