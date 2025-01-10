@@ -1578,9 +1578,12 @@ void LidarOdometry::doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObserv
   double radius = std::max(bb.max.norm(), bb.min.norm());
 
   // check for NaN: See: https://github.com/MOLAorg/mola_lidar_odometry/issues/10
-  if (radius != radius) return;
-
-  mrpt::keep_max(radius, params_.absolute_minimum_sensor_range);
+  if (radius != radius) {
+    MRPT_LOG_WARN_STREAM("NaN bounding box for sensor point cloud. Using default sensor range.");
+    radius = params_.absolute_minimum_sensor_range;
+  } else {
+    mrpt::keep_max(radius, params_.absolute_minimum_sensor_range);
+  }
 
   maxRange = radius;
 
