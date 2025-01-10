@@ -70,7 +70,7 @@ find_package(mola_input_mulran_dataset) # optional
 find_package(mola_input_rawlog) # optional
 find_package(mola_input_rosbag2) # optional
 find_package(mola_input_paris_luco_dataset) # optional
-find_package(mola_state_estimation_simple) # optional
+find_package(mola_state_estimation_simple QUIET) # optional
 
 mola_add_executable(
   TARGET  mola-lidar-odometry-cli
