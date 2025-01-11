@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.5.2 (2025-01-11)
+------------------
 * Merge pull request #11 from MOLAorg/10-bad-first-icp-re-starting-from-scratch-with-a-new-local-map
   Fix NaN pointcloud radius in doInitializeEstimatedMaxSensorRange()
 * Unit tests: add test run against MulRan dataset fragment (Lidar+IMU)
