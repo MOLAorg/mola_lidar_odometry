@@ -91,7 +91,9 @@ struct Cli
   TCLAP::CmdLine cmd{"mola-lidar-odometry-cli"};
 
   TCLAP::ValueArg<std::string> argYAML{
-    "c", "config", "Input YAML config file (required) (*.yml)", true, "", "demo.yml", cmd};
+    "c",  "config", "Input pipeline YAML config file (required) (*.yml)",
+    true, "",       "lidar3d-default.yml",
+    cmd};
 
   TCLAP::ValueArg<std::string> arg_verbosity_level{
     "v",    "verbosity", "Verbosity level: ERROR|WARN|INFO|DEBUG {Default: INFO}", false, "",
