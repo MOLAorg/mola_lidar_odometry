@@ -100,7 +100,6 @@ int main_odometry(
   const bool gtLoadOk = gt.loadFromTextFile_TUM(gtTrajectory);
   ASSERT_(gtLoadOk);
 
-  ASSERT_EQUAL_(trajectory.size(), 3U);
   ASSERT_EQUAL_(gt.size(), trajectory.size());
 
   auto itP = trajectory.cbegin();

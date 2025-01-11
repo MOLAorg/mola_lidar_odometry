@@ -50,6 +50,30 @@ target_link_libraries(test_lidar_odometry_kitti
 )
 
 
+# Test: from rawlog file, using MULRAN fragment (incl IMU,GPS)
+# ---------------------------------------------------------------
+set(MULRAN_KAIST01_DATASET_FILE "${mola_test_datasets_DIR}/../datasets/mulran/mulran_KAIST01_extract.rawlog")
+set(MULRAN_KAIST01_GT_TUM ${mola_lidar_odometry_SOURCE_DIR}/test/mulran_KAIST01_fragment_gt.tum)
+
+if (NOT EXISTS ${MULRAN_KAIST01_DATASET_FILE})
+  message(STATUS "**Skipping test**: Mulran dataset not available (temporary situation until mola_test_dataset package is updated)")
+else()
+ament_add_gtest(test_lidar_odometry_mulran test_lidar_odometry_rawlog.cpp
+  ENV LO_PIPELINE_YAML=${DEFAULT_PIPELINE_YAML}
+  ENV LO_STATE_ESTIM_YAML=${DEFAULT_STATE_ESTIMATOR_YAML}
+  ENV LO_TEST_RAWLOG=${MULRAN_KAIST01_DATASET_FILE}
+  ENV LO_TEST_GT_TUM=${MULRAN_KAIST01_GT_TUM}
+  ENV MOLA_PROFILER=false
+)
+ament_target_dependencies(test_lidar_odometry_mulran
+  mrpt-obs
+  mola_state_estimation_simple
+)
+target_link_libraries(test_lidar_odometry_mulran
+    mola::mola_lidar_odometry
+    mola::mola_state_estimation_simple
+)
+endif()
 
 # Test: from rosbag2 file, RSLIDAR data with XYZIRT channels
 # -----------------------------------------------------------
