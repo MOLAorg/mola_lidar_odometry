@@ -2,6 +2,18 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Merge pull request #11 from MOLAorg/10-bad-first-icp-re-starting-from-scratch-with-a-new-local-map
+  Fix NaN pointcloud radius in doInitializeEstimatedMaxSensorRange()
+* Unit tests: add test run against MulRan dataset fragment (Lidar+IMU)
+* cli: fix name of example pipeline file when --help invoked
+* unit tests: fix wrong usage of state estimator yaml file
+* mola-lo-gui-mulran: show IMU & GPS data in GUI
+* Define a sensible value for maxRange
+* Fix cmake warning when built w/o mola_state_estimation_simple sourced in the env
+* Contributors: Jose Luis Blanco-Claraco
+
 0.5.1 (2025-01-07)
 ------------------
 * mola-lidar-odometry-cli: add flags to select the state estimation method
