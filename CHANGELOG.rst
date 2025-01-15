@@ -2,6 +2,11 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* FIX: mola_state_estimator_simple must be available as a build dep too for easier usage of mola-lo-cli
+* Contributors: Jose Luis Blanco-Claraco
+
 0.5.2 (2025-01-11)
 ------------------
 * Merge pull request #11 from MOLAorg/10-bad-first-icp-re-starting-from-scratch-with-a-new-local-map
