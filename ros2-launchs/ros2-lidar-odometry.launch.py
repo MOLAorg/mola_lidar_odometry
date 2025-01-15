@@ -55,6 +55,16 @@ def generate_launch_description():
     publish_localization_following_rep105_env_var = SetEnvironmentVariable(
         name='MOLA_LOCALIZ_USE_REP105', value=LaunchConfiguration('publish_localization_following_rep105'))
     # ~~~~~~~~~~~~
+    start_mapping_enabled_arg = DeclareLaunchArgument(
+        "start_mapping_enabled", default_value="True", description="Whether MOLA-LO should start with map update enabled (true), or in localization-only mode (false)")
+    start_mapping_enabled_env_var = SetEnvironmentVariable(
+        name='MOLA_MAPPING_ENABLE', value=LaunchConfiguration('start_mapping_enabled'))
+    # ~~~~~~~~~~~~
+    start_active_arg = DeclareLaunchArgument(
+        "start_active", default_value="True", description="Whether MOLA-LO should start active, that is, processing incoming sensor data (true), or ignoring them (false)")
+    start_active_env_var = SetEnvironmentVariable(
+        name='MOLA_START_ACTIVE', value=LaunchConfiguration('start_mapping_enabled'))
+    # ~~~~~~~~~~~~
 
     # Namespace (Based on Nav2's bring-up launch file!)
     # ---------------------------------------------------
@@ -129,6 +139,10 @@ def generate_launch_description():
         use_mola_gui_env_var,
         publish_localization_following_rep105_arg,
         publish_localization_following_rep105_env_var,
+        start_mapping_enabled_arg,
+        start_mapping_enabled_env_var,
+        start_active_arg,
+        start_active_env_var,
         use_rviz_arg,
         node_group
     ])
