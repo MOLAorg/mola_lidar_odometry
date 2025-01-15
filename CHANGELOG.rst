@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.5.3 (2025-01-15)
+------------------
 * FIX: mola_state_estimator_simple must be available as a build dep too for easier usage of mola-lo-cli
 * Contributors: Jose Luis Blanco-Claraco
 
