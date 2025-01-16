@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.5.4 (2025-01-16)
+------------------
 * Add a debug helper env var MOLA_BRIDGE_ROS2_EXPORT_TO_RAWLOG_FILE
 * Do not reset the state estimator on a bad ICP, allowing merging from other sensors or extrapolating.
 * Docs: add missing ros2 launch args
