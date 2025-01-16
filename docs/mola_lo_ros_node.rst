@@ -27,7 +27,8 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
          # Usage without sensor /tf:
          ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
             lidar_topic_name:=ouster/points \
-            ignore_lidar_pose_from_tf:=True
+            ignore_lidar_pose_from_tf:=True \
+            publish_localization_following_rep105:=False
 
    .. tab-item:: Robot with NS
       :selected:
@@ -78,6 +79,14 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
                'publish_localization_following_rep105':
                   Whether to publish localization TFs in between map->odom (true) or directly map->base_link (false)
+                  (default: 'True')
+
+               'start_mapping_enabled':
+                  Whether MOLA-LO should start with map update enabled (true), or in localization-only mode (false)
+                  (default: 'True')
+
+               'start_active':
+                  Whether MOLA-LO should start active, that is, processing incoming sensor data (true), or ignoring them (false)
                   (default: 'True')
 
                'use_rviz':
