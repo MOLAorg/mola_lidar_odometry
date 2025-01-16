@@ -1085,7 +1085,8 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
     } else {
       // Bad ICP:
-      state_.navstate_fuse->reset();
+      // Was: state_.navstate_fuse->reset();
+      // Do not reset state estimation in order to allow it to fuse other sensor sources.
     }
 
     // Update trajectory too:
