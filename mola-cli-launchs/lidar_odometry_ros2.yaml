@@ -42,6 +42,7 @@ modules:
   - type: mola::BridgeROS2
     name: ros2_bridge
     verbosity_level: '${MOLA_VERBOSITY_BRIDGE_ROS2|INFO}'
+    export_to_rawlog: ${MOLA_BRIDGE_ROS2_EXPORT_TO_RAWLOG_FILE|''}
 
     # In BridgeROS2, this execution rate (Hz) determines the
     # rate of publishing odometry observations, if enabled.
