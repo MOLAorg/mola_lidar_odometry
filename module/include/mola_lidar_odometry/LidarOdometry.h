@@ -402,6 +402,12 @@ public:
     uint32_t max_worker_thread_queue_before_drop = 500;
 
     uint32_t gnss_queue_max_size = 100;
+
+    /** When publishing pose updates, the reference frame for both, estimated robot poses, and the local map.*/
+    std::string publish_reference_frame = "odom";
+
+    /** When publishing pose updates, the vehicle frame name.*/
+    std::string publish_vehicle_frame = "base_link";
   };
 
   /** Algorithm parameters */
@@ -488,8 +494,6 @@ protected:
   void onExposeParameters();  // called after initialization
 
 private:
-  const std::string NAVSTATE_LIODOM_FRAME = "liodom";
-
   struct ICP_Input
   {
     using Ptr = std::shared_ptr<ICP_Input>;

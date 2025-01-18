@@ -311,6 +311,9 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   YAML_LOAD_OPT(params_, optimize_twist_rerun_min_rot_deg, double);
   YAML_LOAD_OPT(params_, optimize_twist_max_corrections, size_t);
 
+  YAML_LOAD_OPT(params_, publish_reference_frame, std::string);
+  YAML_LOAD_OPT(params_, publish_vehicle_frame, std::string);
+
   if (cfg.has("adaptive_threshold"))
     params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
 
@@ -818,8 +821,8 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
     // Fake an evolution to be able to have an initial velocity estimation:
     const auto t1 = mrpt::Clock::fromDouble(mrpt::Clock::toDouble(this_obs_tim) - 0.2);
     const auto t2 = mrpt::Clock::fromDouble(mrpt::Clock::toDouble(this_obs_tim) - 0.1);
-    state_.navstate_fuse->fuse_pose(t1, initPose, NAVSTATE_LIODOM_FRAME);
-    state_.navstate_fuse->fuse_pose(t2, initPose, NAVSTATE_LIODOM_FRAME);
+    state_.navstate_fuse->fuse_pose(t1, initPose, params_.publish_reference_frame);
+    state_.navstate_fuse->fuse_pose(t2, initPose, params_.publish_reference_frame);
 
     MRPT_LOG_INFO_STREAM("Initial re-localization done with pose: " << initPose.mean);
 
@@ -841,7 +844,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
   ProfilerEntry tleMotion(profiler_, "onLidar.2b.estimated_navstate");
 
   state_.last_motion_model_output =
-    state_.navstate_fuse->estimated_navstate(this_obs_tim, NAVSTATE_LIODOM_FRAME);
+    state_.navstate_fuse->estimated_navstate(this_obs_tim, params_.publish_reference_frame);
 
   const bool hasMotionModel = state_.last_motion_model_output.has_value();
 
@@ -868,7 +871,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
     initPose.mean = mrpt::poses::CPose3D::Identity();
     initPose.cov.setDiagonal(1e-12);
 
-    state_.navstate_fuse->fuse_pose(this_obs_tim, initPose, NAVSTATE_LIODOM_FRAME);
+    state_.navstate_fuse->fuse_pose(this_obs_tim, initPose, params_.publish_reference_frame);
   } else {
     // Register point clouds using ICP:
     // ------------------------------------
@@ -1077,7 +1080,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
       if (state_.step_counter_post_relocalization == 0) {
         // Do integrate info:
         state_.navstate_fuse->fuse_pose(
-          this_obs_tim, out.found_pose_to_wrt_from, NAVSTATE_LIODOM_FRAME);
+          this_obs_tim, out.found_pose_to_wrt_from, params_.publish_reference_frame);
       } else {
         // Skip during post-relocalization:
         state_.step_counter_post_relocalization--;
@@ -2165,7 +2168,10 @@ void LidarOdometry::doPublishUpdatedLocalization(const mrpt::Clock::time_point &
 
   LocalizationUpdate lu;
   lu.method = "lidar_odometry";
-  lu.reference_frame = "odom";
+  lu.reference_frame = params_.publish_reference_frame;
+#if MOLA_VERSION_CHECK(1, 6, 0)
+  lu.child_frame = params_.publish_vehicle_frame;
+#endif
   lu.timestamp = this_obs_tim;
   lu.pose = state_.last_lidar_pose.mean.asTPose();
   lu.cov = state_.last_lidar_pose.cov;
@@ -2190,7 +2196,7 @@ void LidarOdometry::doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs
 
   MapUpdate mu;
   mu.method = "lidar_odometry";
-  mu.reference_frame = "map";
+  mu.reference_frame = params_.publish_reference_frame;
   mu.timestamp = this_obs_tim;
 
   // publish all local map layers:
