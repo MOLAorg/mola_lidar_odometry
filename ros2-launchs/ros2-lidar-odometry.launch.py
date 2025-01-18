@@ -65,6 +65,11 @@ def generate_launch_description():
     start_active_env_var = SetEnvironmentVariable(
         name='MOLA_START_ACTIVE', value=LaunchConfiguration('start_mapping_enabled'))
     # ~~~~~~~~~~~~
+    mola_lo_reference_frame_arg = DeclareLaunchArgument(
+        "mola_lo_reference_frame", default_value="map", description="The /tf frame name to be used for MOLA-LO localization updates")
+    mola_lo_reference_frame_env_var = SetEnvironmentVariable(
+        name='MOLA_LO_PUBLISH_REF_FRAME', value=LaunchConfiguration('mola_lo_reference_frame'))
+    # ~~~~~~~~~~~~
 
     # Namespace (Based on Nav2's bring-up launch file!)
     # ---------------------------------------------------
@@ -143,6 +148,8 @@ def generate_launch_description():
         start_mapping_enabled_env_var,
         start_active_arg,
         start_active_env_var,
+        mola_lo_reference_frame_arg,
+        mola_lo_reference_frame_env_var,
         use_rviz_arg,
         node_group
     ])
