@@ -28,6 +28,12 @@ params:
   max_sensor_range_filter_coefficient: 0.999
   absolute_minimum_sensor_range: 10.0
 
+  # When publishing pose updates, the reference frame for both, estimated robot poses, and the local map.
+  publish_reference_frame: '${MOLA_LO_PUBLISH_REF_FRAME|odom}'
+
+  # When publishing pose updates, the vehicle frame name.
+  publish_vehicle_frame: '${MOLA_LO_PUBLISH_VEHICLE_FRAME|base_link}'
+
   # How often to update the local map model:
   local_map_updates:
     enabled: '${MOLA_MAPPING_ENABLED|true}'
