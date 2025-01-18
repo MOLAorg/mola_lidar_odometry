@@ -34,7 +34,7 @@ Visualization Manager:
   Class: ""
   Displays:
     - Alpha: 0.5
-      Cell Size: 1
+      Cell Size: 5
       Class: rviz_default_plugins/Grid
       Color: 160; 160; 164
       Enabled: true
@@ -48,8 +48,8 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 10
-      Reference Frame: <Fixed Frame>
+      Plane Cell Count: 20
+      Reference Frame: base_link
       Value: true
     - Class: rviz_default_plugins/TF
       Enabled: true
@@ -64,7 +64,7 @@ Visualization Manager:
           Value: true
         lidar:
           Value: true
-        map:
+        odom:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -72,7 +72,7 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        map:
+        odom:
           base_link:
             image_0:
               {}
@@ -237,9 +237,9 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 5.1363911628723145
+      Max Intensity: 16.68756866455078
       Min Color: 0; 0; 0
-      Min Intensity: -25.75153160095215
+      Min Intensity: -29.799602508544922
       Name: LocalMap
       Position Transformer: XYZ
       Selectable: true
@@ -259,7 +259,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: map
+    Fixed Frame: odom
     Frame Rate: 30
   Name: root
   Tools:
@@ -302,25 +302,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/ThirdPersonFollower
-      Distance: 100.4432601928711
+      Distance: 31.4365234375
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 13.67979621887207
-        Y: 13.799094200134277
-        Z: -1.6454393863677979
+        X: 0
+        Y: 0
+        Z: 0
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5897611379623413
+      Pitch: 0.3947611153125763
       Target Frame: base_link
       Value: ThirdPersonFollower (rviz_default_plugins)
-      Yaw: 0.5053831934928894
+      Yaw: 6.008567810058594
     Saved: ~
 Window Geometry:
   Displays:
@@ -341,7 +341,7 @@ Window Geometry:
     collapsed: false
   Width: 1850
   X: 70
-  Y: 534
+  Y: 27
   image0:
     collapsed: false
   image1:
