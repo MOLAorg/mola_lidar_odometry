@@ -2349,12 +2349,18 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
 
   bool mmLoadOk = false;
   try {
+    // do not show the default error msg for this simple error, which is long and may intimidate newest users:
+    if (!mrpt::system::fileExists(mmFile)) throw std::runtime_error("");
+
     mmLoadOk = state_.local_map->load_from_file(mmFile);
   } catch (const std::exception &) {
   }
 
   bool smLoadOk = false;
   try {
+    // do not show the default error msg for this simple error, which is long and may intimidate newest users:
+    if (!mrpt::system::fileExists(smFile)) throw std::runtime_error("");
+
     smLoadOk = state_.reconstructed_simplemap.loadFromFile(smFile);
   } catch (const std::exception &) {
   }
