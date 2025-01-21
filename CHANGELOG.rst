@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.6.0 (2025-01-21)
+------------------
 * Fix: publish map on first iteration
 * Publish georeferencing frames (utm, enu) when loading a metric map with georef. info
 * ros2 lidar odometry launch: add ros argument for /tf reference_frame
