@@ -2196,7 +2196,10 @@ void LidarOdometry::doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs
     params_.local_map_updates.publish_map_updates_every_n)
     return;
 
-  if (!anyUpdateMapSubscriber()) return;
+  if (!anyUpdateMapSubscriber()) {
+    MRPT_LOG_DEBUG("doPublishUpdatedMap: Skipping, since we have no subscriber.");
+    return;
+  }
 
   ProfilerEntry tleCleanup(profiler_, "advertiseMap");
   state_.localmap_advertise_updates_counter = 0;
@@ -2385,8 +2388,13 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
     ret.error_message = "Warning: no simplemap (keyframes) file found (expected: '"s + smFile +
                         "'). Required for multisession mapping. ";
 
-  // Publish geo-referenced data for the map, if applicable.
-  if (mmLoadOk) publishMetricMapGeoreferencingData();
+  if (mmLoadOk) {
+    // Publish geo-referenced data for the map, if applicable.
+    publishMetricMapGeoreferencingData();
+    // And update the GUI and publish the map, even if we are not being fed with incoming obs:
+    auto dummy = mrpt::obs::CObservationComment::Create();
+    onNewObservation(dummy);
+  }
 
   if (ret.success) {
     state_.local_map_needs_viz_update = true;  // refresh map in GUI, if enabled

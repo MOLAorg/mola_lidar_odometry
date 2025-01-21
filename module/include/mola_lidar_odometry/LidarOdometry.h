@@ -585,7 +585,7 @@ private:
 
     /// See check_for_removal_every_n
     uint32_t localmap_check_removal_counter = 0;
-    uint32_t localmap_advertise_updates_counter = 0;
+    uint32_t localmap_advertise_updates_counter = std::numeric_limits<uint32_t>::max();
 
     /// To update the map in the viz only if really needed
     bool local_map_needs_viz_update = true;
