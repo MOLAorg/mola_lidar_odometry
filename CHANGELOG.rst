@@ -2,6 +2,17 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Fix: publish map on first iteration
+* Publish georeferencing frames (utm, enu) when loading a metric map with georef. info
+* ros2 lidar odometry launch: add ros argument for /tf reference_frame
+* ROS2 kitti Lidar-Odometry demo: fixed to publish correct /tf's
+* Add new frame parameters to pipeline YAML files
+* Two new parameters (publish_reference_frame, publish_vehicle_frame), to have explicit control on frame names published to both, ROS, and the MOLA state_estimator
+* ROS2 service call for load_map(): more concise error messages
+* Contributors: Jose Luis Blanco-Claraco
+
 0.5.4 (2025-01-16)
 ------------------
 * Add a debug helper env var MOLA_BRIDGE_ROS2_EXPORT_TO_RAWLOG_FILE
