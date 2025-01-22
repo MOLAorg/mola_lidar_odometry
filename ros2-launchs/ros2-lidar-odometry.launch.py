@@ -58,12 +58,12 @@ def generate_launch_description():
     start_mapping_enabled_arg = DeclareLaunchArgument(
         "start_mapping_enabled", default_value="True", description="Whether MOLA-LO should start with map update enabled (true), or in localization-only mode (false)")
     start_mapping_enabled_env_var = SetEnvironmentVariable(
-        name='MOLA_MAPPING_ENABLE', value=LaunchConfiguration('start_mapping_enabled'))
+        name='MOLA_MAPPING_ENABLED', value=LaunchConfiguration('start_mapping_enabled'))
     # ~~~~~~~~~~~~
     start_active_arg = DeclareLaunchArgument(
         "start_active", default_value="True", description="Whether MOLA-LO should start active, that is, processing incoming sensor data (true), or ignoring them (false)")
     start_active_env_var = SetEnvironmentVariable(
-        name='MOLA_START_ACTIVE', value=LaunchConfiguration('start_mapping_enabled'))
+        name='MOLA_START_ACTIVE', value=LaunchConfiguration('start_active'))
     # ~~~~~~~~~~~~
     mola_lo_reference_frame_arg = DeclareLaunchArgument(
         "mola_lo_reference_frame", default_value="map", description="The /tf frame name to be used for MOLA-LO localization updates")
