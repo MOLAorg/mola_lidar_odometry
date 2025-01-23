@@ -184,7 +184,7 @@ icp_settings_with_vel:
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         pointLayerMatches:
-          - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
+          - {global: '${MOLA_LOCALMAP_LAYER_NAME|localmap}', local: 'decimated_for_icp', weight: 1.0}
 
   quality:
     - class: mp2p_icp::QualityEvaluator_PairedRatio
@@ -202,7 +202,7 @@ localmap_generator:
   #
   - class_name: mp2p_icp_filters::Generator
     params:
-      target_layer: 'localmap'
+      target_layer: '${MOLA_LOCALMAP_LAYER_NAME|localmap}'
       throw_on_unhandled_observation_class: true
       process_class_names_regex: ''  # NONE: don't process observations in the generator.
       #process_sensor_labels_regex: '.*'
@@ -346,7 +346,7 @@ insert_observation_into_local_map:
   - class_name: mp2p_icp_filters::FilterMerge
     params:
       input_pointcloud_layer: 'decimated_for_map'
-      target_layer: 'localmap'
+      target_layer: '${MOLA_LOCALMAP_LAYER_NAME|localmap}'
       input_layer_in_local_coordinates: true
       robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
 
