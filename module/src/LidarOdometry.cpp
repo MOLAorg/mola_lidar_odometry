@@ -1260,7 +1260,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
     tle3.stop();
 
-    state_.local_map_needs_viz_update = true;
+    state_.mark_local_map_as_updated();
 
   }  // end done add a new KF to local map
 
@@ -2191,10 +2191,14 @@ void LidarOdometry::doPublishUpdatedLocalization(const mrpt::Clock::time_point &
 
 void LidarOdometry::doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs_tim)
 {
+  if (!state_.local_map_needs_publish) return;
+
   if (
     state_.localmap_advertise_updates_counter++ <
     params_.local_map_updates.publish_map_updates_every_n)
     return;
+
+  state_.local_map_needs_publish = false;
 
   if (!anyUpdateMapSubscriber()) {
     MRPT_LOG_DEBUG("doPublishUpdatedMap: Skipping, since we have no subscriber.");
@@ -2397,7 +2401,7 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
   }
 
   if (ret.success) {
-    state_.local_map_needs_viz_update = true;  // refresh map in GUI, if enabled
+    state_.mark_local_map_as_updated();  // refresh map in GUI, if enabled
 
     MRPT_LOG_INFO_STREAM("[map_load] Successful.");
   } else

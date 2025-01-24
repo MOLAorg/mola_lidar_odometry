@@ -206,7 +206,7 @@ public:
 
       /** Publish updated map via mola::MapSourceBase once every N frames
              */
-      uint32_t publish_map_updates_every_n = 10;
+      uint32_t publish_map_updates_every_n = 5;
 
       /** If non-empty, the local map will be loaded from the given `*.mm`
              * file instead of generating it from scratch.
@@ -589,6 +589,13 @@ private:
 
     /// To update the map in the viz only if really needed
     bool local_map_needs_viz_update = true;
+    bool local_map_needs_publish = true;
+
+    void mark_local_map_as_updated()
+    {
+      local_map_needs_viz_update = true;
+      local_map_needs_publish = true;
+    }
 
     /// To handle post-re-localization. >0 means we are "recovering" from a request to re-localize:
     uint32_t step_counter_post_relocalization = 0;
