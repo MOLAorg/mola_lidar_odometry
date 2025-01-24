@@ -70,6 +70,16 @@ def generate_launch_description():
     mola_lo_reference_frame_env_var = SetEnvironmentVariable(
         name='MOLA_LO_PUBLISH_REF_FRAME', value=LaunchConfiguration('mola_lo_reference_frame'))
     # ~~~~~~~~~~~~
+    mola_lo_pipeline_arg = DeclareLaunchArgument(
+        "mola_lo_pipeline", default_value="../pipelines/lidar3d-default.yaml", description="The LiDAR-Odometry pipeline configuration YAML file defining the LO system. Absolute path, or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'. Default is the 'lidar3d-default.yaml' system described in the IJRR 2025 paper.")
+    mola_lo_pipeline_arg_env_var = SetEnvironmentVariable(
+        name='MOLA_ODOMETRY_PIPELINE_YAML', value=LaunchConfiguration('mola_lo_pipeline'))
+    # ~~~~~~~~~~~~
+    generate_simplemap_arg = DeclareLaunchArgument(
+        "generate_simplemap", default_value="False", description="Whether to create a '.simplemap', useful for map post-processing. Refer to online tutorials.")
+    generate_simplemap_env_var = SetEnvironmentVariable(
+        name='MOLA_GENERATE_SIMPLEMAP', value=LaunchConfiguration('generate_simplemap'))
+    # ~~~~~~~~~~~~
 
     # Namespace (Based on Nav2's bring-up launch file!)
     # ---------------------------------------------------
@@ -150,6 +160,10 @@ def generate_launch_description():
         start_active_env_var,
         mola_lo_reference_frame_arg,
         mola_lo_reference_frame_env_var,
+        mola_lo_pipeline_arg,
+        mola_lo_pipeline_arg_env_var,
+        generate_simplemap_arg,
+        generate_simplemap_env_var,
         use_rviz_arg,
         node_group
     ])

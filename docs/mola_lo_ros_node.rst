@@ -89,6 +89,18 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
                   Whether MOLA-LO should start active, that is, processing incoming sensor data (true), or ignoring them (false)
                   (default: 'True')
 
+               'mola_lo_reference_frame':
+                  The /tf frame name to be used for MOLA-LO localization updates
+                  (default: 'map')
+
+               'mola_lo_pipeline':
+                  The LiDAR-Odometry pipeline configuration YAML file defining the LO system. Absolute path, or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'. Default is the 'lidar3d-default.yaml' system described in the IJRR 2025 paper.
+                  (default: '../pipelines/lidar3d-default.yaml')
+
+               'generate_simplemap':
+                  Whether to create a '.simplemap', useful for map post-processing. Refer to online tutorials.
+                  (default: 'False')
+
                'use_rviz':
                   Whether to launch RViz2 with default lidar-odometry.rviz configuration
                   (default: 'True')
