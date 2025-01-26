@@ -2,6 +2,16 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Do not re-publish the map if it does not change, e.g. in localization-only mode
+* ros2 launch file: two new arguments 'mola_lo_pipeline' and 'generate_simplemap'
+* Default 3D-LO pipeline: Add new env var 'MOLA_LOCALMAP_LAYER_NAME', useful when localizing with prebuilt maps
+* Merge pull request #12 from r-aguilera/develop
+  fix launch file params
+* fix launch file params
+* Contributors: Jose Luis Blanco-Claraco, Raúl Aguilera
+
 0.6.0 (2025-01-21)
 ------------------
 * Fix: publish map on first iteration
