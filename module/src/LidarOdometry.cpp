@@ -315,10 +315,6 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   YAML_LOAD_OPT(params_, publish_reference_frame, std::string);
   YAML_LOAD_OPT(params_, publish_vehicle_frame, std::string);
 
-  YAML_LOAD_OPT(params_, georef_map_reference_frame, std::string);
-  YAML_LOAD_OPT(params_, georef_map_utm_frame, std::string);
-  YAML_LOAD_OPT(params_, georef_map_enu_frame, std::string);
-
   if (cfg.has("adaptive_threshold"))
     params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
 
@@ -2531,16 +2527,16 @@ void LidarOdometry::onExposeParameters()
 
 void LidarOdometry::publishMetricMapGeoreferencingData()
 {
-#if MOLA_VERSION_CHECK(1, 6, 0)  // we need lu.child_frame
+#if MOLA_VERSION_CHECK(1, 7, 0)  // we need mola::Georeference struct
+  // This will publish geo-ref data via mola_kernel API as mrpt_nav_interfaces::msg::GeoreferencingMetadata
 
   ASSERT_(state_.local_map);
-  //TODO: Define new mola_kernel API for sending out geo-ref data and publish as mrpt_nav_interfaces::msg::GeoreferencingMetadata.
 
   if (!state_.local_map->georeferencing.has_value()) return;  // no geo-ref data
 
   const auto & g = state_.local_map->georeferencing.value();
 
-  MRPT_LOG_INFO_STREAM(
+  MRPT_LOG_DEBUG_STREAM(
     "Publishing map georeferencing metadata: T_enu_to_map="
     << g.T_enu_to_map.asString()                           //
     << " geo_coord.lat=" << g.geo_coord.lat.getAsString()  //
@@ -2548,39 +2544,17 @@ void LidarOdometry::publishMetricMapGeoreferencingData()
     << " geo_coord.height=" << g.geo_coord.height          //
   );
 
-  // ENU -> MAP
-  {
-    LocalizationUpdate lu;
+  MapUpdate mu;
+  mu.method = "lidar_odometry";
+  mu.reference_frame = params_.publish_reference_frame;
+  mu.timestamp = mrpt::Clock::now();
+  mu.map_name = "georef";
 
-    const auto & T_enu_to_map = g.T_enu_to_map.mean;
+  auto & georef = mu.georeferencing.emplace();
+  georef.T_enu_to_map = g.T_enu_to_map;
+  georef.geo_coord = g.geo_coord;
 
-    lu.method = "map_server";
-    lu.reference_frame = params_.georef_map_enu_frame;    // "enu"
-    lu.child_frame = params_.georef_map_reference_frame;  // "map"
-    lu.timestamp = mrpt::Clock::now();                    // Anything better?
-    lu.pose = T_enu_to_map.asTPose();
-
-    advertiseUpdatedLocalization(lu);
-  }
-
-  // ENU -> UTM
-  {
-    LocalizationUpdate lu;
-    mrpt::topography::TUTMCoords utmCoordsOfENU;
-    int utmZone = 0;
-    char utmBand = 0;
-    mrpt::topography::GeodeticToUTM(g.geo_coord, utmCoordsOfENU, utmZone, utmBand);
-
-    // T_enu_to_utm = - utmCoordsOfENU  (without rotation, both are "ENU")
-    const auto T_enu_to_utm = mrpt::poses::CPose3D::FromTranslation(-utmCoordsOfENU);
-
-    lu.method = "map_server";
-    lu.reference_frame = params_.georef_map_enu_frame;  // "enu"
-    lu.child_frame = params_.georef_map_utm_frame;      // "utm"
-    lu.timestamp = mrpt::Clock::now();                  // Anything better?
-    lu.pose = T_enu_to_utm.asTPose();
-
-    advertiseUpdatedLocalization(lu);
-  }
+  // send it out:
+  advertiseUpdatedMap(mu);
 #endif
 }

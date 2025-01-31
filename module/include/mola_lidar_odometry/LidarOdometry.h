@@ -408,10 +408,6 @@ public:
 
     /** When publishing pose updates, the vehicle frame name.*/
     std::string publish_vehicle_frame = "base_link";
-
-    std::string georef_map_reference_frame = "map";
-    std::string georef_map_utm_frame = "utm";
-    std::string georef_map_enu_frame = "enu";
   };
 
   /** Algorithm parameters */
