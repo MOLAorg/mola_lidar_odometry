@@ -120,7 +120,7 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
     Environment variables:
 
-    - ``MOLA_TF_BASE_FOOTPRINT`` (Default: ``"base_link"``): The robot reference frame id in ``/tf``. Used to get sensor poses with respect to the vehicle.
+    - ``MOLA_TF_BASE_LINK`` (Default: ``"base_link"``): The robot reference frame id in ``/tf``. Used to get sensor poses with respect to the vehicle.
 
     - ``MOLA_LIDAR_TOPIC`` (Default: ``'/ouster/points'``): The ``sensor_msgs/PointCloud2`` topic with raw LiDAR data (mandatory).
 
