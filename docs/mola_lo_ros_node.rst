@@ -101,6 +101,14 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
                   Whether to create a '.simplemap', useful for map post-processing. Refer to online tutorials.
                   (default: 'False')
 
+               'mola_initial_map_mm_file':
+                  Can be used to provide a metric map '.mm' file to be loaded as initial map. Refer to online tutorials.
+                  (default: '')
+
+               'mola_initial_map_sm_file':
+                  Can be used to provide a keyframes map '.simplemap' file to be loaded as initial map. Refer to online tutorials.
+                  (default: '')
+
                'use_rviz':
                   Whether to launch RViz2 with default lidar-odometry.rviz configuration
                   (default: 'True')
