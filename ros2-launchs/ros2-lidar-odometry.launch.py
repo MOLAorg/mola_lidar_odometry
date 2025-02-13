@@ -81,12 +81,12 @@ def generate_launch_description():
         name='MOLA_GENERATE_SIMPLEMAP', value=LaunchConfiguration('generate_simplemap'))
     # ~~~~~~~~~~~~
     mola_initial_map_mm_file_arg = DeclareLaunchArgument(
-        "mola_initial_map_mm_file", default_value="", description="Can be used to provide a metric map '.mm' file to be loaded as initial map. Refer to online tutorials.")
+        "mola_initial_map_mm_file", default_value="\"\"", description="Can be used to provide a metric map '.mm' file to be loaded as initial map. Refer to online tutorials.")
     mola_initial_map_mm_file_env_var = SetEnvironmentVariable(
         name='MOLA_LOAD_MM', value=LaunchConfiguration('mola_initial_map_mm_file'))
     # ~~~~~~~~~~~~
     mola_initial_map_sm_file_arg = DeclareLaunchArgument(
-        "mola_initial_map_sm_file", default_value="", description="Can be used to provide a keyframes map '.simplemap' file to be loaded as initial map. Refer to online tutorials.")
+        "mola_initial_map_sm_file", default_value="\"\"", description="Can be used to provide a keyframes map '.simplemap' file to be loaded as initial map. Refer to online tutorials.")
     mola_initial_map_sm_file_env_var = SetEnvironmentVariable(
         name='MOLA_LOAD_SM', value=LaunchConfiguration('mola_initial_map_sm_file'))
     # ~~~~~~~~~~~~
