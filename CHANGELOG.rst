@@ -2,6 +2,13 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* ros2 launch: add .mm and .simplemap optional initial map arguments
+* All exhaustive docs on ros2-related mola launch YAML files with the meaning of all BridgeROS2 parameter
+* Delegate publishing georeference info to BridgeROS2
+* Contributors: Jose Luis Blanco-Claraco
+
 0.6.1 (2025-01-26)
 ------------------
 * Do not re-publish the map if it does not change, e.g. in localization-only mode
