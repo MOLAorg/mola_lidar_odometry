@@ -10,6 +10,7 @@ from launch_ros.actions import PushRosNamespace
 from launch.actions import DeclareLaunchArgument
 from launch.actions import SetEnvironmentVariable
 from launch.actions import GroupAction
+from launch.actions import Shutdown
 from ament_index_python import get_package_share_directory
 import os
 
@@ -135,7 +136,8 @@ def generate_launch_description():
             executable='mola-cli',
             output='screen',
             remappings=tf_remaps,
-            arguments=[mola_system_yaml_file]
+            arguments=[mola_system_yaml_file],
+            on_exit=Shutdown()
         ),
 
         Node(
