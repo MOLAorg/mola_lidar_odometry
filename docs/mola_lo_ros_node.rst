@@ -109,6 +109,10 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
                   Can be used to provide a keyframes map '.simplemap' file to be loaded as initial map. Refer to online tutorials.
                   (default: '')
 
+               'mola_footprint_to_base_link_tf':
+                  Can be used to define a custom transformation between base_footprint and base_link. The coordinates are [x, y, z, yaw_deg, pitch_deg, roll_deg].
+                  (default: '[0, 0, 0, 0, 0, 0]')
+
                'use_rviz':
                   Whether to launch RViz2 with default lidar-odometry.rviz configuration
                   (default: 'True')
@@ -129,6 +133,10 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
     Environment variables:
 
     - ``MOLA_TF_BASE_LINK`` (Default: ``"base_link"``): The robot reference frame id in ``/tf``. Used to get sensor poses with respect to the vehicle.
+
+    - ``MOLA_TF_FOOTPRINT_LINK`` (Default: ``base_footprint``): If not empty, the node will broadcast a static /tf from base_footprint to base_link with the TF base_footprint_to_base_link_tf at start up.
+
+    - ``MOLA_TF_FOOTPRINT_TO_BASE_LINK`` (Default: ``'[0, 0, 0, 0, 0, 0]'``): [x, y, z, yaw_deg, pitch_deg, roll_deg].
 
     - ``MOLA_LIDAR_TOPIC`` (Default: ``'/ouster/points'``): The ``sensor_msgs/PointCloud2`` topic with raw LiDAR data (mandatory).
 

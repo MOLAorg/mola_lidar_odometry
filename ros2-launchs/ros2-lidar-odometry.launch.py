@@ -91,6 +91,11 @@ def generate_launch_description():
     mola_initial_map_sm_file_env_var = SetEnvironmentVariable(
         name='MOLA_LOAD_SM', value=LaunchConfiguration('mola_initial_map_sm_file'))
     # ~~~~~~~~~~~~
+    mola_footprint_to_base_link_tf_arg = DeclareLaunchArgument(
+        "mola_footprint_to_base_link_tf", default_value="[0, 0, 0, 0, 0, 0]", description="Can be used to define a custom transformation between base_footprint and base_link. The coordinates are [x, y, z, yaw_deg, pitch_deg, roll_deg].")
+    mola_footprint_to_base_link_tf_env_var = SetEnvironmentVariable(
+        name='MOLA_TF_FOOTPRINT_TO_BASE_LINK', value=LaunchConfiguration('mola_footprint_to_base_link_tf'))
+    # ~~~~~~~~~~~~
 
     # Namespace (Based on Nav2's bring-up launch file!)
     # ---------------------------------------------------
@@ -180,6 +185,8 @@ def generate_launch_description():
         mola_initial_map_mm_file_env_var,
         mola_initial_map_sm_file_arg,
         mola_initial_map_sm_file_env_var,
+        mola_footprint_to_base_link_tf_arg,
+        mola_footprint_to_base_link_tf_env_var,
         use_rviz_arg,
         node_group
     ])

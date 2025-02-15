@@ -67,8 +67,8 @@ modules:
       # SLAM/localization results (read below).
       base_link_frame: 'base_link'
 
-      # If not empty, the node will broadcast a static /tf from base_link to
-      # base_footprint with the TF base_footprint_to_base_link_tf at start up.
+      # If not empty, the node will broadcast a static /tf from base_footprint to
+      # base_link with the TF base_footprint_to_base_link_tf at start up.
       #base_footprint_frame: 'base_footprint'
       #base_footprint_to_base_link_tf: '[x y z yaw_deg pitch_deg roll_deg]'
 

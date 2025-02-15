@@ -61,10 +61,10 @@ modules:
       # SLAM/localization results (read below).
       base_link_frame: '${MOLA_TF_BASE_LINK|base_link}'
 
-      # If not empty, the node will broadcast a static /tf from base_link to
-      # base_footprint with the TF base_footprint_to_base_link_tf at start up.
-      #base_footprint_frame: 'base_footprint'
-      #base_footprint_to_base_link_tf: '[0, 0, 0, 0, 0, 0]'  # [x, y, z, yaw_deg, pitch_deg, roll_deg]
+      # If not empty, the node will broadcast a static /tf from base_footprint to
+      # base_link with the TF base_footprint_to_base_link_tf at start up.
+      base_footprint_frame: '${MOLA_TF_FOOTPRINT_LINK|base_footprint}'
+      base_footprint_to_base_link_tf: '${MOLA_TF_FOOTPRINT_TO_BASE_LINK|[0, 0, 0, 0, 0, 0]}'  # [x, y, z, yaw_deg, pitch_deg, roll_deg]
 
       # Used for:
       # (a) importing odometry to MOLA if ``forward_ros_tf_as_mola_odometry_observations=true``
