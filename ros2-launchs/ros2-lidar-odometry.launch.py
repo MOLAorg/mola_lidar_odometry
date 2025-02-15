@@ -96,6 +96,11 @@ def generate_launch_description():
     mola_footprint_to_base_link_tf_env_var = SetEnvironmentVariable(
         name='MOLA_TF_FOOTPRINT_TO_BASE_LINK', value=LaunchConfiguration('mola_footprint_to_base_link_tf'))
     # ~~~~~~~~~~~~
+    enforce_planar_motion_arg = DeclareLaunchArgument(
+        "enforce_planar_motion", default_value="False", description="Whether to enforce z, pitch, and roll to be zero.")
+    enforce_planar_motion_env_var = SetEnvironmentVariable(
+        name='MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION', value=LaunchConfiguration('enforce_planar_motion'))
+    # ~~~~~~~~~~~~
 
     # Namespace (Based on Nav2's bring-up launch file!)
     # ---------------------------------------------------
@@ -187,6 +192,8 @@ def generate_launch_description():
         mola_initial_map_sm_file_env_var,
         mola_footprint_to_base_link_tf_arg,
         mola_footprint_to_base_link_tf_env_var,
+        enforce_planar_motion_arg,
+        enforce_planar_motion_env_var,
         use_rviz_arg,
         node_group
     ])

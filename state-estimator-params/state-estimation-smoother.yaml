@@ -29,3 +29,6 @@ params:
 
   robust_param: 0  # 0=no robust disabled
   max_rmse: 2 # max inconsistencies to discard solution
+
+  # If enabled, the estimator will enforce z, pitch, and roll to be always 0:
+  enforce_planar_motion: ${MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION|false}

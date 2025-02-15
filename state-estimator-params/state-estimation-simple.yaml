@@ -14,3 +14,6 @@ params:
 
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
+
+  # If enabled, the estimator will enforce z, pitch, and roll to be always 0:
+  enforce_planar_motion: ${MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION|false}
