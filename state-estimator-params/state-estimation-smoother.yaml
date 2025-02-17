@@ -19,15 +19,18 @@ params:
   sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|1.0} # [m/s²]
   sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|10.0} # [rad/s²]
 
-  sigma_integrator_position: 1.0 # [m]
+  sigma_integrator_position: 0.1 # [m]
   sigma_integrator_orientation:  1.0 # [rad]
+
+  sigma_twist_from_consecutive_poses_linear: 1.0 # [m]
+  sigma_twist_from_consecutive_poses_angular: 1.0  # [rad/s]
 
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
   initial_twist_sigma_lin: 20.0 # [m/s]
   initial_twist_sigma_ang: 3.0  # [rad/s]
 
-  robust_param: 0  # 0=no robust disabled
+  robust_param: 3.0  # 0=no robust disabled
   max_rmse: 2 # max inconsistencies to discard solution
 
   # If enabled, the estimator will enforce z, pitch, and roll to be always 0:
