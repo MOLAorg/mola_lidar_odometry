@@ -103,15 +103,27 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
                'mola_initial_map_mm_file':
                   Can be used to provide a metric map '.mm' file to be loaded as initial map. Refer to online tutorials.
-                  (default: '')
+                  (default: '""')
 
                'mola_initial_map_sm_file':
                   Can be used to provide a keyframes map '.simplemap' file to be loaded as initial map. Refer to online tutorials.
-                  (default: '')
+                  (default: '""')
 
                'mola_footprint_to_base_link_tf':
                   Can be used to define a custom transformation between base_footprint and base_link. The coordinates are [x, y, z, yaw_deg, pitch_deg, roll_deg].
                   (default: '[0, 0, 0, 0, 0, 0]')
+
+               'enforce_planar_motion':
+                  Whether to enforce z, pitch, and roll to be zero.
+                  (default: 'False')
+
+               'state_estimator':
+                  The C++ class name of the state estimator to use: 'mola::state_estimation_simple::StateEstimationSimple' or 'mola::state_estimation_smoother::StateEstimationSmoother'
+                  (default: 'mola::state_estimation_simple::StateEstimationSimple')
+
+               'state_estimator_config_yaml':
+                  A YAML file with settings for the state estimator. Absolute path or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'
+                  (default: '../state-estimator-params/state-estimation-simple.yaml')
 
                'use_rviz':
                   Whether to launch RViz2 with default lidar-odometry.rviz configuration

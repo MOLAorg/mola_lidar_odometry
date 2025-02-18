@@ -85,7 +85,7 @@ modules:
       # How to publish localization to /tf:
       # - ``false``(direct mode): reference_frame ("map") -> base_link ("base_link")
       #   Note that reference_frame in this case comes from the localization source module
-      #   (e.g. mola_lida_odometry), it is not configured here.
+      #   (e.g. mola_lidar_odometry), it is not configured here.
       #
       #  - ``true`` (indirect mode), following ROS [REP
       #  105](https://ros.org/reps/rep-0105.html):

@@ -101,6 +101,16 @@ def generate_launch_description():
     enforce_planar_motion_env_var = SetEnvironmentVariable(
         name='MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION', value=LaunchConfiguration('enforce_planar_motion'))
     # ~~~~~~~~~~~~
+    state_estimator_arg = DeclareLaunchArgument(
+        "state_estimator", default_value="mola::state_estimation_simple::StateEstimationSimple", description="The C++ class name of the state estimator to use: 'mola::state_estimation_simple::StateEstimationSimple' or 'mola::state_estimation_smoother::StateEstimationSmoother'")
+    state_estimator_env_var = SetEnvironmentVariable(
+        name='MOLA_STATE_ESTIMATOR', value=LaunchConfiguration('state_estimator'))
+    # ~~~~~~~~~~~~
+    state_estimator_config_yaml_arg = DeclareLaunchArgument(
+        "state_estimator_config_yaml", default_value="../state-estimator-params/state-estimation-simple.yaml", description="A YAML file with settings for the state estimator. Absolute path or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'")
+    state_estimator_config_yaml_env_var = SetEnvironmentVariable(
+        name='MOLA_STATE_ESTIMATOR_YAML', value=LaunchConfiguration('state_estimator_config_yaml'))
+    # ~~~~~~~~~~~~
 
     # Namespace (Based on Nav2's bring-up launch file!)
     # ---------------------------------------------------
@@ -194,6 +204,10 @@ def generate_launch_description():
         mola_footprint_to_base_link_tf_env_var,
         enforce_planar_motion_arg,
         enforce_planar_motion_env_var,
+        state_estimator_arg,
+        state_estimator_env_var,
+        state_estimator_config_yaml_arg,
+        state_estimator_config_yaml_env_var,
         use_rviz_arg,
         node_group
     ])
