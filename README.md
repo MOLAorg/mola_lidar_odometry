@@ -33,13 +33,26 @@ See: https://docs.mola-slam.org/
 
 ## Citation
 
-    José Luis Blanco-Claraco, A flexible framework for accurate LiDAR odometry, map manipulation, and localization, 
-    ArXiV 2024.
-    https://arxiv.org/abs/2407.20465
+The latest publication on MOLA is ([ArXiV](https://arxiv.org/abs/2407.20465)).
+
+```bibtex
+@article{blanco2025mola_lo,
+    author = {Jose Luis Blanco-Claraco},
+    title ={A flexible framework for accurate LiDAR odometry, map manipulation, and localization},
+    journal = {The International Journal of Robotics Research},
+    volume = {0},
+    number = {0},
+    pages = {02783649251316881},
+    year = {2025},
+    doi = {10.1177/02783649251316881},
+    URL = { https://doi.org/10.1177/02783649251316881},
+    eprint = {https://doi.org/10.1177/02783649251316881},
+}
+```
 
 
 ## License
-Copyright (C) 2018-2024 Jose Luis Blanco <jlblanco@ual.es>, University of Almeria
+Copyright (C) 2018-2025 Jose Luis Blanco <jlblanco@ual.es>, University of Almeria
 
 This package is released under the GNU GPL v3 license as open source, with the main 
 intention of being useful for research and evaluation purposes.

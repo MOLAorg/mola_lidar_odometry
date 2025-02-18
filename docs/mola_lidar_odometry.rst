@@ -53,7 +53,7 @@ We dub such data structure **view-based map** or **simple-map**.
 .. figure:: imgs/odometry_inputs_outputs.png
    :width: 400
 
-   Role of an "odometry" module (Figure adapted from :cite:`blanco2024mola_lo`).
+   Role of an "odometry" module (Figure adapted from :cite:`blanco2025mola_lo`).
 
 
 **Simple-maps** can then be used as input to :ref:`mp2p_icp applications <mp2p_icp_applications>` for analysis, filtering,
@@ -112,7 +112,7 @@ Internally, MOLA LO is based on mp2p_icp filtering and ICP pipelines:
 .. figure:: imgs/mola_lidar_odometry_architecture.png
    :width: 690
 
-   Block diagram of the MOLA-LO module (Figure adapted from :cite:`blanco2024mola_lo`).
+   Block diagram of the MOLA-LO module (Figure adapted from :cite:`blanco2025mola_lo`).
 
 
 Most blocks in the diagram above can be redefined without coding, just changing the :ref:`MOLA-LO pipeline configuration YAML file <>`.
@@ -127,8 +127,8 @@ Refer to the MOLA LO paper for further details.
 How to cite it
 -------------------------
 
-The ``mola_lidar_odometry`` system was presented in :cite:`blanco2024mola_lo`:
+The ``mola_lidar_odometry`` system was presented in :cite:`blanco2025mola_lo`:
 
-  J.L. Blanco,
-  `A flexible framework for accurate LiDAR odometry, map manipulation, and localization <https://arxiv.org/abs/2407.20465>`_, in
-  ArXiV, 2024.
+  Blanco-Claraco JL. A flexible framework for accurate LiDAR odometry, map manipulation, and localization.
+  The International Journal of Robotics Research. 2025;0(0).
+  doi:10.1177/02783649251316881

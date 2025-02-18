@@ -57,7 +57,7 @@ ____________________________________________
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 This is the **reference configuration** used for most examples in the MOLA-LO paper, and should work great
 out of the box for most common situations.
-As described in the paper :cite:`blanco2024mola_lo`, it defines a **voxel-based 3D point-cloud local map**,
+As described in the paper :cite:`blanco2025mola_lo`, it defines a **voxel-based 3D point-cloud local map**,
 and filtering pipelines to **downsample** incoming raw LiDAR data.
 
 .. image:: https://mrpt.github.io/imgs/mola-slam-kitti-demo.gif
@@ -89,7 +89,7 @@ ____________________________________________
 This is an **alternative configuration** for 3D mapping used in the MOLA-LO paper, and should also work great
 out of the box for most common situations where, *at least*, part of the environment has flat surfaces.
 
-As described in the paper :cite:`blanco2024mola_lo`, this pipeline uses an NDT-like :cite:`magnusson2007scan` local map, based on **3D voxels**
+As described in the paper :cite:`blanco2025mola_lo`, this pipeline uses an NDT-like :cite:`magnusson2007scan` local map, based on **3D voxels**
 whose contents switch between bare points and Gaussians depending on how planar and how many points are.
 This pipeline exploits the **point-to-plane pairings**.
 
