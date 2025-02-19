@@ -474,8 +474,6 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     bool loadOk =
       state_.local_map->load_from_file(params_.local_map_updates.load_existing_local_map);
     ASSERT_(loadOk);
-    // Publish geo-referenced data for the map, if applicable.
-    publishMetricMapGeoreferencingData();
   }
 
   if (!params_.simplemap.load_existing_simple_map.empty()) {
@@ -2187,6 +2185,9 @@ void LidarOdometry::doPublishUpdatedLocalization(const mrpt::Clock::time_point &
 
 void LidarOdometry::doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs_tim)
 {
+  // Publish geo-referenced data for the map, if applicable.
+  publishMetricMapGeoreferencingData();
+
   if (!state_.local_map_needs_publish) return;
 
   if (
@@ -2245,6 +2246,8 @@ void LidarOdometry::doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs
 
     // send it out:
     advertiseUpdatedMap(mu);
+
+    MRPT_LOG_DEBUG_STREAM("Published map layer: '" << layerName << "'");
   }
 }
 
@@ -2389,8 +2392,6 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
                         "'). Required for multisession mapping. ";
 
   if (mmLoadOk) {
-    // Publish geo-referenced data for the map, if applicable.
-    publishMetricMapGeoreferencingData();
     // And update the GUI and publish the map, even if we are not being fed with incoming obs:
     auto dummy = mrpt::obs::CObservationComment::Create();
     onNewObservation(dummy);
@@ -2527,12 +2528,16 @@ void LidarOdometry::onExposeParameters()
 
 void LidarOdometry::publishMetricMapGeoreferencingData()
 {
-#if MOLA_VERSION_CHECK(1, 7, 0)  // we need mola::Georeference struct
-  // This will publish geo-ref data via mola_kernel API as mrpt_nav_interfaces::msg::GeoreferencingMetadata
-
-  ASSERT_(state_.local_map);
+  if (!state_.local_map) return;
 
   if (!state_.local_map->georeferencing.has_value()) return;  // no geo-ref data
+
+  if (!state_.local_map_georef_needs_publish) return;
+
+  state_.local_map_georef_needs_publish = false;
+
+#if MOLA_VERSION_CHECK(1, 6, 1)  // we need mola::Georeference struct
+  // This will publish geo-ref data via mola_kernel API as mrpt_nav_interfaces::msg::GeoreferencingMetadata
 
   const auto & g = state_.local_map->georeferencing.value();
 
@@ -2556,5 +2561,9 @@ void LidarOdometry::publishMetricMapGeoreferencingData()
 
   // send it out:
   advertiseUpdatedMap(mu);
+#else
+  MRPT_LOG_WARN(
+    "Not able to publish georeferencing map metadata due to too old mola_kernel version (!)");
+
 #endif
 }

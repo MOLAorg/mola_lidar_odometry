@@ -586,6 +586,7 @@ private:
     /// To update the map in the viz only if really needed
     bool local_map_needs_viz_update = true;
     bool local_map_needs_publish = true;
+    bool local_map_georef_needs_publish = true;
 
     void mark_local_map_as_updated()
     {
