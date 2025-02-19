@@ -2399,6 +2399,7 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
 
   if (ret.success) {
     state_.mark_local_map_as_updated();  // refresh map in GUI, if enabled
+    state_.local_map_georef_needs_publish = true;
 
     MRPT_LOG_INFO_STREAM("[map_load] Successful.");
   } else
