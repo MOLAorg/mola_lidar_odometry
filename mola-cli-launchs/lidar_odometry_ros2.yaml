@@ -98,10 +98,16 @@ modules:
 
       # If enabled, SLAM/Localization results will be published as nav_msgs/Odometry messages.
       publish_odometry_msgs_from_slam: ${MOLA_LOCALIZATION_PUBLISH_ODOM_MSGS|true}
+      
+      # If the flag above is true, this allows fine tuning which localization source will be actually forwarded (MOLA module name). Empty=any.
+      publish_odometry_msgs_from_slam_source: ${MOLA_LOCALIZATION_PUBLISH_ODOM_MSGS_SOURCE|""}  # alternative: 'state_estimation_smoother'
 
       # If enabled, SLAM/Localization results will be published as tf messages, for frames
       # according to explained above for `publish_localization_following_rep105`.
       publish_tf_from_slam: ${MOLA_LOCALIZATION_PUBLISH_TF|true}
+
+      # If the flag above is true, this allows fine tuning which localization source will be actually forwarded (MOLA module name). Empty=any.
+      publish_tf_from_slam_source: ${MOLA_LOCALIZATION_PUBLISH_TF_SOURCE|""}  # alternative: 'state_estimation_smoother'
 
       # If enabled, robot pose observations (typically, ground truth from datasets), will be
       # forwarded to ROS as /tf messages: ``${reference_frame} => ${base_link}``
@@ -118,10 +124,13 @@ modules:
       publish_in_sim_time: false
 
       # Period [s] to publish new localization estimates to ROS2 from the MOLA SLAM solution:
-      period_publish_new_localization: 0.1 # [s]
+      # Note that no repeated localization are published. This is just the period for checking if new
+      # estimates are available and waiting to be published.
+      period_publish_new_localization: 0.020 # [s]
 
       # Period [s] to publish the updated map to ROS2 from the MOLA SLAM solution:
-      period_publish_new_map: 3.0 # [s]
+      # Note that no repeated maps are published. This is just the period for checking the need to republish.
+      period_publish_new_map: 1.0 # [s]
 
       # A placeholder for optional flags from "ros2 launch", captured
       # as all cli arguments after "--ros-args":

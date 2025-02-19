@@ -10,7 +10,7 @@ params:
   max_time_to_use_velocity_model: ${MOLA_MAX_TIME_TO_USE_VELOCITY_MODEL|0.75} # [s]
 
   # Time to keep past observations in the filter
-  sliding_window_length: 0.50 # [s]
+  sliding_window_length: 2.5 # [s]
 
   # If the time between two keyframes is larger than this, a warning will be
   # emitted; but the algorithm will keep trying its best.

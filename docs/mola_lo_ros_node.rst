@@ -117,13 +117,13 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
                   Whether to enforce z, pitch, and roll to be zero.
                   (default: 'False')
 
-               'state_estimator':
-                  The C++ class name of the state estimator to use: 'mola::state_estimation_simple::StateEstimationSimple' or 'mola::state_estimation_smoother::StateEstimationSmoother'
-                  (default: 'mola::state_estimation_simple::StateEstimationSimple')
+               'use_state_estimator':
+                  If false, the basic state estimator 'mola::state_estimation_simple::StateEstimationSimple' will be used. If true, 'mola::state_estimation_smoother::StateEstimationSmoother' is used instead.
+                  (default: 'False')
 
                'state_estimator_config_yaml':
                   A YAML file with settings for the state estimator. Absolute path or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'
-                  (default: '../state-estimator-params/state-estimation-simple.yaml')
+                  (default: PythonExpr(''../state-estimator-params/state-estimation-smoother.yaml' if ' + LaunchConfig('use_state_estimator') + ' else '../state-estimator-params/state-estimation-simple.yaml''))
 
                'use_rviz':
                   Whether to launch RViz2 with default lidar-odometry.rviz configuration

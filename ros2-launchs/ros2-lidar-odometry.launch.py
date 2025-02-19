@@ -2,8 +2,7 @@
 # ROS 2 launch file
 
 from launch import LaunchDescription
-from launch.substitutions import TextSubstitution
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch.conditions import IfCondition
 from launch_ros.actions import Node
 from launch_ros.actions import PushRosNamespace
@@ -101,13 +100,40 @@ def generate_launch_description():
     enforce_planar_motion_env_var = SetEnvironmentVariable(
         name='MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION', value=LaunchConfiguration('enforce_planar_motion'))
     # ~~~~~~~~~~~~
-    state_estimator_arg = DeclareLaunchArgument(
-        "state_estimator", default_value="mola::state_estimation_simple::StateEstimationSimple", description="The C++ class name of the state estimator to use: 'mola::state_estimation_simple::StateEstimationSimple' or 'mola::state_estimation_smoother::StateEstimationSmoother'")
+    use_state_estimator_arg = DeclareLaunchArgument(
+        "use_state_estimator",
+        default_value="False",
+        description="If false, the basic state estimator 'mola::state_estimation_simple::StateEstimationSimple' will be used. If true, 'mola::state_estimation_smoother::StateEstimationSmoother' is used instead."
+    )
     state_estimator_env_var = SetEnvironmentVariable(
-        name='MOLA_STATE_ESTIMATOR', value=LaunchConfiguration('state_estimator'))
-    # ~~~~~~~~~~~~
+        name='MOLA_STATE_ESTIMATOR', value=PythonExpression(
+            ["'mola::state_estimation_simple::StateEstimationSmoother' if ",
+             LaunchConfiguration(
+                 'use_state_estimator'),
+             " else 'mola::state_estimation_smoother::StateEstimationSimple'"
+             ]))
+    localization_publish_tf_source_env_var = SetEnvironmentVariable(
+        name='MOLA_LOCALIZATION_PUBLISH_TF_SOURCE',
+        value=PythonExpression([
+            "'state_estimator' if ", LaunchConfiguration(
+                'use_state_estimator'), " else 'lidar_odom'"
+        ])
+    )
+    localization_publish_odom_source_env_var = SetEnvironmentVariable(
+        name='MOLA_LOCALIZATION_PUBLISH_ODOM_MSGS_SOURCE',
+        value=PythonExpression([
+            "'state_estimator' if ", LaunchConfiguration(
+                'use_state_estimator'), " else 'lidar_odom'"
+        ])
+    )
     state_estimator_config_yaml_arg = DeclareLaunchArgument(
-        "state_estimator_config_yaml", default_value="../state-estimator-params/state-estimation-simple.yaml", description="A YAML file with settings for the state estimator. Absolute path or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'")
+        "state_estimator_config_yaml", default_value=PythonExpression(
+            ["'../state-estimator-params/state-estimation-smoother.yaml' if ",
+             LaunchConfiguration(
+                 'use_state_estimator'),
+             " else '../state-estimator-params/state-estimation-simple.yaml'"
+             ]),
+        description="A YAML file with settings for the state estimator. Absolute path or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'")
     state_estimator_config_yaml_env_var = SetEnvironmentVariable(
         name='MOLA_STATE_ESTIMATOR_YAML', value=LaunchConfiguration('state_estimator_config_yaml'))
     # ~~~~~~~~~~~~
@@ -204,10 +230,12 @@ def generate_launch_description():
         mola_footprint_to_base_link_tf_env_var,
         enforce_planar_motion_arg,
         enforce_planar_motion_env_var,
-        state_estimator_arg,
+        use_state_estimator_arg,
         state_estimator_env_var,
         state_estimator_config_yaml_arg,
         state_estimator_config_yaml_env_var,
+        localization_publish_odom_source_env_var,
+        localization_publish_tf_source_env_var,
         use_rviz_arg,
         node_group
     ])
