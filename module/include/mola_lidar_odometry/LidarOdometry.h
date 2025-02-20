@@ -399,7 +399,7 @@ public:
 
     bool start_active = true;
 
-    uint32_t max_worker_thread_queue_before_drop = 500;
+    int32_t max_lidar_queue_before_drop = 20;
 
     uint32_t gnss_queue_max_size = 100;
 
@@ -534,7 +534,8 @@ private:
     /// Useful for real-time execution on robots.
     bool active = true;
 
-    int worker_tasks = 0;
+    int worker_tasks_lidar = 0;
+    int worker_tasks_others = 0;
 
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 

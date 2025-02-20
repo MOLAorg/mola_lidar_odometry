@@ -307,6 +307,9 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   YAML_LOAD_OPT(params_, absolute_minimum_sensor_range, double);
   YAML_LOAD_OPT(params_, start_active, bool);
 
+  YAML_LOAD_OPT(params_, max_lidar_queue_before_drop, int32_t);
+  YAML_LOAD_OPT(params_, gnss_queue_max_size, uint32_t);
+
   YAML_LOAD_OPT(params_, optimize_twist, bool);
   YAML_LOAD_OPT(params_, optimize_twist_rerun_min_trans, double);
   YAML_LOAD_OPT(params_, optimize_twist_rerun_min_rot_deg, double);
@@ -570,7 +573,7 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
     std::regex_match(o->sensorLabel, params_.imu_sensor_label.value())) {
     {
       auto lck = mrpt::lockHelper(is_busy_mtx_);
-      state_.worker_tasks++;
+      state_.worker_tasks_others++;
     }
 
     // Yes, it's an IMU obs:
@@ -584,7 +587,7 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
     std::regex_match(o->sensorLabel, params_.wheel_odometry_sensor_label.value())) {
     {
       auto lck = mrpt::lockHelper(is_busy_mtx_);
-      state_.worker_tasks++;
+      state_.worker_tasks_others++;
     }
     auto fut = worker_.enqueue(&LidarOdometry::onWheelOdometry, this, o);
     (void)fut;
@@ -596,7 +599,7 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
     std::regex_match(o->sensorLabel, params_.gnss_sensor_label.value())) {
     {
       auto lck = mrpt::lockHelper(is_busy_mtx_);
-      state_.worker_tasks++;
+      state_.worker_tasks_others++;
     }
     auto fut = worker_.enqueue(&LidarOdometry::onGPS, this, o);
     (void)fut;
@@ -607,10 +610,14 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
     if (!std::regex_match(o->sensorLabel, re)) continue;
 
     // Yes, it's a LIDAR obs:
-    const auto queued = worker_.pendingTasks();
-    profiler_.registerUserMeasure("onNewObservation.queue_length", queued);
-    if (queued > params_.max_worker_thread_queue_before_drop) {
-      MRPT_LOG_THROTTLE_ERROR(1.0, "Dropping observation due to worker threads too busy.");
+    const int queued = [this]() {
+      auto lck = mrpt::lockHelper(is_busy_mtx_);
+      return state_.worker_tasks_lidar;
+    }();
+
+    profiler_.registerUserMeasure("onNewObservation.lidar_queue_length", queued);
+    if (queued > params_.max_lidar_queue_before_drop) {
+      MRPT_LOG_THROTTLE_ERROR(1.0, "Dropping observation due to LiDAR worker thread too busy.");
       profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
       return;
     }
@@ -618,7 +625,7 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
 
     {
       auto lck = mrpt::lockHelper(is_busy_mtx_);
-      state_.worker_tasks++;
+      state_.worker_tasks_lidar++;
     }
 
     // Enqueue task:
@@ -649,7 +656,7 @@ void LidarOdometry::onLidar(const CObservation::Ptr & o)
   }
   {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
-    state_.worker_tasks--;
+    state_.worker_tasks_lidar--;
   }
 }
 
@@ -1379,7 +1386,7 @@ void LidarOdometry::onIMU(const CObservation::Ptr & o)
 
   {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
-    state_.worker_tasks--;
+    state_.worker_tasks_others--;
   }
 }
 
@@ -1416,7 +1423,7 @@ void LidarOdometry::onWheelOdometry(const CObservation::Ptr & o)
 
   {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
-    state_.worker_tasks--;
+    state_.worker_tasks_others--;
   }
 }
 
@@ -1451,7 +1458,7 @@ void LidarOdometry::onGPS(const CObservation::Ptr & o)
 
   {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
-    state_.worker_tasks--;
+    state_.worker_tasks_others--;
   }
 }
 
@@ -1483,7 +1490,7 @@ bool LidarOdometry::isBusy() const
 {
   bool b;
   is_busy_mtx_.lock();
-  b = state_.worker_tasks != 0;
+  b = (state_.worker_tasks_lidar != 0) || (state_.worker_tasks_others != 0);
   is_busy_mtx_.unlock();
   return b || worker_.pendingTasks();
 }
