@@ -116,14 +116,14 @@ def generate_launch_description():
         name='MOLA_LOCALIZATION_PUBLISH_TF_SOURCE',
         value=PythonExpression([
             "'state_estimator' if ", LaunchConfiguration(
-                'use_state_estimator'), " else 'lidar_odom'"
+                'use_state_estimator'), " else 'lidar_odometry'"
         ])
     )
     localization_publish_odom_source_env_var = SetEnvironmentVariable(
         name='MOLA_LOCALIZATION_PUBLISH_ODOM_MSGS_SOURCE',
         value=PythonExpression([
             "'state_estimator' if ", LaunchConfiguration(
-                'use_state_estimator'), " else 'lidar_odom'"
+                'use_state_estimator'), " else 'lidar_odometry'"
         ])
     )
     state_estimator_config_yaml_arg = DeclareLaunchArgument(
