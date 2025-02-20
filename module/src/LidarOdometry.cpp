@@ -473,16 +473,28 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   params_.attachToParameterSource(state_.parameter_source);
 
   // Preload maps (multisession SLAM or localization-only):
+  bool need_to_refresh_map_in_gui = false;
+
   if (!params_.local_map_updates.load_existing_local_map.empty()) {
     bool loadOk =
       state_.local_map->load_from_file(params_.local_map_updates.load_existing_local_map);
     ASSERT_(loadOk);
+    need_to_refresh_map_in_gui = true;
   }
 
   if (!params_.simplemap.load_existing_simple_map.empty()) {
     bool loadOk =
       state_.reconstructed_simplemap.loadFromFile(params_.simplemap.load_existing_simple_map);
     ASSERT_(loadOk);
+    need_to_refresh_map_in_gui = true;
+  }
+
+  // And update the GUI and publish the map, even if we are not being fed with incoming obs:
+  if (need_to_refresh_map_in_gui) {
+    enqueue_request([this]() {
+      auto dummy = mrpt::obs::CObservationComment::Create();
+      onNewObservation(dummy);
+    });
   }
 
   // Attach to the state estimation module, which since MOLA-LO v0.5.0,
@@ -539,8 +551,7 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
   if (!state_.initialized) {
     MRPT_LOG_THROTTLE_ERROR(
       2.0,
-      "Discarding incoming observations: the system initialize() method "
-      "has not be called yet!");
+      "Discarding incoming observations: the system initialize() method has not been called yet!");
     return;
   }
   if (state_.fatal_error) {
