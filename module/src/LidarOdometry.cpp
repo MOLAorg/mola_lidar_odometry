@@ -1218,7 +1218,9 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
   }  // end: yes, we can do ICP
 
   // If this was a bad ICP, and we just started with an empty map, re-start again:
-  if (!state_.last_icp_was_good && state_.estimated_trajectory.size() == 1) {
+  if (
+    !state_.last_icp_was_good && state_.estimated_trajectory.size() == 1 &&
+    params_.local_map_updates.enabled) {
     // Re-start the local map:
     state_.local_map->clear();
     state_.estimated_trajectory.clear();
