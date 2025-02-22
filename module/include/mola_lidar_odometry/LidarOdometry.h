@@ -402,7 +402,7 @@ public:
 
     bool start_active = true;
 
-    int32_t max_lidar_queue_before_drop = 5;
+    int32_t max_lidar_queue_before_drop = 15;
 
     uint32_t gnss_queue_max_size = 100;
 

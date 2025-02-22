@@ -534,6 +534,17 @@ void LidarOdometry::spinOnce()
     }
   }
 
+  // If SLAM/Localization is disabled, refresh the current map
+  // here if needed, since it won't be published until observations arrive.
+  {
+    auto lckState = mrpt::lockHelper(state_mtx_);
+
+    const auto mapStamp =
+      state_.last_obs_timestamp ? *state_.last_obs_timestamp : mrpt::Clock::now();
+
+    doPublishUpdatedMap(mapStamp);
+  }
+
   MRPT_TRY_END
 }
 
@@ -572,9 +583,6 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
 
     // SLAM enabled?
     if (!state_.active) {
-      // Even if it's not, refresh the current map as usual:
-      doPublishUpdatedMap(o->timestamp);
-
       // and do not process the observation:
       return;
     }
@@ -630,7 +638,7 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
 
     profiler_.registerUserMeasure("onNewObservation.lidar_queue_length", queued);
     if (queued > params_.max_lidar_queue_before_drop) {
-      MRPT_LOG_THROTTLE_ERROR(1.0, "Dropping observation due to LiDAR worker thread too busy.");
+      MRPT_LOG_THROTTLE_WARN(1.0, "Dropping observation due to LiDAR worker thread too busy.");
       profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
       addDropStats(true);
       return;
@@ -2252,6 +2260,10 @@ void LidarOdometry::doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs
 
   if (!state_.local_map_needs_publish) return;
 
+  // Don't publish if nobody is listening, OR, if it is still
+  // pending to subscribe to us:
+  if (!anyUpdateMapSubscriber()) return;
+
   if (
     state_.localmap_advertise_updates_counter++ <
     params_.local_map_updates.publish_map_updates_every_n)
@@ -2598,6 +2610,10 @@ void LidarOdometry::publishMetricMapGeoreferencingData()
   if (!state_.local_map->georeferencing.has_value()) return;  // no geo-ref data
 
   if (!state_.local_map_georef_needs_publish) return;
+
+  // Don't publish if nobody is listening, OR, if it is still
+  // pending to subscribe to us:
+  if (!anyUpdateMapSubscriber()) return;
 
   state_.local_map_georef_needs_publish = false;
 
