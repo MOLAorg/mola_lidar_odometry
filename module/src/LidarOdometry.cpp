@@ -545,6 +545,13 @@ void LidarOdometry::spinOnce()
     doPublishUpdatedMap(mapStamp);
   }
 
+  // Publish optional regular diagnostics:
+#if MOLA_VERSION_CHECK(1, 6, 2)
+  if (module_is_time_to_publish_diagnostics()) {
+    onPublishDiagnostics();
+  }
+#endif
+
   MRPT_TRY_END
 }
 
@@ -1987,7 +1994,6 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
   }
 
   {
-    // const double dt    = profiler_.getLastTime("onLidar");
     const double dtAvr = profiler_.getMeanTime("onLidar");
     gui_.lbTime->setCaption(mrpt::format(
       "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr, dtAvr > 0 ? 1.0 / dtAvr : .0));
@@ -2666,4 +2672,29 @@ double LidarOdometry::getDropStats() const
     state_.drop_frames_stats_dropped.begin(), state_.drop_frames_stats_dropped.end(), true);
   const auto total = static_cast<double>(good + bad);
   return total ? static_cast<double>(bad) / total : .0;
+}
+
+void LidarOdometry::onPublishDiagnostics()
+{
+#if MOLA_VERSION_CHECK(1, 6, 2)
+  auto lckState = mrpt::lockHelper(state_mtx_);
+
+  const auto curStamp = state_.last_obs_timestamp ? *state_.last_obs_timestamp : mrpt::Clock::now();
+
+  mrpt::containers::yaml diagValues = mrpt::containers::yaml::Map();
+
+  const double dtAvr = profiler_.getMeanTime("onLidar");
+
+  diagValues["icp_quality"] = state_.last_icp_quality;
+  diagValues["average_process_time"] = dtAvr;
+  diagValues["dropped_frames_ratio"] = getDropStats();
+  diagValues["parameters"] = getModuleParameters();
+
+  DiagnosticsOutput diag;
+  diag.timestamp = curStamp;
+  diag.label = "status";
+  diag.value = diagValues;
+
+  module_publish_diagnostics(diag);
+#endif
 }

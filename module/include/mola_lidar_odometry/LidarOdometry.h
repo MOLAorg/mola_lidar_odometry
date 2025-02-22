@@ -723,6 +723,8 @@ private:
   void unloadPastSimplemapObservations(const size_t maxSizeUnloadQueue) const;
 
   void handleUnloadSinglePastObservation(CObservation::Ptr & o) const;
+
+  void onPublishDiagnostics();
 };
 
 namespace detail
