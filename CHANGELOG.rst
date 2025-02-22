@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.7.0 (2025-02-22)
+------------------
 * Implement new mola_kernel diagnostics API
 * Ensure map is published after ROS2 bridge is already listening (FIXES: potential loss of map publication if MM map is given via env var)
 * FIX: Proper configurable dropped frames mechanism and stats
