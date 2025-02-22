@@ -2,6 +2,31 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Implement new mola_kernel diagnostics API
+* Ensure map is published after ROS2 bridge is already listening (FIXES: potential loss of map publication if MM map is given via env var)
+* FIX: Proper configurable dropped frames mechanism and stats
+* FIX: Update GUI, publish maps, correctly independently of whether MolaGUI is enabled
+* launch: fix localization source name
+* FIX: Do not ever reset the map when in localization mode
+* Fix: refresh GUI with initial map
+* Allow dropping LiDAR frames in too slow for real-time, but not any other observation type
+* FIX: ensure georef metadata is published when map_load service is called
+* rename kitti ros2 demo file to unclutter ros2 launch autocompletion
+* Add ros launch argument 'use_state_estimator'
+* FIX: publish georeferencing metadata at start up
+* Add ROS2 launch arguments to select an state_estimator method
+* update citation
+* Add more params to smoother state estimation default YAML file
+* Add env variable MOLA_STATE_ESTIMATOR_PUBLISH_RATE to control filtered pose update rate
+* Add new env var MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION and ros2 launch argument for it
+* Add new ros launch argument mola_footprint_to_base_link_tf
+* Fix expected pose format in yaml
+* ROS2 launch: shutdown if mvsim crashes
+* Fix parse error with default .mm and .simplemap launch arguments
+* Contributors: Jose Luis Blanco Claraco, Jose Luis Blanco-Claraco
+
 0.6.2 (2025-02-13)
 ------------------
 * ros2 launch: add .mm and .simplemap optional initial map arguments
