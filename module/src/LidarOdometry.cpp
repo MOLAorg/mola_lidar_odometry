@@ -503,8 +503,12 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   }
 
   // end of initialization:
-  state_.initialized = true;
-  state_.active = params_.start_active;
+  {
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+
+    state_.initialized = true;
+    state_.active = params_.start_active;
+  }
 
   // Make runtime params exposed:
   onExposeParameters();
@@ -524,7 +528,7 @@ void LidarOdometry::spinOnce()
   // Executed here since
   // otherwise the GUI would never show up if inactive, or if the LIDAR
   // observations are misconfigured and are not been fed in.
-  if (visualizer_ && ((state_.local_map && state_.local_map->empty()) || !state_.active)) {
+  if (visualizer_ && ((state_.local_map && state_.local_map->empty()) || !isActive())) {
     if (mrpt::Clock::nowDouble() - gui_.timestampLastUpdateUI > 1.0) {
       updateVisualization({});
     }
@@ -548,28 +552,32 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
 
   ASSERT_(o);
 
-  auto lckState = mrpt::lockHelper(state_mtx_);
+  {
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
 
-  if (!state_.initialized) {
-    MRPT_LOG_THROTTLE_ERROR(
-      2.0,
-      "Discarding incoming observations: the system initialize() method has not been called yet!");
-    return;
-  }
-  if (state_.fatal_error) {
-    MRPT_LOG_THROTTLE_ERROR(2.0, "Discarding incoming observations: a fatal error ocurred above.");
+    if (!state_.initialized) {
+      MRPT_LOG_THROTTLE_ERROR(
+        2.0,
+        "Discarding incoming observations: the system initialize() method has not been called "
+        "yet!");
+      return;
+    }
+    if (state_.fatal_error) {
+      MRPT_LOG_THROTTLE_ERROR(
+        2.0, "Discarding incoming observations: a fatal error ocurred above.");
 
-    this->requestShutdown();  // request end of mola-cli app, if applicable
-    return;
-  }
+      this->requestShutdown();  // request end of mola-cli app, if applicable
+      return;
+    }
 
-  // SLAM enabled?
-  if (!state_.active) {
-    // Even if it's not, refresh the current map as usual:
-    doPublishUpdatedMap(o->timestamp);
+    // SLAM enabled?
+    if (!state_.active) {
+      // Even if it's not, refresh the current map as usual:
+      doPublishUpdatedMap(o->timestamp);
 
-    // and do not process the observation:
-    return;
+      // and do not process the observation:
+      return;
+    }
   }
 
   // Is it an IMU obs?
@@ -624,8 +632,12 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
     if (queued > params_.max_lidar_queue_before_drop) {
       MRPT_LOG_THROTTLE_ERROR(1.0, "Dropping observation due to LiDAR worker thread too busy.");
       profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
+      addDropStats(true);
       return;
+    } else {
+      addDropStats(false);
     }
+
     profiler_.enter("delay_onNewObs_to_process");
 
     {
@@ -657,6 +669,7 @@ void LidarOdometry::onLidar(const CObservation::Ptr & o)
     onLidarImpl(o);
   } catch (const std::exception & e) {
     MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
     state_.fatal_error = true;
   }
   {
@@ -1388,6 +1401,7 @@ void LidarOdometry::onIMU(const CObservation::Ptr & o)
     onIMUImpl(o);
   } catch (const std::exception & e) {
     MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
     state_.fatal_error = true;
   }
 
@@ -1425,6 +1439,7 @@ void LidarOdometry::onWheelOdometry(const CObservation::Ptr & o)
     onWheelOdometryImpl(o);
   } catch (const std::exception & e) {
     MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
     state_.fatal_error = true;
   }
 
@@ -1460,6 +1475,7 @@ void LidarOdometry::onGPS(const CObservation::Ptr & o)
     onGPSImpl(o);
   } catch (const std::exception & e) {
     MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
     state_.fatal_error = true;
   }
 
@@ -1502,6 +1518,18 @@ bool LidarOdometry::isBusy() const
   return b || worker_.pendingTasks();
 }
 
+bool LidarOdometry::isActive() const
+{
+  auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+  return state_.active;
+}
+
+void LidarOdometry::setActive(const bool active)
+{
+  auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+  state_.active = active;
+}
+
 mrpt::poses::CPose3DInterpolator LidarOdometry::estimatedTrajectory() const
 {
   auto lck = mrpt::lockHelper(state_trajectory_mtx_);
@@ -1517,9 +1545,12 @@ mrpt::maps::CSimpleMap LidarOdometry::reconstructedMap() const
 std::optional<std::tuple<mrpt::poses::CPose3DPDFGaussian, mrpt::math::TTwist3D>>
 LidarOdometry::lastEstimatedState() const
 {
-  auto lck = mrpt::lockHelper(state_mtx_);
+  {
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+    if (!state_.initialized || state_.fatal_error) return {};
+  }
 
-  if (!state_.initialized || state_.fatal_error) return {};
+  auto lck = mrpt::lockHelper(state_mtx_);
 
   if (!state_.last_motion_model_output) return {};
   const auto & tw = state_.last_motion_model_output->twist;
@@ -1939,15 +1970,26 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
   gui_.lbIcpQuality->setCaption(
     mrpt::format("ICP quality: %.01f%%", 100.0 * state_.last_icp_quality));
   gui_.lbSigma->setCaption(mrpt::format("Threshold sigma: %.02f", state_.adapt_thres_sigma));
-  if (state_.estimated_sensor_max_range)
+  if (state_.estimated_sensor_max_range) {
     gui_.lbSensorRange->setCaption(mrpt::format(
       "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
       state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
+  } else {
+    gui_.lbSensorRange->setCaption("Est. max range: (Not available)");
+  }
+
   {
     // const double dt    = profiler_.getLastTime("onLidar");
     const double dtAvr = profiler_.getMeanTime("onLidar");
     gui_.lbTime->setCaption(mrpt::format(
       "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr, dtAvr > 0 ? 1.0 / dtAvr : .0));
+  }
+
+  {
+    const double averageLidarQueue = profiler_.getMeanTime("onNewObservation.lidar_queue_length");
+
+    gui_.lbLidarQueue->setCaption(mrpt::format(
+      "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
   }
 
   if (state_.last_motion_model_output) {
@@ -1957,6 +1999,8 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     gui_.lbSpeed->setCaption(mrpt::format(
       "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed, speed * 3600.0 / 1000.0,
       speed / 0.44704));
+  } else {
+    gui_.lbSpeed->setCaption("Speed: (Not available)");
   }
 }
 
@@ -2032,12 +2076,17 @@ void LidarOdometry::internalBuildGUI()
   gui_.lbSensorRange = tab1->add<nanogui::Label>(" ");
   gui_.lbSpeed = tab1->add<nanogui::Label>(" ");
   gui_.lbTime = tab1->add<nanogui::Label>(" ");
+  gui_.lbLidarQueue = tab1->add<nanogui::Label>(" ");
 
   // tab 2: control
   gui_.cbActive = tab2->add<nanogui::CheckBox>("Active");
-  gui_.cbActive->setChecked(state_.active);
-  gui_.cbActive->setCallback(
-    [&](bool checked) { this->enqueue_request([this, checked]() { state_.active = checked; }); });
+  gui_.cbActive->setChecked(isActive());
+  gui_.cbActive->setCallback([&](bool checked) {
+    this->enqueue_request([this, checked]() {
+      auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+      state_.active = checked;
+    });
+  });
 
   gui_.cbMapping = tab2->add<nanogui::CheckBox>("Mapping enabled");
   gui_.cbMapping->setChecked(params_.local_map_updates.enabled);
@@ -2513,7 +2562,8 @@ void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_value
   auto lckState = mrpt::lockHelper(state_mtx_);
 
   // Load parameters:
-  state_.active = names_values.getOrDefault("active", state_.active);
+  setActive(names_values.getOrDefault("active", isActive()));
+
   params_.local_map_updates.enabled =
     names_values.getOrDefault("mapping_enabled", params_.local_map_updates.enabled);
   params_.simplemap.generate =
@@ -2522,7 +2572,7 @@ void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_value
   // and reflect changes in the GUI, if used.
   this->enqueue_request([this]() {
     if (gui_.cbActive) {
-      gui_.cbActive->setChecked(state_.active);
+      gui_.cbActive->setChecked(isActive());
       gui_.cbMapping->setChecked(params_.local_map_updates.enabled);
       gui_.cbSaveSimplemap->setChecked(params_.simplemap.generate);
     }
@@ -2534,7 +2584,7 @@ void LidarOdometry::onExposeParameters()
 {
 #if MOLA_VERSION_CHECK(1, 4, 0)
   mrpt::containers::yaml nv = mrpt::containers::yaml::Map();
-  nv["active"] = state_.active;
+  nv["active"] = isActive();
   nv["mapping_enabled"] = params_.local_map_updates.enabled;
   nv["generate_simplemap"] = params_.simplemap.generate;
   this->exposeParameters(nv);
@@ -2581,4 +2631,23 @@ void LidarOdometry::publishMetricMapGeoreferencingData()
     "Not able to publish georeferencing map metadata due to too old mola_kernel version (!)");
 
 #endif
+}
+
+void LidarOdometry::addDropStats(bool frame_is_dropped)
+{
+  state_.drop_frames_stats_good[state_.drop_frames_stats_next_index] = !frame_is_dropped;
+  state_.drop_frames_stats_dropped[state_.drop_frames_stats_next_index] = frame_is_dropped;
+  if (++state_.drop_frames_stats_next_index >= MethodState::DROP_STATS_WINDOW_LENGHT)
+    state_.drop_frames_stats_next_index = 0;
+}
+
+double LidarOdometry::getDropStats() const
+{
+  auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+  const auto good =
+    std::count(state_.drop_frames_stats_good.begin(), state_.drop_frames_stats_good.end(), true);
+  const auto bad = std::count(
+    state_.drop_frames_stats_dropped.begin(), state_.drop_frames_stats_dropped.end(), true);
+  const auto total = static_cast<double>(good + bad);
+  return total ? static_cast<double>(bad) / total : .0;
 }
