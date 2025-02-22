@@ -595,6 +595,8 @@ private:
       local_map_needs_publish = true;
     }
 
+    void mark_local_map_georef_as_updated() { local_map_georef_needs_publish = true; }
+
     /// To handle post-re-localization. >0 means we are "recovering" from a request to re-localize:
     uint32_t step_counter_post_relocalization = 0;
 

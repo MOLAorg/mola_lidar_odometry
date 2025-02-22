@@ -46,6 +46,7 @@
 #include <mrpt/io/lazy_load_path.h>
 #include <mrpt/maps/CColouredPointsMap.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
+#include <mrpt/obs/CObservationComment.h>
 #include <mrpt/obs/CObservationGPS.h>
 #include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationOdometry.h>
@@ -473,28 +474,19 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   params_.attachToParameterSource(state_.parameter_source);
 
   // Preload maps (multisession SLAM or localization-only):
-  bool need_to_refresh_map_in_gui = false;
-
   if (!params_.local_map_updates.load_existing_local_map.empty()) {
     bool loadOk =
       state_.local_map->load_from_file(params_.local_map_updates.load_existing_local_map);
     ASSERT_(loadOk);
-    need_to_refresh_map_in_gui = true;
+
+    state_.mark_local_map_as_updated();
+    state_.mark_local_map_georef_as_updated();
   }
 
   if (!params_.simplemap.load_existing_simple_map.empty()) {
     bool loadOk =
       state_.reconstructed_simplemap.loadFromFile(params_.simplemap.load_existing_simple_map);
     ASSERT_(loadOk);
-    need_to_refresh_map_in_gui = true;
-  }
-
-  // And update the GUI and publish the map, even if we are not being fed with incoming obs:
-  if (need_to_refresh_map_in_gui) {
-    enqueue_request([this]() {
-      auto dummy = mrpt::obs::CObservationComment::Create();
-      onNewObservation(dummy);
-    });
   }
 
   // Attach to the state estimation module, which since MOLA-LO v0.5.0,
@@ -528,6 +520,16 @@ void LidarOdometry::spinOnce()
 
   processPendingUserRequests();
 
+  // Force a refresh of the GUI?
+  // Executed here since
+  // otherwise the GUI would never show up if inactive, or if the LIDAR
+  // observations are misconfigured and are not been fed in.
+  if (visualizer_ && ((state_.local_map && state_.local_map->empty()) || !state_.active)) {
+    if (mrpt::Clock::nowDouble() - gui_.timestampLastUpdateUI > 1.0) {
+      updateVisualization({});
+    }
+  }
+
   MRPT_TRY_END
 }
 
@@ -559,14 +561,6 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
 
     this->requestShutdown();  // request end of mola-cli app, if applicable
     return;
-  }
-
-  // Force a refresh of the GUI?
-  // Executed here since
-  // otherwise the GUI would never show up if inactive, or if the LIDAR
-  // observations are misconfigured and are not been fed in.
-  if ((visualizer_ && state_.local_map) && (state_.local_map->empty() || !state_.active)) {
-    if (mrpt::Clock::nowDouble() - gui_.timestampLastUpdateUI > 1.0) updateVisualization({});
   }
 
   // SLAM enabled?
@@ -1876,8 +1870,8 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
   // Local map:
   // -----------------------------
   if (
-    (state_.mapUpdateCnt++ > params_.visualization.map_update_decimation) &&
-    state_.local_map_needs_viz_update) {
+    state_.local_map && ((state_.mapUpdateCnt++ > params_.visualization.map_update_decimation) &&
+                         state_.local_map_needs_viz_update)) {
     ProfilerEntry tle2(profiler_, "updateVisualization.update_local_map");
 
     state_.mapUpdateCnt = 0;
@@ -1926,7 +1920,6 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     const auto s = mrpt::format(
       "t=%.03f *WARNING* No input LiDAR observations received yet!", mrpt::Clock::nowDouble());
     visualizer_->output_console_message(s);
-    return;
   }
 
   // Sub-window with custom UI
@@ -2386,6 +2379,16 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
 
   MRPT_LOG_INFO_STREAM("[map_load] Trying to load mm: " << mmFile << " and sm: " << smFile);
 
+  // Clear existing map:
+  ASSERT_(state_.local_map);
+  state_.local_map->clear();
+  state_.reconstructed_simplemap.clear();
+
+  // Update the GUI and publish the map, even if we are not being fed with incoming obs:
+  // (and even if we fail to load the maps, so they are shown as empty).
+  state_.mark_local_map_as_updated();
+  state_.mark_local_map_georef_as_updated();
+
   bool mmLoadOk = false;
   try {
     // do not show the default error msg for this simple error, which is long and may intimidate newest users:
@@ -2411,16 +2414,7 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
     ret.error_message = "Warning: no simplemap (keyframes) file found (expected: '"s + smFile +
                         "'). Required for multisession mapping. ";
 
-  if (mmLoadOk) {
-    // And update the GUI and publish the map, even if we are not being fed with incoming obs:
-    auto dummy = mrpt::obs::CObservationComment::Create();
-    onNewObservation(dummy);
-  }
-
   if (ret.success) {
-    state_.mark_local_map_as_updated();  // refresh map in GUI, if enabled
-    state_.local_map_georef_needs_publish = true;
-
     MRPT_LOG_INFO_STREAM("[map_load] Successful.");
   } else
     MRPT_LOG_ERROR_STREAM("[map_load] Error loading from map prefix: " << path);
