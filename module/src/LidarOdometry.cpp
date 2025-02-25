@@ -223,10 +223,9 @@ void LidarOdometry::Parameters::TraceOutputOptions::initialize(const Yaml & cfg)
 void LidarOdometry::Parameters::InitialLocalizationOptions::initialize(const Yaml & cfg)
 {
   YAML_LOAD_OPT(enabled, bool);
+  MCP_LOAD_OPT(cfg, method);
 
   YAML_LOAD_OPT(additional_uncertainty_after_reloc_how_many_timesteps, uint32_t);
-
-  // TODO(jlbc): define enum "method"
 
   if (cfg.has("fixed_initial_pose")) {
     ASSERT_(
@@ -833,26 +832,7 @@ void LidarOdometry::onLidarImpl(const CObservation::Ptr & obs)
 
   // Handle initial localization options:
   if (auto & il = params_.initial_localization; il.enabled && !state_.initial_localization_done) {
-    mrpt::poses::CPose3DPDFGaussian initPose;
-    initPose.mean = mrpt::poses::CPose3D(il.fixed_initial_pose);
-    if (!il.initial_pose_cov) {
-      initPose.cov.setDiagonal(1e-12);
-    } else {
-      initPose.cov = *il.initial_pose_cov;
-    }
-
-    ASSERT_(state_.navstate_fuse);
-    state_.navstate_fuse->reset();  // needed after a re-localization to forget the past
-
-    // Fake an evolution to be able to have an initial velocity estimation:
-    const auto t1 = mrpt::Clock::fromDouble(mrpt::Clock::toDouble(this_obs_tim) - 0.2);
-    const auto t2 = mrpt::Clock::fromDouble(mrpt::Clock::toDouble(this_obs_tim) - 0.1);
-    state_.navstate_fuse->fuse_pose(t1, initPose, params_.publish_reference_frame);
-    state_.navstate_fuse->fuse_pose(t2, initPose, params_.publish_reference_frame);
-
-    MRPT_LOG_INFO_STREAM("Initial re-localization done with pose: " << initPose.mean);
-
-    state_.initial_localization_done = true;
+    handleInitialLocalization();
   }
 
   // local map: used for LIDAR odometry:
@@ -2378,8 +2358,23 @@ void LidarOdometry::relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussi
 
 void LidarOdometry::relocalize_from_gnss()
 {
-  //TODO!
-  MRPT_LOG_WARN("relocalize_from_gnss() not implemented yet!");
+  MRPT_LOG_INFO("relocalize_from_gnss() called");
+
+  auto lckState = mrpt::lockHelper(state_mtx_);
+
+  auto & il = params_.initial_localization;
+
+  // Enforce re-localizatio on the next iteration:
+  il.enabled = true;
+  state_.initial_localization_done = false;
+  il.method = InitLocalization::FromStateEstimator;
+
+  // Reset adaptative sigma to initial value:
+  state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;
+
+  // Handle uncertainty in next steps:
+  state_.step_counter_post_relocalization =
+    il.additional_uncertainty_after_reloc_how_many_timesteps;
 }
 
 MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
@@ -2646,4 +2641,47 @@ void LidarOdometry::onPublishDiagnostics()
 
   module_publish_diagnostics(diag);
 #endif
+}
+
+void LidarOdometry::handleInitialLocalization()
+{
+  auto & il = params_.initial_localization;
+
+  switch (params_.initial_localization.method) {
+      // FIXED POSE INITIALIZATION
+      // ------------------------------
+    case mola::InitLocalization::FixedPose: {
+      mrpt::poses::CPose3DPDFGaussian initPose;
+      initPose.mean = mrpt::poses::CPose3D(il.fixed_initial_pose);
+      if (!il.initial_pose_cov) {
+        initPose.cov.setDiagonal(1e-12);
+      } else {
+        initPose.cov = *il.initial_pose_cov;
+      }
+
+      ASSERT_(state_.navstate_fuse);
+      state_.navstate_fuse->reset();  // needed after a re-localization to forget the past
+
+      // Fake an evolution to be able to have an initial velocity estimation:
+      const auto t1 =
+        mrpt::Clock::fromDouble(mrpt::Clock::toDouble(*state_.last_obs_timestamp) - 0.2);
+      const auto t2 =
+        mrpt::Clock::fromDouble(mrpt::Clock::toDouble(*state_.last_obs_timestamp) - 0.1);
+      state_.navstate_fuse->fuse_pose(t1, initPose, params_.publish_reference_frame);
+      state_.navstate_fuse->fuse_pose(t2, initPose, params_.publish_reference_frame);
+
+      MRPT_LOG_INFO_STREAM("Initial re-localization done with pose: " << initPose.mean);
+
+      state_.initial_localization_done = true;
+    } break;
+
+      // INITIALIZATION FROM STATE ESTIMATOR (GNSS, ETC.)
+      // ---------------------------------------------------
+    case mola::InitLocalization::FromStateEstimator: {
+      THROW_EXCEPTION("Write me!");
+    } break;
+
+    default:
+      THROW_EXCEPTION("Unknown value for initial_localization.method");
+  };
 }

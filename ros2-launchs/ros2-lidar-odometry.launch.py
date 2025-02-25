@@ -104,7 +104,11 @@ def generate_launch_description():
         "forward_ros_tf_odom_to_mola", default_value="False", description="Whether to import an existing /tf 'odom'->'base_link' odometry into the MOLA subsystem.")
     forward_ros_tf_odom_to_mola_env_var = SetEnvironmentVariable(
         name='MOLA_FORWARD_ROS_TF_ODOM_TO_MOLA', value=LaunchConfiguration('forward_ros_tf_odom_to_mola'))
-
+    # ~~~~~~~~~~~~
+    initial_localization_method_arg = DeclareLaunchArgument(
+        "initial_localization_method", default_value="InitLocalization::FixedPose", description="What method to use for initialization")
+    initial_localization_method_env_var = SetEnvironmentVariable(
+        name='MOLA_INITIAL_LOCALIZATION_METHOD', value=LaunchConfiguration('initial_localization_method'))
     # ~~~~~~~~~~~~
     use_state_estimator_arg = DeclareLaunchArgument(
         "use_state_estimator",
@@ -238,6 +242,8 @@ def generate_launch_description():
         enforce_planar_motion_env_var,
         forward_ros_tf_odom_to_mola_arg,
         forward_ros_tf_odom_to_mola_env_var,
+        initial_localization_method_arg,
+        initial_localization_method_env_var,
         use_state_estimator_arg,
         state_estimator_env_var,
         state_estimator_config_yaml_arg,

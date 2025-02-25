@@ -127,7 +127,7 @@ params:
 # Whether to use a re-localization method at start up:
 initial_localization:
   enabled: ${MOLA_INITIAL_LOCALIZATION_ENABLED|false}
-  method: 'InitLocalization::FixedPose'
+  method: '${MOLA_INITIAL_LOCALIZATION_METHOD|InitLocalization::FixedPose}'
   fixed_initial_pose: ['${MOLA_INITIAL_X|0.0}', '${MOLA_INITIAL_Y|0.0}', '${MOLA_INITIAL_Z|0.0}',  '${MOLA_INITIAL_YAW|0.0}', '${MOLA_INITIAL_PITCH|0.0}', '${MOLA_INITIAL_ROLL|0.0}']
 
 

@@ -56,6 +56,7 @@
 #include <mrpt/opengl/CSetOfObjects.h>
 #include <mrpt/poses/CPose3DInterpolator.h>
 #include <mrpt/serialization/CSerializable.h>
+#include <mrpt/typemeta/TEnumType.h>
 
 // STD:
 #include <fstream>
@@ -77,6 +78,14 @@ namespace mola
 {
 template <std::size_t N, typename T>
 constexpr std::array<T, N> create_array(const T & value);
+
+enum class InitLocalization : uint8_t
+{
+  /// Initialize around a given SE(3) pose with covariance:
+  FixedPose = 0,
+  /// Initialize from the external state estimator, with an optional maximum uncertainty threshold
+  FromStateEstimator,
+};
 
 /** LIDAR-inertial odometry based on ICP against a local metric map model.
  */
@@ -109,13 +118,6 @@ public:
   {
     RegularOdometry = 0,
     NoMotionModel
-  };
-
-  enum class InitLocalization : uint8_t
-  {
-    FixedPose = 0,
-    FromGNSS_Static,
-    FromGNSS_Motion,
   };
 
   struct Parameters : public mp2p_icp::Parameterizable
@@ -717,6 +719,7 @@ private:
   void handleUnloadSinglePastObservation(CObservation::Ptr & o) const;
 
   void onPublishDiagnostics();
+  void handleInitialLocalization();
 };
 
 namespace detail
@@ -735,3 +738,8 @@ constexpr std::array<T, N> create_array(const T & value)
   return detail::create_array(value, std::make_index_sequence<N>());
 }
 }  // namespace mola
+
+MRPT_ENUM_TYPE_BEGIN_NAMESPACE(mola, mola::InitLocalization)
+MRPT_FILL_ENUM(InitLocalization::FixedPose);
+MRPT_FILL_ENUM(InitLocalization::FromStateEstimator);
+MRPT_ENUM_TYPE_END()
