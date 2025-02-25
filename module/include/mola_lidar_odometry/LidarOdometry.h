@@ -131,11 +131,6 @@ public:
     std::optional<std::regex> imu_sensor_label;
 
     /** Sensor labels or regex to be matched to input observations
-         *  to be used as wheel odometry observations.
-         */
-    std::optional<std::regex> wheel_odometry_sensor_label;
-
-    /** Sensor labels or regex to be matched to input observations
          *  to be used as GNSS (GPS) observations.
          */
     std::optional<std::regex> gnss_sensor_label;
@@ -690,9 +685,6 @@ private:
 
   void onIMU(const CObservation::Ptr & o);
   void onIMUImpl(const CObservation::Ptr & o);
-
-  void onWheelOdometry(const CObservation::Ptr & o);
-  void onWheelOdometryImpl(const CObservation::Ptr & o);
 
   void onGPS(const CObservation::Ptr & o);
   void onGPSImpl(const CObservation::Ptr & o);

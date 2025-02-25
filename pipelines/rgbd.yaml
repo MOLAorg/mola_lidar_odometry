@@ -15,9 +15,6 @@ params:
   # These sensor labels will be handled as IMU observations:
   imu_sensor_label: 'imu'
 
-  # These sensor labels will be handled as wheel odometry observation (C++11 regex):
-  wheel_odometry_sensor_label: '${MOLA_ODOMETRY_NAME|odometry}'
-
   # These sensor labels will be handled as GNSS (GPS) (For storage in simplemap only)
   gnss_sensor_label: 'gps'
 
