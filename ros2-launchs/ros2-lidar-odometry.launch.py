@@ -100,6 +100,12 @@ def generate_launch_description():
     enforce_planar_motion_env_var = SetEnvironmentVariable(
         name='MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION', value=LaunchConfiguration('enforce_planar_motion'))
     # ~~~~~~~~~~~~
+    forward_ros_tf_odom_to_mola_arg = DeclareLaunchArgument(
+        "forward_ros_tf_odom_to_mola", default_value="False", description="Whether to import an existing /tf 'odom'->'base_link' odometry into the MOLA subsystem.")
+    forward_ros_tf_odom_to_mola_env_var = SetEnvironmentVariable(
+        name='MOLA_FORWARD_ROS_TF_ODOM_TO_MOLA', value=LaunchConfiguration('forward_ros_tf_odom_to_mola'))
+
+    # ~~~~~~~~~~~~
     use_state_estimator_arg = DeclareLaunchArgument(
         "use_state_estimator",
         default_value="False",
@@ -230,6 +236,8 @@ def generate_launch_description():
         mola_footprint_to_base_link_tf_env_var,
         enforce_planar_motion_arg,
         enforce_planar_motion_env_var,
+        forward_ros_tf_odom_to_mola_arg,
+        forward_ros_tf_odom_to_mola_env_var,
         use_state_estimator_arg,
         state_estimator_env_var,
         state_estimator_config_yaml_arg,

@@ -32,6 +32,7 @@ modules:
   - name: state_estimation
     type: '${MOLA_STATE_ESTIMATOR|mola::state_estimation_simple::StateEstimationSimple}'
     verbosity_level: '${MOLA_VERBOSITY_MOLA_STATE_ESTIMATOR|INFO}'
+    raw_data_source: 'ros2_bridge'
 
     # When using StateEstimationSmoother, this execution rate (Hz) determines the
     # rate of publishing filtered pose estimations.
@@ -94,7 +95,7 @@ modules:
 
       # If enabled, during spinOnce(), the tf ``${odom_frame} => ${base_link_frame}`` will
       # be queried and forwarded as an `CObservationOdometry` reading to the MOLA subsystem:
-      forward_ros_tf_as_mola_odometry_observations: false
+      forward_ros_tf_as_mola_odometry_observations: ${MOLA_FORWARD_ROS_TF_ODOM_TO_MOLA|false}
 
       # If enabled, SLAM/Localization results will be published as nav_msgs/Odometry messages.
       publish_odometry_msgs_from_slam: ${MOLA_LOCALIZATION_PUBLISH_ODOM_MSGS|true}
