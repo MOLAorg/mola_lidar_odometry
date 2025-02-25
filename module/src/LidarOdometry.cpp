@@ -2364,7 +2364,7 @@ void LidarOdometry::relocalize_from_gnss()
 
   auto & il = params_.initial_localization;
 
-  // Enforce re-localizatio on the next iteration:
+  // Enforce re-localization on the next iteration:
   il.enabled = true;
   state_.initial_localization_done = false;
   il.method = InitLocalization::FromStateEstimator;
