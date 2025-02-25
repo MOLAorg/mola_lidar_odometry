@@ -629,7 +629,9 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
 
     profiler_.registerUserMeasure("onNewObservation.lidar_queue_length", queued);
     if (queued > params_.max_lidar_queue_before_drop) {
-      MRPT_LOG_THROTTLE_WARN(1.0, "Dropping observation due to LiDAR worker thread too busy.");
+      MRPT_LOG_THROTTLE_WARN_FMT(
+        1.0, "Dropping observation due to LiDAR worker thread too busy (dropped frames: %.02f%%)",
+        getDropStats() * 100.0);
       profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
       addDropStats(true);
       return;
