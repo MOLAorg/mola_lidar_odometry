@@ -639,6 +639,7 @@ private:
   const MethodState & state() const { return state_; }
   MethodState stateCopy() const { return state_; }
 
+  // Accessing this struct in gui_ requires adquiring state_gui_mtx_
   struct StateUI
   {
     StateUI() = default;
@@ -657,6 +658,7 @@ private:
     nanogui::CheckBox * cbSaveSimplemap = nullptr;
   };
 
+  // Accessing this struct in gui_ requires adquiring state_gui_mtx_
   StateUI gui_;
 
   /// The configuration used in the last call to initialize()
@@ -668,6 +670,7 @@ private:
   mutable std::recursive_mutex state_mtx_;
   mutable std::mutex state_trajectory_mtx_;
   mutable std::recursive_mutex state_simplemap_mtx_;
+  mutable std::mutex state_gui_mtx_;
 
   /// The list of pending tasks from enqueue_request():
   std::vector<std::function<void()>> requests_;

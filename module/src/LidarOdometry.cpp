@@ -1901,6 +1901,7 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
   // Sub-window with custom UI
   // -------------------------------------
+  auto lckGuiMtx = mrpt::lockHelper(state_gui_mtx_);
   if (!gui_.ui) {
     auto fut = visualizer_->create_subwindow("mola_lidar_odometry");
     gui_.ui = fut.get();
@@ -1910,6 +1911,7 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
     fut2.get();
   }
+  lckGuiMtx.unlock();
 
   ProfilerEntry tle3(profiler_, "updateVisualization.update_gui");
 
