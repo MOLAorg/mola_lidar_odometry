@@ -91,14 +91,12 @@ LidarOdometry::~LidarOdometry()
       destructor_called_ = true;
     }
 
-    worker_.clear();
     while (isBusy()) {
       MRPT_LOG_THROTTLE_WARN(
-        2.0,
-        "Destructor: waiting for remaining tasks on the worker "
-        "threads...");
+        2.0, "Destructor: waiting for remaining tasks on the worker threads...");
       std::this_thread::sleep_for(100ms);
     }
+    worker_.clear();
 
     if (params_.simplemap.generate)  //
       saveReconstructedMapToFile();
@@ -659,20 +657,23 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
 
 void LidarOdometry::onLidar(const CObservation::Ptr & o)
 {
-  {
+  const bool abort_running = [this]() {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
-    if (destructor_called_) return;  // abort pending tasks
-  }
+    return destructor_called_;
+  }();
 
   // All methods that are enqueued into a thread pool should have its own
   // top-level try-catch:
-  try {
-    onLidarImpl(o);
-  } catch (const std::exception & e) {
-    MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
-    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
-    state_.fatal_error = true;
+  if (!abort_running) {
+    try {
+      onLidarImpl(o);
+    } catch (const std::exception & e) {
+      MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
+      auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+      state_.fatal_error = true;
+    }
   }
+
   {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
     state_.worker_tasks_lidar--;
