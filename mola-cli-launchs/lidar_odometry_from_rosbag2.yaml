@@ -30,6 +30,7 @@ modules:
   - name: state_estimation
     type: '${MOLA_STATE_ESTIMATOR|mola::state_estimation_simple::StateEstimationSimple}'
     verbosity_level: '${MOLA_VERBOSITY_MOLA_STATE_ESTIMATOR|INFO}'
+    raw_data_source: 'dataset_input'
 
     # This includes here a whole block "params: (...)":
     params: '${MOLA_STATE_ESTIMATOR_YAML|../state-estimator-params/state-estimation-simple.yaml}'
@@ -64,6 +65,7 @@ modules:
       rosbag_filename: ${MOLA_INPUT_ROSBAG2}
       time_warp_scale: ${MOLA_TIME_WARP|1.0}
       start_paused: ${MOLA_DATASET_START_PAUSED|false}
+      
       base_link_frame_id: '${MOLA_TF_BASE_LINK|base_link}'
 
       # 'sensors' contains maps from output "sensorLabel"s, to the
@@ -92,7 +94,7 @@ modules:
           type: CObservationIMU
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg''
-          use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|true}
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
 
         #- topic: /ouster/range_image
         #  type: CObservationImage

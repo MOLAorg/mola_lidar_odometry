@@ -200,8 +200,36 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
   MRPT_LOG_DEBUG_STREAM(
     "onIMU called for timestamp=" << mrpt::system::dateTimeLocalToString(imu->timestamp));
 
-  ASSERT_(state_.navstate_fuse);
-  state_.navstate_fuse->fuse_imu(*imu);
+  // Was: state_.navstate_fuse->fuse_imu(*imu);
+  // But since March-2025, state estimators actively subscribe to sensor inputs and it is not
+  // our responsibility to forward IMU to them.
+
+  // Uses of IMU in MOLA-LO (this class):
+  // 1) During special initialization to compensate for pitch/roll;
+  // 2) (TODO!) Improved scan de-skewing.
+
+  // 1) Initial pitch/roll estimation:
+  const bool do_initial_pitch_roll_estimate = true;
+
+  if (!do_initial_pitch_roll_estimate) {
+    return;
+  }
+  if (
+    !imu->has(mrpt::obs::IMU_X_ACC) || !imu->has(mrpt::obs::IMU_Y_ACC) ||
+    !imu->has(mrpt::obs::IMU_Z_ACC)) {
+    // No acceleration data:
+    return;
+  }
+
+  const auto accel_sensor = mrpt::math::TTwist3D(  //
+    imu->get(mrpt::obs::IMU_X_ACC),                //
+    imu->get(mrpt::obs::IMU_Y_ACC),                //
+    imu->get(mrpt::obs::IMU_Z_ACC),                //
+    0, 0, 0);
+
+  const auto accel_base_link = accel_sensor.rotated(imu->sensorPose.asTPose());
+
+  MRPT_TODO("Continue");
 }
 
 void LidarOdometry::onGPS(const CObservation::Ptr & o)

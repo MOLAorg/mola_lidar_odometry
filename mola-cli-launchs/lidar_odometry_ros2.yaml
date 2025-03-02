@@ -151,14 +151,14 @@ modules:
           output_sensor_label: 'gps'
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "${GNSS_POSE_X|0} ${GNSS_POSE_Y|0} ${GNSS_POSE_Z|0} ${GNSS_POSE_YAW|0} ${GNSS_POSE_PITCH|0} ${GNSS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg''
-          use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|true}
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
 
         - topic: ${MOLA_IMU_TOPIC|/imu}
           msg_type: Imu
           output_sensor_label: 'imu'
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg''
-          use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|true}
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
 
         #- topic: /odom
         #  msg_type: Odometry
