@@ -403,7 +403,8 @@ void mola_install_signal_handler();
 
 void mola_signal_handler(int s)
 {
-  std::cerr << "Caught signal " << s << ". Shutting down..." << std::endl;
+  std::cerr << "Caught signal " << s << ". Shutting down..."
+            << "\n";
   exit(0);
 }
 
@@ -460,7 +461,7 @@ int main_odometry(Cli & cli)
 
   // Make both modules discoverables to each other:
   // -------------------------------------------------
-  mola::MinimalModuleContainer moduleContainer = {{liodom, stateEstimator}};
+  const mola::MinimalModuleContainer moduleContainer = {{liodom, stateEstimator}};
 
   // Logging level:
   mrpt::system::VerbosityLevel logLevel = liodom->getMinLoggingLevel();
@@ -570,7 +571,7 @@ int main_odometry(Cli & cli)
     const auto gtOutFile = mrpt::system::fileNameChangeExtension(cli.arg_outPath.getValue(), "") +
                            "_gt."s + mrpt::system::extractFileExtension(cli.arg_outPath.getValue());
 
-    std::cout << "Ground truth available. Saving it to: " << gtOutFile << std::endl;
+    std::cout << "Ground truth available. Saving it to: " << gtOutFile << "\n";
 
     gtPath.saveToTextFile_TUM(gtOutFile);
   }
@@ -621,7 +622,7 @@ int main_odometry(Cli & cli)
     if (cnt++ % 100 == 0) {
       cnt = 0;
       const size_t N = (dataset->datasetSize() - 1);
-      const double pc = (1.0 * i) / N;
+      const double pc = static_cast<double>(i) / static_cast<double>(N);
 
       const double tNow = mrpt::Clock::nowDouble();
       const double ETA = pc > 0 ? (tNow - tStart) * (1.0 / pc - 1) : .0;
@@ -657,7 +658,7 @@ int main_odometry(Cli & cli)
     const auto fil = cli.arg_outPath.getValue();
     std::cout << "\nSaving estimated path in TUM format to: " << fil << std::endl;
 
-    mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory = liodom->estimatedTrajectory();
+    const mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory = liodom->estimatedTrajectory();
 
     lastEstimatedTrajectory.saveToTextFile_TUM(fil);
   }
@@ -695,7 +696,7 @@ int main(int argc, char ** argv)
     if (cli.arg_plugins.isSet()) {
       std::string errMsg;
       const auto plugins = cli.arg_plugins.getValue();
-      std::cout << "Loading plugin(s): " << plugins << std::endl;
+      std::cout << "Loading plugin(s): " << plugins << "\n";
       if (!mrpt::system::loadPluginModules(plugins, errMsg)) {
         std::cerr << errMsg << std::endl;
         return 1;

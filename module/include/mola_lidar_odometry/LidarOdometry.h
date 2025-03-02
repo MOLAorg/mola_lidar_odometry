@@ -50,15 +50,16 @@
 // MRPT
 #include <mrpt/core/WorkerThreadsPool.h>
 #include <mrpt/maps/CSimpleMap.h>
-#include <mrpt/maps/CSimplePointsMap.h>
 #include <mrpt/obs/obs_frwds.h>
 #include <mrpt/opengl/CSetOfLines.h>
 #include <mrpt/opengl/CSetOfObjects.h>
 #include <mrpt/poses/CPose3DInterpolator.h>
-#include <mrpt/serialization/CSerializable.h>
 #include <mrpt/typemeta/TEnumType.h>
 
 // STD:
+#include <array>
+#include <cstdint>
+#include <cstdlib>
 #include <fstream>
 #include <limits>
 #include <map>
@@ -85,6 +86,8 @@ enum class InitLocalization : uint8_t
   FixedPose = 0,
   /// Initialize from the external state estimator, with an optional maximum uncertainty threshold
   FromStateEstimator,
+  /// Initialize pitch & roll from a short IMU sequence, assuming sensor is roughly stationary at startup
+  PitchAndRollFromIMU,
 };
 
 /** LIDAR-inertial odometry based on ICP against a local metric map model.
@@ -99,7 +102,7 @@ class LidarOdometry : public mola::FrontEndBase,
 
 public:
   LidarOdometry();
-  ~LidarOdometry();
+  ~LidarOdometry() override;
 
   /** @name Main API
      * @{ */
@@ -686,7 +689,7 @@ private:
   void processPendingUserRequests();
 
   void onLidar(const CObservation::Ptr & o);
-  void onLidarImpl(const CObservation::Ptr & obs);
+  void processLidarScan(const CObservation::Ptr & obs);
 
   void onIMU(const CObservation::Ptr & o);
   void onIMUImpl(const CObservation::Ptr & o);
@@ -745,4 +748,5 @@ constexpr std::array<T, N> create_array(const T & value)
 MRPT_ENUM_TYPE_BEGIN_NAMESPACE(mola, mola::InitLocalization)
 MRPT_FILL_ENUM(InitLocalization::FixedPose);
 MRPT_FILL_ENUM(InitLocalization::FromStateEstimator);
+MRPT_FILL_ENUM(InitLocalization::PitchAndRollFromIMU);
 MRPT_ENUM_TYPE_END()
