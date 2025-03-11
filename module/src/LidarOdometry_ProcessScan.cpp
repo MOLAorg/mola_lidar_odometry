@@ -194,7 +194,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
   }
 
   // Handle initial localization options:
-  if (auto & il = params_.initial_localization; il.enabled && !state_.initial_localization_done) {
+  if (!state_.initial_localization_done) {
     handleInitialLocalization();
   }
 

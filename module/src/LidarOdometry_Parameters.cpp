@@ -141,7 +141,6 @@ void LidarOdometry::Parameters::TraceOutputOptions::initialize(const Yaml & cfg)
 
 void LidarOdometry::Parameters::InitialLocalizationOptions::initialize(const Yaml & cfg)
 {
-  YAML_LOAD_OPT(enabled, bool);
   MCP_LOAD_OPT(cfg, method);
 
   YAML_LOAD_OPT(additional_uncertainty_after_reloc_how_many_timesteps, uint32_t);
@@ -180,6 +179,14 @@ void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_value
   params_.simplemap.generate =
     names_values.getOrDefault("generate_simplemap", params_.simplemap.generate);
 
+  // Special triggering reset "variabe":
+  if (names_values.getOrDefault("reset_state", false)) {
+    this->enqueue_request([this]() {
+      MRPT_LOG_INFO("Received a reset() command via parameters update.");
+      reset();
+    });
+  }
+
   // and reflect changes in the GUI, if used.
   this->enqueue_request([this]() {
     auto lckGuiMtx = mrpt::lockHelper(state_gui_mtx_);
@@ -199,6 +206,8 @@ void LidarOdometry::onExposeParameters()
   nv["active"] = isActive();
   nv["mapping_enabled"] = params_.local_map_updates.enabled;
   nv["generate_simplemap"] = params_.simplemap.generate;
+  nv["reset_state"] = false;
+
   this->exposeParameters(nv);
 #endif
 }

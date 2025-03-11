@@ -124,9 +124,8 @@ params:
     minimum_point_count: '${MOLA_OBS_VALIDITY_MIN_POINTS|1000}'
 
 
-# Whether to use a re-localization method at start up:
+# re-localization method to use at start up:
 initial_localization:
-  enabled: ${MOLA_INITIAL_LOCALIZATION_ENABLED|false}
   method: '${MOLA_INITIAL_LOCALIZATION_METHOD|InitLocalization::FixedPose}'
   fixed_initial_pose: ['${MOLA_INITIAL_X|0.0}', '${MOLA_INITIAL_Y|0.0}', '${MOLA_INITIAL_Z|0.0}',  '${MOLA_INITIAL_YAW|0.0}', '${MOLA_INITIAL_PITCH|0.0}', '${MOLA_INITIAL_ROLL|0.0}']
 

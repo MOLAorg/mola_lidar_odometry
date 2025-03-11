@@ -43,7 +43,6 @@ void LidarOdometry::relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussi
   auto & il = params_.initial_localization;
 
   // Enforce re-localizatio on the next iteration:
-  il.enabled = true;
   state_.initial_localization_done = false;
   // In this pose:
   il.fixed_initial_pose = p.mean.asTPose();
@@ -70,7 +69,6 @@ void LidarOdometry::relocalize_from_gnss()
   auto & il = params_.initial_localization;
 
   // Enforce re-localization on the next iteration:
-  il.enabled = true;
   state_.initial_localization_done = false;
   il.method = InitLocalization::FromStateEstimator;
 

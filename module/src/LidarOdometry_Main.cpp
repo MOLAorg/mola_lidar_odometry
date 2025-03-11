@@ -139,6 +139,8 @@ void LidarOdometry::reset()
 {
   ASSERTMSG_(!lastInitConfig_.empty(), "initialize() must be called first.");
 
+  auto lck = mrpt::lockHelper(state_mtx_);
+
   state_ = MethodState();
   initialize(lastInitConfig_);
 }

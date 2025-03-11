@@ -373,7 +373,6 @@ public:
     {
       InitialLocalizationOptions() = default;
 
-      bool enabled = false;
       InitLocalization method = InitLocalization::FixedPose;
 
       mrpt::math::TPose3D fixed_initial_pose;
