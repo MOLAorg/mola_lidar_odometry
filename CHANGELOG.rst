@@ -2,6 +2,21 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* FIX: Handle correctly the case of input scans with non-normal numbers
+* docs: format of ros2 launch argument
+* FIX: reset map to start again might lead to divergence; Add new 'reset_state' command via MOLA dynamic variables
+* Force requiring valid poses for IMU and GNSS inputs
+* Refactor implementation source into several smaller files
+* FIX: mola-lo didn't exit due to waiting ICP queue if fed faster than ICP processing
+* FIX: mola-lo-gui apps may show duplicated UI controls in particular circumstances
+* Drop frames warning message now tells the exact drop ratio
+* Initial localization method is now loadable from yaml or ros2 launch file
+* MOLA-LO no longer subscribes to wheels odometry. That is now delegated directly to state estimation modules.
+* Add new ROS2 launch argument: `forward_ros_tf_odom_to_mola`
+* Contributors: Jose Luis Blanco-Claraco
+
 0.7.0 (2025-02-22)
 ------------------
 * Implement new mola_kernel diagnostics API
