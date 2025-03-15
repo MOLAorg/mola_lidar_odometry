@@ -50,6 +50,14 @@
 #include <cmath>
 #include <memory>
 
+namespace
+{
+[[nodiscard]] bool isNormalPoint(const mrpt::math::TPoint3Df & pt)
+{
+  return std::isnormal(pt.x) && std::isnormal(pt.y) && std::isnormal(pt.z);
+}
+}  // namespace
+
 namespace mola
 {
 
@@ -176,10 +184,11 @@ void LidarOdometry::doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObserv
   if (pts->empty()) return;
 
   const auto bb = pts->boundingBox();
+
   double radius = std::max(bb.max.norm(), bb.min.norm());
 
-  // check for NaN: See: https://github.com/MOLAorg/mola_lidar_odometry/issues/10
-  if (radius != radius) {
+  // check for NaN, Infinities, etc.: See: https://github.com/MOLAorg/mola_lidar_odometry/issues/10
+  if (!std::isnormal(radius)) {
     MRPT_LOG_WARN_STREAM("NaN bounding box for sensor point cloud. Using default sensor range.");
     radius = params_.absolute_minimum_sensor_range;
   } else {
@@ -202,9 +211,11 @@ void LidarOdometry::doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t
 
   for (const auto & [layerName, layer] : m.layers) {
     auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layer);
-    if (!pts) continue;
+    if (!pts || pts->empty()) continue;
 
     const auto bb = pts->boundingBox();
+    if (!isNormalPoint(bb.min) || !isNormalPoint(bb.max)) continue;  // skip NaN, INF, etc.
+
     double radius = std::max(bb.max.norm(), bb.min.norm());
 
     mrpt::keep_max(radius, params_.absolute_minimum_sensor_range);
