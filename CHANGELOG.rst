@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.7.1 (2025-03-15)
+------------------
 * FIX: Handle correctly the case of input scans with non-normal numbers
 * docs: format of ros2 launch argument
 * FIX: reset map to start again might lead to divergence; Add new 'reset_state' command via MOLA dynamic variables
