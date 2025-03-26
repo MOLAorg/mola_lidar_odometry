@@ -237,7 +237,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
     // Define the current robot pose at the origin with minimal uncertainty
     // (cannot be zero).
     mrpt::poses::CPose3DPDFGaussian initPose;
-    initPose.mean = mrpt::poses::CPose3D::Identity();
+    initPose.mean = mrpt::poses::CPose3D(params_.initial_localization.fixed_initial_pose);
     initPose.cov.setDiagonal(1e-12);
 
     state_.navstate_fuse->fuse_pose(this_obs_tim, initPose, params_.publish_reference_frame);
