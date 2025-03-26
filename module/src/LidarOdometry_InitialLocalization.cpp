@@ -61,6 +61,9 @@ void LidarOdometry::handleInitialLocalization()
       state_.navstate_fuse->fuse_pose(t1, initPose, params_.publish_reference_frame);
       state_.navstate_fuse->fuse_pose(t2, initPose, params_.publish_reference_frame);
 
+      // also, keep it as the last pose for subsequent ICP runs:
+      state_.last_lidar_pose = initPose;
+
       MRPT_LOG_INFO_STREAM("Initial re-localization done with pose: " << initPose.mean);
 
       state_.initial_localization_done = true;
