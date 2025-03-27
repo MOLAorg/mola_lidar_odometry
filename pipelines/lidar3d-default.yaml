@@ -265,7 +265,7 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: 'raw'
       output_pointcloud_layer: 'decimated_for_map_raw'
-      voxel_filter_resolution: max(0.20, 0.55*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
+      voxel_filter_resolution: '${MOLA_MAP_CLOUD_DECIMATION|max(0.20, 0.55*1e-2*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
       minimum_input_points_to_filter: 2000  # don't decimate if smaller than this size
       decimate_method: DecimateMethod::FirstPoint
       #decimate_method: DecimateMethod::ClosestToAverage
@@ -292,7 +292,7 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: 'decimated_for_map_skewed'
       output_pointcloud_layer: 'decimated_for_icp_skewed'
-      voxel_filter_resolution: max(0.60, 1.6*1e-2*ESTIMATED_SENSOR_MAX_RANGE)  # [m]
+      voxel_filter_resolution: '${MOLA_ICP_CLOUD_DECIMATION|max(0.60, 1.6*1e-2*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
       minimum_input_points_to_filter: 2000  # don't decimate if smaller than this size
       decimate_method: DecimateMethod::FirstPoint
       #decimate_method: DecimateMethod::ClosestToAverage
