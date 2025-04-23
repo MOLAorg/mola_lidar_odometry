@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.7.2 (2025-04-23)
+------------------
 * better integration of clang-tidy, colcon_defaults, and clangd with vscode
 * Expose two more env vars: MOLA_MAP_CLOUD_DECIMATION, MOLA_ICP_CLOUD_DECIMATION
 * FIX: also initial pose for localmap
