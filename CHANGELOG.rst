@@ -2,6 +2,14 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* better integration of clang-tidy, colcon_defaults, and clangd with vscode
+* Expose two more env vars: MOLA_MAP_CLOUD_DECIMATION, MOLA_ICP_CLOUD_DECIMATION
+* FIX: also initial pose for localmap
+* BUGFIX: Initial twist was wrong for custom initial poses
+* Contributors: Jose Luis Blanco-Claraco
+
 0.7.1 (2025-03-15)
 ------------------
 * FIX: Handle correctly the case of input scans with non-normal numbers
