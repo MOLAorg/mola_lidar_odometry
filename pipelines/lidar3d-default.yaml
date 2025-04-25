@@ -92,7 +92,7 @@ params:
     show_ground_grid: true
     ground_grid_spacing: 5.0 # [m]
     #current_pose_corner_size: 1.5
-    local_map_point_size: 3
+    local_map_point_size: 2
     model:
       - file: ${MOLA_VEHICLE_MODEL_FILE|""} # Default: none
         tf.x: ${MOLA_VEHICLE_MODEL_X|0.0} # deg
@@ -219,6 +219,10 @@ localmap_generator:
           sigma_dist: 1.0    # [m]
           max_corr_distance: 2.0  #[m]
           decimation: 10
+        renderOpts:
+          color.A: 0.25 # [0,1] Use this alpha value for points, RGB from colormap
+          colormap: 'cmHOT'  # cmJET, cmHOT, cmGRAYSCALE
+          #point_size: 1.0  # superseded by visualization.local_map_point_size above
 
 # ---------------------------------------------------------------------------------
 # LIDAR observations are, first, loaded using a generator
