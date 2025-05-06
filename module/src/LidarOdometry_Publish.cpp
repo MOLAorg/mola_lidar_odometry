@@ -40,8 +40,6 @@ namespace mola
 
 void LidarOdometry::doPublishUpdatedLocalization(const mrpt::Clock::time_point & this_obs_tim)
 {
-  if (!anyUpdateMapSubscriber()) return;
-
   const ProfilerEntry tle(profiler_, "advertiseUpdatedLocalization");
 
   LocalizationUpdate lu;
