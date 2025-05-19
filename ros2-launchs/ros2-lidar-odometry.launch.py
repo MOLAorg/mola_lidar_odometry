@@ -117,10 +117,10 @@ def generate_launch_description():
     )
     state_estimator_env_var = SetEnvironmentVariable(
         name='MOLA_STATE_ESTIMATOR', value=PythonExpression(
-            ["'mola::state_estimation_simple::StateEstimationSmoother' if ",
+            ["'mola::state_estimation_smoother::StateEstimationSmoother' if ",
              LaunchConfiguration(
                  'use_state_estimator'),
-             " else 'mola::state_estimation_smoother::StateEstimationSimple'"
+             " else 'mola::state_estimation_simple::StateEstimationSimple'"
              ]))
     localization_publish_tf_source_env_var = SetEnvironmentVariable(
         name='MOLA_LOCALIZATION_PUBLISH_TF_SOURCE',
