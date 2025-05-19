@@ -5,12 +5,19 @@
 
 params:
   # Maximum time since last observation to consider the validity of the velocity model:
-  # (KITTI360 test_3 has some blackouts >=1.0 seconds while angular acceleration is high, so 
+  # (KITTI360 test_3 has some blackouts >=1.0 seconds while angular acceleration is high, so
   #  this threshold must be < 1.0 s for that dataset)
   max_time_to_use_velocity_model: ${MOLA_MAX_TIME_TO_USE_VELOCITY_MODEL|0.75} # [s]
 
   # Time to keep past observations in the filter
   sliding_window_length: 2.5 # [s]
+
+  # Used to publish timely pose updates:
+  vehicle_frame_name: "${MOLA_TF_BASE_LINK|base_link}"
+
+  # Used to publish timely pose updates. Typically, 'map' or 'odom', etc.
+  # See docs: https://docs.mola-slam.org/latest/mola_state_estimators.html
+  reference_frame_name: "${MOLA_TF_MAP|map}"
 
   # If the time between two keyframes is larger than this, a warning will be
   # emitted; but the algorithm will keep trying its best.
@@ -20,17 +27,17 @@ params:
   sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|10.0} # [rad/s²]
 
   sigma_integrator_position: 0.1 # [m]
-  sigma_integrator_orientation:  1.0 # [rad]
+  sigma_integrator_orientation: 1.0 # [rad]
 
   sigma_twist_from_consecutive_poses_linear: 1.0 # [m]
-  sigma_twist_from_consecutive_poses_angular: 1.0  # [rad/s]
+  sigma_twist_from_consecutive_poses_angular: 1.0 # [rad/s]
 
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
-  initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
+  initial_twist: ["${MOLA_INITIAL_VX|0.0}", 0.0, 0.0, 0.0, 0.0, 0.0]
   initial_twist_sigma_lin: 20.0 # [m/s]
-  initial_twist_sigma_ang: 3.0  # [rad/s]
+  initial_twist_sigma_ang: 3.0 # [rad/s]
 
-  robust_param: 3.0  # 0=no robust disabled
+  robust_param: 3.0 # 0=no robust disabled
   max_rmse: 2 # max inconsistencies to discard solution
 
   # If enabled, the estimator will enforce z, pitch, and roll to be always 0:
