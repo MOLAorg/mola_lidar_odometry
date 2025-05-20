@@ -70,6 +70,11 @@ def generate_launch_description():
     mola_lo_reference_frame_env_var = SetEnvironmentVariable(
         name='MOLA_LO_PUBLISH_REF_FRAME', value=LaunchConfiguration('mola_lo_reference_frame'))
     # ~~~~~~~~~~~~
+    mola_se_reference_frame_arg = DeclareLaunchArgument(
+        "mola_state_estimator_reference_frame", default_value="map", description="The /tf frame name to be used as reference for MOLA State Estimators to publish pose updates")
+    mola_tf_map_env_var = SetEnvironmentVariable(
+        name='MOLA_TF_MAP', value=LaunchConfiguration('mola_state_estimator_reference_frame'))
+    # ~~~~~~~~~~~~
     mola_lo_pipeline_arg = DeclareLaunchArgument(
         "mola_lo_pipeline", default_value="../pipelines/lidar3d-default.yaml", description="The LiDAR-Odometry pipeline configuration YAML file defining the LO system. Absolute path, or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'. Default is the 'lidar3d-default.yaml' system described in the IJRR 2025 paper.")
     mola_lo_pipeline_arg_env_var = SetEnvironmentVariable(
@@ -250,6 +255,8 @@ def generate_launch_description():
         state_estimator_config_yaml_env_var,
         localization_publish_odom_source_env_var,
         localization_publish_tf_source_env_var,
+        mola_se_reference_frame_arg,
+        mola_tf_map_env_var,
         use_rviz_arg,
         node_group
     ])

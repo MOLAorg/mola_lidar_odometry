@@ -135,6 +135,10 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
             A YAML file with settings for the state estimator. Absolute path or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'
             (default: PythonExpr(''../state-estimator-params/state-estimation-smoother.yaml' if ' + LaunchConfig('use_state_estimator') + ' else '../state-estimator-params/state-estimation-simple.yaml''))
 
+         'mola_state_estimator_reference_frame':
+            The /tf frame name to be used as reference for MOLA State Estimators to publish pose updates
+            (default: 'map')
+
          'use_rviz':
             Whether to launch RViz2 with default lidar-odometry.rviz configuration
             (default: 'True')
