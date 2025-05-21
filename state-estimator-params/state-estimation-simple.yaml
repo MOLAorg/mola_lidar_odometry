@@ -5,15 +5,20 @@
 
 params:
   # Maximum time since last observation to consider the validity of the velocity model:
-  # (KITTI360 test_3 has some blackouts >=1.0 seconds while angular acceleration is high, so 
+  # (KITTI360 test_3 has some blackouts >=1.0 seconds while angular acceleration is high, so
   #  this threshold must be < 1.0 s for that dataset)
   max_time_to_use_velocity_model: ${MOLA_MAX_TIME_TO_USE_VELOCITY_MODEL|0.75} # [s]
 
   sigma_random_walk_acceleration_linear: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC|1.0} # [m/s²]
   sigma_random_walk_acceleration_angular: ${MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC|10.0} # [rad/s²]
 
+  sigma_relative_pose_linear: 0.5 # [m]
+  sigma_relative_pose_angular: 0.1 # [rad]
+
+  sigma_imu_angular_velocity: 0.05 # [rad/s]
+
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
-  initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
+  initial_twist: ["${MOLA_INITIAL_VX|0.0}", 0.0, 0.0, 0.0, 0.0, 0.0]
 
   # If enabled, the estimator will enforce z, pitch, and roll to be always 0:
   enforce_planar_motion: ${MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION|false}

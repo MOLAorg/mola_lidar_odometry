@@ -54,12 +54,21 @@ void LidarOdometry::handleInitialLocalization()
       state_.navstate_fuse->reset();  // needed after a re-localization to forget the past
 
       // Fake an evolution to be able to have an initial velocity estimation:
+      // Use a tiny time step to let the filter remain with a large uncertainty about twist:
+      ASSERT_(state_.last_obs_timestamp.has_value());
       const auto t1 =
-        mrpt::Clock::fromDouble(mrpt::Clock::toDouble(*state_.last_obs_timestamp) - 0.2);
+        mrpt::Clock::fromDouble(mrpt::Clock::toDouble(*state_.last_obs_timestamp) - 2e-3);
       const auto t2 =
-        mrpt::Clock::fromDouble(mrpt::Clock::toDouble(*state_.last_obs_timestamp) - 0.1);
+        mrpt::Clock::fromDouble(mrpt::Clock::toDouble(*state_.last_obs_timestamp) - 1e-3);
       state_.navstate_fuse->fuse_pose(t1, initPose, params_.publish_reference_frame);
       state_.navstate_fuse->fuse_pose(t2, initPose, params_.publish_reference_frame);
+
+#if 0
+      // And now, fake a twist estimation with a large covariance to make sure the filter does not become overconfident on it starting with zero velocity:
+      auto twistCov = mrpt::math::CMatrixDouble66::Identity();
+      twistCov *= 1e3;
+      state_.navstate_fuse->fuse_twist(t2, mrpt::math::TTwist3D(), twistCov);
+#endif
 
       // also, keep it as the last pose for subsequent ICP runs:
       state_.last_lidar_pose = initPose;
