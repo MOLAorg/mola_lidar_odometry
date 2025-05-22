@@ -113,7 +113,7 @@ def generate_launch_description():
     initial_localization_method_arg = DeclareLaunchArgument(
         "initial_localization_method", default_value="InitLocalization::FixedPose", description="What method to use for initialization. See https://docs.mola-slam.org/latest/ros2api.html#initial-localization")
     initial_localization_method_env_var = SetEnvironmentVariable(
-        name='MOLA_INITIAL_LOCALIZATION_METHOD', value=LaunchConfiguration('initial_localization_method'))
+        name='MOLA_LO_INITIAL_LOCALIZATION_METHOD', value=LaunchConfiguration('initial_localization_method'))
     # ~~~~~~~~~~~~
     use_state_estimator_arg = DeclareLaunchArgument(
         "use_state_estimator",
