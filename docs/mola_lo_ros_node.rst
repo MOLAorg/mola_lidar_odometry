@@ -127,6 +127,10 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
             Whether to import an existing /tf 'odom'->'base_link' odometry into the MOLA subsystem.
             (default: 'False')
 
+         'initial_localization_method':
+            What method to use for initialization.  See https://docs.mola-slam.org/latest/ros2api.html#initial-localization
+            (default: 'InitLocalization::FixedPose')
+
          'use_state_estimator':
             If false, the basic state estimator 'mola::state_estimation_simple::StateEstimationSimple' will be used. If true, 'mola::state_estimation_smoother::StateEstimationSmoother' is used instead.
             (default: 'False')
