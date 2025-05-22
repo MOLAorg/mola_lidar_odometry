@@ -142,8 +142,9 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   if (cfg.has("observation_validity_checks"))
     params_.observation_validity_checks.initialize(cfg["observation_validity_checks"]);
 
-  if (c.has("initial_localization"))
+  if (c.has("initial_localization")) {
     params_.initial_localization.initialize(c["initial_localization"]);
+  }
 
   // Watch for legacy (mola_lidar_odometry version <0.5.0) organization:
   if (c.has("navstate_fuse_params")) {

@@ -242,7 +242,8 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
     // Update trajectory too:
     {
       auto lck = mrpt::lockHelper(state_trajectory_mtx_);
-      state_.estimated_trajectory.insert(this_obs_tim, state_.last_lidar_pose.mean);
+      state_.estimated_trajectory.insert(
+        this_obs_tim, params_.initial_localization.fixed_initial_pose);
     }
 
     // Define the current robot pose at the origin with minimal uncertainty

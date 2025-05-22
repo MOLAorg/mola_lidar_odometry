@@ -381,6 +381,12 @@ public:
       // Right after a re-localization, do not update the pose state estimator for a few iterations
       uint32_t additional_uncertainty_after_reloc_how_many_timesteps = 5;
 
+      /// Number of IMU (accelerometer) samples to accumulate while stationary to estimate Pitch & Roll:
+      uint32_t pitch_and_roll_from_imu_sample_count = 50;
+
+      /// Maximum time span (in seconds) for the "pitch_and_roll_from_imu_sample_count" IMU samples:
+      double pitch_and_roll_from_imu_max_age = 0.75;
+
       void initialize(const Yaml & c);
     };
 
@@ -524,6 +530,25 @@ private:
     uint32_t icp_iterations = 0;
   };
 
+  class ImuAverager
+  {
+  public:
+    ImuAverager(const std::size_t required_samples, const double max_samples_age)
+    : required_samples_(required_samples), max_samples_age_(max_samples_age)
+    {
+      ASSERT_(required_samples > 0);
+    }
+
+    void add(const std::shared_ptr<const mrpt::obs::CObservationIMU> & obs);
+    [[nodiscard]] bool isReady() const;
+    [[nodiscard]] std::tuple<double, double> getPitchRoll() const;
+
+  private:
+    std::size_t required_samples_;
+    double max_samples_age_;
+    std::map<double, std::shared_ptr<const mrpt::obs::CObservationIMU>> samples_;
+  };
+
   /** All variables that hold the algorithm state */
   struct MethodState
   {
@@ -551,6 +576,8 @@ private:
 
     // will be true after the first incoming LiDAR frame and re-localization is enabled and run
     bool initial_localization_done = false;
+
+    std::optional<ImuAverager> imu_averager;  //!< Used for pitch & roll initialization
 
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 

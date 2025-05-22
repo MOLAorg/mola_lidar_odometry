@@ -144,6 +144,8 @@ void LidarOdometry::Parameters::InitialLocalizationOptions::initialize(const Yam
   MCP_LOAD_OPT(cfg, method);
 
   YAML_LOAD_OPT(additional_uncertainty_after_reloc_how_many_timesteps, uint32_t);
+  YAML_LOAD_OPT(pitch_and_roll_from_imu_sample_count, uint32_t);
+  YAML_LOAD_OPT(pitch_and_roll_from_imu_max_age, double);
 
   if (cfg.has("fixed_initial_pose")) {
     ASSERT_(
