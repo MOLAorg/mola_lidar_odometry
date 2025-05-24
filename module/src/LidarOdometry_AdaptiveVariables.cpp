@@ -67,7 +67,9 @@ void LidarOdometry::updatePipelineDynamicVariables()
   // (e.g. de-skew methods)
   {
     mrpt::math::TTwist3D twistForIcpVars = {0, 0, 0, 0, 0, 0};
-    if (state_.last_motion_model_output) twistForIcpVars = state_.last_motion_model_output->twist;
+    if (state_.last_motion_model_output) {
+      twistForIcpVars = state_.last_motion_model_output->twist;
+    }
 
     this->updatePipelineTwistVariables(twistForIcpVars);
   }
@@ -89,8 +91,9 @@ void LidarOdometry::updatePipelineDynamicVariables()
   state_.parameter_source.updateVariable("ICP_ITERATION", 0);
 
   const auto ensureVarIsDefined = [&](const std::string & varName) {
-    if (!state_.parameter_source.getVariableValues().count(varName))
+    if (!state_.parameter_source.getVariableValues().count(varName)) {
       state_.parameter_source.updateVariable(varName, 0);
+    }
   };
 
   ensureVarIsDefined("icp_iterations");

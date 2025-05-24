@@ -245,6 +245,7 @@ public:
       bool show_console_messages = true;
       bool camera_follows_vehicle = true;
       bool camera_rotates_with_vehicle = false;
+      bool camera_orthographic = false;
 
       /** If not empty, an optional 3D model (.DAE, etc) to load for
              * visualizing the robot/vehicle pose */

@@ -61,7 +61,7 @@ void LidarOdometry::handleInitialLocalization()
       // ------------------------------
     case mola::InitLocalization::FixedPose: {
       mrpt::poses::CPose3DPDFGaussian initPose;
-      initPose.mean = mrpt::poses::CPose3D();
+      initPose.mean = mrpt::poses::CPose3D(il.fixed_initial_pose);
       if (!il.initial_pose_cov) {
         initPose.cov.setDiagonal(1e-12);
       } else {
@@ -102,12 +102,16 @@ void LidarOdometry::handleInitialLocalization()
         const auto [pitch, roll] = state_.imu_averager->getPitchRoll();
 
         // Set as the initial pose:
-        params_.initial_localization.fixed_initial_pose =
-          mrpt::math::TPose3D(0, 0, 0, 0, pitch, roll);
+        il.fixed_initial_pose = mrpt::math::TPose3D(0, 0, 0, 0, pitch, roll);
 
         MRPT_LOG_INFO_STREAM(
           "Initial re-localization done from IMU pitch/roll with pose: "
-          << params_.initial_localization.fixed_initial_pose.asString());
+          << il.fixed_initial_pose.asString());
+
+        mrpt::poses::CPose3DPDFGaussian initPose;
+        initPose.mean = mrpt::poses::CPose3D(il.fixed_initial_pose);
+        initPose.cov.setDiagonal(1e-12);
+        lambdaInitFromPose(initPose);
 
         state_.local_map->clear();
         ASSERT_(state_.local_map->empty());
@@ -178,9 +182,9 @@ std::tuple<double, double> LidarOdometry::ImuAverager::getPitchRoll() const
   // Compute pitch & roll from the XYZ acceleration vector:
   const auto up_vector = avr_accel.unitarize();
 
-  // std::cout << "[getPitchRoll] down_vector: " << up_vector << std::endl;
-  const double pitch = std::asin(up_vector.x);
-  const double roll = -std::asin(up_vector.y);
+  std::cout << "[getPitchRoll] down_vector: " << up_vector << std::endl;
+  const double pitch = -std::asin(up_vector.x);
+  const double roll = std::asin(up_vector.x);
   return {pitch, roll};
 }
 

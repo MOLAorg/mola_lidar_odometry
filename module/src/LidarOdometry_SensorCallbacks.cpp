@@ -231,7 +231,8 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
 
   const auto accel_base_link = accel_sensor.rotated(imu->sensorPose.asTPose());
 
-  MRPT_TODO("Continue");
+  // TODO(jlbc): Continue with scan de-skewing using IMU data
+  (void)accel_base_link;
 }
 
 void LidarOdometry::onGPS(const CObservation::Ptr & o)

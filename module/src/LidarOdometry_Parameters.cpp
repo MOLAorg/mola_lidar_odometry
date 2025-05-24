@@ -94,6 +94,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(gui_subwindow_starts_hidden, bool);
   YAML_LOAD_OPT(camera_follows_vehicle, bool);
   YAML_LOAD_OPT(camera_rotates_with_vehicle, bool);
+  YAML_LOAD_OPT(camera_orthographic, bool);
 }
 
 void LidarOdometry::Parameters::SimpleMapOptions::initialize(const Yaml & cfg, Parameters & parent)

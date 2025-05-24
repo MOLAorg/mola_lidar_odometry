@@ -171,6 +171,16 @@ void LidarOdometry::internalBuildGUI()
   }
 
   // tab 3: view
+  auto * cbOrthoCam = tab3->add<nanogui::CheckBox>("Orthographic camera");
+  cbOrthoCam->setChecked(params_.visualization.camera_orthographic);
+  cbOrthoCam->setCallback([&](bool checked) {
+    this->enqueue_request([this, checked]() {
+      params_.visualization.camera_orthographic = checked;
+      // TODO(jlbc): Add generic viewport manipulation API:
+      // visualizer_->update_();
+    });
+  });
+
   auto * cbShowTraj = tab3->add<nanogui::CheckBox>("Show trajectory");
   cbShowTraj->setChecked(params_.visualization.show_trajectory);
   cbShowTraj->setCallback([&](bool checked) {
@@ -211,9 +221,13 @@ void LidarOdometry::internalBuildGUI()
       const mrpt::Clock::time_point timestamp) {
       using namespace std::string_literals;
 
-      if (!params_.visualization.show_console_messages) return;
+      if (!params_.visualization.show_console_messages) {
+        return;
+      }
 
-      if (level < this->getMinLoggingLevel()) return;
+      if (level < this->getMinLoggingLevel()) {
+        return;
+      }
 
       visualizer_->output_console_message(
         "["s + mrpt::system::timeLocalToString(timestamp) + "|"s + mrpt::typemeta::enum2str(level) +
@@ -322,10 +336,11 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
       const auto t = it->second.translation();
 
-      if (state_.glEstimatedPath->empty())
+      if (state_.glEstimatedPath->empty()) {
         state_.glEstimatedPath->appendLine(t, t);
-      else
+      } else {
         state_.glEstimatedPath->appendLineStrip(t);
+      }
     }
     state_.glPathGrp->clear();
     state_.glPathGrp->insert(mrpt::opengl::CSetOfLines::Create(*state_.glEstimatedPath));
@@ -348,7 +363,9 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
       const double yaw = state_.last_lidar_pose.mean.yaw();
       double yawIncr = 0;
-      if (last_yaw) yawIncr = mrpt::math::wrapToPi(yaw - *last_yaw);
+      if (last_yaw) {
+        yawIncr = mrpt::math::wrapToPi(yaw - *last_yaw);
+      }
       last_yaw = yaw;
 
       visualizer_->update_viewport_camera_azimuth(yawIncr, false /*incremental*/);
