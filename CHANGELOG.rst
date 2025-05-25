@@ -2,6 +2,23 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* feature: new threshold to discard state estimation as invalid if uncertainty is too high
+* Fixed unit tests in CI
+* Prepare GUI for ortho camera option
+* progress implementing init pitch/roll from IMU
+* pipelines YAML files reformated with RedHat YAML formatter
+* Update env var name to explicitly mention LO: MOLA_LO_INITIAL_LOCALIZATION_METHOD
+* docs: on initial localization methods
+* ROS2 launch: Add new `mola_state_estimator_reference_frame` argument.
+  It should be used together with `mola_lo_reference_frame` to use an alternative reference map TF frame than the default `map`.
+* Fix wrong namespace in class name (it worked anyway because of a fall-back mechanism using unqualified names)
+* Expose env vars to change the reference frame_id for smoother (MOLA_TF_MAP)
+* fix: potential missing publication of updated poses if there is no map subscriber
+* lidar 3d pipeline: add rendering options for local map
+* Contributors: Jose Luis Blanco-Claraco
+
 0.7.2 (2025-04-23)
 ------------------
 * better integration of clang-tidy, colcon_defaults, and clangd with vscode
