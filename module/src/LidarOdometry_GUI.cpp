@@ -176,8 +176,7 @@ void LidarOdometry::internalBuildGUI()
   cbOrthoCam->setCallback([&](bool checked) {
     this->enqueue_request([this, checked]() {
       params_.visualization.camera_orthographic = checked;
-      // TODO(jlbc): Add generic viewport manipulation API:
-      // visualizer_->update_();
+      visualizer_->update_viewport_camera_orthographic(checked);
     });
   });
 
