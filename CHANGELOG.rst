@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.7.3 (2025-05-25)
+------------------
 * feature: new threshold to discard state estimation as invalid if uncertainty is too high
 * Fixed unit tests in CI
 * Prepare GUI for ortho camera option
