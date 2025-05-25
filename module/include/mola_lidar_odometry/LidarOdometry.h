@@ -412,6 +412,9 @@ public:
 
     uint32_t gnss_queue_max_size = 100;
 
+    ///  Minimum inverse covariance in (X,Y,Z) for a valid motion model
+    double min_motion_model_xyz_cov_inv = 1.0;
+
     /** When publishing pose updates, the reference frame for both, estimated robot poses, and the local map.*/
     std::string publish_reference_frame = "odom";
 

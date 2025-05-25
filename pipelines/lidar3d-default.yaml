@@ -111,6 +111,9 @@ params:
   # until active is set to true (e.g. via the GUI).
   start_active: "${MOLA_START_ACTIVE|true}"
 
+  # [m^-2] Minimum motion model covariance (in X,Y,Z) to consider a state estimation as valid as prior for ICP.
+  min_motion_model_xyz_cov_inv: 1.0
+
   # Generate CSV with the evolution of internal variables:
   debug_traces:
     save_to_file: "${MOLA_SAVE_DEBUG_TRACES|false}"

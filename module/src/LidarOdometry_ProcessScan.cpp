@@ -226,7 +226,22 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
   state_.last_motion_model_output =
     state_.navstate_fuse->estimated_navstate(this_obs_tim, params_.publish_reference_frame);
 
-  const bool hasMotionModel = state_.last_motion_model_output.has_value();
+  bool hasMotionModel = state_.last_motion_model_output.has_value();
+
+  // don't count as a valid motion model if its uncertainty is too large:
+  if (hasMotionModel) {
+    const auto & cov_inv = state_.last_motion_model_output->pose.cov_inv;
+
+    hasMotionModel = cov_inv(0, 0) >= params_.min_motion_model_xyz_cov_inv &&
+                     cov_inv(1, 1) >= params_.min_motion_model_xyz_cov_inv &&
+                     cov_inv(2, 2) >= params_.min_motion_model_xyz_cov_inv;
+
+    if (!hasMotionModel) {
+      MRPT_LOG_DEBUG_STREAM(
+        "Discarding motion model at due to large uncertainty: pose_inv_cov=\n"
+        << state_.last_motion_model_output->pose.cov_inv.asString());
+    }
+  }
 
   tleMotion.stop();
 
@@ -295,7 +310,8 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
         "Est.twist=" << (hasMotionModel ? state_.last_motion_model_output->twist.asString()
                                         : "(none)"s)
                      << " dt=" << dt << " s. "
-                     << " Est. pose cov_inv:\n"
+                     << " Est. pose: " << state_.last_motion_model_output->pose.mean
+                     << "\nEst. pose cov_inv:\n"
                      << state_.last_motion_model_output->pose.cov_inv.asString());
     } else {
       // Use the last pose without velocity motion model:
