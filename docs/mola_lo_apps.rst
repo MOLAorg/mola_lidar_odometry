@@ -240,8 +240,8 @@ Environment variables specific for ``mola-lo-gui-rosbag2``:
 
 - ``MOLA_DATASET_START_PAUSED`` (Default: false): Start with replay paused. Then can be resumed from the GUI.
 
-Also, see :ref:`variables to control sensor inputs <mola_lo_ros_mola-cli-env-vars>`.
-
+Also, see :ref:`variables to control sensor inputs <mola_lo_ros_mola-cli-env-vars>`, including
+manually-provided sensor poses for the LiDAR, IMU, or GNNS sensors.
 
 |
 

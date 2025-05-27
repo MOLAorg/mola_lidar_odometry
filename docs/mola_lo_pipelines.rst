@@ -171,10 +171,17 @@ Unless said otherwise, all variables are valid for all the pipelines described a
 Sensor inputs: LiDAR
 ^^^^^^^^^^^^^^^^^^^^^
 
+.. dropdown:: Overriding the LiDAR sensor pose
+   :icon: checklist
+
+   To manually override the sensor pose on the vehicle/robot, see also :ref:`these environment variables <mola_lo_ros_mola-cli-env-vars>`,
+   or the corresponding :ref:`ROS2 launch arguments <mola_lo_ros_launch_arguments>`.
+
+
 - ``MOLA_LIDAR_NAME`` (Default: ``['lidar', '/ouster/points']``): A **sensor label** (maybe including a regular expression) of what
   observations are to be treated as input LiDAR point clouds. For most dataset sources, the default ``lidar`` is enough.
   For ROS bags or live ROS 2 as sources, the default behavior is assigning **sensor labels** exactly the same than 
-  incoming **ROS topic names**, but in principle both are different things.
+  incoming **ROS topic names**, so **set this to your ROS 2 topic name for the LiDAR**, but in principle both are different things.
   Read carefully the contents of the `mola-cli launch files <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_
   and the comments therein to understand the differences.
 
@@ -190,19 +197,43 @@ Sensor inputs: LiDAR
 - ``MOLA_MINIMUM_RANGE_FILTER`` (Default: 3% of max sensor range). Minimum range for 3D points. This removes points from 
   the robot/vehicle itself.
 
-Sensor inputs: Wheels odometry
+Sensor inputs: IMU (optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. dropdown:: Overriding the IMU sensor pose
+   :icon: checklist
+
+   To manually override the sensor pose on the vehicle/robot, see also :ref:`these environment variables <mola_lo_ros_mola-cli-env-vars>`,
+   or the corresponding :ref:`ROS2 launch arguments <mola_lo_ros_launch_arguments>`.
+
+
+- ``MOLA_IMU_NAME`` (Default: ``imu``): **Sensor label** (or regex) of the observations with IMU data, if it exists.
+  This is used to estimate the vehicle's pose and velocity, and to deskew point clouds.
+  For most dataset sources, the default ``imu`` is enough.
+  For ROS bags or live ROS 2 as sources, the default behavior is assigning **sensor labels** exactly the same than 
+  incoming **ROS topic names**, so **set this to your ROS 2 topic name for the IMU**, but in principle both are different things.
+  Read carefully the contents of the `mola-cli launch files <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_
+  and the comments therein to understand the differences.
+
+
+Sensor inputs: Wheels odometry (optional)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - ``MOLA_ODOMETRY_NAME`` (Default: ``odometry``): **Sensor label** (or regex) of the observations
   with wheels odometry, if it exists.
 
-Sensor inputs: GPS (GNSS)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Sensor inputs: GPS (GNSS) (optional)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. dropdown:: Overriding the GNSS/GPS sensor pose
+   :icon: checklist
+
+   To manually override the sensor pose on the vehicle/robot, see also :ref:`these environment variables <mola_lo_ros_mola-cli-env-vars>`,
+   or the corresponding :ref:`ROS2 launch arguments <mola_lo_ros_launch_arguments>`.
+
 
 - ``MOLA_GNSS_TOPIC`` (Default: ``/gps``): For ROS 2 live node or rosbags, the **topic name** to be treated as
   GNSS data. Used only for storage in simple-maps for post-processing (geo-referencing, etc.).
-
-MOLA_USE_FIXED_IMU_POSE
 
 
 Scan de-skew options
