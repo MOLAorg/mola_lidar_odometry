@@ -31,6 +31,9 @@
 // This module:
 #include <mola_lidar_odometry/LidarOdometry.h>
 
+// MOLA:
+#include <mola_kernel/version.h>
+
 // MRPT:
 #include <mrpt/gui/CDisplayWindowGUI.h>
 #include <mrpt/opengl/CAssimpModel.h>
@@ -176,7 +179,9 @@ void LidarOdometry::internalBuildGUI()
   cbOrthoCam->setCallback([&](bool checked) {
     this->enqueue_request([this, checked]() {
       params_.visualization.camera_orthographic = checked;
+#if MOLA_VERSION_CHECK(1, 8, 0)
       visualizer_->update_viewport_camera_orthographic(checked);
+#endif
     });
   });
 
