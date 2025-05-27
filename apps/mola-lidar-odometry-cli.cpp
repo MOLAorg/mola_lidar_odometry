@@ -52,6 +52,8 @@
 #include <mrpt/system/os.h>
 #include <mrpt/system/progress.h>
 
+#include <memory>
+
 #if defined(HAVE_MOLA_SE_SIMPLE)
 #include <mola_state_estimation_simple/StateEstimationSimple.h>
 #endif
@@ -342,8 +344,9 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
 
   o->initialize(cfg);
 
-  if (cli.argKittiAngleDeg.isSet())
+  if (cli.argKittiAngleDeg.isSet()) {
     o->VERTICAL_ANGLE_OFFSET = mrpt::DEG2RAD(cli.argKittiAngleDeg.getValue());
+  }
 
   return o;
 }
@@ -410,7 +413,7 @@ void mola_signal_handler(int s)
 
 void mola_install_signal_handler()
 {
-  struct sigaction sigIntHandler;
+  struct sigaction sigIntHandler{};
 
   sigIntHandler.sa_handler = &mola_signal_handler;
   sigemptyset(&sigIntHandler.sa_mask);
@@ -444,14 +447,24 @@ int main_odometry(Cli & cli)
 
 #if defined(HAVE_MOLA_SE_SIMPLE)
   // Default?
-  if (!stateEstimator)
+  if (!stateEstimator) {
     stateEstimator = mola::state_estimation_simple::StateEstimationSimple::Create();
+  }
 #endif
 
   ASSERTMSG_(
     stateEstimator,
     "Either provide an explicit --state-estimator flag or build against "
     "mola::state_estimation_simple");
+
+  // Cast to the interface that accepts raw sensor data:
+  auto stateEstimatorAsRawConsumer =
+    std::dynamic_pointer_cast<mola::RawDataConsumer>(stateEstimator);
+  if (!stateEstimatorAsRawConsumer) {
+    std::cerr << "[Warning] The state estimator '" << stateEstimator->GetRuntimeClass()->className
+              << "' does not implement the mola::RawDataConsumer interface, so it will not receive "
+                 "raw sensor data.\n";
+  }
 
   if (cli.arg_stateEstimatorParams.isSet()) {
     const auto seParamsFile = cli.arg_stateEstimatorParams.getValue();
@@ -493,7 +506,9 @@ int main_odometry(Cli & cli)
       [[maybe_unused]] std::string_view msg, const mrpt::system::VerbosityLevel level,
       [[maybe_unused]] std::string_view loggerName,
       [[maybe_unused]] const mrpt::Clock::time_point timestamp) {
-      if (level < liodom->getMinLoggingLevel()) return;
+      if (level < liodom->getMinLoggingLevel()) {
+        return;
+      }
       mark_emitted_log();
     });
 
@@ -504,8 +519,7 @@ int main_odometry(Cli & cli)
   // Enable time profiling: // can be enabled via YAML options
   // liodom->profiler_.enable();
 
-  // liodom->initialize_common(cfg); // can be skipped for a non-MOLA
-  // system
+  // liodom->initialize_common(cfg); // can be skipped for a non-MOLA system
   liodom->initialize(cfg);
 
   if (cli.arg_outSimpleMap.isSet()) {
@@ -515,8 +529,9 @@ int main_odometry(Cli & cli)
     liodom->params_.simplemap.save_final_map_to_file.clear();
   }
 
-  if (cli.arg_lidarLabel.isSet())
+  if (cli.arg_lidarLabel.isSet()) {
     liodom->params_.lidar_sensor_labels.assign(1, std::regex(cli.arg_lidarLabel.getValue()));
+  }
 
   // Select dataset input:
   std::shared_ptr<mola::OfflineDatasetSource> dataset;
@@ -560,7 +575,9 @@ int main_odometry(Cli & cli)
 
   // Optional output twist:
   std::optional<mrpt::poses::CPose3DInterpolator> outTwist;
-  if (cli.arg_outTwist.isSet()) outTwist.emplace();
+  if (cli.arg_outTwist.isSet()) {
+    outTwist.emplace();
+  }
 
   // Save GT, if available:
   if (cli.arg_outPath.isSet() && dataset->hasGroundTruthTrajectory()) {
@@ -581,9 +598,13 @@ int main_odometry(Cli & cli)
   size_t lastDatasetEntry = dataset->datasetSize();
   size_t firstDatasetEntry = 0;
 
-  if (cli.arg_skipFirstN.isSet()) firstDatasetEntry = cli.arg_skipFirstN.getValue();
+  if (cli.arg_skipFirstN.isSet()) {
+    firstDatasetEntry = cli.arg_skipFirstN.getValue();
+  }
 
-  if (cli.arg_firstN.isSet()) lastDatasetEntry = firstDatasetEntry + cli.arg_firstN.getValue();
+  if (cli.arg_firstN.isSet()) {
+    lastDatasetEntry = firstDatasetEntry + cli.arg_firstN.getValue();
+  }
 
   mrpt::keep_min(lastDatasetEntry, dataset->datasetSize());
 
@@ -605,16 +626,33 @@ int main_odometry(Cli & cli)
 
     mrpt::obs::CObservation::Ptr obs;
     obs = sf->getObservationByClass<CObservationRotatingScan>();
-    if (!obs) obs = sf->getObservationByClass<CObservationPointCloud>();
-    if (!obs) obs = sf->getObservationByClass<CObservation3DRangeScan>();
-    if (!obs) obs = sf->getObservationByClass<CObservation2DRangeScan>();
-    if (!obs) obs = sf->getObservationByClass<CObservationVelodyneScan>();
-    if (!obs) obs = sf->getObservationByClass<CObservationGPS>();
-    if (!obs) obs = sf->getObservationByClass<CObservationOdometry>();
+    if (!obs) {
+      obs = sf->getObservationByClass<CObservationPointCloud>();
+    }
+    if (!obs) {
+      obs = sf->getObservationByClass<CObservation3DRangeScan>();
+    }
+    if (!obs) {
+      obs = sf->getObservationByClass<CObservation2DRangeScan>();
+    }
+    if (!obs) {
+      obs = sf->getObservationByClass<CObservationVelodyneScan>();
+    }
+    if (!obs) {
+      obs = sf->getObservationByClass<CObservationGPS>();
+    }
+    if (!obs) {
+      obs = sf->getObservationByClass<CObservationOdometry>();
+    }
+    if (!obs) {
+      continue;
+    }
 
-    if (!obs) continue;
+    // Send it to the odometry pipeline & the state estimator:
+    if (stateEstimatorAsRawConsumer) {
+      stateEstimatorAsRawConsumer->onNewObservation(obs);
+    }
 
-    // Send it to the odometry pipeline:
     liodom->onNewObservation(obs);
 
     // Show stats:
@@ -629,7 +667,9 @@ int main_odometry(Cli & cli)
       const double totalTime = ETA + (tNow - tStart);
 
       // VT100 codes: cursor up and clear line
-      if (!has_emitted_log()) std::cout << "\033[A\33[2KT\r";
+      if (!has_emitted_log()) {
+        std::cout << "\033[A\33[2KT\r";
+      }
       unmark_emitted_log();
 
       std::cout << mrpt::system::progress(pc, 30)
