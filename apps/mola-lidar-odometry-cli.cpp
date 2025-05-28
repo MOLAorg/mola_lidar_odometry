@@ -413,7 +413,9 @@ void mola_signal_handler(int s)
 
 void mola_install_signal_handler()
 {
-  struct sigaction sigIntHandler{};
+  struct sigaction sigIntHandler
+  {
+  };
 
   sigIntHandler.sa_handler = &mola_signal_handler;
   sigemptyset(&sigIntHandler.sa_mask);
