@@ -40,8 +40,17 @@ In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLA
    All MOLA-LO :ref:`GUI applications <mola_lo_apps>` defaults to using the :ref:`3D LiDAR pipeline <mola_3d_default_pipeline>`
    defined below. To use the alternative 2D pipeline or any other custom pipeline, please set the corresponding environment
    variable before invoking the :ref:`GUI application <mola_lo_apps>` (or derive your own script by copying and modifying the provided ones).
+   For example:
 
-   If you use the `CLI interface <mola_lidar_odometry_cli>`_, the pipeline file to use needs to be always explicitly specified, there is none by default.
+   .. code-block:: bash
+
+      # Example using the 3D-NDT alternative pipeline:
+      PIPELINE_YAML=$(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-ndt.yaml \
+      MOLA_LOCAL_VOXELMAP_RESOLUTION=5.0 \
+      mola-lo-gui-rosbag  # [...]
+
+   If you use the `CLI interface <mola_lidar_odometry_cli>`_ instead, the pipeline file to use needs to be always explicitly
+   specified, there is none by default.
 
 
 |
