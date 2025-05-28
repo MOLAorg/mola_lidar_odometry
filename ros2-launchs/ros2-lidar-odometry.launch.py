@@ -152,6 +152,13 @@ def generate_launch_description():
     state_estimator_config_yaml_env_var = SetEnvironmentVariable(
         name='MOLA_STATE_ESTIMATOR_YAML', value=LaunchConfiguration('state_estimator_config_yaml'))
     # ~~~~~~~~~~~~
+    lidar_scan_validity_minimum_point_count_arg = DeclareLaunchArgument(
+        "lidar_scan_validity_minimum_point_count", default_value="100", description="Minimum number of points in each LiDAR raw scan for it to be considered valid; otherwise, it is ignored.")
+    lidar_scan_validity_minimum_point_env_var = SetEnvironmentVariable(
+        name='MOLA_OBS_VALIDITY_MIN_POINTS', value=LaunchConfiguration('lidar_scan_validity_minimum_point_count'))
+    lidar_scan_validity_enable_env_var = SetEnvironmentVariable(
+        name='MOLA_ENABLE_OBS_VALIDITY_FILTER', value='True')
+    # ~~~~~~~~~~~~
 
     # Namespace (Based on Nav2's bring-up launch file!)
     # ---------------------------------------------------
@@ -257,6 +264,9 @@ def generate_launch_description():
         localization_publish_tf_source_env_var,
         mola_se_reference_frame_arg,
         mola_tf_map_env_var,
+        lidar_scan_validity_minimum_point_count_arg,
+        lidar_scan_validity_minimum_point_env_var,
+        lidar_scan_validity_enable_env_var,
         use_rviz_arg,
         node_group
     ])

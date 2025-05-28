@@ -279,7 +279,9 @@ void LidarOdometry::onGPSImpl(const CObservation::Ptr & o)
 
 bool LidarOdometry::doCheckIsValidObservation(const mp2p_icp::metric_map_t & m)
 {
-  if (!params_.observation_validity_checks.enabled) return true;  // it's valid
+  if (!params_.observation_validity_checks.enabled) {
+    return true;  // it's valid
+  }
 
   auto it = m.layers.find(params_.observation_validity_checks.check_layer_name);
   ASSERTMSG_(
