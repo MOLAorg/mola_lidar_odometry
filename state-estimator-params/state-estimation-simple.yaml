@@ -22,3 +22,7 @@ params:
 
   # If enabled, the estimator will enforce z, pitch, and roll to be always 0:
   enforce_planar_motion: ${MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION|false}
+
+  # regex for IMU sensor labels (ROS topics) to accept as IMU readings:
+  do_process_imu_labels: ${MOLA_NAVSTATE_IMU_SENSOR_NAME|.*}
+
