@@ -35,6 +35,18 @@
 #include <mrpt/io/CMemoryStream.h>
 #include <mrpt/serialization/CArchive.h>
 
+// SFINAE to detect for mp2p_icp map metadata:
+namespace
+{
+// clang-format off
+template <typename T, typename = void> struct has_metadata_field : std::false_type {};
+template <typename T> struct has_metadata_field<T, std::void_t<decltype(T::metadata)>> : std::true_type {};
+
+template <typename T, typename = void> struct has_map_metadata_field : std::false_type {};
+template <typename T> struct has_map_metadata_field<T, std::void_t<decltype(T::map_metadata)>> : std::true_type {};
+// clang-format on
+}  // namespace
+
 namespace mola
 {
 
@@ -63,16 +75,21 @@ void LidarOdometry::doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs
   // Publish geo-referenced data for the map, if applicable.
   publishMetricMapGeoreferencingData();
 
-  if (!state_.local_map_needs_publish) return;
+  if (!state_.local_map_needs_publish) {
+    return;
+  }
 
   // Don't publish if nobody is listening, OR, if it is still
   // pending to subscribe to us:
-  if (!anyUpdateMapSubscriber()) return;
+  if (!anyUpdateMapSubscriber()) {
+    return;
+  }
 
   if (
     state_.localmap_advertise_updates_counter++ <
-    params_.local_map_updates.publish_map_updates_every_n)
+    params_.local_map_updates.publish_map_updates_every_n) {
     return;
+  }
 
   state_.local_map_needs_publish = false;
 
@@ -128,20 +145,45 @@ void LidarOdometry::doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs
 
     MRPT_LOG_DEBUG_STREAM("Published map layer: '" << layerName << "'");
   }
+
+  // And publish the map metadata, if existing:
+  // (We need mp2p_icp>=1.7.0 for this field to exist)
+  if constexpr (
+    has_metadata_field<mp2p_icp::metric_map_t>::value && has_map_metadata_field<MapUpdate>::value) {
+    std::stringstream ss;
+    state_.local_map->metadata.printAsYAML(
+      ss, mrpt::containers::YamlEmitOptions{.emitHeader = false});
+    mu.map_name = "metadata";
+    mu.map_metadata = ss.str();
+    advertiseUpdatedMap(mu);
+  } else {
+    MRPT_LOG_DEBUG(
+      "Not publishing map metadata, since mp2p_icp::metric_map_t::metadata or "
+      "MapUpdate::map_metadata are not available at build time.");
+  }
 }
 
 void LidarOdometry::publishMetricMapGeoreferencingData()
 {
-  if (!state_.local_map) return;
+  if (!state_.local_map) {
+    return;
+  }
 
-  if (!state_.local_map->georeferencing.has_value()) return;  // no geo-ref data
+  if (!state_.local_map->georeferencing.has_value()) {
+    // no geo-ref data
+    return;
+  }
   const auto & g = state_.local_map->georeferencing.value();
 
-  if (!state_.local_map_georef_needs_publish) return;
+  if (!state_.local_map_georef_needs_publish) {
+    return;
+  }
 
   // Don't publish if nobody is listening, OR, if it is still
   // pending to subscribe to us:
-  if (!anyUpdateMapSubscriber()) return;
+  if (!anyUpdateMapSubscriber()) {
+    return;
+  }
 
   state_.local_map_georef_needs_publish = false;
 
@@ -171,7 +213,6 @@ void LidarOdometry::publishMetricMapGeoreferencingData()
 #else
   MRPT_LOG_WARN(
     "Not able to publish georeferencing map metadata due to too old mola_kernel version (!)");
-
 #endif
 }
 
