@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.8.0 (2025-06-06)
+------------------
 * Publish mp2p_icp metric map metadata, if existing in loaded maps.
 * state estimation config yaml file: expose IMU sensor name env var
 * Update mola_lo_pipelines.rst: explicitly show an example of using the NDT pipeline
