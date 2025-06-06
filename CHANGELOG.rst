@@ -2,6 +2,19 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Publish mp2p_icp metric map metadata, if existing in loaded maps.
+* state estimation config yaml file: expose IMU sensor name env var
+* Update mola_lo_pipelines.rst: explicitly show an example of using the NDT pipeline
+* ros2 launch: add new argument to control the scan validity filter based on minimum point count (now, enabled by default)
+* Update broken link to ROS Index
+* mola-lidar-odometry-cli: now also forward raw sensor data to state estimator
+* Fix build against mola <1.8.0
+* Docs: better explain existing variables to override sensor poses
+* gui option: implement show as orthographic camera
+* Contributors: Jose Luis Blanco-Claraco
+
 0.7.3 (2025-05-25)
 ------------------
 * feature: new threshold to discard state estimation as invalid if uncertainty is too high
