@@ -155,6 +155,7 @@ void LidarOdometry::doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs
       ss, mrpt::containers::YamlEmitOptions{.emitHeader = false});
     mu.map_name = "metadata";
     mu.map_metadata = ss.str();
+    mu.map.reset();  // no map, just metadata
     advertiseUpdatedMap(mu);
   } else {
     MRPT_LOG_DEBUG(
