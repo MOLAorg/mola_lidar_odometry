@@ -10,7 +10,7 @@ modules:
   # =====================
   - name: viz
     type: mola::MolaViz
-    verbosity_level: '${MOLA_VERBOSITY_MOLA_VIZ|INFO}'
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
     params: ~ # none
 
   # =====================
@@ -18,29 +18,30 @@ modules:
   # =====================
   - name: lidar_odom
     type: mola::LidarOdometry
-    verbosity_level: '${MOLA_VERBOSITY_MOLA_LO|INFO}'
-    raw_data_source: 'dataset_input'
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_LO|INFO}"
+    raw_data_source: "dataset_input"
     # This includes here a whole block "params: (...)"
     # with the LIDAR-Odometry pipeline configuration:
-    params: '${MOLA_ODOMETRY_PIPELINE_YAML|../pipelines/lidar3d-default.yaml}'
+    params: "${MOLA_ODOMETRY_PIPELINE_YAML|../pipelines/lidar3d-default.yaml}"
 
   # =====================
   # State Estimation
   # =====================
   - name: state_estimation
-    type: '${MOLA_STATE_ESTIMATOR|mola::state_estimation_simple::StateEstimationSimple}'
-    verbosity_level: '${MOLA_VERBOSITY_MOLA_STATE_ESTIMATOR|INFO}'
-    raw_data_source: 'dataset_input'
+    type: "${MOLA_STATE_ESTIMATOR|mola::state_estimation_simple::StateEstimationSimple}"
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_STATE_ESTIMATOR|INFO}"
+    raw_data_source: "dataset_input"
 
     # This includes here a whole block "params: (...)":
-    params: '${MOLA_STATE_ESTIMATOR_YAML|../state-estimator-params/state-estimation-simple.yaml}'
-
+    params: "${MOLA_STATE_ESTIMATOR_YAML|../state-estimator-params/state-estimation-simple.yaml}"
 
   # =========================
   # Offline dataset source
   # =========================
   - type: mola::Rosbag2Dataset
     name: dataset_input
+    export_to_rawlog: ${MOLA_ROS2BAG_EXPORT_TO_RAWLOG_FILE|''}
+
     # In Rosbag2Dataset, this execution rate (Hz) determines the
     # maximum rate of publishing topics from the bag file.
     # If a message in the bag has an actually rate higher than this, their
@@ -52,10 +53,10 @@ modules:
 
     # Optional visualization of raw sensor streams in the MolaViz GUI
     gui_preview_sensors:
-      - raw_sensor_label: '${MOLA_LIDAR_NAME|lidar}'
+      - raw_sensor_label: "${MOLA_LIDAR_NAME|lidar}"
         decimation: 1
         win_pos: 5 5 400 400
-        
+
       #- raw_sensor_label: '/ouster/range_image'
       #  decimation: 1
       #  win_pos: 5 420 400 400
@@ -65,8 +66,8 @@ modules:
       rosbag_filename: ${MOLA_INPUT_ROSBAG2}
       time_warp_scale: ${MOLA_TIME_WARP|1.0}
       start_paused: ${MOLA_DATASET_START_PAUSED|false}
-      
-      base_link_frame_id: '${MOLA_TF_BASE_LINK|base_link}'
+
+      base_link_frame_id: "${MOLA_TF_BASE_LINK|base_link}"
 
       # 'sensors' contains maps from output "sensorLabel"s, to the
       # configuration of that data source (mainly, 'type', 'topic'):
@@ -77,23 +78,23 @@ modules:
       sensors:
         - topic: ${MOLA_LIDAR_TOPIC|'/ouster/points'}
           type: CObservationPointCloud
-          sensorLabel: '${MOLA_LIDAR_NAME|lidar}'
+          sensorLabel: "${MOLA_LIDAR_NAME|lidar}"
           # If present, this will override whatever /tf tells about the sensor pose:
-          fixed_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
+          fixed_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
 
         - topic: ${MOLA_GNSS_TOPIC|'/gps'}
-          sensorLabel: 'gps'
+          sensorLabel: "gps"
           type: CObservationGPS
           # If present, this will override whatever /tf tells about the sensor pose:
-          fixed_sensor_pose: "${GNSS_POSE_X|0} ${GNSS_POSE_Y|0} ${GNSS_POSE_Z|0} ${GNSS_POSE_YAW|0} ${GNSS_POSE_PITCH|0} ${GNSS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg''
+          fixed_sensor_pose: "${GNSS_POSE_X|0} ${GNSS_POSE_Y|0} ${GNSS_POSE_Z|0} ${GNSS_POSE_YAW|0} ${GNSS_POSE_PITCH|0} ${GNSS_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
 
         - topic: ${MOLA_IMU_TOPIC|'/imu'}
-          sensorLabel: 'imu'
+          sensorLabel: "imu"
           type: CObservationIMU
           # If present, this will override whatever /tf tells about the sensor pose:
-          fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg''
+          fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
 
         #- topic: /ouster/range_image
