@@ -1,25 +1,16 @@
-// -----------------------------------------------------------------------------
-//   A Modular Optimization framework for Localization and mApping  (MOLA)
-//
-// Copyright (C) 2018-2025 Jose Luis Blanco, University of Almeria
-// Licensed under the GNU GPL v3.
-//
-// This file is part of MOLA.
-// MOLA is free software: you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the Free Software
-// Foundation, either version 3 of the License, or (at your option) any later
-// version.
-//
-// MOLA is distributed in the hope that it will be useful, but WITHOUT ANY
-// WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-// A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License along with
-// MOLA. If not, see <https://www.gnu.org/licenses/>.
-//
-// Closed-source licenses available upon request, for this odometry package
-// alone or in combination with the complete SLAM system.
-// -----------------------------------------------------------------------------
+/*               _
+ _ __ ___   ___ | | __ _
+| '_ ` _ \ / _ \| |/ _` | Modular Optimization framework for
+| | | | | | (_) | | (_| | Localization and mApping (MOLA)
+|_| |_| |_|\___/|_|\__,_| https://github.com/MOLAorg/mola
+
+ Copyright (C) 2018-2025 Jose Luis Blanco, University of Almeria,
+                         and individual contributors.
+ SPDX-License-Identifier: GPL-3.0
+ See LICENSE for full license information.
+ Closed-source licenses available upon request, for this odometry package
+ alone or in combination with the complete SLAM system.
+*/
 
 /**
  * @file   mola-lidar-odometry-cli.cpp
@@ -246,13 +237,15 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rawlog(
   auto o = std::make_shared<mola::RawlogDataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      mrpt::format(
+        R""""(
     params:
       rawlog_filename: '%s'
       read_all_first: true
 )"""",
-    rawlogFile.c_str())));
+        rawlogFile.c_str())));
 
   o->initialize(cfg);
 
@@ -267,8 +260,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
   auto o = std::make_shared<mola::MulranDataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      mrpt::format(
+        R""""(
     params:
       base_dir: ${MULRAN_BASE_DIR}
       sequence: '%s'
@@ -276,7 +271,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
       publish_lidar: true
       publish_ground_truth: true
 )"""",
-    mulranSequence.c_str())));
+        mulranSequence.c_str())));
 
   o->initialize(cfg);
 
@@ -296,8 +291,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
   auto o = std::make_shared<mola::Rosbag2Dataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      mrpt::format(
+        R""""(
     params:
       rosbag_filename: '%s'
       base_link_frame_id: 'base_link'
@@ -313,7 +310,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           fixed_sensor_pose: "${GPS_POSE_X|0} ${GPS_POSE_Y|0} ${GPS_POSE_Z|0} ${GPS_POSE_YAW|0} ${GPS_POSE_PITCH|0} ${GPS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
 )"""",
-    rosbag2file.c_str(), cli.arg_lidarLabel.getValue().c_str())));
+        rosbag2file.c_str(), cli.arg_lidarLabel.getValue().c_str())));
 
   o->initialize(cfg);
 
@@ -328,8 +325,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
   auto o = std::make_shared<mola::KittiOdometryDataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      mrpt::format(
+        R""""(
     params:
       base_dir: ${KITTI_BASE_DIR}
       sequence: '%s'
@@ -340,7 +339,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
       publish_image_1: false
       publish_ground_truth: true
 )"""",
-    kittiSeqNumber.c_str())));
+        kittiSeqNumber.c_str())));
 
   o->initialize(cfg);
 
@@ -359,8 +358,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti360(
   auto o = std::make_shared<mola::Kitti360Dataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      mrpt::format(
+        R""""(
     params:
       base_dir: ${KITTI360_DATASET}
       sequence: '%s'
@@ -372,7 +373,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti360(
       publish_image_3: false
       publish_ground_truth: true
 )"""",
-    kittiSeqNumber.c_str())));
+        kittiSeqNumber.c_str())));
 
   o->initialize(cfg);
 
@@ -387,8 +388,9 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_paris_luco(
   auto o = std::make_shared<mola::ParisLucoDataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      R""""(
     params:
       base_dir: ${PARIS_LUCO_BASE_DIR}
       sequence: '00'  # There is only one sequence in this dataset
@@ -413,9 +415,7 @@ void mola_signal_handler(int s)
 
 void mola_install_signal_handler()
 {
-  struct sigaction sigIntHandler
-  {
-  };
+  struct sigaction sigIntHandler{};
 
   sigIntHandler.sa_handler = &mola_signal_handler;
   sigemptyset(&sigIntHandler.sa_mask);

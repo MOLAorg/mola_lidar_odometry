@@ -1,25 +1,16 @@
-// -----------------------------------------------------------------------------
-//   A Modular Optimization framework for Localization and mApping  (MOLA)
-//
-// Copyright (C) 2018-2025 Jose Luis Blanco, University of Almeria
-// Licensed under the GNU GPL v3.
-//
-// This file is part of MOLA.
-// MOLA is free software: you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the Free Software
-// Foundation, either version 3 of the License, or (at your option) any later
-// version.
-//
-// MOLA is distributed in the hope that it will be useful, but WITHOUT ANY
-// WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-// A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License along with
-// MOLA. If not, see <https://www.gnu.org/licenses/>.
-//
-// Closed-source licenses available upon request, for this odometry package
-// alone or in combination with the complete SLAM system.
-// -----------------------------------------------------------------------------
+/*               _
+ _ __ ___   ___ | | __ _
+| '_ ` _ \ / _ \| |/ _` | Modular Optimization framework for
+| | | | | | (_) | | (_| | Localization and mApping (MOLA)
+|_| |_| |_|\___/|_|\__,_| https://github.com/MOLAorg/mola
+
+ Copyright (C) 2018-2025 Jose Luis Blanco, University of Almeria,
+                         and individual contributors.
+ SPDX-License-Identifier: GPL-3.0
+ See LICENSE for full license information.
+ Closed-source licenses available upon request, for this odometry package
+ alone or in combination with the complete SLAM system.
+*/
 
 #include <gtest/gtest.h>
 #include <mola_input_rosbag2/Rosbag2Dataset.h>
@@ -46,8 +37,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
   auto o = std::make_shared<mola::Rosbag2Dataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      mrpt::format(
+        R""""(
     params:
       rosbag_filename: '%s'
       base_link_frame_id: 'base_link'
@@ -63,7 +56,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
 )"""",
-    rosbag2file.c_str(), lidarTopic.c_str())));
+        rosbag2file.c_str(), lidarTopic.c_str())));
 
   o->initialize(cfg);
 
