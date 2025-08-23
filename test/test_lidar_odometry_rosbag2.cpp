@@ -37,10 +37,8 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
   auto o = std::make_shared<mola::Rosbag2Dataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(
-    mola::parse_yaml(
-      mrpt::format(
-        R""""(
+  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+    R""""(
     params:
       rosbag_filename: '%s'
       base_link_frame_id: 'base_link'
@@ -56,7 +54,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           fixed_sensor_pose: "0 0 0 0 0 0"  # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
 )"""",
-        rosbag2file.c_str(), lidarTopic.c_str())));
+    rosbag2file.c_str(), lidarTopic.c_str())));
 
   o->initialize(cfg);
 

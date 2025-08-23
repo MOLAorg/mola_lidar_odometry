@@ -237,15 +237,13 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rawlog(
   auto o = std::make_shared<mola::RawlogDataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(
-    mola::parse_yaml(
-      mrpt::format(
-        R""""(
+  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+    R""""(
     params:
       rawlog_filename: '%s'
       read_all_first: true
 )"""",
-        rawlogFile.c_str())));
+    rawlogFile.c_str())));
 
   o->initialize(cfg);
 
@@ -260,10 +258,8 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
   auto o = std::make_shared<mola::MulranDataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(
-    mola::parse_yaml(
-      mrpt::format(
-        R""""(
+  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+    R""""(
     params:
       base_dir: ${MULRAN_BASE_DIR}
       sequence: '%s'
@@ -271,7 +267,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
       publish_lidar: true
       publish_ground_truth: true
 )"""",
-        mulranSequence.c_str())));
+    mulranSequence.c_str())));
 
   o->initialize(cfg);
 
@@ -291,10 +287,8 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
   auto o = std::make_shared<mola::Rosbag2Dataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(
-    mola::parse_yaml(
-      mrpt::format(
-        R""""(
+  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+    R""""(
     params:
       rosbag_filename: '%s'
       base_link_frame_id: 'base_link'
@@ -310,7 +304,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           fixed_sensor_pose: "${GPS_POSE_X|0} ${GPS_POSE_Y|0} ${GPS_POSE_Z|0} ${GPS_POSE_YAW|0} ${GPS_POSE_PITCH|0} ${GPS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
 )"""",
-        rosbag2file.c_str(), cli.arg_lidarLabel.getValue().c_str())));
+    rosbag2file.c_str(), cli.arg_lidarLabel.getValue().c_str())));
 
   o->initialize(cfg);
 
@@ -325,10 +319,8 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
   auto o = std::make_shared<mola::KittiOdometryDataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(
-    mola::parse_yaml(
-      mrpt::format(
-        R""""(
+  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+    R""""(
     params:
       base_dir: ${KITTI_BASE_DIR}
       sequence: '%s'
@@ -339,7 +331,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
       publish_image_1: false
       publish_ground_truth: true
 )"""",
-        kittiSeqNumber.c_str())));
+    kittiSeqNumber.c_str())));
 
   o->initialize(cfg);
 
@@ -358,10 +350,8 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti360(
   auto o = std::make_shared<mola::Kitti360Dataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(
-    mola::parse_yaml(
-      mrpt::format(
-        R""""(
+  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+    R""""(
     params:
       base_dir: ${KITTI360_DATASET}
       sequence: '%s'
@@ -373,7 +363,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti360(
       publish_image_3: false
       publish_ground_truth: true
 )"""",
-        kittiSeqNumber.c_str())));
+    kittiSeqNumber.c_str())));
 
   o->initialize(cfg);
 
@@ -388,9 +378,8 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_paris_luco(
   auto o = std::make_shared<mola::ParisLucoDataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(
-    mola::parse_yaml(
-      R""""(
+  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(
+    R""""(
     params:
       base_dir: ${PARIS_LUCO_BASE_DIR}
       sequence: '00'  # There is only one sequence in this dataset
@@ -415,7 +404,9 @@ void mola_signal_handler(int s)
 
 void mola_install_signal_handler()
 {
-  struct sigaction sigIntHandler{};
+  struct sigaction sigIntHandler
+  {
+  };
 
   sigIntHandler.sa_handler = &mola_signal_handler;
   sigemptyset(&sigIntHandler.sa_mask);
