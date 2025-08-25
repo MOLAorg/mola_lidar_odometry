@@ -31,6 +31,7 @@
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservation3DRangeScan.h>
 #include <mrpt/obs/CObservationGPS.h>
+#include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CObservationRotatingScan.h>
@@ -168,6 +169,28 @@ struct Cli
     "lidar1",
     cmd};
 
+  TCLAP::ValueArg<std::string> arg_imuLabel{
+    "",
+    "imu-sensor-label",
+    "If provided, this supersedes the values in the 'imu_sensor_label' "
+    "entry of the odometry pipeline, defining the sensorLabel/topic name to "
+    "read IMU data from. It can be a regular expression {std::regex}",
+    false,
+    "imu",
+    "imu",
+    cmd};
+
+  TCLAP::ValueArg<std::string> arg_baseLinkName{
+    "",
+    "base-link-frame-id",
+    "Only for rosbag input sources. This defines the /tf frame_id used as"
+    "reference frame for the vehicle or robot. It is used to get sensors poses with respect to the "
+    "vehicle from /tf data.",
+    false,
+    "base_link",
+    "base_link",
+    cmd};
+
 // Input dataset can come from one of these:
 // --------------------------------------------
 #if defined(HAVE_MOLA_INPUT_RAWLOG)
@@ -291,7 +314,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
     R""""(
     params:
       rosbag_filename: '%s'
-      base_link_frame_id: 'base_link'
+      base_link_frame_id: '%s'
       sensors:
         - topic: '%s'
           type: CObservationPointCloud
@@ -303,8 +326,14 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           type: CObservationGPS
           fixed_sensor_pose: "${GPS_POSE_X|0} ${GPS_POSE_Y|0} ${GPS_POSE_Z|0} ${GPS_POSE_YAW|0} ${GPS_POSE_PITCH|0} ${GPS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
+        - topic: '%s'
+          type: CObservationIMU
+          # If present, this will override whatever /tf tells about the sensor pose:
+          fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
 )"""",
-    rosbag2file.c_str(), cli.arg_lidarLabel.getValue().c_str())));
+    rosbag2file.c_str(), cli.arg_baseLinkName.getValue().c_str(),
+    cli.arg_lidarLabel.getValue().c_str(), cli.arg_imuLabel.getValue().c_str())));
 
   o->initialize(cfg);
 
@@ -526,6 +555,10 @@ int main_odometry(Cli & cli)
     liodom->params_.lidar_sensor_labels.assign(1, std::regex(cli.arg_lidarLabel.getValue()));
   }
 
+  if (cli.arg_imuLabel.isSet()) {
+    liodom->params_.imu_sensor_label = std::regex(cli.arg_imuLabel.getValue());
+  }
+
   // Select dataset input:
   std::shared_ptr<mola::OfflineDatasetSource> dataset;
 
@@ -609,6 +642,7 @@ int main_odometry(Cli & cli)
     using mrpt::obs::CObservation2DRangeScan;
     using mrpt::obs::CObservation3DRangeScan;
     using mrpt::obs::CObservationGPS;
+    using mrpt::obs::CObservationIMU;
     using mrpt::obs::CObservationOdometry;
     using mrpt::obs::CObservationPointCloud;
     using mrpt::obs::CObservationRotatingScan;
@@ -636,6 +670,9 @@ int main_odometry(Cli & cli)
     }
     if (!obs) {
       obs = sf->getObservationByClass<CObservationOdometry>();
+    }
+    if (!obs) {
+      obs = sf->getObservationByClass<CObservationIMU>();
     }
     if (!obs) {
       continue;
