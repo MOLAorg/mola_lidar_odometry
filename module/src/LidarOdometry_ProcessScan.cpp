@@ -714,6 +714,11 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
       kf_metadata["frame_bbox_max"] = "'"s + bbox->max.asString() + "'"s;
     }
 
+    // Store local velocity buffer in the KF metadata so it is possible to deskew the scan later on with precision
+#if MP2P_ICP_HAS_VELOCITY_BUFFER
+    kf_metadata["local_velocity_buffer"] = state_.parameter_source.localVelocityBuffer.toYAML();
+#endif
+
     // convert yaml to string:
     std::stringstream ss;
     ss << kf_metadata;
