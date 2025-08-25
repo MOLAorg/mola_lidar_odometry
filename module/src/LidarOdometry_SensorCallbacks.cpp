@@ -197,7 +197,7 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
 
   // Uses of IMU in MOLA-LO (this class):
   // 1) During special initialization to compensate for pitch/roll;
-  // 2) (TODO!) Improved scan de-skewing.
+  // 2) Improved scan de-skewing.
 
   // 1) Initial pitch/roll estimation:
   {
@@ -207,23 +207,13 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
     }
   }
 
-  if (
-    !imu->has(mrpt::obs::IMU_X_ACC) || !imu->has(mrpt::obs::IMU_Y_ACC) ||
-    !imu->has(mrpt::obs::IMU_Z_ACC)) {
-    // No acceleration data:
-    return;
+  // 2) Precise scan de-skewing is done via Generator, which in turns passes the IMU data to the
+  //    LocalVelocityBuffer inside the ParameterSource.
+  {
+    auto lckState = mrpt::lockHelper(state_mtx_);
+    mp2p_icp::metric_map_t dummy_map;
+    mp2p_icp_filters::apply_generators(state_.obs_generators, *imu, dummy_map);
   }
-
-  const auto accel_sensor = mrpt::math::TTwist3D(  //
-    imu->get(mrpt::obs::IMU_X_ACC),                //
-    imu->get(mrpt::obs::IMU_Y_ACC),                //
-    imu->get(mrpt::obs::IMU_Z_ACC),                //
-    0, 0, 0);
-
-  const auto accel_base_link = accel_sensor.rotated(imu->sensorPose.asTPose());
-
-  // TODO(jlbc): Continue with scan de-skewing using IMU data
-  (void)accel_base_link;
 }
 
 void LidarOdometry::onGPS(const CObservation::Ptr & o)

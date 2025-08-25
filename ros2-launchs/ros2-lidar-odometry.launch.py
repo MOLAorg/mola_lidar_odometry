@@ -159,6 +159,10 @@ def generate_launch_description():
     lidar_scan_validity_enable_env_var = SetEnvironmentVariable(
         name='MOLA_ENABLE_OBS_VALIDITY_FILTER', value='True')
     # ~~~~~~~~~~~~
+    mola_precise_deskew_from_imu_arg = DeclareLaunchArgument(
+        "mola_precise_deskew_from_imu", default_value="False", description="Whether to use the IMU to deskew the LiDAR scans more precisely")
+    mola_precise_deskew_from_imu_env_var = SetEnvironmentVariable(
+        name='MOLA_USE_PRECISE_LOCAL_VELOCITIES', value=LaunchConfiguration('mola_precise_deskew_from_imu'))
 
     # Namespace (Based on Nav2's bring-up launch file!)
     # ---------------------------------------------------
@@ -267,6 +271,8 @@ def generate_launch_description():
         lidar_scan_validity_minimum_point_count_arg,
         lidar_scan_validity_minimum_point_env_var,
         lidar_scan_validity_enable_env_var,
+        mola_precise_deskew_from_imu_arg,
+        mola_precise_deskew_from_imu_env_var,
         use_rviz_arg,
         node_group
     ])
