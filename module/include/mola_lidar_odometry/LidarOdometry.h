@@ -231,6 +231,7 @@ public:
       bool show_current_observation = true;
       double current_pose_corner_size = 1.5;  //! [m]
       float local_map_point_size = 3.0f;
+      float current_observation_point_size = 2.0f;
       bool local_map_render_voxelmap_free_space = false;
       bool gui_subwindow_starts_hidden = false;
       bool show_console_messages = true;
@@ -608,6 +609,7 @@ private:
     mp2p_icp_filters::GeneratorSet local_map_generators;
     mp2p_icp::metric_map_t::Ptr local_map = mp2p_icp::metric_map_t::Create();
     mp2p_icp_filters::FilterPipeline obs2map_merge;
+    mp2p_icp_filters::FilterPipeline obsDeskewForViz;
 
     mrpt::poses::CPose3DInterpolator estimated_trajectory;
     mrpt::maps::CSimpleMap reconstructed_simplemap;

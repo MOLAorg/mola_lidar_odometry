@@ -51,6 +51,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(show_console_messages, bool);
   YAML_LOAD_OPT(current_pose_corner_size, double);
   YAML_LOAD_OPT(local_map_point_size, float);
+  YAML_LOAD_OPT(current_observation_point_size, float);
   YAML_LOAD_OPT(local_map_render_voxelmap_free_space, bool);
 
   if (cfg.has("model")) {

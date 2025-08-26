@@ -269,7 +269,7 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
         m->loadScene(localFileName, loadFlags);
 
-        m->setScale(model.scale);
+        m->setScale(static_cast<float>(model.scale));
         m->setPose(model.tf);
 
         state_.glVehicleFrame->insert(m);
@@ -289,11 +289,17 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     const ProfilerEntry tle1(profiler_, "updateVisualization.update_cur_obs");
 
     // Visualize the raw data only, not the filtered layers:
+    // or, if we have a deskewing pipeline, the accurately-deskewed points:
     mp2p_icp::metric_map_t mm;
     mm.layers["raw"] = currentObservation.layers.at("raw");
+    if (!state_.obsDeskewForViz.empty()) {
+      const ProfilerEntry tle2(profiler_, "updateVisualization.deskew_for_viz");
+      // This will remove the "raw" layer and replace it with a "deskewed" one:
+      mp2p_icp_filters::apply_filter_pipeline(state_.obsDeskewForViz, mm);
+    }
 
     mp2p_icp::render_params_t rp;
-    rp.points.allLayers.pointSize = 1.0f;
+    rp.points.allLayers.pointSize = params_.visualization.current_observation_point_size;
     auto & cm = rp.points.allLayers.colorMode.emplace();
     cm.colorMap = mrpt::img::cmJET;
     cm.keep_original_cloud_color = true;
@@ -441,33 +447,37 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     mrpt::format("ICP quality: %.01f%%", 100.0 * state_.last_icp_quality));
   gui_.lbSigma->setCaption(mrpt::format("Threshold sigma: %.02f", state_.adapt_thres_sigma));
   if (state_.estimated_sensor_max_range) {
-    gui_.lbSensorRange->setCaption(mrpt::format(
-      "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
-      state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
+    gui_.lbSensorRange->setCaption(
+      mrpt::format(
+        "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
+        state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
   } else {
     gui_.lbSensorRange->setCaption("Est. max range: (Not available)");
   }
 
   {
     const double dtAvr = profiler_.getMeanTime("onLidar");
-    gui_.lbTime->setCaption(mrpt::format(
-      "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr, dtAvr > 0 ? 1.0 / dtAvr : .0));
+    gui_.lbTime->setCaption(
+      mrpt::format(
+        "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr, dtAvr > 0 ? 1.0 / dtAvr : .0));
   }
 
   {
     const double averageLidarQueue = profiler_.getMeanTime("onNewObservation.lidar_queue_length");
 
-    gui_.lbLidarQueue->setCaption(mrpt::format(
-      "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
+    gui_.lbLidarQueue->setCaption(
+      mrpt::format(
+        "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
   }
 
   if (state_.last_motion_model_output) {
     const auto & tw = state_.last_motion_model_output->twist;
     const double speed = mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz).norm();
 
-    gui_.lbSpeed->setCaption(mrpt::format(
-      "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed, speed * 3600.0 / 1000.0,
-      speed / 0.44704));
+    gui_.lbSpeed->setCaption(
+      mrpt::format(
+        "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed, speed * 3600.0 / 1000.0,
+        speed / 0.44704));
   } else {
     gui_.lbSpeed->setCaption("Speed: (Not available)");
   }

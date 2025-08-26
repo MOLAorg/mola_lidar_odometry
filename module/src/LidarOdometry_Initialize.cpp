@@ -85,17 +85,35 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
 
   ASSERT_(!state_.obs2map_merge.empty());
 
-  if (cfg.has("imu_sensor_label"))
-    params_.imu_sensor_label = cfg["imu_sensor_label"].as<std::string>();
+  // Deskew for visualization:
+  // If not specified, the "raw" cloud will be shown instead of the de-skewed one.
+  if (c.has("observations_filter_deskew_for_visualization")) {
+    ASSERT_(c["observations_filter_deskew_for_visualization"].isSequence());
+    // Create, and copy my own verbosity level:
+    state_.obsDeskewForViz = mp2p_icp_filters::filter_pipeline_from_yaml(
+      c["observations_filter_deskew_for_visualization"], this->getMinLoggingLevel());
 
-  if (cfg.has("gnss_sensor_label"))
+    // Attach to the parameter source for dynamic parameters and IMU-velocities:
+    mp2p_icp::AttachToParameterSource(state_.obsDeskewForViz, state_.parameter_source);
+
+    ASSERT_(!state_.obsDeskewForViz.empty());
+  }
+
+  // Other sensors:
+  if (cfg.has("imu_sensor_label")) {
+    params_.imu_sensor_label = cfg["imu_sensor_label"].as<std::string>();
+  }
+
+  if (cfg.has("gnss_sensor_label")) {
     params_.gnss_sensor_label = cfg["gnss_sensor_label"].as<std::string>();
+  }
 
   ASSERT_(cfg.has("local_map_updates"));
   params_.local_map_updates.initialize(cfg["local_map_updates"], params_);
 
-  if (cfg.has("multiple_lidars"))
+  if (cfg.has("multiple_lidars")) {
     params_.multiple_lidars.initialize(cfg["multiple_lidars"], params_);
+  }
 
   YAML_LOAD_OPT(params_, min_time_between_scans, double);
   YAML_LOAD_REQ(params_, min_icp_goodness, double);
@@ -115,24 +133,33 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   YAML_LOAD_OPT(params_, publish_reference_frame, std::string);
   YAML_LOAD_OPT(params_, publish_vehicle_frame, std::string);
 
-  if (cfg.has("adaptive_threshold"))
+  if (cfg.has("adaptive_threshold")) {
     params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
+  }
 
-  if (cfg.has("visualization")) params_.visualization.initialize(cfg["visualization"]);
+  if (cfg.has("visualization")) {
+    params_.visualization.initialize(cfg["visualization"]);
+  }
 
   YAML_LOAD_OPT(params_, pipeline_profiler_enabled, bool);
   YAML_LOAD_OPT(params_, icp_profiler_enabled, bool);
   YAML_LOAD_OPT(params_, icp_profiler_full_history, bool);
 
-  if (cfg.has("simplemap")) params_.simplemap.initialize(cfg["simplemap"], params_);
+  if (cfg.has("simplemap")) {
+    params_.simplemap.initialize(cfg["simplemap"], params_);
+  }
 
-  if (cfg.has("estimated_trajectory"))
+  if (cfg.has("estimated_trajectory")) {
     params_.estimated_trajectory.initialize(cfg["estimated_trajectory"]);
+  }
 
-  if (cfg.has("debug_traces")) params_.debug_traces.initialize(cfg["debug_traces"]);
+  if (cfg.has("debug_traces")) {
+    params_.debug_traces.initialize(cfg["debug_traces"]);
+  }
 
-  if (cfg.has("observation_validity_checks"))
+  if (cfg.has("observation_validity_checks")) {
     params_.observation_validity_checks.initialize(cfg["observation_validity_checks"]);
+  }
 
   if (c.has("initial_localization")) {
     params_.initial_localization.initialize(c["initial_localization"]);
@@ -164,7 +191,7 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     icpCase.icp->attachToParameterSource(state_.parameter_source);
 
     // Attach final filter pipeline:
-    // (mostly to save space & CPU when loggint to disk)
+    // (mostly to save space & CPU when logging to disk)
     icpCase.icp_parameters.functor_before_logging_local = [this](mp2p_icp::metric_map_t & m) {
       const ProfilerEntry tle(profiler_, "icp_functor_before_logging");
 
