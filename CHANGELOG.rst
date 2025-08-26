@@ -2,6 +2,17 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* FIX: bug in formula for pitch-roll initialization from IMU
+* Store local IMU velocity buffer in key-frame simplemaps
+* mola-lidar-odometry-cli: New CLI arguments to support datasets with IMUs
+* Implement precise IMU-based deskew (requires latest mp2p_icp library)
+* fix clang-format
+* Modernize copyright notices
+* rosbag2 mola-cli launch file: add `MOLA_ROS2BAG_EXPORT_TO_RAWLOG_FILE` optional env var
+* Contributors: Jose Luis Blanco-Claraco
+
 0.8.0 (2025-06-06)
 ------------------
 * Publish mp2p_icp metric map metadata, if existing in loaded maps.
