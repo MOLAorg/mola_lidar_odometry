@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.9.0 (2025-08-26)
+------------------
 * FIX: bug in formula for pitch-roll initialization from IMU
 * Store local IMU velocity buffer in key-frame simplemaps
 * mola-lidar-odometry-cli: New CLI arguments to support datasets with IMUs
