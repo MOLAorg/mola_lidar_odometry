@@ -21,6 +21,7 @@
 #pragma once
 
 // MOLA interfaces:
+#include <mola_kernel/id.h>  // INVALID_ID
 #include <mola_kernel/interfaces/FrontEndBase.h>
 #include <mola_kernel/interfaces/LocalizationSourceBase.h>
 #include <mola_kernel/interfaces/MapServer.h>
