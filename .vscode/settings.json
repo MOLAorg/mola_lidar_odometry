@@ -14,11 +14,14 @@
         "--compile-commands-dir=${workspaceFolder}/build",
         "--completion-style=detailed",
         "--header-insertion=never",
-        "--pretty"
+        "--pretty",
+        // Tell clangd to use the project’s .clang-format file
+        "--fallback-style=none"
     ],
     "[cpp]": {
         "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
     },
+    "editor.formatOnSave": true,
     "cSpell.allowCompoundWords": true,
     "cSpell.ignorePaths": [
         "**/.git/objects/**",
