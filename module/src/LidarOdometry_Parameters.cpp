@@ -44,6 +44,7 @@ void LidarOdometry::Parameters::AdaptiveThreshold::initialize(const Yaml & cfg)
 void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
 {
   YAML_LOAD_OPT(map_update_decimation, int);
+  YAML_LOAD_OPT(background_color_gray_level, float);
   YAML_LOAD_OPT(show_trajectory, bool);
   YAML_LOAD_OPT(show_current_observation, bool);
   YAML_LOAD_OPT(show_last_deskewed_observations_decay, bool);

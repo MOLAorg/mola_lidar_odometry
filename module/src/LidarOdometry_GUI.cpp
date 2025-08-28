@@ -226,8 +226,9 @@ void LidarOdometry::internalBuildGUI()
   });
 
   // Background 3D scene: change background color
-  visualizer_->execute_custom_code_on_background_scene([](mrpt::opengl::Scene & scene) {
-    scene.getViewport()->setCustomBackgroundColor({.0f, .0f, .0f});
+  visualizer_->execute_custom_code_on_background_scene([this](mrpt::opengl::Scene & scene) {
+    const auto f = params_.visualization.background_color_gray_level;
+    scene.getViewport()->setCustomBackgroundColor({f, f, f});
   });
 
   this->mrpt::system::COutputLogger::logRegisterCallback(

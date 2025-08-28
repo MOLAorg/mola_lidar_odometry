@@ -94,6 +94,8 @@ params:
     observations_decay_seconds: 5.0 # For deskewed clouds above
     current_observation_point_size: 1
 
+    background_color_gray_level: "${MOLA_GUI_BACKGROUND_GRAY_LEVEL|0.3}"
+
     show_localmap: false
     local_map_point_size: 2
 

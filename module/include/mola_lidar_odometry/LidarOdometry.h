@@ -243,6 +243,8 @@ public:
       /// map, which is a costly operation.
       int map_update_decimation = 10;
 
+      float background_color_gray_level = 0.3f;
+
       bool show_trajectory = true;
       bool show_ground_grid = true;
       float ground_grid_spacing = 5.0f;
