@@ -225,16 +225,28 @@ public:
 
     struct Visualization
     {
+      /// Show a sliding window of decaying past observations to visualize a "dense local map"
+      bool show_last_deskewed_observations_decay = true;
+      double observations_decay_seconds = 5.0;
+      float observations_initial_alpha = 0.10f;
+
+      /// Show just the latest observation
+      /// (redundant if `show_last_deskewed_observations_decay` is enabled)
+      bool show_current_observation = false;
+
+      /// Show the (decimated) underlying local map used to register observations
+      /// to (less dense than `show_last_deskewed_observations_decay`).
+      bool show_localmap = false;
+      float local_map_point_size = 3.0f;
+
+      /// If show_localmap==true, how many frames to wait to update the visualization of the
+      /// map, which is a costly operation.
       int map_update_decimation = 10;
+
       bool show_trajectory = true;
       bool show_ground_grid = true;
       float ground_grid_spacing = 5.0f;
-      bool show_current_observation = false;
-      bool show_last_deskewed_observations_decay = true;
-      float observations_initial_alpha = 0.10f;
-      double observations_decay_seconds = 5.0;
-      double current_pose_corner_size = 1.5;  //! [m]
-      float local_map_point_size = 3.0f;
+      float current_pose_corner_size = 1.5f;  //! [m]
       float current_observation_point_size = 2.0f;
       bool local_map_render_voxelmap_free_space = false;
       bool gui_subwindow_starts_hidden = false;

@@ -143,10 +143,10 @@ void LidarOdometry::internalBuildGUI()
     panel->setLayout(
       new nanogui::BoxLayout(nanogui::Orientation::Horizontal, nanogui::Alignment::Maximum, 1, 1));
 
-    auto * btnSaveTraj = panel->add<nanogui::Button>("Save traj. now", ENTYPO_ICON_SAVE);
-    btnSaveTraj->setFontSize(14);
+    auto * btnSaveTrajectory = panel->add<nanogui::Button>("Save trajectory now", ENTYPO_ICON_SAVE);
+    btnSaveTrajectory->setFontSize(14);
 
-    btnSaveTraj->setCallback([this]() { this->saveEstimatedTrajectoryToFile(); });
+    btnSaveTrajectory->setCallback([this]() { this->saveEstimatedTrajectoryToFile(); });
 
     auto * btnSaveMap = panel->add<nanogui::Button>("Save map now", ENTYPO_ICON_SAVE);
     btnSaveMap->setFontSize(14);
@@ -191,6 +191,19 @@ void LidarOdometry::internalBuildGUI()
       [this, checked]() { params_.visualization.show_current_observation = checked; });
   });
 
+  auto * cbShowDLM = tab3->add<nanogui::CheckBox>("Show dense local map (decaying)");
+  cbShowDLM->setChecked(params_.visualization.show_last_deskewed_observations_decay);
+  cbShowDLM->setCallback([&](bool checked) {
+    this->enqueue_request(
+      [this, checked]() { params_.visualization.show_last_deskewed_observations_decay = checked; });
+  });
+
+  auto * cbShowSLM = tab3->add<nanogui::CheckBox>("Show sparse local map");
+  cbShowSLM->setChecked(params_.visualization.show_localmap);
+  cbShowSLM->setCallback([&](bool checked) {
+    this->enqueue_request([this, checked]() { params_.visualization.show_localmap = checked; });
+  });
+
   auto * cbFollowVeh = tab3->add<nanogui::CheckBox>("Camera follows vehicle");
   cbFollowVeh->setChecked(params_.visualization.camera_follows_vehicle);
   cbFollowVeh->setCallback([&](bool checked) {
@@ -210,6 +223,11 @@ void LidarOdometry::internalBuildGUI()
   cbShowMsgs->setCallback([&](bool checked) {
     this->enqueue_request(
       [this, checked]() { params_.visualization.show_console_messages = checked; });
+  });
+
+  // Background 3D scene: change background color
+  visualizer_->execute_custom_code_on_background_scene([](mrpt::opengl::Scene & scene) {
+    scene.getViewport()->setCustomBackgroundColor({.0f, .0f, .0f});
   });
 
   this->mrpt::system::COutputLogger::logRegisterCallback(
@@ -305,6 +323,12 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
     mp2p_icp::render_params_t rp;
     rp.points.allLayers.pointSize = params_.visualization.current_observation_point_size;
+    rp.points.allLayers.color.A = mrpt::f2u8(params_.visualization.observations_initial_alpha);
+
+#if MP2P_ICP_VERSION >= 0x010801  // 1.8.1
+    rp.points.allLayers.force_alpha_channel = true;
+#endif
+
     auto & cm = rp.points.allLayers.colorMode.emplace();
     cm.colorMap = mrpt::img::cmJET;
     cm.keep_original_cloud_color = true;
@@ -327,9 +351,6 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
         cloud && params_.visualization.show_last_deskewed_observations_decay) {
       // move to current pose
       cloud->setPose(state_.last_lidar_pose.mean);
-#if MRPT_VERSION >= 0x20e0c  // 2.11.12
-      cloud->setAllPointsAlpha(mrpt::f2u8(params_.visualization.observations_initial_alpha));
-#endif
 
       // and enqueue for updating in the opengl thread:
       updateTasks.emplace_back([=]() {
@@ -343,6 +364,9 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     auto glCurrentObservation = mrpt::opengl::CSetOfObjects::Create();
     updateTasks.emplace_back(
       [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
+
+    // and decay clouds:
+    updateTasks.emplace_back([=]() { visualizer_->clear_all_point_clouds_with_decay(); });
   }
 
   // Estimated path:
@@ -352,7 +376,7 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
     if (!state_.glEstimatedPath) {
       state_.glEstimatedPath = mrpt::opengl::CSetOfLines::Create();
-      state_.glEstimatedPath->setColor_u8(0x30, 0x30, 0x30);
+      state_.glEstimatedPath->setColor_u8(0x30, 0x30, 0xe0);
 
       state_.glPathGrp = mrpt::opengl::CSetOfObjects::Create();
     }
@@ -402,8 +426,9 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
   // Local map:
   // -----------------------------
   if (
-    state_.local_map && ((state_.mapUpdateCnt++ > params_.visualization.map_update_decimation) &&
-                         state_.local_map_needs_viz_update)) {
+    params_.visualization.show_localmap && state_.local_map &&
+    ((state_.mapUpdateCnt++ > params_.visualization.map_update_decimation) &&
+     state_.local_map_needs_viz_update)) {
     const ProfilerEntry tle2(profiler_, "updateVisualization.update_local_map");
 
     state_.mapUpdateCnt = 0;
@@ -415,7 +440,20 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     rp.points.allLayers.render_voxelmaps_free_space =
       params_.visualization.local_map_render_voxelmap_free_space;
 
-    // ground grid:
+    // local map:
+    auto glMap = state_.local_map->get_visualization(rp);
+
+    updateTasks.emplace_back([=]() { visualizer_->update_3d_object("liodom/localmap", glMap); });
+  }
+
+  // Clear the local map if the user clicks on "hide it" at runtime:
+  if (!params_.visualization.show_localmap) {
+    auto glMap = mrpt::opengl::CSetOfObjects::Create();
+    updateTasks.emplace_back([=]() { visualizer_->update_3d_object("liodom/localmap", glMap); });
+  }
+
+  // ground grid:
+  {
     auto glGroundGrid = mrpt::opengl::CSetOfObjects::Create();
     if (params_.visualization.show_ground_grid) {
       auto glGrid = mrpt::opengl::CGridPlaneXY::Create();
@@ -434,18 +472,14 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
       glGroundGrid->insert(glGrid);
     }
-
-    // local map:
-    auto glMap = state_.local_map->get_visualization(rp);
-
-    updateTasks.emplace_back([=]() {
-      visualizer_->update_3d_object("liodom/localmap", glMap);
-      visualizer_->update_3d_object("liodom/groundgrid", glGroundGrid);
-    });
+    updateTasks.emplace_back(
+      [=]() { visualizer_->update_3d_object("liodom/groundgrid", glGroundGrid); });
   }
 
   // now, update all visual elements at once:
-  for (const auto & ut : updateTasks) ut();
+  for (const auto & ut : updateTasks) {
+    ut();
+  }
 
   // Show a warning if no lidar input is being received:
   if (state_.local_map->empty()) {

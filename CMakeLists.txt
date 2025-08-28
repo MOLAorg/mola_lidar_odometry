@@ -23,10 +23,10 @@ find_package(mola_common REQUIRED)
 # find dependencies:
 find_package(mrpt-maps REQUIRED)
 find_package(mrpt-tclap REQUIRED)
-find_mola_package(mola_kernel)
-find_mola_package(mp2p_icp)
-find_mola_package(mp2p_icp_filters)
-find_mola_package(mola_pose_list)
+find_package(mola_kernel REQUIRED)
+find_package(mp2p_icp REQUIRED)
+find_package(mp2p_icp_filters REQUIRED)
+find_package(mola_pose_list REQUIRED)
 
 # -----------------------
 # define lib:
@@ -61,6 +61,9 @@ install(
   DIRECTORY module/include/
   DESTINATION ${CMAKE_INSTALL_PREFIX}/include
 )
+
+mola_version_to_hexadecimal(MP2P_ICP_VERSION_HEX "${mp2p_icp_VERSION}")
+target_compile_definitions(${PROJECT_NAME} PRIVATE MP2P_ICP_VERSION=${MP2P_ICP_VERSION_HEX})
 
 # CLI apps
 # ---------------------------------

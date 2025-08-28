@@ -33,5 +33,14 @@
         "**/install": true,
         "**/log": true
     },
-    "ros.distro": "humble"
+    "ros.distro": "humble",
+    "cSpell.words": [
+        "deskewed",
+        "ENTYPO",
+        "liodom",
+        "recolorize"
+    ],
+    "cSpell.ignoreWords": [
+        "Boxf"
+    ]
 }

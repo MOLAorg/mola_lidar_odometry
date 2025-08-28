@@ -90,11 +90,16 @@ params:
     show_trajectory: true
     show_current_observation: false # shows "live deskewed" LiDAR points
     show_last_deskewed_observations_decay: true # shows "live deskewed" LiDAR points over time
+    observations_initial_alpha: 0.10
     observations_decay_seconds: 5.0 # For deskewed clouds above
+    current_observation_point_size: 1
+
+    show_localmap: false
+    local_map_point_size: 2
+
     show_ground_grid: true
     ground_grid_spacing: 5.0 # [m]
     #current_pose_corner_size: 1.5
-    local_map_point_size: 2
     model:
       - file: ${MOLA_VEHICLE_MODEL_FILE|""} # Default: none
         tf.x: ${MOLA_VEHICLE_MODEL_X|0.0} # deg
@@ -381,10 +386,19 @@ insert_observation_into_local_map:
       robot_pose:
         [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
 
+# Pipeline starting from raw observations (passed through "Generator"), to be
+# sent out for visualization of the sliding-window of recent clouds as a dense local map
 observations_filter_deskew_for_visualization:
-  - class_name: mp2p_icp_filters::FilterDeskew
+  - class_name: mp2p_icp_filters::FilterByRange
     params:
       input_pointcloud_layer: "raw"
+      output_layer_between: "raw_filtered"
+      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}"
+      range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
+
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      input_pointcloud_layer: "raw_filtered"
       output_pointcloud_layer: "viz"
       skip_deskew: ${MOLA_SKIP_DESKEW|false}
       use_precise_local_velocities: ${MOLA_USE_PRECISE_LOCAL_VELOCITIES|false}
@@ -398,4 +412,4 @@ observations_filter_deskew_for_visualization:
   # Remove raw layer so it's not visible
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ["raw"]
+      pointcloud_layer_to_remove: ["raw", "raw_filtered"]
