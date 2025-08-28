@@ -229,7 +229,10 @@ public:
       bool show_trajectory = true;
       bool show_ground_grid = true;
       float ground_grid_spacing = 5.0f;
-      bool show_current_observation = true;
+      bool show_current_observation = false;
+      bool show_last_deskewed_observations_decay = true;
+      float observations_initial_alpha = 0.10f;
+      double observations_decay_seconds = 5.0;
       double current_pose_corner_size = 1.5;  //! [m]
       float local_map_point_size = 3.0f;
       float current_observation_point_size = 2.0f;

@@ -30,9 +30,11 @@
 #include <mrpt/opengl/CAssimpModel.h>
 #include <mrpt/opengl/CGridPlaneXY.h>
 #include <mrpt/opengl/COpenGLScene.h>
+#include <mrpt/opengl/CPointCloudColoured.h>
 #include <mrpt/opengl/CText.h>
 #include <mrpt/opengl/stock_objects.h>
 #include <mrpt/system/filesystem.h>
+#include <mrpt/version.h>
 
 namespace mola
 {
@@ -285,7 +287,10 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
   // Update current observation
   // ----------------------------
-  if (currentObservation.layers.count("raw") && params_.visualization.show_current_observation) {
+  if (
+    currentObservation.layers.count("raw") &&
+    (params_.visualization.show_current_observation ||
+     params_.visualization.show_last_deskewed_observations_decay)) {
     const ProfilerEntry tle1(profiler_, "updateVisualization.update_cur_obs");
 
     // Visualize the raw data only, not the filtered layers:
@@ -307,11 +312,32 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
     // get visualization
     auto glCurrentObservation = mm.get_visualization(rp);
-    // move to current pose
-    glCurrentObservation->setPose(state_.last_lidar_pose.mean);
-    // and enqueue for updating in the opengl thread:
-    updateTasks.emplace_back(
-      [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
+
+    // Current cloud only:
+    if (params_.visualization.show_current_observation) {
+      // move to current pose
+      glCurrentObservation->setPose(state_.last_lidar_pose.mean);
+      // and enqueue for updating in the opengl thread:
+      updateTasks.emplace_back(
+        [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
+    }
+
+    // Decaying last clouds:
+    if (auto cloud = glCurrentObservation->getByClass<mrpt::opengl::CPointCloudColoured>(0);
+        cloud && params_.visualization.show_last_deskewed_observations_decay) {
+      // move to current pose
+      cloud->setPose(state_.last_lidar_pose.mean);
+#if MRPT_VERSION >= 0x20e0c  // 2.11.12
+      cloud->setAllPointsAlpha(mrpt::f2u8(params_.visualization.observations_initial_alpha));
+#endif
+
+      // and enqueue for updating in the opengl thread:
+      updateTasks.emplace_back([=]() {
+        visualizer_->insert_point_cloud_with_decay(
+          cloud, params_.visualization.observations_decay_seconds);
+      });
+    }
+
   } else {
     // Remove possible old 3D objects if the user disabled visualization on the fly:
     auto glCurrentObservation = mrpt::opengl::CSetOfObjects::Create();
@@ -447,33 +473,37 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     mrpt::format("ICP quality: %.01f%%", 100.0 * state_.last_icp_quality));
   gui_.lbSigma->setCaption(mrpt::format("Threshold sigma: %.02f", state_.adapt_thres_sigma));
   if (state_.estimated_sensor_max_range) {
-    gui_.lbSensorRange->setCaption(mrpt::format(
-      "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
-      state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
+    gui_.lbSensorRange->setCaption(
+      mrpt::format(
+        "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
+        state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
   } else {
     gui_.lbSensorRange->setCaption("Est. max range: (Not available)");
   }
 
   {
     const double dtAvr = profiler_.getMeanTime("onLidar");
-    gui_.lbTime->setCaption(mrpt::format(
-      "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr, dtAvr > 0 ? 1.0 / dtAvr : .0));
+    gui_.lbTime->setCaption(
+      mrpt::format(
+        "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr, dtAvr > 0 ? 1.0 / dtAvr : .0));
   }
 
   {
     const double averageLidarQueue = profiler_.getMeanTime("onNewObservation.lidar_queue_length");
 
-    gui_.lbLidarQueue->setCaption(mrpt::format(
-      "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
+    gui_.lbLidarQueue->setCaption(
+      mrpt::format(
+        "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
   }
 
   if (state_.last_motion_model_output) {
     const auto & tw = state_.last_motion_model_output->twist;
     const double speed = mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz).norm();
 
-    gui_.lbSpeed->setCaption(mrpt::format(
-      "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed, speed * 3600.0 / 1000.0,
-      speed / 0.44704));
+    gui_.lbSpeed->setCaption(
+      mrpt::format(
+        "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed, speed * 3600.0 / 1000.0,
+        speed / 0.44704));
   } else {
     gui_.lbSpeed->setCaption("Speed: (Not available)");
   }

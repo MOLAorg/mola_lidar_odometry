@@ -46,6 +46,8 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(map_update_decimation, int);
   YAML_LOAD_OPT(show_trajectory, bool);
   YAML_LOAD_OPT(show_current_observation, bool);
+  YAML_LOAD_OPT(show_last_deskewed_observations_decay, bool);
+  YAML_LOAD_OPT(observations_decay_seconds, double);
   YAML_LOAD_OPT(show_ground_grid, bool);
   YAML_LOAD_OPT(ground_grid_spacing, float);
   YAML_LOAD_OPT(show_console_messages, bool);
