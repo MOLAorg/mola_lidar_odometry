@@ -91,15 +91,15 @@ params:
     show_current_observation: false # shows "live deskewed" LiDAR points
     show_last_deskewed_observations_decay: true # shows "live deskewed" LiDAR points over time
     observations_initial_alpha: 0.10
-    observations_decay_seconds: 5.0 # For deskewed clouds above
-    current_observation_point_size: 1
+    observations_decay_seconds: ${MOLA_GUI_CLOUDS_DECAY_SECS|10.0} # For deskewed clouds above
+    current_observation_point_size: ${MOLA_GUI_CURRENT_CLOUD_POINT_SIZE|1.0}
 
     background_color_gray_level: "${MOLA_GUI_BACKGROUND_GRAY_LEVEL|0.3}"
 
     show_localmap: false
     local_map_point_size: 2
 
-    show_ground_grid: true
+    show_ground_grid: ${MOLA_GUI_SHOW_GROUND_GRID|true}
     ground_grid_spacing: 5.0 # [m]
     #current_pose_corner_size: 1.5
     model:
