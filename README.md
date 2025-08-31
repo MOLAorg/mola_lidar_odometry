@@ -13,6 +13,11 @@ offline datasets.
 ## Build and install
 Refer to: https://docs.mola-slam.org/latest/#installing
 
+Lidar Inertial Odometry (LIO) demo with Oxford Spires:
+![Peek 2025-08-31 11-36](https://github.com/user-attachments/assets/b99d99de-9178-4fda-bf85-cb926f8c5d87)
+
+
+Lidar Odometry (LO) demo with KITTI:
 ![mola-slam-kitti-demo](https://github.com/user-attachments/assets/45255aba-6ea2-44eb-b5e4-4cc52e8e7615)
 
 ## Documentation and tutorials
