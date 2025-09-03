@@ -4,22 +4,22 @@
 
 params:
   # These sensor labels will be handled as LIDAR observations:
-  # Can be overriden with cli flag --lidar-sensor-label
-  lidar_sensor_labels: ['${MOLA_LIDAR_NAME|lidar}', '/ouster/points']
+  # Can be overridden with cli flag --lidar-sensor-label
+  lidar_sensor_labels: ["${MOLA_LIDAR_NAME|lidar}", "/ouster/points"]
 
   # These sensor labels will be handled as IMU observations:
-  imu_sensor_label: 'imu'
+  imu_sensor_label: "imu"
 
   # Optionally, drop lidar data too close in time:
-  min_time_between_scans: 0  # [seconds]
+  min_time_between_scans: 0 # [seconds]
 
   # How often to update the local map model:
   local_map_updates:
-    enabled: '${MOLA_MAPPING_ENABLED|true}'
-    min_translation_between_keyframes: '(0.5e-2 + sqrt(WX^2+WY^2+WZ^2)*0.2 )*ESTIMATED_SENSOR_MAX_RANGE' # [m]
+    enabled: "${MOLA_MAPPING_ENABLED|true}"
+    min_translation_between_keyframes: "(0.5e-2 + sqrt(WX^2+WY^2+WZ^2)*0.2 )*ESTIMATED_SENSOR_MAX_RANGE" # [m]
     min_rotation_between_keyframes: 15.0 # [deg]
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
-    max_distance_to_keep_keyframes: 'max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)' # [m]
+    max_distance_to_keep_keyframes: "max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)" # [m]
     check_for_removal_every_n: 100
 
   # Minimum ICP quality to insert it into the map:
@@ -31,13 +31,12 @@ params:
     initial_sigma: 2.0
     min_motion: 0.10
 
-
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
   simplemap:
-    generate: ${MOLA_GENERATE_SIMPLEMAP|false}   # Can be overriden with CLI flag --output-simplemap
-    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|0.05}   # m
-    min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|3.0}  # deg
+    generate: ${MOLA_GENERATE_SIMPLEMAP|false} # Can be overridden with CLI flag --output-simplemap
+    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|0.05} # m
+    min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|3.0} # deg
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
 
   # Save the final trajectory in TUM format. Disabled by default.
@@ -45,7 +44,7 @@ params:
     save_to_file: ${MOLA_SAVE_TRAJECTORY|false}
     output_file: ${MOLA_TUM_TRAJECTORY_OUTPUT|'estimated_trajectory.txt'}
 
-  # If run within a mola-cli container, and mola_viz is present, use these options 
+  # If run within a mola-cli container, and mola_viz is present, use these options
   # to show live progress:
   visualization:
     map_update_decimation: 20
@@ -61,8 +60,7 @@ params:
   icp_profiler_enabled: true
 
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
-  initial_twist: ['${MOLA_INITIAL_VX|0.0}', 0.0, 0.0,  0.0, 0.0, 0.0]
-
+  initial_twist: ["${MOLA_INITIAL_VX|0.0}", 0.0, 0.0, 0.0, 0.0, 0.0]
 
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
 # ICP settings can be included from an external YAML file if desired, or defined
@@ -70,10 +68,9 @@ params:
 # Include example:
 #icp_settings_with_vel: $include{./icp-pipeline-edges.yaml}
 
-
 # ICP parameters for a regular time step:
 icp_settings_with_vel:
-  # mp2p_icp ICP pipeline configuration file, for use in ICP 
+  # mp2p_icp ICP pipeline configuration file, for use in ICP
   # odometry and SLAM packages.
   #
   # YAML configuration file for use with the CLI tool mp2p-icp-run or
@@ -89,7 +86,7 @@ icp_settings_with_vel:
 
     #debugPrintIterationProgress: true  # Print iteration progress
     #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
-    saveIterationDetails: false  # Store partial solutions and pairings for each ICP iteration
+    saveIterationDetails: false # Store partial solutions and pairings for each ICP iteration
     decimationIterationDetails: 3
     debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
     decimationDebugFiles: ${MP2P_ICP_LOG_FILES_DECIMATION|10}
@@ -98,8 +95,8 @@ icp_settings_with_vel:
     - class: mp2p_icp::Solver_GaussNewton
       params:
         maxIterations: 2
-        robustKernel: 'RobustKernel::GemanMcClure'
-        robustKernelParam: '0.50*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
+        robustKernel: "RobustKernel::GemanMcClure"
+        robustKernelParam: "0.50*ADAPTIVE_THRESHOLD_SIGMA" # [m]  # (adaptive)
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -107,18 +104,25 @@ icp_settings_with_vel:
   matchers:
     - class: mp2p_icp::Matcher_Points_DistanceThreshold
       params:
-        threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
-        thresholdAngularDeg: 0  # deg
+        threshold: "2.0*ADAPTIVE_THRESHOLD_SIGMA" # [m]
+        thresholdAngularDeg: 0 # deg
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         pointLayerMatches:
-          - {global: "localmap_large_curvature", local: "decimated_for_icp_large_curvature", weight: 1.0}
-          - {global: "localmap_small_curvature", local: "decimated_for_icp_smaller_curvature", weight: 1.0}
+          - {
+              global: "localmap_large_curvature",
+              local: "decimated_for_icp_large_curvature",
+              weight: 1.0,
+            }
+          - {
+              global: "localmap_small_curvature",
+              local: "decimated_for_icp_smaller_curvature",
+              weight: 1.0,
+            }
 
   quality:
     - class: mp2p_icp::QualityEvaluator_PairedRatio
-      params:
-        ~  # none required
+      params: ~ # none required
 
 # Local map updates:
 # Very first observation: Use the mp2p_icp pipeline generator to create the local map:
@@ -131,54 +135,52 @@ localmap_generator:
   #
   - class_name: mp2p_icp_filters::Generator
     params:
-      target_layer: 'localmap_small_curvature'
+      target_layer: "localmap_small_curvature"
       throw_on_unhandled_observation_class: true
-      process_class_names_regex: ''  # NONE: don't process observations in the generator.
+      process_class_names_regex: "" # NONE: don't process observations in the generator.
       #process_sensor_labels_regex: '.*'
-      
+
       metric_map_definition:
         # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/latest/group_mrpt_maps_grp.html
         class: mola::HashedVoxelPointCloud
-        plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
+        plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
-          voxel_size: '$f{max(0.5, 0.01*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
+          voxel_size: "$f{max(0.5, 0.01*ESTIMATED_SENSOR_MAX_RANGE)}" # [m]
         insertOpts:
           max_points_per_voxel: 20
-          min_distance_between_points: 0  # [m]
+          min_distance_between_points: 0 # [m]
           # if !=0, remove voxels farther (L1) than the current observation insert point
-          remove_voxels_farther_than: '$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
+          remove_voxels_farther_than: "$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}" # [m]
         likelihoodOpts:
-          sigma_dist: 1.0    # [m]
-          max_corr_distance: 2.0  #[m]
+          sigma_dist: 1.0 # [m]
+          max_corr_distance: 2.0 #[m]
           decimation: 10
         renderOpts:
           point_size: 2.0
-
 
   - class_name: mp2p_icp_filters::Generator
     params:
-      target_layer: 'localmap_large_curvature'
+      target_layer: "localmap_large_curvature"
       throw_on_unhandled_observation_class: true
-      process_class_names_regex: ''  # NONE: don't process observations in the generator.
+      process_class_names_regex: "" # NONE: don't process observations in the generator.
       #process_sensor_labels_regex: '.*'
       metric_map_definition:
         # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/latest/group_mrpt_maps_grp.html
         class: mola::HashedVoxelPointCloud
-        plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
+        plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
-          voxel_size: '$f{max(0.5, 0.01*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
+          voxel_size: "$f{max(0.5, 0.01*ESTIMATED_SENSOR_MAX_RANGE)}" # [m]
         insertOpts:
           max_points_per_voxel: 10
-          min_distance_between_points: 0  # [m]
+          min_distance_between_points: 0 # [m]
           # if !=0, remove voxels farther (L1) than the current observation insert point
-          remove_voxels_farther_than: '$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}' # [m]
+          remove_voxels_farther_than: "$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}" # [m]
         likelihoodOpts:
-          sigma_dist: 1.0    # [m]
-          max_corr_distance: 2.0  #[m]
+          sigma_dist: 1.0 # [m]
+          max_corr_distance: 2.0 #[m]
           decimation: 10
         renderOpts:
           point_size: 2.0
-
 
 # ---------------------------------------------------------------------------------
 # LIDAR observations are, first, loaded using a generator
@@ -195,10 +197,10 @@ observations_generator:
   #
   - class_name: mp2p_icp_filters::Generator
     params:
-      target_layer: 'raw'
+      target_layer: "raw"
       throw_on_unhandled_observation_class: true
-      process_class_names_regex: '.*'
-      process_sensor_labels_regex: '.*'
+      process_class_names_regex: ".*"
+      process_sensor_labels_regex: ".*"
 
 observations_filter_1st_pass:
   # Filters:
@@ -209,38 +211,48 @@ observations_filter_1st_pass:
   #
   - class_name: mp2p_icp_filters::FilterDeskew
     params:
-      input_pointcloud_layer: 'raw'
-      output_pointcloud_layer: 'deskewed'
+      input_pointcloud_layer: "raw"
+      output_pointcloud_layer: "deskewed"
       silently_ignore_no_timestamps: true # To handle more dataset types
-      output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity & ring channels
-      
+      output_layer_class: "mrpt::maps::CPointsMapXYZIRT" # Keep intensity & ring channels
+
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
-      twist: [vx,vy,vz,wx,wy,wz]
+      twist: [vx, vy, vz, wx, wy, wz]
 
-  # Remove points too close, to prevent "noise" from the vehicle, 
+  # Remove points too close, to prevent "noise" from the vehicle,
   # the person next to the robot, etc. Remove too distant points since
   # the tiniest angular error projects to a large translational error.
   - class_name: mp2p_icp_filters::FilterByRange
     params:
-      input_pointcloud_layer: 'deskewed'
-      output_layer_between: 'range_filtered'
+      input_pointcloud_layer: "deskewed"
+      output_layer_between: "range_filtered"
       range_min: max(1.0, 0.05*ESTIMATED_SENSOR_MAX_RANGE)
       range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
 
   # Remove close ceilings (problematic in most cases!)
   - class_name: mp2p_icp_filters::FilterBoundingBox
     params:
-      input_pointcloud_layer: 'range_filtered'
-      outside_pointcloud_layer: 'filtered'
-      bounding_box_min: [ -0.30*ESTIMATED_SENSOR_MAX_RANGE, -0.30*ESTIMATED_SENSOR_MAX_RANGE, 0.05*ESTIMATED_SENSOR_MAX_RANGE ]
-      bounding_box_max: [  0.30*ESTIMATED_SENSOR_MAX_RANGE,  0.30*ESTIMATED_SENSOR_MAX_RANGE, 0.40*ESTIMATED_SENSOR_MAX_RANGE ]
+      input_pointcloud_layer: "range_filtered"
+      outside_pointcloud_layer: "filtered"
+      bounding_box_min:
+        [
+          -0.30*ESTIMATED_SENSOR_MAX_RANGE,
+          -0.30*ESTIMATED_SENSOR_MAX_RANGE,
+          0.05*ESTIMATED_SENSOR_MAX_RANGE,
+        ]
+      bounding_box_max:
+        [
+          0.30*ESTIMATED_SENSOR_MAX_RANGE,
+          0.30*ESTIMATED_SENSOR_MAX_RANGE,
+          0.40*ESTIMATED_SENSOR_MAX_RANGE,
+        ]
 
   - class_name: mp2p_icp_filters::FilterCurvature
     params:
-      input_pointcloud_layer: 'filtered'
-      output_layer_larger_curvature: 'large_curvature'
-      output_layer_smaller_curvature: 'smaller_curvature'
+      input_pointcloud_layer: "filtered"
+      output_layer_larger_curvature: "large_curvature"
+      output_layer_smaller_curvature: "smaller_curvature"
       #output_layer_other: 'large_curvature'
       max_cosine: 0.4
       min_clearance: 0.20
@@ -248,52 +260,60 @@ observations_filter_1st_pass:
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
-      input_pointcloud_layer: 'large_curvature'
-      output_pointcloud_layer: 'decimated_for_map_large_curvature'
-      voxel_filter_resolution: 1.0*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
+      input_pointcloud_layer: "large_curvature"
+      output_pointcloud_layer: "decimated_for_map_large_curvature"
+      voxel_filter_resolution: 1.0*1e-2*ESTIMATED_SENSOR_MAX_RANGE # [m]
       decimate_method: DecimateMethod::FirstPoint
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
-      input_pointcloud_layer: 'decimated_for_map_large_curvature'
-      output_pointcloud_layer: 'decimated_for_icp_large_curvature'
-      voxel_filter_resolution: 1.5*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
-      decimate_method: DecimateMethod::FirstPoint
-
-
-  - class_name: mp2p_icp_filters::FilterDecimateVoxels
-    params:
-      input_pointcloud_layer: 'smaller_curvature'
-      output_pointcloud_layer: 'decimated_for_map_smaller_curvature'
-      voxel_filter_resolution: 0.5*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
+      input_pointcloud_layer: "decimated_for_map_large_curvature"
+      output_pointcloud_layer: "decimated_for_icp_large_curvature"
+      voxel_filter_resolution: 1.5*1e-2*ESTIMATED_SENSOR_MAX_RANGE # [m]
       decimate_method: DecimateMethod::FirstPoint
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
-      input_pointcloud_layer: 'decimated_for_map_smaller_curvature'
-      output_pointcloud_layer: 'decimated_for_icp_smaller_curvature'
-      voxel_filter_resolution: 2.0*1e-2*ESTIMATED_SENSOR_MAX_RANGE  # [m]
+      input_pointcloud_layer: "smaller_curvature"
+      output_pointcloud_layer: "decimated_for_map_smaller_curvature"
+      voxel_filter_resolution: 0.5*1e-2*ESTIMATED_SENSOR_MAX_RANGE # [m]
+      decimate_method: DecimateMethod::FirstPoint
+
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: "decimated_for_map_smaller_curvature"
+      output_pointcloud_layer: "decimated_for_icp_smaller_curvature"
+      voxel_filter_resolution: 2.0*1e-2*ESTIMATED_SENSOR_MAX_RANGE # [m]
       decimate_method: DecimateMethod::FirstPoint
 
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ['raw', 'deskewed', 'filtered', 'range_filtered', 'large_curvature', 'smaller_curvature']
-
+      pointcloud_layer_to_remove:
+        [
+          "raw",
+          "deskewed",
+          "filtered",
+          "range_filtered",
+          "large_curvature",
+          "smaller_curvature",
+        ]
 
 # To populate the local map, one or more observation layers are merged
 # into the local map via this pipeline:
 insert_observation_into_local_map:
   - class_name: mp2p_icp_filters::FilterMerge
     params:
-      input_pointcloud_layer: 'decimated_for_map_smaller_curvature'
-      target_layer: 'localmap_small_curvature'
+      input_pointcloud_layer: "decimated_for_map_smaller_curvature"
+      target_layer: "localmap_small_curvature"
       input_layer_in_local_coordinates: true
-      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
+      robot_pose:
+        [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
 
   - class_name: mp2p_icp_filters::FilterMerge
     params:
-      input_pointcloud_layer: 'decimated_for_map_large_curvature'
-      target_layer: 'localmap_large_curvature'
+      input_pointcloud_layer: "decimated_for_map_large_curvature"
+      target_layer: "localmap_large_curvature"
       input_layer_in_local_coordinates: true
-      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
+      robot_pose:
+        [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]

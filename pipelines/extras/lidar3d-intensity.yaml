@@ -4,7 +4,7 @@
 
 params:
   # These sensor labels will be handled as LIDAR observations:
-  # Can be overriden with cli flag --lidar-sensor-label
+  # Can be overridden with cli flag --lidar-sensor-label
   lidar_sensor_labels: ['${MOLA_LIDAR_NAME|lidar}', '/ouster/points']
 
   multiple_lidars:
@@ -41,7 +41,7 @@ params:
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
   simplemap:
-    generate: ${MOLA_GENERATE_SIMPLEMAP|false}   # Can be overriden with CLI flag --output-simplemap
+    generate: ${MOLA_GENERATE_SIMPLEMAP|false}   # Can be overridden with CLI flag --output-simplemap
     min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|0.05}   # m
     min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|3.0}  # deg
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
