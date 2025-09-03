@@ -233,7 +233,9 @@ void LidarOdometry::unloadPastSimplemapObservations(const size_t maxSizeUnloadQu
   auto & pso = state_.past_simplemaps_observations;
 
   while (pso.size() > maxSizeUnloadQueue) {
-    for (auto & o : *pso.begin()->second) handleUnloadSinglePastObservation(o);
+    for (auto & o : *pso.begin()->second) {
+      handleUnloadSinglePastObservation(o);
+    }
 
     pso.erase(pso.begin());
   }
@@ -281,10 +283,9 @@ void LidarOdometry::handleUnloadSinglePastObservation(mrpt::obs::CObservation::P
   if (!mrpt::system::directoryExists(out_basedir)) {
     const bool dirCreatedOk = mrpt::system::createDirectory(out_basedir);
     ASSERTMSG_(
-      dirCreatedOk, mrpt::format(
-                      "Error creating lazy-load directory for "
-                      "output simplemap: '%s'",
-                      out_basedir.c_str()));
+      dirCreatedOk,
+      mrpt::format(
+        "Error creating lazy-load directory for output simplemap: '%s'", out_basedir.c_str()));
 
     MRPT_LOG_INFO_STREAM("Creating lazy-load directory for output .simplemap: " << out_basedir);
   }
