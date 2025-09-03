@@ -5,7 +5,7 @@
 
 params:
   # These sensor labels will be handled as LIDAR observations:
-  # Can be overriden with cli flag --lidar-sensor-label
+  # Can be overridden with cli flag --lidar-sensor-label
   lidar_sensor_labels: ["${MOLA_LIDAR_NAME|lidar}", "/ouster/points"]
 
   multiple_lidars:
@@ -66,7 +66,7 @@ params:
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
   simplemap:
-    generate: ${MOLA_GENERATE_SIMPLEMAP|false} # Can be overriden with CLI flag --output-simplemap
+    generate: ${MOLA_GENERATE_SIMPLEMAP|false} # Can be overridden with CLI flag --output-simplemap
     load_existing_simple_map: ${MOLA_LOAD_SM|""}
 
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
@@ -335,6 +335,7 @@ observations_filter_2nd_pass:
       input_pointcloud_layer: "decimated_for_map_skewed"
       output_pointcloud_layer: "decimated_for_map"
       skip_deskew: ${MOLA_SKIP_DESKEW|false}
+      use_precise_local_velocities: ${MOLA_USE_PRECISE_LOCAL_VELOCITIES|false}
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
       #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
 
@@ -347,6 +348,7 @@ observations_filter_2nd_pass:
       input_pointcloud_layer: "decimated_for_icp_skewed"
       output_pointcloud_layer: "decimated_for_icp"
       skip_deskew: ${MOLA_SKIP_DESKEW|false}
+      use_precise_local_velocities: ${MOLA_USE_PRECISE_LOCAL_VELOCITIES|false}
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
       #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
 
