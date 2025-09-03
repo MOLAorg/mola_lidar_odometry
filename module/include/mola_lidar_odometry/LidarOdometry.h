@@ -578,11 +578,11 @@ private:
     int worker_tasks_lidar = 0;
     int worker_tasks_others = 0;
 
-    static constexpr std::size_t DROP_STATS_WINDOW_LENGHT = 128;
-    std::array<bool, DROP_STATS_WINDOW_LENGHT> drop_frames_stats_good =
-      create_array<DROP_STATS_WINDOW_LENGHT>(true);
-    std::array<bool, DROP_STATS_WINDOW_LENGHT> drop_frames_stats_dropped =
-      create_array<DROP_STATS_WINDOW_LENGHT>(false);
+    static constexpr std::size_t DROP_STATS_WINDOW_LENGTH = 128;
+    std::array<bool, DROP_STATS_WINDOW_LENGTH> drop_frames_stats_good =
+      create_array<DROP_STATS_WINDOW_LENGTH>(true);
+    std::array<bool, DROP_STATS_WINDOW_LENGTH> drop_frames_stats_dropped =
+      create_array<DROP_STATS_WINDOW_LENGTH>(false);
     std::size_t drop_frames_stats_next_index = 0;
     // ------ ^^^ end of these flags are protected ^^^^      ---------
 
