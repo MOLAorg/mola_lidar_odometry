@@ -45,6 +45,9 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 
   profiler_.leave("delay_onNewObs_to_process");
 
+  // for rate stats:
+  state_.append_lidar_stamp(obs->timestamp);
+
   // make sure data is loaded, if using an offline lazy-load dataset.
   obs->load();
 

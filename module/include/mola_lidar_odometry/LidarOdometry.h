@@ -40,6 +40,7 @@
 #include <mp2p_icp_filters/Generator.h>
 
 // MRPT
+#include <mrpt/containers/circular_buffer.h>
 #include <mrpt/core/WorkerThreadsPool.h>
 #include <mrpt/maps/CSimpleMap.h>
 #include <mrpt/obs/obs_frwds.h>
@@ -672,6 +673,18 @@ private:
     mutable std::map<mrpt::Clock::time_point, mrpt::obs::CSensoryFrame::Ptr>
       past_simplemaps_observations;
 
+    /// Used to estimate sensor rate
+    mrpt::containers::circular_buffer<double> recent_lidar_stamps{50};
+
+    /// Used to estimate sensor rate
+    mrpt::containers::circular_buffer<double> recent_imu_stamps{500};
+
+    /// Returns the rates (Hz) of incoming LiDAR and IMU sensors for the past few seconds
+    std::tuple<double, double> get_lidar_imu_sensor_rates();
+
+    void append_lidar_stamp(const mrpt::Clock::time_point & stamp);
+    void append_imu_stamp(const mrpt::Clock::time_point & stamp);
+
   };  // end of MethodState
 
   /** The worker thread pool with 1 thread for processing incomming
@@ -692,7 +705,7 @@ private:
 
     nanogui::Window * ui = nullptr;
     nanogui::Label * lbIcpQuality = nullptr;
-    nanogui::Label * lbSigma = nullptr;
+    nanogui::Label * lbSensorRates = nullptr;
     nanogui::Label * lbSensorRange = nullptr;
     nanogui::Label * lbTime = nullptr;
     nanogui::Label * lbSpeed = nullptr;

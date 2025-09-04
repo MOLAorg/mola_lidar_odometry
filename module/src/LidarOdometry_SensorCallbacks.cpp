@@ -36,6 +36,9 @@
 namespace mola
 {
 
+constexpr std::size_t MAX_SIZE_BUFFER_LAST_SENSOR_STAMPS_LIDAR = 50;
+constexpr std::size_t MAX_SIZE_BUFFER_LAST_SENSOR_STAMPS_IMU = 500;
+
 void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
 {
   MRPT_TRY_START
@@ -205,6 +208,9 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
     if (state_.imu_averager.has_value()) {
       state_.imu_averager->add(imu);
     }
+
+    // and for rate stats:
+    state_.append_imu_stamp(imu->timestamp);
   }
 
   // 2) Precise scan de-skewing is done via Generator, which in turns passes the IMU data to the
@@ -281,6 +287,45 @@ bool LidarOdometry::doCheckIsValidObservation(const mp2p_icp::metric_map_t & m)
 
   MRPT_LOG_DEBUG_STREAM("Observation validity check: layer size=" << pts->size());
   return valid;
+}
+
+namespace
+{
+double rate_from_stamps_buffer(const mrpt::containers::circular_buffer<double> & stamps)
+{
+  if (stamps.size() < 2) {
+    return .0;
+  }
+  double rate_accum = 0;
+  for (std::size_t i = 0; i < stamps.size() - 1; i++) {
+    const auto ti = stamps.peek(i);
+    const auto tj = stamps.peek(i + 1);
+    rate_accum += tj != ti ? 1.0 / (tj - ti) : .0;
+  }
+  rate_accum *= 1.0 / static_cast<double>(stamps.size() - 1);
+  return rate_accum;
+}
+
+}  // namespace
+
+std::tuple<double, double> LidarOdometry::MethodState::get_lidar_imu_sensor_rates()
+{
+  return {rate_from_stamps_buffer(recent_lidar_stamps), rate_from_stamps_buffer(recent_imu_stamps)};
+}
+
+void LidarOdometry::MethodState::append_lidar_stamp(const mrpt::Clock::time_point & stamp)
+{
+  if (recent_lidar_stamps.available() == 0) {
+    recent_lidar_stamps.pop();
+  }
+  recent_lidar_stamps.push(mrpt::Clock::toDouble(stamp));
+}
+void LidarOdometry::MethodState::append_imu_stamp(const mrpt::Clock::time_point & stamp)
+{
+  if (recent_imu_stamps.available() == 0) {
+    recent_imu_stamps.pop();
+  }
+  recent_imu_stamps.push(mrpt::Clock::toDouble(stamp));
 }
 
 }  // namespace mola
