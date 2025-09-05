@@ -170,11 +170,11 @@ std::tuple<double, double> LidarOdometry::ImuAverager::getPitchRoll() const
     avr_accel *= 1.0 / static_cast<double>(count);
   }
 
+  // Remove accelerometer bias:
+  // avr_accel-= bias_accel;
+
   // Compute pitch & roll from the XYZ acceleration vector:
   const auto up_vector = avr_accel.unitarize();
-
-  // std::cout << "[getPitchRoll] up_vector: " << up_vector << " sensorPose: "
-  // << samples_.begin()->second->sensorPose << std::endl;
 
   const double pitch = -std::asin(up_vector.x);
   const double roll = -std::asin(up_vector.y);
