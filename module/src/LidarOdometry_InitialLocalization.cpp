@@ -83,14 +83,14 @@ void LidarOdometry::handleInitialLocalization()
       // ---------------------------------------------------
     case mola::InitLocalization::PitchAndRollFromIMU: {
       // Construct the IMU averager object:
-      if (!state_.imu_averager) {
-        state_.imu_averager =
-          ImuAverager(il.pitch_and_roll_from_imu_sample_count, il.pitch_and_roll_from_imu_max_age);
+      if (!state_.imu_initializer) {
+        state_.imu_initializer = ImuInitialCalibrator(
+          il.pitch_and_roll_from_imu_sample_count, il.pitch_and_roll_from_imu_max_age);
       }
       // Already collected enough samples?
-      if (state_.imu_averager->isReady()) {
+      if (state_.imu_initializer->isReady()) {
         // Get the average pitch & roll:
-        const auto [pitch, roll] = state_.imu_averager->getPitchRoll();
+        const auto [pitch, roll] = state_.imu_initializer->getPitchRoll();
 
         // Set as the initial pose:
         il.fixed_initial_pose = mrpt::math::TPose3D(0, 0, 0, 0, pitch, roll);
@@ -109,7 +109,7 @@ void LidarOdometry::handleInitialLocalization()
         state_.reconstructed_simplemap.clear();
 
         state_.initial_localization_done = true;
-        state_.imu_averager.reset();  // no longer needed
+        state_.imu_initializer.reset();  // no longer needed
 
       } else {
         MRPT_LOG_THROTTLE_INFO(
@@ -120,65 +120,6 @@ void LidarOdometry::handleInitialLocalization()
     default:
       THROW_EXCEPTION("Unknown value for initial_localization.method");
   };
-}
-
-void LidarOdometry::ImuAverager::add(const std::shared_ptr<const mrpt::obs::CObservationIMU> & obs)
-{
-  // Add:
-  ASSERT_(obs);
-  samples_[mrpt::Clock::toDouble(obs->timestamp)] = obs;
-
-  // Remove old samples:
-  while (!samples_.empty() &&
-         samples_.begin()->first < samples_.rbegin()->first - max_samples_age_) {
-    samples_.erase(samples_.begin());
-  }
-}
-
-bool LidarOdometry::ImuAverager::isReady() const
-{
-  // samples enough?
-  return (samples_.size() >= required_samples_);
-}
-
-std::tuple<double, double> LidarOdometry::ImuAverager::getPitchRoll() const
-{
-  mrpt::math::TVector3D avr_accel(0, 0, 0);
-  std::size_t count = 0;
-
-  for (const auto & [_, imu] : samples_) {
-    ASSERT_(imu);
-    // TODO: Check for direct IMU-provided pitch/roll values?
-
-    const auto accel_sensor = mrpt::math::TTwist3D(  //
-      imu->get(mrpt::obs::IMU_X_ACC),                //
-      imu->get(mrpt::obs::IMU_Y_ACC),                //
-      imu->get(mrpt::obs::IMU_Z_ACC),                //
-      0, 0, 0);
-
-    // TODO: Minimum sanity check for the acceleration vector?
-
-    const auto accel_base_link = accel_sensor.rotated(imu->sensorPose.asTPose());
-
-    // Accumulate:
-    avr_accel += mrpt::math::TVector3D(accel_base_link.vx, accel_base_link.vy, accel_base_link.vz);
-    count++;
-  }
-
-  // Average:
-  if (count > 0) {
-    avr_accel *= 1.0 / static_cast<double>(count);
-  }
-
-  // Remove accelerometer bias:
-  // avr_accel-= bias_accel;
-
-  // Compute pitch & roll from the XYZ acceleration vector:
-  const auto up_vector = avr_accel.unitarize();
-
-  const double pitch = -std::asin(up_vector.x);
-  const double roll = -std::asin(up_vector.y);
-  return {pitch, roll};
 }
 
 }  // namespace mola

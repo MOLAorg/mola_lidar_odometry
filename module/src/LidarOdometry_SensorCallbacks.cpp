@@ -205,8 +205,8 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
   // 1) Initial pitch/roll estimation:
   {
     auto lckState = mrpt::lockHelper(state_mtx_);
-    if (state_.imu_averager.has_value()) {
-      state_.imu_averager->add(imu);
+    if (state_.imu_initializer.has_value()) {
+      state_.imu_initializer->add(imu);
     }
 
     // and for rate stats:
