@@ -84,16 +84,22 @@ void LidarOdometry::handleInitialLocalization()
     case mola::InitLocalization::PitchAndRollFromIMU: {
       // Construct the IMU averager object:
       if (!state_.imu_initializer) {
-        state_.imu_initializer = ImuInitialCalibrator(
-          il.pitch_and_roll_from_imu_sample_count, il.pitch_and_roll_from_imu_max_age);
+        state_.imu_initializer = ImuInitialCalibrator();
+        state_.imu_initializer->parameters.max_samples_age = il.imu_initial_calibration_max_age;
+        state_.imu_initializer->parameters.required_samples =
+          il.imu_initial_calibration_sample_count;
       }
       // Already collected enough samples?
       if (state_.imu_initializer->isReady()) {
         // Get the average pitch & roll:
-        const auto [pitch, roll] = state_.imu_initializer->getPitchRoll();
+        const auto & imu_calib_opt = state_.imu_initializer->getCalibration();
+        ASSERT_(imu_calib_opt);
+
+        MRPT_LOG_INFO_STREAM("IMU automatic calibration done: " << imu_calib_opt->asString());
 
         // Set as the initial pose:
-        il.fixed_initial_pose = mrpt::math::TPose3D(0, 0, 0, 0, pitch, roll);
+        il.fixed_initial_pose =
+          mrpt::math::TPose3D(0, 0, 0, 0, imu_calib_opt->pitch, imu_calib_opt->roll);
 
         MRPT_LOG_INFO_STREAM(
           "Initial re-localization done from IMU pitch/roll with pose: "

@@ -27,6 +27,7 @@ find_package(mola_kernel REQUIRED)
 find_package(mp2p_icp REQUIRED)
 find_package(mp2p_icp_filters REQUIRED)
 find_package(mola_pose_list REQUIRED)
+find_package(mola_imu_preintegration REQUIRED)
 
 # -----------------------
 # define lib:
@@ -42,6 +43,7 @@ mola_add_library(
     mola::mp2p_icp
     mola::mp2p_icp_filters
     mola::mola_pose_list
+    mola::mola_imu_preintegration
 # PRIVATE_LINK_LIBRARIES
 #  mrpt::maps
   CMAKE_DEPENDENCIES

@@ -395,10 +395,10 @@ public:
       uint32_t additional_uncertainty_after_reloc_how_many_timesteps = 5;
 
       /// Number of IMU (accelerometer) samples to accumulate while stationary to estimate Pitch & Roll:
-      uint32_t pitch_and_roll_from_imu_sample_count = 50;
+      uint32_t imu_initial_calibration_sample_count = 50;
 
-      /// Maximum time span (in seconds) for the "pitch_and_roll_from_imu_sample_count" IMU samples:
-      double pitch_and_roll_from_imu_max_age = 0.75;
+      /// Maximum time span (in seconds) for the "imu_initial_calibration_sample_count" IMU samples:
+      double imu_initial_calibration_max_age = 0.75;
 
       void initialize(const Yaml & c);
     };
