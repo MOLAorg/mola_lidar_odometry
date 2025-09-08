@@ -43,16 +43,16 @@ The latest publication on MOLA is ([ArXiV](https://arxiv.org/abs/2407.20465)).
 
 ```bibtex
 @article{blanco2025mola_lo,
-    author = {Jose Luis Blanco-Claraco},
-    title ={A flexible framework for accurate LiDAR odometry, map manipulation, and localization},
+    author = {Blanco-Claraco, Jose Luis},
+    title ={{A flexible framework for accurate LiDAR odometry, map manipulation, and localization}},
     journal = {The International Journal of Robotics Research},
-    volume = {0},
-    number = {0},
-    pages = {02783649251316881},
+    volume = {44},
+    number = {9},
+    pages = {1553--1599},
     year = {2025},
     doi = {10.1177/02783649251316881},
     URL = { https://doi.org/10.1177/02783649251316881},
-    eprint = {https://doi.org/10.1177/02783649251316881},
+    eprint = {2407.20465},
 }
 ```
 
