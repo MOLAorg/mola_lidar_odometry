@@ -334,8 +334,7 @@ observations_filter_2nd_pass:
     params:
       input_pointcloud_layer: "decimated_for_map_skewed"
       output_pointcloud_layer: "decimated_for_map"
-      skip_deskew: ${MOLA_SKIP_DESKEW|false}
-      use_precise_local_velocities: ${MOLA_USE_PRECISE_LOCAL_VELOCITIES|false}
+      method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
       #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
 
@@ -347,8 +346,7 @@ observations_filter_2nd_pass:
     params:
       input_pointcloud_layer: "decimated_for_icp_skewed"
       output_pointcloud_layer: "decimated_for_icp"
-      skip_deskew: ${MOLA_SKIP_DESKEW|false}
-      use_precise_local_velocities: ${MOLA_USE_PRECISE_LOCAL_VELOCITIES|false}
+      method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
       #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
 
