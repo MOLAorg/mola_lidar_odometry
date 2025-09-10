@@ -304,6 +304,44 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
   updateTasks.emplace_back(
     [this]() { visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame); });
 
+  auto doRemoveVizCurCloud = [&]() {
+    // Remove possible old 3D objects if the user disabled visualization on the fly:
+    auto glCurrentObservation = mrpt::opengl::CSetOfObjects::Create();
+    updateTasks.emplace_back(
+      [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
+  };
+
+  auto doRemoveCloudsWithDecay = [&]() {
+  // Remove possible old 3D objects if the user disabled visualization on the fly:
+#if MOLA_VERSION_CHECK(2, 0, 0)
+    updateTasks.emplace_back([=]() { visualizer_->clear_all_point_clouds_with_decay(); });
+#endif
+  };
+
+  auto doColorizeByIntensity = [&](
+                                 const mrpt::img::TColormap & colormap,
+                                 const mrpt::maps::CPointsMap * org_cloud,
+                                 mrpt::opengl::CPointCloudColoured & cloud) {
+    if (colormap == mrpt::img::TColormap::cmNONE) {
+      return;
+    }
+
+    // Colorize by intensity with custom color map?
+    if (org_cloud && org_cloud->hasField_Intensity()) {
+      const auto * Is = org_cloud->getPointsBufferRef_intensity();
+      ASSERT_(Is);
+
+      for (size_t i = 0; i < Is->size(); i++) {
+        const auto I = (*Is)[i];
+        float r = 0, g = 0, b = 0;
+        mrpt::img::colormap(colormap, I, r, g, b);
+        cloud.setPointColor_fast(i, r, g, b);
+      }
+
+      cloud.markAllPointsAsNew();
+    };
+  };
+
   // Update current observation
   // ----------------------------
   if (
@@ -322,55 +360,75 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
       mp2p_icp_filters::apply_filter_pipeline(state_.obsDeskewForViz, mm);
     }
 
+    const auto org_cloud = mm.point_layer(mm.layers.begin()->first);
+
     mp2p_icp::render_params_t rp;
-    rp.points.allLayers.pointSize = params_.visualization.current_observation_point_size;
-    rp.points.allLayers.color.A = mrpt::f2u8(params_.visualization.observations_initial_alpha);
+
+    auto & cm = rp.points.allLayers.colorMode.emplace();
+    cm.keep_original_cloud_color = true;
 
 #if MP2P_ICP_VERSION >= 0x010801  // 1.8.1
     rp.points.allLayers.force_alpha_channel = true;
 #endif
 
-    auto & cm = rp.points.allLayers.colorMode.emplace();
-    cm.colorMap = mrpt::img::cmJET;
-    cm.keep_original_cloud_color = true;
+    // cm.colorMap = mrpt::img::cmJET;
     // cm.recolorizeByCoordinate     = mp2p_icp::Coordinate::Z;
-
-    // get visualization
-    auto glCurrentObservation = mm.get_visualization(rp);
 
     // Current cloud only:
     if (params_.visualization.show_current_observation) {
+      rp.points.allLayers.pointSize = params_.visualization.current_observation_point_size;
+      rp.points.allLayers.color.A = mrpt::f2u8(params_.visualization.current_observation_alpha);
+
+      // get visualization
+      auto glCurrentObservation = mm.get_visualization(rp);
+
       // move to current pose
       glCurrentObservation->setPose(state_.last_lidar_pose.mean);
+
+      if (auto cloud = glCurrentObservation->getByClass<mrpt::opengl::CPointCloudColoured>(0);
+          cloud) {
+        doColorizeByIntensity(
+          params_.visualization.current_observation_colormap, org_cloud.get(), *cloud);
+      }
+
       // and enqueue for updating in the opengl thread:
       updateTasks.emplace_back(
         [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
+    } else {
+      doRemoveVizCurCloud();
     }
 
     // Decaying last clouds:
-    if (auto cloud = glCurrentObservation->getByClass<mrpt::opengl::CPointCloudColoured>(0);
-        cloud && params_.visualization.show_last_deskewed_observations_decay) {
-      // move to current pose
-      cloud->setPose(state_.last_lidar_pose.mean);
+    if (params_.visualization.show_last_deskewed_observations_decay) {
+      rp.points.allLayers.pointSize = params_.visualization.last_deskewed_observations_point_size;
+      rp.points.allLayers.color.A = mrpt::f2u8(params_.visualization.observations_initial_alpha);
 
-      // and enqueue for updating in the opengl thread:
+      // get visualization
+      auto glCurrentObservation = mm.get_visualization(rp);
+
+      if (auto cloud = glCurrentObservation->getByClass<mrpt::opengl::CPointCloudColoured>(0);
+          cloud) {
+        // move to current pose
+        cloud->setPose(state_.last_lidar_pose.mean);
+
+        doColorizeByIntensity(
+          params_.visualization.last_deskewed_observations_colormap, org_cloud.get(), *cloud);
+
+        // and enqueue for updating in the opengl thread:
 #if MOLA_VERSION_CHECK(2, 0, 0)
-      updateTasks.emplace_back([=]() {
-        visualizer_->insert_point_cloud_with_decay(
-          cloud, params_.visualization.observations_decay_seconds);
-      });
+        updateTasks.emplace_back([=]() {
+          visualizer_->insert_point_cloud_with_decay(
+            cloud, params_.visualization.observations_decay_seconds);
+        });
 #endif
+      }
+    } else {
+      doRemoveCloudsWithDecay();
     }
   } else {
-    // Remove possible old 3D objects if the user disabled visualization on the fly:
-    auto glCurrentObservation = mrpt::opengl::CSetOfObjects::Create();
-    updateTasks.emplace_back(
-      [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
-
-    // and decay clouds:
-#if MOLA_VERSION_CHECK(2, 0, 0)
-    updateTasks.emplace_back([=]() { visualizer_->clear_all_point_clouds_with_decay(); });
-#endif
+    // None enabled:
+    doRemoveVizCurCloud();
+    doRemoveCloudsWithDecay();
   }
 
   // Estimated path:

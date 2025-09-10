@@ -231,6 +231,7 @@ public:
       bool show_last_deskewed_observations_decay = true;
       double observations_decay_seconds = 5.0;
       float observations_initial_alpha = 0.10f;
+      float current_observation_alpha = 0.20f;
 
       /// Show just the latest observation
       /// (redundant if `show_last_deskewed_observations_decay` is enabled)
@@ -251,7 +252,10 @@ public:
       bool show_ground_grid = true;
       float ground_grid_spacing = 5.0f;
       float current_pose_corner_size = 1.5f;  //! [m]
-      float current_observation_point_size = 2.0f;
+      float current_observation_point_size = 3.0f;
+      mrpt::img::TColormap current_observation_colormap = mrpt::img::TColormap::cmJET;
+      float last_deskewed_observations_point_size = 1.0f;
+      mrpt::img::TColormap last_deskewed_observations_colormap = mrpt::img::TColormap::cmJET;
       bool local_map_render_voxelmap_free_space = false;
       bool gui_subwindow_starts_hidden = false;
       bool show_console_messages = true;

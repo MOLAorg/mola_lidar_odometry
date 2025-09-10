@@ -49,13 +49,19 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(show_current_observation, bool);
   YAML_LOAD_OPT(show_last_deskewed_observations_decay, bool);
   YAML_LOAD_OPT(observations_decay_seconds, double);
+  YAML_LOAD_OPT(observations_initial_alpha, float);
+  YAML_LOAD_OPT(current_observation_alpha, float);
   YAML_LOAD_OPT(show_ground_grid, bool);
   YAML_LOAD_OPT(ground_grid_spacing, float);
   YAML_LOAD_OPT(show_console_messages, bool);
   YAML_LOAD_OPT(current_pose_corner_size, float);
   YAML_LOAD_OPT(local_map_point_size, float);
   YAML_LOAD_OPT(current_observation_point_size, float);
+  YAML_LOAD_OPT(last_deskewed_observations_point_size, float);
   YAML_LOAD_OPT(local_map_render_voxelmap_free_space, bool);
+
+  MCP_LOAD_OPT(cfg, current_observation_colormap);
+  MCP_LOAD_OPT(cfg, last_deskewed_observations_colormap);
 
   if (cfg.has("model")) {
     ASSERT_(cfg["model"].isSequence());
