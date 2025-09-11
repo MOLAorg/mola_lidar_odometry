@@ -52,8 +52,10 @@ namespace
 namespace mola
 {
 
-void LidarOdometry::updatePipelineDynamicVariables()
+void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point & stamp)
 {
+  const auto stamp_s = mrpt::Clock::toDouble(stamp);
+
   // Set dynamic variables for twist usage within ICP pipelines
   // (e.g. de-skew methods)
   {
@@ -63,6 +65,11 @@ void LidarOdometry::updatePipelineDynamicVariables()
     }
 
     this->updatePipelineTwistVariables(twistForIcpVars);
+
+    state_.parameter_source.localVelocityBuffer.add_linear_velocity(
+      stamp_s, {twistForIcpVars.vx, twistForIcpVars.vy, twistForIcpVars.vz});
+    state_.parameter_source.localVelocityBuffer.add_angular_velocity(
+      stamp_s, {twistForIcpVars.wx, twistForIcpVars.wy, twistForIcpVars.wz});
   }
 
   // robot pose:
@@ -73,6 +80,8 @@ void LidarOdometry::updatePipelineDynamicVariables()
   state_.parameter_source.updateVariable("robot_yaw", p.yaw());
   state_.parameter_source.updateVariable("robot_pitch", p.pitch());
   state_.parameter_source.updateVariable("robot_roll", p.roll());
+
+  state_.parameter_source.localVelocityBuffer.add_orientation(stamp_s, p.getRotationMatrix());
 
   state_.parameter_source.updateVariable(
     "ADAPTIVE_THRESHOLD_SIGMA", state_.adapt_thres_sigma != 0

@@ -215,6 +215,8 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
 
   // 2) Precise scan de-skewing is done via Generator, which in turns passes the IMU data to the
   //    LocalVelocityBuffer inside the ParameterSource.
+  //    The LocalVelocityBuffer also needs velocity and orientation estimations, which are sent out
+  //    in updatePipelineDynamicVariables()
   {
     auto lckState = mrpt::lockHelper(state_mtx_);
     mp2p_icp::metric_map_t dummy_map;

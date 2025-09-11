@@ -746,7 +746,7 @@ private:
   /// Returns false if the scan/observation is not valid:
   bool doCheckIsValidObservation(const mp2p_icp::metric_map_t & m);
 
-  void updatePipelineDynamicVariables();
+  void updatePipelineDynamicVariables(const mrpt::Clock::time_point & stamp);
   void updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw);
 
   void updateVisualization(const mp2p_icp::metric_map_t & currentObservation);

@@ -118,7 +118,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
   }
 
   // Refresh dyn. variables used in the mp2p_icp pipelines:
-  updatePipelineDynamicVariables();
+  updatePipelineDynamicVariables(this_obs_tim);
 
   MRPT_LOG_DEBUG_STREAM("Dynamic variables: " << state_.parameter_source.printVariableValues());
 
@@ -587,8 +587,9 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
        );
     // clang-format on
 
-    if (updateSimpleMap && distance_enough_sm)
+    if (updateSimpleMap && distance_enough_sm) {
       state_.distance_checker_simplemap->insert(state_.last_lidar_pose.mean);
+    }
 
     MRPT_LOG_DEBUG_FMT(
       "Since last KF: dist=%5.03f m rotation=%.01f deg updateLocalMap=%s "
@@ -646,13 +647,15 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 
     // 2/4: Make sure dynamic variables are up-to-date,
     // in particular, [robot_x, ..., robot_roll]
-    updatePipelineDynamicVariables();
+    updatePipelineDynamicVariables(this_obs_tim);
 
     // 3/4: Apply pipeline
     mp2p_icp_filters::apply_filter_pipeline(state_.obs2map_merge, *state_.local_map, profiler_);
 
     // 4/4: remove temporary layers:
-    for (const auto & [lyName, lyMap] : observation->layers) state_.local_map->layers.erase(lyName);
+    for (const auto & [lyName, lyMap] : observation->layers) {
+      state_.local_map->layers.erase(lyName);
+    }
 
     tle3.stop();
 
@@ -689,7 +692,9 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
           closestGPS = gpsObs;
         }
       }
-      if (closestGPS) *obsSF += closestGPS;
+      if (closestGPS) {
+        *obsSF += closestGPS;
+      }
     } else {
       // Otherwise (we are in here because add_non_keyframes_too).
       // Since we are adding anyway a "comment" observation with the
