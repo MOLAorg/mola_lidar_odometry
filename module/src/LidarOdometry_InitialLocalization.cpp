@@ -84,7 +84,7 @@ void LidarOdometry::handleInitialLocalization()
     case mola::InitLocalization::PitchAndRollFromIMU: {
       // Construct the IMU averager object:
       if (!state_.imu_initializer) {
-        state_.imu_initializer = ImuInitialCalibrator();
+        state_.imu_initializer = mola::imu::ImuInitialCalibrator();
         state_.imu_initializer->parameters.max_samples_age = il.imu_initial_calibration_max_age;
         state_.imu_initializer->parameters.required_samples =
           il.imu_initial_calibration_sample_count;

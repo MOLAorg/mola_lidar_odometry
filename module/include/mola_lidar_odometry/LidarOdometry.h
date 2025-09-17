@@ -578,7 +578,8 @@ private:
     // will be true after the first incoming LiDAR frame and re-localization is enabled and run
     bool initial_localization_done = false;
 
-    std::optional<ImuInitialCalibrator> imu_initializer;  //!< Used for pitch & roll initialization
+    /// Used for pitch & roll initialization
+    std::optional<mola::imu::ImuInitialCalibrator> imu_initializer;
 
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 
