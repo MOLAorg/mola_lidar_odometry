@@ -134,7 +134,9 @@ double computeModelError(const mrpt::poses::CPose3D & model_deviation, double ma
 
 void LidarOdometry::doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastMotionModelError)
 {
-  if (!state_.estimated_sensor_max_range.has_value()) return;
+  if (!state_.estimated_sensor_max_range.has_value()) {
+    return;
+  }
 
   const double max_range = state_.estimated_sensor_max_range.value();
 
@@ -156,8 +158,9 @@ void LidarOdometry::doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastM
   const double new_sigma =
     (model_error + rot_error) * mrpt::saturate_val(KP * (1.0 - state_.last_icp_quality), 0.1, KP);
 
-  if (state_.adapt_thres_sigma == 0)  // initial
+  if (state_.adapt_thres_sigma == 0) {  // initial
     state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;
+  }
 
   state_.adapt_thres_sigma = ALPHA * state_.adapt_thres_sigma + (1.0 - ALPHA) * new_sigma;
 
@@ -176,7 +179,7 @@ void LidarOdometry::doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObserv
   ASSERT_(!maxRange.has_value());  // this method is for 1st call only
 
   mp2p_icp_filters::Generator gen;
-  gen.params_.target_layer = "raw";
+  gen.params.target_layer = "raw";
   gen.initialize({});
 
   mp2p_icp::metric_map_t map;
@@ -184,7 +187,9 @@ void LidarOdometry::doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObserv
 
   auto pts = map.point_layer("raw");
 
-  if (pts->empty()) return;
+  if (pts->empty()) {
+    return;
+  }
 
   const auto bb = pts->boundingBox();
 
@@ -214,10 +219,14 @@ void LidarOdometry::doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t
 
   for (const auto & [layerName, layer] : m.layers) {
     auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layer);
-    if (!pts || pts->empty()) continue;
+    if (!pts || pts->empty()) {
+      continue;
+    }
 
     const auto bb = pts->boundingBox();
-    if (!isNormalPoint(bb.min) || !isNormalPoint(bb.max)) continue;  // skip NaN, INF, etc.
+    if (!isNormalPoint(bb.min) || !isNormalPoint(bb.max)) {
+      continue;  // skip NaN, INF, etc.
+    }
 
     double radius = std::max(bb.max.norm(), bb.min.norm());
 
