@@ -280,13 +280,13 @@ observations_filter_1st_pass:
   # and with the given parameters. Filters are run in definition order on the
   # input metric_map_t object.
 
-  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+  - class_name: mp2p_icp_filters::FilterDecimateAdaptive
     params:
       input_pointcloud_layer: "raw"
       output_pointcloud_layer: "decimated_unfiltered"
-      voxel_filter_resolution: "${MOLA_MAP_CLOUD_DECIMATION|0.05}" # [m]
-      minimum_input_points_to_filter: 2000 # don't decimate if smaller than this size
-      decimate_method: DecimateMethod::FirstPoint
+      voxel_size: "${MOLA_MAP_CLOUD_DECIMATION|0.30}" # [m]
+      desired_output_point_count: 2000
+
 
   # Remove points too close, to prevent "noise" from the vehicle,
   # the person next to the robot, etc.
