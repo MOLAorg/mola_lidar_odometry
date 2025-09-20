@@ -146,17 +146,18 @@ void LidarOdometry::doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastM
   double rot_error = 0;
   if (state_.last_motion_model_output) {
     const auto & tw = state_.last_motion_model_output->twist;
-    rot_error = 0.1 * mrpt::math::TVector3D(tw.wx, tw.wy, tw.wz).norm() * max_range;
+    rot_error = 0.01 * mrpt::math::TVector3D(tw.wx, tw.wy, tw.wz).norm() * max_range;
   }
-
-  computeModelError(lastMotionModelError, max_range);
 
   // proportional controller constant
   const double KP = params_.adaptive_threshold.kp;
   ASSERT_(KP > 1.0);
 
+  constexpr double TARGET_ICP_QUALITY = 0.85;
+
   const double new_sigma =
-    (model_error + rot_error) * mrpt::saturate_val(KP * (1.0 - state_.last_icp_quality), 0.1, KP);
+    (model_error + rot_error) *
+    mrpt::saturate_val(KP * (TARGET_ICP_QUALITY - state_.last_icp_quality), 0.1, KP);
 
   if (state_.adapt_thres_sigma == 0) {  // initial
     state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;
