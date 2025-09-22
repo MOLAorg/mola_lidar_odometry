@@ -193,18 +193,17 @@ icp_settings_with_vel:
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
   # instances to pair geometric entities between pointclouds.
   matchers:
-    - class: mp2p_icp::Matcher_Points_DistanceThreshold
+    - class: mp2p_icp::Matcher_Cov2Cov
       params:
         #threshold: "2.0*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-0.5*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30)"
         threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'
-        thresholdAngularDeg: 0 # deg
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
-        pointLayerMatches:
+        # Both layers here must be of type 'mola::KeyframePointCloudMap'
+        layerMatches:
           - {
               global: "${MOLA_LOCALMAP_LAYER_NAME|localmap}",
-              local: "decimated",
-              weight: 1.0,
+              local: "observation"
             }
 
   quality:
@@ -260,6 +259,24 @@ observations_generator:
       throw_on_unhandled_observation_class: true
       process_class_names_regex: ".*"
       process_sensor_labels_regex: ".*"
+
+  # This just creates an empty layer of the custom class 'mola::KeyframePointCloudMap'
+  - class_name: mp2p_icp_filters::Generator
+    params:
+      target_layer: "observation"
+      throw_on_unhandled_observation_class: true
+      process_class_names_regex: "" # NONE: don't process observations in the generator.
+      #process_sensor_labels_regex: '.*'
+      # metric_map_definition_ini_file: '${CURRENT_YAML_FILE_PATH}/localmap_definition_voxelmap.ini'
+
+      metric_map_definition:
+        # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/latest/group_mrpt_maps_grp.html
+        class: mola::KeyframePointCloudMap
+        plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
+        creationOpts: ~  # none required
+        insertOpts: ~
+        likelihoodOpts: ~ # none required
+        renderOpts: ~
 
 # this pipeline is required so "SENSOR_TIME_OFFSET" has a different value for each independent LiDAR sensor
 # in setups with multiple LiDARs:
@@ -326,6 +343,11 @@ observations_filter_2nd_pass:
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
       twist: [vx, vy, vz, wx, wy, wz]
+
+  - class_name: mp2p_icp_filters::FilterMerge
+    params:
+      input_pointcloud_layer: "decimated"
+      target_layer: "observation"
 
 # final pass:
 observations_filter_final_pass:
