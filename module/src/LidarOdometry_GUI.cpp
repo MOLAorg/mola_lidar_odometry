@@ -327,19 +327,36 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     }
 
     // Colorize by intensity with custom color map?
-    if (org_cloud && org_cloud->hasField_Intensity()) {
-      const auto * Is = org_cloud->getPointsBufferRef_intensity();
-      ASSERT_(Is);
+    if (!org_cloud || !org_cloud->hasField_Intensity()) {
+      return;
+    }
 
-      for (size_t i = 0; i < Is->size(); i++) {
-        const auto I = (*Is)[i];
-        float r = 0, g = 0, b = 0;
-        mrpt::img::colormap(colormap, I, r, g, b);
-        cloud.setPointColor_fast(i, r, g, b);
+    const auto * Is = org_cloud->getPointsBufferRef_intensity();
+    ASSERT_(Is);
+
+    // Thread-local cache for max intensity
+    thread_local float max_intensity_cache = 1.0f;
+
+    // Find max intensity in current cloud
+    float current_max = 0.0f;
+    for (const auto & I : *Is) {
+      if (I > current_max) {
+        current_max = I;
       }
+    }
 
-      cloud.markAllPointsAsNew();
-    };
+    // Smooth update of max intensity
+    max_intensity_cache = 0.9f * max_intensity_cache + 0.1f * current_max;
+    const float scale = (max_intensity_cache > 0.0f) ? (1.0f / max_intensity_cache) : 1.0f;
+
+    for (size_t i = 0; i < Is->size(); i++) {
+      const float I_norm = (*Is)[i] * scale;  // normalize to [0,1] using smoothed max
+      float r = 0, g = 0, b = 0;
+      mrpt::img::colormap(colormap, I_norm, r, g, b);
+      cloud.setPointColor_fast(i, r, g, b);
+    }
+
+    cloud.markAllPointsAsNew();
   };
 
   // Update current observation
@@ -565,9 +582,10 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
   const ProfilerEntry tle3(profiler_, "updateVisualization.update_gui");
 
-  gui_.lbIcpQuality->setCaption(mrpt::format(
-    "ICP quality: %.01f%% | Threshold: %.02f", 100.0 * state_.last_icp_quality,
-    state_.adapt_thres_sigma));
+  gui_.lbIcpQuality->setCaption(
+    mrpt::format(
+      "ICP quality: %.01f%% | Threshold: %.02f", 100.0 * state_.last_icp_quality,
+      state_.adapt_thres_sigma));
 
   {
     const auto [rate_lidar, rate_imu] = state_.get_lidar_imu_sensor_rates();
@@ -576,33 +594,37 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
   }
 
   if (state_.estimated_sensor_max_range) {
-    gui_.lbSensorRange->setCaption(mrpt::format(
-      "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
-      state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
+    gui_.lbSensorRange->setCaption(
+      mrpt::format(
+        "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
+        state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
   } else {
     gui_.lbSensorRange->setCaption("Est. max range: (Not available)");
   }
 
   {
     const double dtAvr = profiler_.getMeanTime("onLidar");
-    gui_.lbTime->setCaption(mrpt::format(
-      "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr, dtAvr > 0 ? 1.0 / dtAvr : .0));
+    gui_.lbTime->setCaption(
+      mrpt::format(
+        "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr, dtAvr > 0 ? 1.0 / dtAvr : .0));
   }
 
   {
     const double averageLidarQueue = profiler_.getMeanTime("onNewObservation.lidar_queue_length");
 
-    gui_.lbLidarQueue->setCaption(mrpt::format(
-      "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
+    gui_.lbLidarQueue->setCaption(
+      mrpt::format(
+        "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
   }
 
   if (state_.last_motion_model_output) {
     const auto & tw = state_.last_motion_model_output->twist;
     const double speed = mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz).norm();
 
-    gui_.lbSpeed->setCaption(mrpt::format(
-      "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed, speed * 3600.0 / 1000.0,
-      speed / 0.44704));
+    gui_.lbSpeed->setCaption(
+      mrpt::format(
+        "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed, speed * 3600.0 / 1000.0,
+        speed / 0.44704));
   } else {
     gui_.lbSpeed->setCaption("Speed: (Not available)");
   }
