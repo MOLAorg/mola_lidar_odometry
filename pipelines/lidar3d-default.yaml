@@ -305,6 +305,7 @@ observations_filter_1st_pass:
       output_layer_between: "decimated_for_map_by_range"
       range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}"
       range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
+      metric_l_infinity: true
 
   # Remove close ceilings (problematic in most cases!)
   - class_name: mp2p_icp_filters::FilterBoundingBox
@@ -398,6 +399,7 @@ observations_filter_deskew_for_visualization:
       output_layer_between: "raw_filtered"
       range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}"
       range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
+      metric_l_infinity: true
 
   - class_name: mp2p_icp_filters::FilterDeskew
     params:

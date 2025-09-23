@@ -52,16 +52,16 @@ params:
     check_for_removal_every_n: 100
 
   # Minimum ICP quality to insert it into the map:
-  min_icp_goodness: ${MOLA_MINIMUM_ICP_QUALITY|0.25}
+  min_icp_goodness: ${MOLA_MINIMUM_ICP_QUALITY|0.50}
 
   # Adaptive threshold, as in the KISS-ICP paper:
   adaptive_threshold:
     enabled: true
-    initial_sigma: 2.0 # [m]
-    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10} # [m]
-    maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|3.0} # [m]
+    initial_sigma: 0.50 # [m]
+    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.04} # [m]
+    maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|0.50} # [m]
     kp: 2.0
-    alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.90}
+    alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.99}
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
@@ -151,6 +151,8 @@ initial_localization:
       "${MOLA_INITIAL_PITCH|0.0}",
       "${MOLA_INITIAL_ROLL|0.0}",
     ]
+  imu_initial_calibration_sample_count: "${MOLA_LO_INITIAL_IMU_SAMPLES|400}"
+  imu_initial_calibration_max_age: 5.0
 
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
 # ICP settings can be included from an external YAML file if desired, or defined
@@ -186,7 +188,7 @@ icp_settings_with_vel:
       params:
         maxIterations: 1
         robustKernel: "RobustKernel::GemanMcClure"
-        robustKernelParam: 1.0  # In GICP, errors are normalized by covariance
+        robustKernelParam: 6.0  # In GICP, errors are normalized by covariance
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -300,29 +302,19 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: "raw"
       output_pointcloud_layer: "decimated_unfiltered"
-      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.20}" # [m]
-      desired_output_point_count: "${MOLA_DECIMATED_POINTS|10000}"
-
+      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.10}" # [m]
+      desired_output_point_count: "${MOLA_DECIMATED_POINTS|5000}"
+      parallelization_grain_size: 8000  # When TBB is enabled, the grainsize for splitting the input clouds into threads
 
   # Remove points too close, to prevent "noise" from the vehicle,
   # the person next to the robot, etc.
-  - class_name: mp2p_icp_filters::FilterBoundingBox
+  - class_name: mp2p_icp_filters::FilterByRange
     params:
       input_pointcloud_layer: "decimated_unfiltered"
-      outside_pointcloud_layer: "decimated_skewed"
-      bounding_box_min:
-        [
-          "-${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}",
-          "-${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}",
-          "-${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}",
-        ]
-      bounding_box_max:
-        [
-          "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}",
-          "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}",
-          "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}",
-        ]
-
+      output_layer_between: "decimated_skewed"
+      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}"
+      range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
+      metric_l_infinity: true
 
 # 2nd pass:
 observations_filter_2nd_pass:
@@ -380,6 +372,7 @@ observations_filter_deskew_for_visualization:
       output_layer_between: "raw_filtered"
       range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}"
       range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
+      metric_l_infinity: true
 
   - class_name: mp2p_icp_filters::FilterDeskew
     params:
