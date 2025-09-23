@@ -251,6 +251,16 @@ void LidarOdometry::internalBuildGUI()
     });
 }
 
+void LidarOdometry::doRemoveCloudsWithDecay()
+{
+  // Remove possible old 3D objects if the user disabled visualization on the fly:
+#if MOLA_VERSION_CHECK(2, 0, 0)
+  if (visualizer_) {
+    visualizer_->clear_all_point_clouds_with_decay();
+  }
+#endif
+}
+
 void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentObservation)
 {
   const ProfilerEntry tle(profiler_, "updateVisualization");
@@ -309,13 +319,6 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     auto glCurrentObservation = mrpt::opengl::CSetOfObjects::Create();
     updateTasks.emplace_back(
       [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
-  };
-
-  auto doRemoveCloudsWithDecay = [&]() {
-  // Remove possible old 3D objects if the user disabled visualization on the fly:
-#if MOLA_VERSION_CHECK(2, 0, 0)
-    updateTasks.emplace_back([=]() { visualizer_->clear_all_point_clouds_with_decay(); });
-#endif
   };
 
   auto doColorizeByIntensity = [&](

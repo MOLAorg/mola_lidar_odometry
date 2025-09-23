@@ -60,6 +60,7 @@ void LidarOdometry::handleInitialLocalization()
       }
 
       lambdaInitFromPose(initPose);
+      doRemoveCloudsWithDecay();
 
 #if 0
       // And now, fake a twist estimation with a large covariance to make sure the filter does not become overconfident on it starting with zero velocity:
@@ -109,6 +110,7 @@ void LidarOdometry::handleInitialLocalization()
         initPose.mean = mrpt::poses::CPose3D(il.fixed_initial_pose);
         initPose.cov.setDiagonal(1e-12);
         lambdaInitFromPose(initPose);
+        doRemoveCloudsWithDecay();
 
         state_.local_map->clear();
         ASSERT_(state_.local_map->empty());

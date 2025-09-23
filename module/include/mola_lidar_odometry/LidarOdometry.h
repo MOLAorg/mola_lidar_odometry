@@ -754,6 +754,8 @@ private:
 
   void internalBuildGUI();
 
+  void doRemoveCloudsWithDecay();
+
   void doPublishUpdatedLocalization(const mrpt::Clock::time_point & this_obs_tim);
 
   void doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs_tim);
