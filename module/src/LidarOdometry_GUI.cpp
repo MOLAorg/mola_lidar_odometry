@@ -198,7 +198,7 @@ void LidarOdometry::internalBuildGUI()
       [this, checked]() { params_.visualization.show_last_deskewed_observations_decay = checked; });
   });
 
-  auto * cbShowSLM = tab3->add<nanogui::CheckBox>("Show sparse local map");
+  auto * cbShowSLM = tab3->add<nanogui::CheckBox>("Show local map");
   cbShowSLM->setChecked(params_.visualization.show_localmap);
   cbShowSLM->setCallback([&](bool checked) {
     this->enqueue_request([this, checked]() { params_.visualization.show_localmap = checked; });

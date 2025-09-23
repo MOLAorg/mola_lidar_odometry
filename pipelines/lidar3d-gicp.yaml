@@ -303,7 +303,7 @@ observations_filter_1st_pass:
       input_pointcloud_layer: "raw"
       output_pointcloud_layer: "decimated_unfiltered"
       voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.10}" # [m]
-      desired_output_point_count: "${MOLA_DECIMATED_POINTS|5000}"
+      desired_output_point_count: "${MOLA_DECIMATED_POINTS_MAP|10000}"
       parallelization_grain_size: 8000  # When TBB is enabled, the grainsize for splitting the input clouds into threads
 
   # Remove points too close, to prevent "noise" from the vehicle,
@@ -311,22 +311,31 @@ observations_filter_1st_pass:
   - class_name: mp2p_icp_filters::FilterByRange
     params:
       input_pointcloud_layer: "decimated_unfiltered"
-      output_layer_between: "decimated_skewed"
+      output_layer_between: "decimated_skewed_for_map"
       range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}"
       range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
       metric_l_infinity: true
+
+  - class_name: mp2p_icp_filters::FilterDecimateAdaptive
+    params:
+      input_pointcloud_layer: "decimated_skewed_for_map"
+      output_pointcloud_layer: "decimated_skewed_for_icp"
+      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.10}" # [m]
+      desired_output_point_count: "${MOLA_DECIMATED_POINTS_ICP|3000}"
+      parallelization_grain_size: 8000  # When TBB is enabled, the grainsize for splitting the input clouds into threads
+
 
 # 2nd pass:
 observations_filter_2nd_pass:
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ["decimated"]
+      pointcloud_layer_to_remove: ["decimated_map", "decimated_icp"]
       error_on_missing_input_layer: false
 
   - class_name: mp2p_icp_filters::FilterDeskew
     params:
-      input_pointcloud_layer: "decimated_skewed"
-      output_pointcloud_layer: "decimated"
+      input_pointcloud_layer: "decimated_skewed_for_map"
+      output_pointcloud_layer: "decimated_for_map"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
       #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
@@ -335,9 +344,22 @@ observations_filter_2nd_pass:
       # mp2p_icp::Parameterizable API to update them dynamically.
       twist: [vx, vy, vz, wx, wy, wz]
 
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      input_pointcloud_layer: "decimated_skewed_for_icp"
+      output_pointcloud_layer: "decimated_for_icp"
+      method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
+      silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
+      #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
+
+      # These (vx,...,wz) are variable names that must be defined via the
+      # mp2p_icp::Parameterizable API to update them dynamically.
+      twist: [vx, vy, vz, wx, wy, wz]
+
+
   - class_name: mp2p_icp_filters::FilterMerge
     params:
-      input_pointcloud_layer: "decimated"
+      input_pointcloud_layer: "decimated_for_icp"
       target_layer: "observation"
 
 # final pass:
@@ -349,7 +371,8 @@ observations_filter_final_pass:
         [
           "raw",
           "decimated_unfiltered",
-          "decimated_skewed",
+          "decimated_skewed_for_map",
+          "decimated_skewed_for_icp",
         ]
 
 # To populate the local map, one or more observation layers are merged
@@ -357,7 +380,7 @@ observations_filter_final_pass:
 insert_observation_into_local_map:
   - class_name: mp2p_icp_filters::FilterMerge
     params:
-      input_pointcloud_layer: "decimated"
+      input_pointcloud_layer: "decimated_for_map"
       target_layer: "${MOLA_LOCALMAP_LAYER_NAME|localmap}"
       input_layer_in_local_coordinates: true
       robot_pose:
