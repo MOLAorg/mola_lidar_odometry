@@ -174,7 +174,7 @@ icp_settings_with_vel:
     minAbsStep_trans: 1e-4
     minAbsStep_rot: 5e-5
 
-    debugPrintIterationProgress: true  # Print iteration progress
+    #debugPrintIterationProgress: true  # Print iteration progress
     #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
     saveIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS|false} # Store partial solutions and pairings for each ICP iteration
     decimationIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS_DECIMATION|3}
@@ -185,8 +185,8 @@ icp_settings_with_vel:
     - class: mp2p_icp::Solver_GaussNewton
       params:
         maxIterations: 1
-        #robustKernel: "RobustKernel::GemanMcClure"
-        #robustKernelParam: '0.5*ADAPTIVE_THRESHOLD_SIGMA'
+        robustKernel: "RobustKernel::GemanMcClure"
+        robustKernelParam: 1.0  # In GICP, errors are normalized by covariance
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -300,8 +300,8 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: "raw"
       output_pointcloud_layer: "decimated_unfiltered"
-      voxel_size: "${MOLA_MAP_CLOUD_DECIMATION|0.20}" # [m]
-      desired_output_point_count: 5000
+      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.20}" # [m]
+      desired_output_point_count: "${MOLA_DECIMATED_POINTS|10000}"
 
 
   # Remove points too close, to prevent "noise" from the vehicle,
