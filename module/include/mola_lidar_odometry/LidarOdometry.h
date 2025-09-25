@@ -661,8 +661,8 @@ private:
     mutable std::map<mrpt::Clock::time_point, mrpt::obs::CSensoryFrame::Ptr>
       past_simplemaps_observations;
 
-    /// Used to estimate sensor rate
-    mrpt::containers::circular_buffer<double> recent_lidar_stamps{50};
+    /// Used to estimate sensor rate, mapped by sensorLabel
+    std::map<std::string, mrpt::containers::circular_buffer<double>> recent_lidar_stamps;
 
     /// Used to estimate sensor rate
     mrpt::containers::circular_buffer<double> recent_imu_stamps{500};
@@ -670,7 +670,7 @@ private:
     /// Returns the rates (Hz) of incoming LiDAR and IMU sensors for the past few seconds
     std::tuple<double, double> get_lidar_imu_sensor_rates();
 
-    void append_lidar_stamp(const mrpt::Clock::time_point & stamp);
+    void append_lidar_stamp(const std::string & sensorLabel, const mrpt::Clock::time_point & stamp);
     void append_imu_stamp(const mrpt::Clock::time_point & stamp);
 
   };  // end of MethodState

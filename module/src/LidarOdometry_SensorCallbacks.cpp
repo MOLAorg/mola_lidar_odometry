@@ -312,15 +312,27 @@ double rate_from_stamps_buffer(const mrpt::containers::circular_buffer<double> &
 
 std::tuple<double, double> LidarOdometry::MethodState::get_lidar_imu_sensor_rates()
 {
-  return {rate_from_stamps_buffer(recent_lidar_stamps), rate_from_stamps_buffer(recent_imu_stamps)};
+  const double lidar_rate = recent_lidar_stamps.empty()
+                              ? 0.0
+                              : rate_from_stamps_buffer(recent_lidar_stamps.begin()->second);
+
+  const double imu_rate = rate_from_stamps_buffer(recent_imu_stamps);
+
+  return {lidar_rate, imu_rate};
 }
 
-void LidarOdometry::MethodState::append_lidar_stamp(const mrpt::Clock::time_point & stamp)
+void LidarOdometry::MethodState::append_lidar_stamp(
+  const std::string & sensorLabel, const mrpt::Clock::time_point & stamp)
 {
-  if (recent_lidar_stamps.available() == 0) {
-    recent_lidar_stamps.pop();
+  constexpr std::size_t LIDAR_STAMPS_QUEUE_LENGTH = 50;
+
+  auto [it_stamps, is_new] =
+    recent_lidar_stamps.try_emplace(sensorLabel, LIDAR_STAMPS_QUEUE_LENGTH);
+  auto & stamps = it_stamps->second;
+  if (stamps.available() == 0) {
+    stamps.pop();
   }
-  recent_lidar_stamps.push(mrpt::Clock::toDouble(stamp));
+  stamps.push(mrpt::Clock::toDouble(stamp));
 }
 void LidarOdometry::MethodState::append_imu_stamp(const mrpt::Clock::time_point & stamp)
 {
