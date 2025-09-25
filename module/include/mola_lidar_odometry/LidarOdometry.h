@@ -249,6 +249,7 @@ public:
       float background_color_gray_level = 0.3f;
 
       bool show_trajectory = true;
+      std::vector<float> trajectory_rgba = {0.1f, 0.1f, 0.1f, 1.0f};
       bool show_ground_grid = true;
       float ground_grid_spacing = 5.0f;
       float current_pose_corner_size = 1.5f;  //! [m]

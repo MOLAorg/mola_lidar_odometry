@@ -458,8 +458,8 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
     if (!state_.glEstimatedPath) {
       state_.glEstimatedPath = mrpt::opengl::CSetOfLines::Create();
-      state_.glEstimatedPath->setColor_u8(0x30, 0x30, 0xe0);
-
+      const auto & rgba = params_.visualization.trajectory_rgba;
+      state_.glEstimatedPath->setColor(rgba.at(0), rgba.at(1), rgba.at(2), rgba.at(3));
       state_.glPathGrp = mrpt::opengl::CSetOfObjects::Create();
     }
     // Update path viz:
