@@ -71,6 +71,7 @@ void LidarOdometry::internalBuildGUI()
   gui_.lbSpeed = tab1->add<nanogui::Label>(" ");
   gui_.lbTime = tab1->add<nanogui::Label>(" ");
   gui_.lbLidarQueue = tab1->add<nanogui::Label>(" ");
+  gui_.lbMapStats = tab1->add<nanogui::Label>(" ");
 
   // tab 2: control
   gui_.cbActive = tab2->add<nanogui::CheckBox>("Active");
@@ -619,6 +620,10 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
       mrpt::format(
         "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
   }
+  gui_.lbMapStats->setCaption(
+    mrpt::format(
+      "Keyframes: Localmap=%zu, simplemap=%zu", state_.distance_checker_local_map->size(),
+      state_.distance_checker_simplemap->size()));
 
   if (state_.last_motion_model_output) {
     const auto & tw = state_.last_motion_model_output->twist;

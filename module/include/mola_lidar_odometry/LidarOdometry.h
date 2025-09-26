@@ -699,6 +699,7 @@ private:
     nanogui::Label * lbTime = nullptr;
     nanogui::Label * lbSpeed = nullptr;
     nanogui::Label * lbLidarQueue = nullptr;
+    nanogui::Label * lbMapStats = nullptr;
     nanogui::CheckBox * cbActive = nullptr;
     nanogui::CheckBox * cbMapping = nullptr;
     nanogui::CheckBox * cbSaveSimplemap = nullptr;

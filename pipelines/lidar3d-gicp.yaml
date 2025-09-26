@@ -174,7 +174,7 @@ icp_settings_with_vel:
 
   # See: mp2p_icp::Parameter
   params:
-    maxIterations: 25 # 300
+    maxIterations: ${MOLA_MAX_ICP_ITERATIONS|25}
     minAbsStep_trans: 1e-4
     minAbsStep_rot: 5e-5
 
