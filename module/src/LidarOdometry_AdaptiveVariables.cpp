@@ -153,11 +153,11 @@ void LidarOdometry::doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastM
   const double KP = params_.adaptive_threshold.kp;
   ASSERT_(KP > 1.0);
 
-  constexpr double TARGET_ICP_QUALITY = 0.85;
-
   const double new_sigma =
     (model_error + rot_error) *
-    mrpt::saturate_val(KP * (TARGET_ICP_QUALITY - state_.last_icp_quality), 0.1, KP);
+    mrpt::saturate_val(
+      KP * (params_.adaptive_threshold.icp_quality_controller_setpoint - state_.last_icp_quality),
+      0.1, KP);
 
   if (state_.adapt_thres_sigma == 0) {  // initial
     state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;

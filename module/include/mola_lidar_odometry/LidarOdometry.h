@@ -287,6 +287,7 @@ public:
       double min_motion = 0.10;
       double kp = 5.0;
       double alpha = 0.99;
+      double icp_quality_controller_setpoint = 0.85;
 
       void initialize(const Yaml & c);
     };

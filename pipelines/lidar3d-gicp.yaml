@@ -60,6 +60,7 @@ params:
     initial_sigma: 0.50 # [m]
     min_motion: ${MOLA_SIGMA_MIN_MOTION|0.04} # [m]
     maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|0.50} # [m]
+    icp_quality_controller_setpoint: 0.85
     kp: 2.0
     alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.99}
 
@@ -197,7 +198,6 @@ icp_settings_with_vel:
   matchers:
     - class: mp2p_icp::Matcher_Cov2Cov
       params:
-        #threshold: "2.0*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-0.5*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30)"
         threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
@@ -303,7 +303,7 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: "raw"
       output_pointcloud_layer: "decimated_unfiltered"
-      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.10}" # [m]
+      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.15}" # [m]
       desired_output_point_count: "${MOLA_DECIMATED_POINTS_MAP|10000}"
       parallelization_grain_size: 8000  # When TBB is enabled, the grainsize for splitting the input clouds into threads
 
