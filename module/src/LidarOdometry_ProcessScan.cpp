@@ -450,11 +450,17 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 
     MRPT_LOG_DEBUG_FMT(
       "ICP (kind=%u): goodness=%.02f%% iters=%u pose=%s "
-      "termReason=%s",
+      "termReason=%s pose_cov diagonal sigmas:{%e %e %e [m] %e %e %e [deg]}",
       static_cast<unsigned int>(in.align_kind), 100.0 * out.goodness,
       static_cast<unsigned int>(icp_result.nIterations),
       out.found_pose_to_wrt_from.getMeanVal().asString().c_str(),
-      mrpt::typemeta::enum2str(icp_result.terminationReason).c_str());
+      mrpt::typemeta::enum2str(icp_result.terminationReason).c_str(),
+      std::sqrt(out.found_pose_to_wrt_from.cov(0, 0)),
+      std::sqrt(out.found_pose_to_wrt_from.cov(1, 1)),
+      std::sqrt(out.found_pose_to_wrt_from.cov(2, 2)),
+      mrpt::RAD2DEG(std::sqrt(out.found_pose_to_wrt_from.cov(3, 3))),
+      mrpt::RAD2DEG(std::sqrt(out.found_pose_to_wrt_from.cov(4, 4))),
+      mrpt::RAD2DEG(std::sqrt(out.found_pose_to_wrt_from.cov(5, 5))));
 
     tle_icp.stop();
     // ------------------------------------------------------
