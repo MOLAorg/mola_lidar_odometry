@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 
+set -x
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 # Default pipeline YAML file:
-PIPELINE_YAML="$SCRIPT_DIR/../pipelines/lidar3d-gicp.yaml"
+PIPELINE_YAML="${MOLA_PIPELINE_YAML:-$SCRIPT_DIR/../pipelines/lidar3d-gicp.yaml}"
+STATE_ESTIMATOR_YAML="${MOLA_SE_YAML:-$SCRIPT_DIR/../state-estimator-params/state-estimation-simple.yaml}"
 DEFAULT_SEQS_TO_RUN="00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21"
 SEQS_TO_RUN="${SEQS_TO_RUN:-${DEFAULT_SEQS_TO_RUN}}"
 NUM_THREADS="${MOLA_NUM_THREADS:-1}"
@@ -31,6 +34,7 @@ parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   MOLA_SIMPLEMAP_OUTPUT=results/kitti_{}.simplemap \
   mola-lidar-odometry-cli \
     -c $PIPELINE_YAML\
+    --state-estimator-param-file $STATE_ESTIMATOR_YAML \
     --input-kitti-seq {} \
     --output-tum-path results/kitti_{}_mola_gicp.tum \
     --verbosity DEBUG \
