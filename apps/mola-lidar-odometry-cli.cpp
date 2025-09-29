@@ -491,7 +491,7 @@ int main_odometry(Cli & cli)
   if (cli.arg_stateEstimatorParams.isSet()) {
     const auto seParamsFile = cli.arg_stateEstimatorParams.getValue();
     auto seParams = mrpt::containers::yaml::FromFile(seParamsFile);
-    stateEstimator->initialize(seParams["params"]);
+    stateEstimator->initialize(seParams);
   }
 
   // Make both modules discoverables to each other:
