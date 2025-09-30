@@ -35,7 +35,6 @@ parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
     --state-estimator-param-file $STATE_ESTIMATOR_YAML \
     --input-kitti-seq {} \
     --output-tum-path results/kitti_{}_mola_gicp.tum \
-    --verbosity DEBUG \
     $@ \
 ::: $SEQS_TO_RUN
 

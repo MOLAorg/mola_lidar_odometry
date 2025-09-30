@@ -298,6 +298,8 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
           in.prior->cov_inv(3, 3) = large_certainty;  // rx
           in.prior->cov_inv(4, 4) = large_certainty;  // ry
         }
+
+        MRPT_LOG_DEBUG_STREAM("ICP prior=" << *in.prior);
       }
 
       MRPT_LOG_DEBUG_STREAM(
