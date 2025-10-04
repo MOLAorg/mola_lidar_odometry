@@ -789,6 +789,7 @@ private:
   void handleInitialLocalization();
 
   bool isPipelineUsingIMU() const;
+  void sendLidarScanToProcessQueue(const CObservation::Ptr & o);
 };
 
 namespace detail
