@@ -72,8 +72,11 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 
     const double lidar_scan_period = rate_lidar_hz > 0 ? 1.0 / rate_lidar_hz : 0.1;
 
+    const double imu_wait_timeout_s = 0.1;
+    const double imu_wait_t0 = mrpt::Clock::nowDouble();
+
     bool synch_success = false;
-    for (int waitIters = 0; waitIters < 100; waitIters++) {
+    while (mrpt::Clock::nowDouble() - imu_wait_t0 < imu_wait_timeout_s) {
       auto lckState = mrpt::lockHelper(state_mtx_);
       if (state_.recent_imu_stamps.size() > 1) {
         const auto last_imu = state_.recent_imu_stamps.peek(state_.recent_imu_stamps.size() - 1);
@@ -84,10 +87,10 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
         }
       }
       lckState.unlock();
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     if (!synch_success) {
-      MRPT_LOG_THROTTLE_WARN(
+      MRPT_LOG_THROTTLE_ERROR(
         5.0,
         "LiDAR odometry pipeline needs IMU data, but we timed-out waiting for IMU frames! Deskew "
         "and ICP optimization will be suboptimal.");

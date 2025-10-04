@@ -178,7 +178,7 @@ icp_settings_with_vel:
     minAbsStep_trans: 1e-3
     minAbsStep_rot: 1e-4
 
-    debugPrintIterationProgress: true  # Print iteration progress
+    #debugPrintIterationProgress: true  # Print iteration progress
     #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
     saveIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS|false} # Store partial solutions and pairings for each ICP iteration
     decimationIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS_DECIMATION|3}
