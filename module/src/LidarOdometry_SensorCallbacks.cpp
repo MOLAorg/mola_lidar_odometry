@@ -81,7 +81,7 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
     }
 
     // Yes, it's an IMU obs:
-    auto fut = worker_.enqueue(&LidarOdometry::onIMU, this, o);
+    auto fut = worker_others_.enqueue(&LidarOdometry::onIMU, this, o);
     (void)fut;
   }
 
@@ -93,13 +93,15 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
       auto lck = mrpt::lockHelper(is_busy_mtx_);
       state_.worker_tasks_others++;
     }
-    auto fut = worker_.enqueue(&LidarOdometry::onGPS, this, o);
+    auto fut = worker_others_.enqueue(&LidarOdometry::onGPS, this, o);
     (void)fut;
   }
 
   // Is it a LIDAR obs?
   for (const auto & re : params_.lidar_sensor_labels) {
-    if (!std::regex_match(o->sensorLabel, re)) continue;
+    if (!std::regex_match(o->sensorLabel, re)) {
+      continue;
+    }
 
     // Yes, it's a LIDAR obs:
     const int queued = [this]() {
@@ -125,7 +127,7 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
     }
 
     // Enqueue task:
-    auto fut = worker_.enqueue(&LidarOdometry::onLidar, this, o);
+    auto fut = worker_lidar_.enqueue(&LidarOdometry::onLidar, this, o);
 
     (void)fut;
 
@@ -313,7 +315,7 @@ double rate_from_stamps_buffer(const mrpt::containers::circular_buffer<double> &
 std::tuple<double, double> LidarOdometry::MethodState::get_lidar_imu_sensor_rates()
 {
   const double lidar_rate = recent_lidar_stamps.empty()
-                              ? 0.0
+                              ? 10.0
                               : rate_from_stamps_buffer(recent_lidar_stamps.begin()->second);
 
   const double imu_rate = rate_from_stamps_buffer(recent_imu_stamps);

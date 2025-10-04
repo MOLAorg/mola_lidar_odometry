@@ -676,10 +676,13 @@ private:
 
   };  // end of MethodState
 
-  /** The worker thread pool with 1 thread for processing incomming
-     * IMU or LIDAR observations*/
-  mrpt::WorkerThreadsPool worker_{
-    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_lidar_odom"};
+  /** The worker thread pool with 1 thread for processing incoming observations*/
+  mrpt::WorkerThreadsPool worker_lidar_{
+    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_lidar"};
+
+  /** The worker thread pool with 1 thread for processing incoming observations*/
+  mrpt::WorkerThreadsPool worker_others_{
+    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_imu"};
 
   MethodState state_;
   const MethodState & state() const { return state_; }
@@ -772,6 +775,8 @@ private:
 
   void onPublishDiagnostics();
   void handleInitialLocalization();
+
+  bool isPipelineUsingIMU() const;
 };
 
 namespace detail

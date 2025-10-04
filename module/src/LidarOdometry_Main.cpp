@@ -76,12 +76,16 @@ LidarOdometry::~LidarOdometry()
         2.0, "Destructor: waiting for remaining tasks on the worker threads...");
       std::this_thread::sleep_for(100ms);
     }
-    worker_.clear();
+    worker_lidar_.clear();
+    worker_others_.clear();
 
-    if (params_.simplemap.generate)  //
+    if (params_.simplemap.generate) {
       saveReconstructedMapToFile();
+    }
 
-    if (params_.estimated_trajectory.save_to_file) saveEstimatedTrajectoryToFile();
+    if (params_.estimated_trajectory.save_to_file) {
+      saveEstimatedTrajectoryToFile();
+    }
   } catch (const std::exception & e) {
     std::cerr << "[~LidarOdometry] Exception: " << e.what();
   }
@@ -142,7 +146,7 @@ bool LidarOdometry::isBusy() const
   is_busy_mtx_.lock();
   b = (state_.worker_tasks_lidar != 0) || (state_.worker_tasks_others != 0);
   is_busy_mtx_.unlock();
-  return b || worker_.pendingTasks();
+  return b || worker_lidar_.pendingTasks() || worker_others_.pendingTasks();
 }
 
 bool LidarOdometry::isActive() const
@@ -174,12 +178,16 @@ LidarOdometry::lastEstimatedState() const
 {
   {
     auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
-    if (!state_.initialized || state_.fatal_error) return {};
+    if (!state_.initialized || state_.fatal_error) {
+      return {};
+    }
   }
 
   auto lck = mrpt::lockHelper(state_mtx_);
 
-  if (!state_.last_motion_model_output) return {};
+  if (!state_.last_motion_model_output) {
+    return {};
+  }
   const auto & tw = state_.last_motion_model_output->twist;
   const auto & pose = state_.last_lidar_pose;
   return {{pose, tw}};
@@ -187,7 +195,9 @@ LidarOdometry::lastEstimatedState() const
 
 void LidarOdometry::saveEstimatedTrajectoryToFile() const
 {
-  if (params_.estimated_trajectory.output_file.empty()) return;
+  if (params_.estimated_trajectory.output_file.empty()) {
+    return;
+  }
 
   auto lck = mrpt::lockHelper(state_trajectory_mtx_);
 
@@ -204,7 +214,9 @@ void LidarOdometry::saveEstimatedTrajectoryToFile() const
 
 void LidarOdometry::saveReconstructedMapToFile() const
 {
-  if (params_.simplemap.save_final_map_to_file.empty()) return;
+  if (params_.simplemap.save_final_map_to_file.empty()) {
+    return;
+  }
 
   // make sure the unload queue is empty first,
   // so if we have this feature enabled, all SF entries have been

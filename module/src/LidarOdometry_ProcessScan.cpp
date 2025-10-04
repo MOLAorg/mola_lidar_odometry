@@ -31,6 +31,22 @@
 namespace mola
 {
 
+bool LidarOdometry::isPipelineUsingIMU() const
+{
+  const auto hasDeskewStage = [](const mp2p_icp_filters::FilterPipeline & pipeline) {
+    for (const auto & stage : pipeline) {
+      if (strstr(stage->GetRuntimeClass()->className, "Deskew") != nullptr) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  return hasDeskewStage(state_.pc_filter1) ||  //
+         hasDeskewStage(state_.pc_filter2) ||  //
+         hasDeskewStage(state_.pc_filter3);
+}
+
 // here happens the main stuff:
 void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 {
@@ -39,20 +55,53 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
   // Check if we need to process any pending async request:
   processPendingUserRequests();
 
-  auto lckState = mrpt::lockHelper(state_mtx_);
-
+  // make sure data is loaded, if using an offline lazy-load dataset.
   ASSERT_(obs);
+  obs->load();
+  const auto this_obs_tim = obs->timestamp;
+  const auto this_obs_tim_s = mrpt::Clock::toDouble(this_obs_tim);
+
+  // Wait for IMU data to arrive for the whole lidar scan time range?
+  const bool needs_imu = isPipelineUsingIMU();
+  if (needs_imu) {
+    const auto rate_lidar_hz = [&] {
+      auto lckState = mrpt::lockHelper(state_mtx_);
+      auto [rate_lidar, _] = state_.get_lidar_imu_sensor_rates();
+      return rate_lidar;
+    }();
+
+    const double lidar_scan_period = rate_lidar_hz > 0 ? 1.0 / rate_lidar_hz : 0.1;
+
+    bool synch_success = false;
+    for (int waitIters = 0; waitIters < 100; waitIters++) {
+      auto lckState = mrpt::lockHelper(state_mtx_);
+      if (state_.recent_imu_stamps.size() > 1) {
+        const auto last_imu = state_.recent_imu_stamps.peek(state_.recent_imu_stamps.size() - 1);
+        const double lidar2imu_dt = last_imu - this_obs_tim_s;
+        if (lidar2imu_dt > lidar_scan_period) {
+          synch_success = true;
+          break;
+        }
+      }
+      lckState.unlock();
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (!synch_success) {
+      MRPT_LOG_THROTTLE_WARN(
+        5.0,
+        "LiDAR odometry pipeline needs IMU data, but we timed-out waiting for IMU frames! Deskew "
+        "and ICP optimization will be suboptimal.");
+    }
+  }
+
+  auto lckState = mrpt::lockHelper(state_mtx_);
 
   profiler_.leave("delay_onNewObs_to_process");
 
   // for rate stats:
   state_.append_lidar_stamp(obs->sensorLabel, obs->timestamp);
 
-  // make sure data is loaded, if using an offline lazy-load dataset.
-  obs->load();
-
   // Only process pointclouds that are sufficiently apart in time:
-  const auto this_obs_tim = obs->timestamp;
 
   // Keep timestamps for logging purposes:
   state_.last_obs_timestamp = this_obs_tim;
