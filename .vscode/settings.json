@@ -39,9 +39,12 @@
     "ros.distro": "humble",
     "cSpell.words": [
         "deskewed",
+        "DPDF",
         "ENTYPO",
         "liodom",
-        "recolorize"
+        "recolorize",
+        "relocalize",
+        "thres"
     ],
     "cSpell.ignoreWords": [
         "Boxf"

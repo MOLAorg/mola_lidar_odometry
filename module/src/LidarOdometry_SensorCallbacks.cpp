@@ -126,10 +126,17 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
       state_.worker_tasks_lidar++;
     }
 
-    // Enqueue task:
-    auto fut = worker_lidar_.enqueue(&LidarOdometry::onLidar, this, o);
+    // If we don't rely on IMU, directly enqueue the task. Otherwise, put it on the wait list until
+    // IMU data for the required timestamps has arrived so we can do de-skew:
+    if (!isPipelineUsingIMU()) {
+      auto fut = worker_lidar_.enqueue(&LidarOdometry::onLidar, this, o);
+      (void)fut;
+    } else {
+      const auto obsTim = mrpt::Clock::toDouble(o->getTimeStamp());
 
-    (void)fut;
+      auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
+      worker_lidar_wait_for_imu_list_.emplace(obsTim, o);
+    }
 
     break;  // do not keep processing the list
   }
@@ -223,6 +230,38 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
     auto lckState = mrpt::lockHelper(state_mtx_);
     mp2p_icp::metric_map_t dummy_map;
     mp2p_icp_filters::apply_generators(state_.obs_generators, *imu, dummy_map);
+  }
+
+  // Finally, schedule to run those LiDAR scans that were waiting for IMU data:
+  if (isPipelineUsingIMU()) {
+    const auto imuTim = mrpt::Clock::toDouble(imu->timestamp);
+
+    const auto rate_lidar_hz = [&] {
+      auto lckState = mrpt::lockHelper(state_mtx_);
+      auto [rate_lidar, _] = state_.get_lidar_imu_sensor_rates();
+      return rate_lidar;
+    }();
+
+    const double lidar_scan_period = rate_lidar_hz > 0 ? 1.0 / rate_lidar_hz : 0.1;
+
+    auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
+
+    for (auto it = worker_lidar_wait_for_imu_list_.begin();
+         it != worker_lidar_wait_for_imu_list_.end();) {
+      const auto [lidarTim, lidarObs] = *it;
+
+      const double lidar2imu_dt = imuTim - lidarTim;
+      if (lidar2imu_dt > lidar_scan_period) {
+        // Enqueue this one:
+        auto fut = worker_lidar_.enqueue(&LidarOdometry::onLidar, this, lidarObs);
+        (void)fut;
+
+        // and remove from the list:
+        it = worker_lidar_wait_for_imu_list_.erase(it);
+      } else {
+        ++it;
+      }
+    }
   }
 }
 
@@ -338,7 +377,7 @@ void LidarOdometry::MethodState::append_lidar_stamp(
 }
 void LidarOdometry::MethodState::append_imu_stamp(const mrpt::Clock::time_point & stamp)
 {
-  if (recent_imu_stamps.available() == 0) {
+  if (recent_imu_stamps.size() >= recent_imu_stamps.capacity() - 2) {
     recent_imu_stamps.pop();
   }
   recent_imu_stamps.push(mrpt::Clock::toDouble(stamp));

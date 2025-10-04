@@ -62,7 +62,7 @@
 #include <string>
 #include <vector>
 
-// Fwrd decls:
+// Forward declarations:
 namespace nanogui
 {
 class Label;
@@ -97,6 +97,12 @@ class LidarOdometry : public mola::FrontEndBase,
 public:
   LidarOdometry();
   ~LidarOdometry() override;
+
+  // Prevent copying and moving
+  LidarOdometry(const LidarOdometry &) = delete;
+  LidarOdometry & operator=(const LidarOdometry &) = delete;
+  LidarOdometry(LidarOdometry &&) = delete;
+  LidarOdometry & operator=(LidarOdometry &&) = delete;
 
   /** @name Main API
      * @{ */
@@ -483,7 +489,7 @@ public:
   /** @name Virtual interface of Relocalization
      *{ */
 
-  /** Re-localize near this pose, including uncetainty.
+  /** Re-localize near this pose, including uncertainty.
      *  \param[in] pose The pose, in the local map frame.
      *  There is no return value from this method.
      */
@@ -588,6 +594,7 @@ private:
     std::map<std::string, mrpt::Clock::time_point> last_obs_tim_by_label;
     bool last_icp_was_good = true;
     double last_icp_quality = .0;
+    std::size_t last_icp_iterations = 0;
 
     std::optional<mrpt::Clock::time_point> first_ever_timestamp;
     std::optional<mrpt::Clock::time_point> last_obs_timestamp;
@@ -618,6 +625,8 @@ private:
     mp2p_icp::metric_map_t::Ptr local_map = mp2p_icp::metric_map_t::Create();
     mp2p_icp_filters::FilterPipeline obs2map_merge;
     mp2p_icp_filters::FilterPipeline obsDeskewForViz;
+
+    mutable std::optional<bool> isPipelinesUsingIMU;  //!< See isPipelineUsingIMU()
 
     mrpt::poses::CPose3DInterpolator estimated_trajectory;
     mrpt::maps::CSimpleMap reconstructed_simplemap;
@@ -666,7 +675,7 @@ private:
     std::map<std::string, mrpt::containers::circular_buffer<double>> recent_lidar_stamps;
 
     /// Used to estimate sensor rate
-    mrpt::containers::circular_buffer<double> recent_imu_stamps{500};
+    mrpt::containers::circular_buffer<double> recent_imu_stamps{1500};
 
     /// Returns the rates (Hz) of incoming LiDAR and IMU sensors for the past few seconds
     std::tuple<double, double> get_lidar_imu_sensor_rates();
@@ -680,6 +689,9 @@ private:
   mrpt::WorkerThreadsPool worker_lidar_{
     1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_lidar"};
 
+  std::multimap<double /*timestamp*/, CObservation::Ptr> worker_lidar_wait_for_imu_list_;
+  std::mutex worker_lidar_wait_for_imu_list_mtx_;
+
   /** The worker thread pool with 1 thread for processing incoming observations*/
   mrpt::WorkerThreadsPool worker_others_{
     1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_imu"};
@@ -688,7 +700,7 @@ private:
   const MethodState & state() const { return state_; }
   MethodState stateCopy() const { return state_; }
 
-  // Accessing this struct in gui_ requires adquiring state_gui_mtx_
+  // Accessing this struct in gui_ requires acquiring state_gui_mtx_
   struct StateUI
   {
     StateUI() = default;
@@ -708,7 +720,7 @@ private:
     nanogui::CheckBox * cbSaveSimplemap = nullptr;
   };
 
-  // Accessing this struct in gui_ requires adquiring state_gui_mtx_
+  // Accessing this struct in gui_ requires acquiring state_gui_mtx_
   StateUI gui_;
 
   /// The configuration used in the last call to initialize()
@@ -726,7 +738,7 @@ private:
   std::vector<std::function<void()>> requests_;
   std::mutex requests_mtx_;
 
-  /// Must be called from a scope with state_flags_mtx_ already adquired!
+  /// Must be called from a scope with state_flags_mtx_ already acquired!
   void addDropStats(bool frame_is_dropped);
 
   /// Returns the ratio [0,1] of lidar frames dropped due to slow processing in the last few seconds.

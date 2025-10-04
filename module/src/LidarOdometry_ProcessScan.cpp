@@ -22,6 +22,9 @@
 // This module:
 #include <mola_lidar_odometry/LidarOdometry.h>
 
+// mp2p_icp:
+#include <mp2p_icp_filters/FilterDeskew.h>
+
 // MRPT:
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservationComment.h>
@@ -33,18 +36,30 @@ namespace mola
 
 bool LidarOdometry::isPipelineUsingIMU() const
 {
+  auto lckState = mrpt::lockHelper(state_mtx_);
+
+  if (state_.isPipelinesUsingIMU.has_value()) {
+    return *state_.isPipelinesUsingIMU;
+  }
+
   const auto hasDeskewStage = [](const mp2p_icp_filters::FilterPipeline & pipeline) {
     for (const auto & stage : pipeline) {
-      if (strstr(stage->GetRuntimeClass()->className, "Deskew") != nullptr) {
-        return true;
+      auto deskew = std::dynamic_pointer_cast<mp2p_icp_filters::FilterDeskew>(stage);
+      if (!deskew) {
+        continue;
       }
+      // It's deskew: we need IMU if using IMU-based methods:
+      return deskew->method != mp2p_icp_filters::MotionCompensationMethod::None &&
+             deskew->method != mp2p_icp_filters::MotionCompensationMethod::Linear;
     }
     return false;
   };
 
-  return hasDeskewStage(state_.pc_filter1) ||  //
-         hasDeskewStage(state_.pc_filter2) ||  //
-         hasDeskewStage(state_.pc_filter3);
+  state_.isPipelinesUsingIMU = hasDeskewStage(state_.pc_filter1) ||
+                               hasDeskewStage(state_.pc_filter2) ||
+                               hasDeskewStage(state_.pc_filter3);
+
+  return *state_.isPipelinesUsingIMU;
 }
 
 // here happens the main stuff:
@@ -52,50 +67,18 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 {
   using namespace std::string_literals;
 
+  const ProfilerEntry tleg(profiler_, "onLidar");
+
   // Check if we need to process any pending async request:
-  processPendingUserRequests();
+  {
+    const ProfilerEntry tle_ur(profiler_, "onLidar.userRequests");
+    processPendingUserRequests();
+  }
 
   // make sure data is loaded, if using an offline lazy-load dataset.
   ASSERT_(obs);
   obs->load();
   const auto this_obs_tim = obs->timestamp;
-  const auto this_obs_tim_s = mrpt::Clock::toDouble(this_obs_tim);
-
-  // Wait for IMU data to arrive for the whole lidar scan time range?
-  const bool needs_imu = isPipelineUsingIMU();
-  if (needs_imu) {
-    const auto rate_lidar_hz = [&] {
-      auto lckState = mrpt::lockHelper(state_mtx_);
-      auto [rate_lidar, _] = state_.get_lidar_imu_sensor_rates();
-      return rate_lidar;
-    }();
-
-    const double lidar_scan_period = rate_lidar_hz > 0 ? 1.0 / rate_lidar_hz : 0.1;
-
-    const double imu_wait_timeout_s = 0.1;
-    const double imu_wait_t0 = mrpt::Clock::nowDouble();
-
-    bool synch_success = false;
-    while (mrpt::Clock::nowDouble() - imu_wait_t0 < imu_wait_timeout_s) {
-      auto lckState = mrpt::lockHelper(state_mtx_);
-      if (state_.recent_imu_stamps.size() > 1) {
-        const auto last_imu = state_.recent_imu_stamps.peek(state_.recent_imu_stamps.size() - 1);
-        const double lidar2imu_dt = last_imu - this_obs_tim_s;
-        if (lidar2imu_dt > lidar_scan_period) {
-          synch_success = true;
-          break;
-        }
-      }
-      lckState.unlock();
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-    if (!synch_success) {
-      MRPT_LOG_THROTTLE_ERROR(
-        5.0,
-        "LiDAR odometry pipeline needs IMU data, but we timed-out waiting for IMU frames! Deskew "
-        "and ICP optimization will be suboptimal.");
-    }
-  }
 
   auto lckState = mrpt::lockHelper(state_mtx_);
 
@@ -132,8 +115,6 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
   }
 
   state_.last_obs_tim_by_label[obs->sensorLabel] = this_obs_tim;
-
-  const ProfilerEntry tleg(profiler_, "onLidar");
 
   // Use the observation to update the estimated sensor range:
   if (!state_.estimated_sensor_max_range.has_value()) {
@@ -525,6 +506,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 
     state_.last_icp_was_good = icpIsGood;
     state_.last_icp_quality = out.goodness;
+    state_.last_icp_iterations = out.icp_iterations;
 
     if (icpIsGood) {
       state_.last_lidar_pose = out.found_pose_to_wrt_from;
