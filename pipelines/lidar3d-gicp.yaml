@@ -1,9 +1,16 @@
+# =====================================================================================
+# Pipeline: GICP (Generalized ICP) with cov-to-cov pairings
+#
+# For paper references, see https://github.com/MOLAorg/mola_lidar_odometry/
+#
 # This file holds parameters for mola::LidarOdometry,
 # for use either programmatically calling initialize(), or from a MOLA system
 # launch file. See "mola-cli-launchs/*" examples or the main project docs:
-# https://github.com/MOLAorg/mola_lidar_odometry/
+# =====================================================================================
 
 params:
+  pipeline_name: 'GICP (Generalized ICP) with cov-to-cov pairings' # For display/debug only
+
   # These sensor labels will be handled as LIDAR observations:
   # Can be overridden with cli flag --lidar-sensor-label
   lidar_sensor_labels: ["${MOLA_LIDAR_NAME|lidar}", "/ouster/points"]

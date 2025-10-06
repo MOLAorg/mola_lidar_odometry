@@ -1,9 +1,16 @@
+# =====================================================================================
+# Pipeline: point-to-gridmap 2D ICP
+#
+# For paper references, see https://github.com/MOLAorg/mola_lidar_odometry/
+#
 # This file holds parameters for mola::LidarOdometry,
 # for use either programmatically calling initialize(), or from a MOLA system
-# launch file. See "mola-cli-launchs/*" examples or the main project docs:
-# https://github.com/MOLAorg/mola_lidar_odometry/
+# launch file. See "mola-cli-launchs/*" examples or the main project docs.
+# =====================================================================================
 
 params:
+  pipeline_name: 'point-to-gridmap 2D ICP' # For display/debug only
+
   # These sensor labels will be handled as LIDAR observations:
   # Can be overridden with cli flag --lidar-sensor-label
 

@@ -58,6 +58,18 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   const auto cfg = c["params"];
   MRPT_LOG_DEBUG_STREAM("Loading these params:\n" << cfg);
 
+  if (auto pipelineName = cfg.getOrDefault<std::string>("pipeline_name", "");
+      !pipelineName.empty()) {
+    MRPT_LOG_INFO_FMT(
+      "\n"
+      "┌──────────────────────────────────────────────────────────────┐\n"
+      "│              USING THIS LIDAR-ODOMETRY PIPELINE              │\n"
+      "├──────────────────────────────────────────────────────────────┤\n"
+      "│  %59s │\n"
+      "└──────────────────────────────────────────────────────────────┘\n",
+      pipelineName.c_str());
+  }
+
   ENSURE_YAML_ENTRY_EXISTS(cfg, "lidar_sensor_labels");
   if (cfg["lidar_sensor_labels"].isSequence()) {
     const auto lsl = cfg["lidar_sensor_labels"].asSequenceRange();
