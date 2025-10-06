@@ -240,13 +240,16 @@ localmap_generator:
         # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/latest/group_mrpt_maps_grp.html
         class: mola::KeyframePointCloudMap
         plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
-        creationOpts: ~  # none required
+        creationOpts:
+          max_search_keyframes: 3
+          k_correspondences_for_cov: 20
         insertOpts:
           remove_frames_farther_than: "${MOLA_LOCAL_MAP_MAX_SIZE|$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}}" # [m]
         likelihoodOpts: ~ # none required
         renderOpts:
           color.A: 0.25 # [0,1] Use this alpha value for points, RGB from colormap
           colormap: "cmHOT" # cmJET, cmHOT, cmGRAYSCALE
+          recolorizeByCoordinateIndex: 3  # {0,1,2}={x,y,z}, 3=Intensity
           #point_size: 1.0  # superseded by visualization.local_map_point_size above
 
 # ---------------------------------------------------------------------------------
@@ -346,7 +349,7 @@ observations_filter_2nd_pass:
       output_pointcloud_layer: "decimated_for_map"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
-      #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
+      output_layer_class: 'mrpt::maps::CPointsMapXYZI'  # Keep intensity, ring, time channels
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
@@ -358,7 +361,7 @@ observations_filter_2nd_pass:
       output_pointcloud_layer: "decimated_for_icp"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
-      #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
+      #output_layer_class: 'mrpt::maps::CPointsMapXYZI'  # Keep intensity, ring, time channels
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
