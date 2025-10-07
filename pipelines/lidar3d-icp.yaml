@@ -49,6 +49,7 @@ params:
   local_map_updates:
     enabled: "${MOLA_MAPPING_ENABLED|true}"
     load_existing_local_map: ${MOLA_LOAD_MM|""}
+    save_final_local_map: ${MOLA_SAVE_MM|""}  # If not empty, saves the final local metric map to a ".mm" file
 
     # Idea: don't integrate scans with a high rotational speed since they are probably not correctly deskewed:
     min_translation_between_keyframes: "${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}" # [m]

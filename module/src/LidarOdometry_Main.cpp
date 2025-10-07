@@ -86,6 +86,9 @@ LidarOdometry::~LidarOdometry()
     if (params_.estimated_trajectory.save_to_file) {
       saveEstimatedTrajectoryToFile();
     }
+    if (!params_.local_map_updates.save_final_local_map.empty()) {
+      saveLocalMapToFile();
+    }
   } catch (const std::exception & e) {
     std::cerr << "[~LidarOdometry] Exception: " << e.what();
   }
@@ -236,6 +239,24 @@ void LidarOdometry::saveReconstructedMapToFile() const
   state_.reconstructed_simplemap.saveToFile(fil);
 
   MRPT_LOG_INFO("Final simplemap saved.");
+}
+
+void LidarOdometry::saveLocalMapToFile() const
+{
+  if (params_.local_map_updates.save_final_local_map.empty()) {
+    return;
+  }
+
+  auto lck = mrpt::lockHelper(state_mtx_);
+
+  const auto fil = params_.local_map_updates.save_final_local_map;
+
+  MRPT_LOG_INFO_STREAM("Saving final metric map to file '" << fil << "'...");
+  std::cout.flush();
+
+  state_.local_map->save_to_file(fil);
+
+  MRPT_LOG_INFO("Final local metric map saved.");
 }
 
 void LidarOdometry::unloadPastSimplemapObservations(const size_t maxSizeUnloadQueue) const

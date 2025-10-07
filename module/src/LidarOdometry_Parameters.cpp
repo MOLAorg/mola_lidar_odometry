@@ -134,6 +134,7 @@ void LidarOdometry::Parameters::MapUpdateOptions::initialize(const Yaml & cfg, P
   DECLARE_PARAMETER_IN_OPT(cfg, publish_map_updates_every_n, parent);
   YAML_LOAD_OPT(measure_from_last_kf_only, bool);
   YAML_LOAD_OPT(load_existing_local_map, std::string);
+  YAML_LOAD_OPT(save_final_local_map, std::string);
 }
 
 void LidarOdometry::Parameters::TrajectoryOutputOptions::initialize(const Yaml & cfg)

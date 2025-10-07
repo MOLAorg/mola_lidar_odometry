@@ -218,6 +218,9 @@ public:
              */
       std::string load_existing_local_map;
 
+      /** If not empty, saves the final local metric map to a ".mm" file */
+      std::string save_final_local_map;
+
       void initialize(const Yaml & c, Parameters & parent);
     };
 
@@ -475,6 +478,7 @@ public:
 
   void saveEstimatedTrajectoryToFile() const;
   void saveReconstructedMapToFile() const;
+  void saveLocalMapToFile() const;
 
   /** Enqueue a custom user request to be executed on the main LidarOdometry
      *  thread on the next iteration.
