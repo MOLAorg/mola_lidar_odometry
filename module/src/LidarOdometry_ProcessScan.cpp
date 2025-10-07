@@ -156,41 +156,13 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
   MRPT_LOG_DEBUG_STREAM("Dynamic variables: " << state_.parameter_source.printVariableValues());
 
   // Extract points from observation:
-  auto observation = mp2p_icp::metric_map_t::Create();
-
-  ProfilerEntry tle0(profiler_, "onLidar.0.apply_generators");
-
-  ASSERT_(!sf.empty());
-  const auto timeOfFirstSFObs = sf.getObservationByIndex(0)->timestamp;
-
-  for (const auto & o : sf) {
-    mp2p_icp::metric_map_t thisObs;
-    mp2p_icp::metric_map_t * obsTrg = sf.size() == 1 ? observation.get() : &thisObs;
-
-    mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *obsTrg);
-
-    // Update relative timestamps for multiple lidars:
-    const double dt = mrpt::system::timeDifference(timeOfFirstSFObs, o->timestamp);
-
-    state_.parameter_source.updateVariable("SENSOR_TIME_OFFSET", dt);
-    // Make all changes effective and evaluate the variables now:
-    state_.parameter_source.realize();
-
-    mp2p_icp_filters::apply_filter_pipeline(state_.pc_filterAdjustTimes, *obsTrg, profiler_);
-
-    // for multiple LiDAR setups:
-    if (obsTrg != observation.get()) {
-      observation->merge_with(*obsTrg);
-    }
-  }
+  auto observation = observationFromRawSensor(sf);
 
   // Keep a copy of "raw" for visualization in the GUI:
   mp2p_icp::metric_map_t observationRawForViz;
   if (observation->layers.count("raw")) {
     observationRawForViz.layers["raw"] = observation->layers.at("raw");
   }
-
-  tle0.stop();
 
   // Filter/segment the point cloud (optional, but normally will be
   // present):
@@ -709,12 +681,12 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
   if (updateSimpleMap) {
     auto lck = mrpt::lockHelper(state_simplemap_mtx_);
 
-    auto obsSF = mrpt::obs::CSensoryFrame::Create();
+    auto keyframe_obs = mrpt::obs::CSensoryFrame::Create();
     // Add observations only if this is a real keyframe
     // (the alternative is this is a regular frame, but the option
     //  add_non_keyframes_too is set):
     if (distance_enough_sm) {
-      *obsSF += sf;
+      *keyframe_obs += sf;
 
       const auto curLidarStamp = obs->getTimeStamp();
 
@@ -735,7 +707,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
         }
       }
       if (closestGPS) {
-        *obsSF += closestGPS;
+        *keyframe_obs += closestGPS;
       }
     } else {
       // Otherwise (we are in here because add_non_keyframes_too).
@@ -775,10 +747,11 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
     metadataObs->text = ss.str();
 
     // insert it:
-    *obsSF += metadataObs;
+    *keyframe_obs += metadataObs;
 
     // Add keyframe to simple map:
-    MRPT_LOG_DEBUG_STREAM("New SimpleMap KeyFrame. SF=" << obsSF->size() << " observations.");
+    MRPT_LOG_DEBUG_STREAM(
+      "New SimpleMap KeyFrame. SF=" << keyframe_obs->size() << " observations.");
 
     std::optional<mrpt::math::TTwist3D> curTwist;
     if (hasMotionModel) {
@@ -789,7 +762,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
       // Pose: mean + covariance
       mrpt::poses::CPose3DPDFGaussian::Create(state_.last_lidar_pose),
       // SensoryFrame: set of observations from this KeyFrame:
-      obsSF,
+      keyframe_obs,
       // twist
       curTwist);
 
@@ -797,7 +770,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
     // We cannot unload them right now, for the case when they are being
     // used in a GUI, etc.
     // (1/2) Add to the list:
-    state_.past_simplemaps_observations[this_obs_tim] = obsSF;
+    state_.past_simplemaps_observations[this_obs_tim] = keyframe_obs;
 
     const ProfilerEntry tleUnloadSM(profiler_, "onLidar.5.unload_past_sm_obs");
 
@@ -808,7 +781,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
   }  // end update simple map
 
   // In any case, publish the vehicle pose, no matter if it's a keyframe or not,
-  // but if ICP quality was good enough:
+  // if ICP quality was good enough:
   if (state_.last_icp_was_good) {
     doPublishUpdatedLocalization(this_obs_tim);
   }
@@ -825,6 +798,40 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 
     updateVisualization(observationRawForViz);
   }
+}
+
+mp2p_icp::metric_map_t::Ptr LidarOdometry::observationFromRawSensor(
+  const mrpt::obs::CSensoryFrame & sf)
+{
+  auto observation = mp2p_icp::metric_map_t::Create();
+
+  ProfilerEntry tle0(profiler_, "onLidar.0.apply_generators");
+
+  ASSERT_(!sf.empty());
+  const auto timeOfFirstSFObs = sf.getObservationByIndex(0)->timestamp;
+
+  for (const auto & o : sf) {
+    mp2p_icp::metric_map_t thisObs;
+    mp2p_icp::metric_map_t * obsTrg = sf.size() == 1 ? observation.get() : &thisObs;
+
+    mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *obsTrg);
+
+    // Update relative timestamps for multiple lidars:
+    const double dt = mrpt::system::timeDifference(timeOfFirstSFObs, o->timestamp);
+
+    state_.parameter_source.updateVariable("SENSOR_TIME_OFFSET", dt);
+    // Make all changes effective and evaluate the variables now:
+    state_.parameter_source.realize();
+
+    mp2p_icp_filters::apply_filter_pipeline(state_.pc_filterAdjustTimes, *obsTrg, profiler_);
+
+    // for multiple LiDAR setups:
+    if (obsTrg != observation.get()) {
+      observation->merge_with(*obsTrg);
+    }
+  }
+  tle0.stop();
+  return observation;
 }
 
 }  // namespace mola
