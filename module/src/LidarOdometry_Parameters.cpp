@@ -85,17 +85,27 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
         continue;
       }
 
-      if (c.count("tf.x")) m.tf.x = c["tf.x"].as<float>();
-      if (c.count("tf.y")) m.tf.y = c["tf.y"].as<float>();
-      if (c.count("tf.z")) m.tf.z = c["tf.z"].as<float>();
-
-      if (c.count("tf.yaw")) m.tf.yaw = mrpt::DEG2RAD(c["tf.yaw"].as<float>());
-
-      if (c.count("tf.pitch")) m.tf.pitch = mrpt::DEG2RAD(c["tf.pitch"].as<float>());
-
-      if (c.count("tf.roll")) m.tf.roll = mrpt::DEG2RAD(c["tf.roll"].as<float>());
-
-      if (c.count("scale")) m.scale = c["scale"].as<float>();
+      if (c.count("tf.x")) {
+        m.tf.x = c["tf.x"].as<float>();
+      }
+      if (c.count("tf.y")) {
+        m.tf.y = c["tf.y"].as<float>();
+      }
+      if (c.count("tf.z")) {
+        m.tf.z = c["tf.z"].as<float>();
+      }
+      if (c.count("tf.yaw")) {
+        m.tf.yaw = mrpt::DEG2RAD(c["tf.yaw"].as<float>());
+      }
+      if (c.count("tf.pitch")) {
+        m.tf.pitch = mrpt::DEG2RAD(c["tf.pitch"].as<float>());
+      }
+      if (c.count("tf.roll")) {
+        m.tf.roll = mrpt::DEG2RAD(c["tf.roll"].as<float>());
+      }
+      if (c.count("scale")) {
+        m.scale = c["scale"].as<float>();
+      }
     }
   }
 
@@ -163,7 +173,9 @@ void LidarOdometry::Parameters::InitialLocalizationOptions::initialize(const Yam
 
     auto & p = fixed_initial_pose;
     const auto seq = cfg["fixed_initial_pose"].asSequenceRange();
-    for (size_t i = 0; i < 6; i++) p[i] = seq.at(i).as<double>();
+    for (size_t i = 0; i < 6; i++) {
+      p[i] = seq.at(i).as<double>();
+    }
   }
 }
 
@@ -177,7 +189,9 @@ void LidarOdometry::Parameters::ObservationValidityChecks::initialize(const Yaml
 #if MOLA_VERSION_CHECK(1, 4, 0)
 void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_values)
 {
-  if (names_values.isNullNode() || names_values.empty()) return;
+  if (names_values.isNullNode() || names_values.empty()) {
+    return;
+  }
 
   ASSERT_(names_values.isMap());
 
