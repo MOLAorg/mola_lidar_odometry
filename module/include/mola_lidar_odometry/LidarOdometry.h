@@ -364,6 +364,9 @@ public:
              */
       std::string load_existing_simple_map;
 
+      /** If enabled, saved keyframes will contain an additional 'deskewed' observation with the motion-compensated cloud. */
+      bool save_deskewed_scans = false;
+
       void initialize(const Yaml & c, Parameters & parent);
     };
 
@@ -796,6 +799,10 @@ private:
   void sendLidarScanToProcessQueue(const CObservation::Ptr & o);
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::Ptr & obs);
+
+  void doUpdateSimpleMap(
+    const mrpt::obs::CSensoryFrame & sf, const bool distance_enough_sm,
+    const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & this_obs_tim);
 };
 
 namespace detail

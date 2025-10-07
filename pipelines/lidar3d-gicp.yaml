@@ -87,6 +87,9 @@ params:
     add_non_keyframes_too: ${MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES|false} # If enabled, all frames are stored in the simplemap, but non-keyframes will be without associated observations.
     save_gnss_max_age: 1.0 # [s] max age of GNSS observations to keep in the keyframe
 
+    # If enabled, this will store deskewed scans into the keyframes of simplemaps.
+    save_deskewed_scans: ${MOLA_SAVE_DESKEWED_SCANS|false}
+
   # Save the final trajectory in TUM format. Disabled by default.
   estimated_trajectory:
     save_to_file: ${MOLA_SAVE_TRAJECTORY|false}

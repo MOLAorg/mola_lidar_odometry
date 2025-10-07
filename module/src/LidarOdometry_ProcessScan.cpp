@@ -26,9 +26,11 @@
 #include <mp2p_icp_filters/FilterDeskew.h>
 
 // MRPT:
+#include <mrpt/maps/CPointsMapXYZI.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservationComment.h>
 #include <mrpt/obs/CObservationGPS.h>
+#include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/poses/Lie/SO.h>
 
 namespace mola
@@ -656,106 +658,8 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 
   // Optional build simplemap:
   if (updateSimpleMap) {
-    auto lck = mrpt::lockHelper(state_simplemap_mtx_);
-
-    auto keyframe_obs = mrpt::obs::CSensoryFrame::Create();
-    // Add observations only if this is a real keyframe
-    // (the alternative is this is a regular frame, but the option
-    //  add_non_keyframes_too is set):
-    if (distance_enough_sm) {
-      *keyframe_obs += sf;
-
-      const auto curLidarStamp = obs->getTimeStamp();
-
-      // insert GNSS too? Search for a close-enough observation:
-      std::optional<double> closestTimeAbsDiff;
-      mrpt::obs::CObservationGPS::Ptr closestGPS;
-
-      for (const auto & [gpsStamp, gpsObs] : state_.last_gnss_) {
-        const double timeDiff = std::abs(mrpt::system::timeDifference(gpsStamp, curLidarStamp));
-
-        if (timeDiff > params_.simplemap.save_gnss_max_age) {
-          continue;
-        }
-
-        if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff) {
-          closestTimeAbsDiff = timeDiff;
-          closestGPS = gpsObs;
-        }
-      }
-      if (closestGPS) {
-        *keyframe_obs += closestGPS;
-      }
-    } else {
-      // Otherwise (we are in here because add_non_keyframes_too).
-      // Since we are adding anyway a "comment" observation with the
-      // valid timestamp of this frame, it is enough for postprocessing
-      // tools.
-      ASSERT_(params_.simplemap.add_non_keyframes_too);
-    }
-
-    // Add metadata ("comment") observation:
-    auto metadataObs = mrpt::obs::CObservationComment::Create();
-    metadataObs->timestamp = this_obs_tim;
-    metadataObs->sensorLabel = "metadata";
-
-    mrpt::containers::yaml kf_metadata = mrpt::containers::yaml::Map();
-    std::optional<mrpt::math::TBoundingBoxf> bbox;
-    for (const auto & [layerName, layerMap] : observation->layers) {
-      if (bbox) {
-        bbox = bbox->unionWith(layerMap->boundingBox());
-      } else {
-        bbox = layerMap->boundingBox();
-      }
-    }
-    if (bbox) {
-      kf_metadata["frame_bbox_min"] = "'"s + bbox->min.asString() + "'"s;
-      kf_metadata["frame_bbox_max"] = "'"s + bbox->max.asString() + "'"s;
-    }
-
-    // Store local velocity buffer in the KF metadata so it is possible to deskew the scan later on with precision
-#if MP2P_ICP_VERSION >= 0x010801  // 1.8.1
-    kf_metadata["local_velocity_buffer"] = state_.parameter_source.localVelocityBuffer.toYAML();
-#endif
-
-    // convert yaml to string:
-    std::stringstream ss;
-    ss << kf_metadata;
-    metadataObs->text = ss.str();
-
-    // insert it:
-    *keyframe_obs += metadataObs;
-
-    // Add keyframe to simple map:
-    MRPT_LOG_DEBUG_STREAM(
-      "New SimpleMap KeyFrame. SF=" << keyframe_obs->size() << " observations.");
-
-    std::optional<mrpt::math::TTwist3D> curTwist;
-    if (hasMotionModel) {
-      curTwist = state_.last_motion_model_output->twist;
-    }
-
-    state_.reconstructed_simplemap.insert(
-      // Pose: mean + covariance
-      mrpt::poses::CPose3DPDFGaussian::Create(state_.last_lidar_pose),
-      // SensoryFrame: set of observations from this KeyFrame:
-      keyframe_obs,
-      // twist
-      curTwist);
-
-    // Mechanism to free old SFs:
-    // We cannot unload them right now, for the case when they are being
-    // used in a GUI, etc.
-    // (1/2) Add to the list:
-    state_.past_simplemaps_observations[this_obs_tim] = keyframe_obs;
-
-    const ProfilerEntry tleUnloadSM(profiler_, "onLidar.5.unload_past_sm_obs");
-
-    // (2/2) Unload old lazy-load observations to save RAM, if applicable:
-    constexpr size_t MAX_SIZE_UNLOAD_QUEUE = 100;
-    unloadPastSimplemapObservations(MAX_SIZE_UNLOAD_QUEUE);
-
-  }  // end update simple map
+    doUpdateSimpleMap(sf, distance_enough_sm, observation, this_obs_tim);
+  }
 
   // In any case, publish the vehicle pose, no matter if it's a keyframe or not,
   // if ICP quality was good enough:
@@ -843,6 +747,127 @@ mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
   }
 
   return sf;
+}
+
+void LidarOdometry::doUpdateSimpleMap(
+  const mrpt::obs::CSensoryFrame & sf, const bool distance_enough_sm,
+  const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & this_obs_tim)
+{
+  using namespace std::string_literals;
+
+  auto lck = mrpt::lockHelper(state_simplemap_mtx_);
+
+  auto keyframe_obs = mrpt::obs::CSensoryFrame::Create();
+  // Add observations only if this is a real keyframe
+  // (the alternative is this is a regular frame, but the option
+  //  add_non_keyframes_too is set):
+  if (distance_enough_sm) {
+    *keyframe_obs += sf;
+
+    if (params_.simplemap.save_deskewed_scans) {
+      mp2p_icp::metric_map_t mm;
+      mm.layers["raw"] = observation->layers.at("raw");
+      // This will remove the "raw" layer and replace it with a "deskewed" one:
+      mp2p_icp_filters::apply_filter_pipeline(state_.obsDeskewForViz, mm);
+      const auto deskewed_cloud = mm.point_layer(mm.layers.begin()->first);
+
+      auto od = mrpt::obs::CObservationPointCloud::Create();
+      od->timestamp = this_obs_tim;
+      auto spc = mrpt::maps::CPointsMapXYZI::Create();
+      spc->insertAnotherMap(deskewed_cloud.get(), {});
+      od->pointcloud = spc;
+      od->sensorLabel = "deskewed";
+      keyframe_obs->insert(od);
+    }
+
+    const auto curLidarStamp = this_obs_tim;
+
+    // insert GNSS too? Search for a close-enough observation:
+    std::optional<double> closestTimeAbsDiff;
+    mrpt::obs::CObservationGPS::Ptr closestGPS;
+
+    for (const auto & [gpsStamp, gpsObs] : state_.last_gnss_) {
+      const double timeDiff = std::abs(mrpt::system::timeDifference(gpsStamp, curLidarStamp));
+
+      if (timeDiff > params_.simplemap.save_gnss_max_age) {
+        continue;
+      }
+
+      if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff) {
+        closestTimeAbsDiff = timeDiff;
+        closestGPS = gpsObs;
+      }
+    }
+    if (closestGPS) {
+      *keyframe_obs += closestGPS;
+    }
+  } else {
+    // Otherwise (we are in here because add_non_keyframes_too).
+    // Since we are adding anyway a "comment" observation with the
+    // valid timestamp of this frame, it is enough for postprocessing
+    // tools.
+    ASSERT_(params_.simplemap.add_non_keyframes_too);
+  }
+
+  // Add metadata ("comment") observation:
+  auto metadataObs = mrpt::obs::CObservationComment::Create();
+  metadataObs->timestamp = this_obs_tim;
+  metadataObs->sensorLabel = "metadata";
+
+  mrpt::containers::yaml kf_metadata = mrpt::containers::yaml::Map();
+  std::optional<mrpt::math::TBoundingBoxf> bbox;
+  for (const auto & [layerName, layerMap] : observation->layers) {
+    if (bbox) {
+      bbox = bbox->unionWith(layerMap->boundingBox());
+    } else {
+      bbox = layerMap->boundingBox();
+    }
+  }
+  if (bbox) {
+    kf_metadata["frame_bbox_min"] = "'"s + bbox->min.asString() + "'"s;
+    kf_metadata["frame_bbox_max"] = "'"s + bbox->max.asString() + "'"s;
+  }
+
+  // Store local velocity buffer in the KF metadata so it is possible to deskew the scan later on with precision
+#if MP2P_ICP_VERSION >= 0x010801  // 1.8.1
+  kf_metadata["local_velocity_buffer"] = state_.parameter_source.localVelocityBuffer.toYAML();
+#endif
+
+  // convert yaml to string:
+  std::stringstream ss;
+  ss << kf_metadata;
+  metadataObs->text = ss.str();
+
+  // insert it:
+  *keyframe_obs += metadataObs;
+
+  // Add keyframe to simple map:
+  MRPT_LOG_DEBUG_STREAM("New SimpleMap KeyFrame. SF=" << keyframe_obs->size() << " observations.");
+
+  std::optional<mrpt::math::TTwist3D> curTwist;
+  if (state_.last_motion_model_output) {
+    curTwist = state_.last_motion_model_output->twist;
+  }
+
+  state_.reconstructed_simplemap.insert(
+    // Pose: mean + covariance
+    mrpt::poses::CPose3DPDFGaussian::Create(state_.last_lidar_pose),
+    // SensoryFrame: set of observations from this KeyFrame:
+    keyframe_obs,
+    // twist
+    curTwist);
+
+  // Mechanism to free old SFs:
+  // We cannot unload them right now, for the case when they are being
+  // used in a GUI, etc.
+  // (1/2) Add to the list:
+  state_.past_simplemaps_observations[this_obs_tim] = keyframe_obs;
+
+  const ProfilerEntry tleUnloadSM(profiler_, "onLidar.5.unload_past_sm_obs");
+
+  // (2/2) Unload old lazy-load observations to save RAM, if applicable:
+  constexpr size_t MAX_SIZE_UNLOAD_QUEUE = 100;
+  unloadPastSimplemapObservations(MAX_SIZE_UNLOAD_QUEUE);
 }
 
 }  // namespace mola
