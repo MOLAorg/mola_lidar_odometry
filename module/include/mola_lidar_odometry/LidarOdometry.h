@@ -795,6 +795,7 @@ private:
   bool isPipelineUsingIMU() const;
   void sendLidarScanToProcessQueue(const CObservation::Ptr & o);
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
+  mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::Ptr & obs);
 };
 
 namespace detail

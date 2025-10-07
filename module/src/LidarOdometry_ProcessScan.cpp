@@ -67,7 +67,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 {
   using namespace std::string_literals;
 
-  const ProfilerEntry tleg(profiler_, "onLidar");
+  const ProfilerEntry tle_global(profiler_, "onLidar");
 
   // Check if we need to process any pending async request:
   {
@@ -122,32 +122,9 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
   }
 
   // Handle multiple simultaneous LIDARs:
-  mrpt::obs::CSensoryFrame sf;
-  if (params_.multiple_lidars.lidar_count > 1) {
-    // Synchronize 2+ lidars:
-    state_.sync_obs[obs->sensorLabel] = obs;
-    if (state_.sync_obs.size() < params_.multiple_lidars.lidar_count) {
-      MRPT_LOG_THROTTLE_DEBUG(5.0, "Skipping ICP since still waiting for all of multiple LIDARs");
-      return;
-    }
-    // now, keep all of them within the time window:
-    for (const auto & [label, o] : state_.sync_obs) {
-      const auto dt = std::abs(mrpt::system::timeDifference(o->timestamp, obs->timestamp));
-      if (dt > params_.multiple_lidars.max_time_offset) {
-        continue;
-      }
-
-      sf += o;  // include this observation
-    }
-    // and clear for the next iter:
-    state_.sync_obs.clear();
-
-    ASSERT_(!sf.empty());
-    MRPT_LOG_DEBUG_STREAM(
-      "multiple_lidars: " << sf.size() << " valid observations have been synchronized.");
-  } else {
-    // Single LIDAR:
-    sf.insert(obs);
+  const mrpt::obs::CSensoryFrame sf = collectRawObservations(obs);
+  if (sf.empty()) {
+    return;  // not all required LiDARs yet.
   }
 
   // Refresh dyn. variables used in the mp2p_icp pipelines:
@@ -542,7 +519,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
     const auto [isFirstPoseInChecker, distanceToClosest] =
       state_.distance_checker_local_map->check(state_.last_lidar_pose.mean);
 
-    const double dist_eucl_since_last = distanceToClosest.norm();
+    const double euclidean_dist_since_last = distanceToClosest.norm();
     const double rot_since_last =
       mrpt::poses::Lie::SO<3>::log(distanceToClosest.getRotationMatrix()).norm();
 
@@ -554,7 +531,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
        // skip map update for the special ICP alignment without motion model
        hasMotionModel &&
        (isFirstPoseInChecker ||
-        dist_eucl_since_last > params_.local_map_updates.min_translation_between_keyframes ||
+        euclidean_dist_since_last > params_.local_map_updates.min_translation_between_keyframes ||
         rot_since_last >
           mrpt::DEG2RAD(params_.local_map_updates.min_rotation_between_keyframes))
        );
@@ -584,13 +561,13 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
     const auto [isFirstPoseInSMChecker, distanceToClosestSM] =
       state_.distance_checker_simplemap->check(state_.last_lidar_pose.mean);
 
-    const double dist_eucl_since_last_sm = distanceToClosestSM.norm();
+    const double euclidean_dist_since_last_sm = distanceToClosestSM.norm();
     const double rot_since_last_sm =
       mrpt::poses::Lie::SO<3>::log(distanceToClosestSM.getRotationMatrix()).norm();
 
     distance_enough_sm =
       isFirstPoseInSMChecker ||
-      dist_eucl_since_last_sm > params_.simplemap.min_translation_between_keyframes ||
+      euclidean_dist_since_last_sm > params_.simplemap.min_translation_between_keyframes ||
       rot_since_last_sm > mrpt::DEG2RAD(params_.simplemap.min_rotation_between_keyframes);
 
     // clang-format off
@@ -608,7 +585,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
     MRPT_LOG_DEBUG_FMT(
       "Since last KF: dist=%5.03f m rotation=%.01f deg updateLocalMap=%s "
       "updateSimpleMap=%s",
-      dist_eucl_since_last, mrpt::RAD2DEG(rot_since_last), updateLocalMap ? "YES" : "NO",
+      euclidean_dist_since_last, mrpt::RAD2DEG(rot_since_last), updateLocalMap ? "YES" : "NO",
       updateSimpleMap ? "YES" : "NO");
 
   }  // end: yes, we can do ICP
@@ -832,6 +809,40 @@ mp2p_icp::metric_map_t::Ptr LidarOdometry::observationFromRawSensor(
   }
   tle0.stop();
   return observation;
+}
+
+mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
+  const mrpt::obs::CObservation::Ptr & obs)
+{
+  mrpt::obs::CSensoryFrame sf;
+  if (params_.multiple_lidars.lidar_count > 1) {
+    // Synchronize 2+ lidars:
+    state_.sync_obs[obs->sensorLabel] = obs;
+    if (state_.sync_obs.size() < params_.multiple_lidars.lidar_count) {
+      MRPT_LOG_THROTTLE_DEBUG(5.0, "Skipping ICP since still waiting for all of multiple LIDARs");
+      return {};
+    }
+    // now, keep all of them within the time window:
+    for (const auto & [label, o] : state_.sync_obs) {
+      const auto dt = std::abs(mrpt::system::timeDifference(o->timestamp, obs->timestamp));
+      if (dt > params_.multiple_lidars.max_time_offset) {
+        continue;
+      }
+
+      sf += o;  // include this observation
+    }
+    // and clear for the next iter:
+    state_.sync_obs.clear();
+
+    ASSERT_(!sf.empty());
+    MRPT_LOG_DEBUG_STREAM(
+      "multiple_lidars: " << sf.size() << " valid observations have been synchronized.");
+  } else {
+    // Single LIDAR:
+    sf.insert(obs);
+  }
+
+  return sf;
 }
 
 }  // namespace mola
