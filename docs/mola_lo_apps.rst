@@ -223,6 +223,16 @@ This command will open the mola_viz GUI and build a map from ROS 2 bags:
         MOLA_LIDAR_TOPIC=/ouster/points \
         mola-lo-gui-rosbag2 /path/to/your/dataset.mcap
 
+    In the common case of launching only the Ouster ROS 2 driver node, you may already have the
+    ``/tf_static`` messages defining the TF frames ``os_sensor``, ``os_lidar``, and ``os_imu``, so
+    you can make use of them with:
+
+    .. code-block:: bash
+
+        MOLA_TF_BASE_LINK=os_sensor  \
+        MOLA_LIDAR_TOPIC=/ouster/points \
+        mola-lo-gui-rosbag2 /path/to/your/dataset.mcap
+
 
 Environment variables specific for ``mola-lo-gui-rosbag2``:
 
