@@ -101,15 +101,7 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
     }
 
     // Yes, it's a LIDAR obs:
-
-    // If we don't rely on IMU, directly enqueue the task. Otherwise, put it on the wait list until
-    // IMU data for the required timestamps has arrived so we can do de-skew:
-    if (!isPipelineUsingIMU()) {
-      sendLidarScanToProcessQueue(o);
-    } else {
-      auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
-      worker_lidar_wait_for_imu_list_.emplace(mrpt::Clock::toDouble(o->getTimeStamp()), o);
-    }
+    sendLidarScanToProcessQueue(o);
 
     break;  // do not keep processing the list
   }
@@ -119,9 +111,15 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
 
 void LidarOdometry::sendLidarScanToProcessQueue(const CObservation::Ptr & o)
 {
-  const int queued = [this]() {
+  // If we don't rely on IMU, directly enqueue the task. Otherwise, put it on the wait list until
+  // IMU data for the required timestamps has arrived so we can do de-skew:
+
+  int queued = [this]() {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
-    return state_.worker_tasks_lidar;
+    return state_.worker_tasks_lidar + worker_lidar_.pendingTasks();
+  }() + [this]() {
+    auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
+    return static_cast<int>(worker_lidar_wait_for_imu_list_.size());
   }();
 
   profiler_.registerUserMeasure("onNewObservation.lidar_queue_length", queued);
@@ -136,13 +134,19 @@ void LidarOdometry::sendLidarScanToProcessQueue(const CObservation::Ptr & o)
   addDropStats(false);
   profiler_.enter("delay_onNewObs_to_process");
 
-  {
-    auto lck = mrpt::lockHelper(is_busy_mtx_);
-    state_.worker_tasks_lidar++;
-  }
+  if (!isPipelineUsingIMU()) {
+    {
+      auto lck = mrpt::lockHelper(is_busy_mtx_);
+      state_.worker_tasks_lidar++;
+    }
 
-  auto fut = worker_lidar_.enqueue(&LidarOdometry::onLidar, this, o);
-  (void)fut;
+    auto fut = worker_lidar_.enqueue(&LidarOdometry::onLidar, this, o);
+    (void)fut;
+  } else {
+    // IMU usage:
+    auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
+    worker_lidar_wait_for_imu_list_.emplace(mrpt::Clock::toDouble(o->getTimeStamp()), o);
+  }
 }
 
 void LidarOdometry::onLidar(const CObservation::Ptr & o)
@@ -254,7 +258,12 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
       const double lidar2imu_dt = imuTim - lidarTim;
       if (lidar2imu_dt > lidar_scan_period) {
         // Enqueue this one:
-        sendLidarScanToProcessQueue(lidarObs);
+        {
+          auto lck2 = mrpt::lockHelper(is_busy_mtx_);
+          state_.worker_tasks_lidar++;
+        }
+        auto fut = worker_lidar_.enqueue(&LidarOdometry::onLidar, this, lidarObs);
+        (void)fut;
 
         // and remove from the list:
         it = worker_lidar_wait_for_imu_list_.erase(it);
