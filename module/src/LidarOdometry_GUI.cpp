@@ -586,10 +586,9 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
   const ProfilerEntry tle3(profiler_, "updateVisualization.update_gui");
 
-  gui_.lbIcpQuality->setCaption(
-    mrpt::format(
-      "ICP quality: %.01f%% | Thresh: %.02f | Iters: %zu", 100.0 * state_.last_icp_quality,
-      state_.adapt_thres_sigma, state_.last_icp_iterations));
+  gui_.lbIcpQuality->setCaption(mrpt::format(
+    "ICP quality: %.01f%% | Thresh: %.02f | Iters: %zu", 100.0 * state_.last_icp_quality,
+    state_.adapt_thres_sigma, state_.last_icp_iterations));
 
   {
     const auto [rate_lidar, rate_imu] = state_.get_lidar_imu_sensor_rates();
@@ -598,41 +597,36 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
   }
 
   if (state_.estimated_sensor_max_range) {
-    gui_.lbSensorRange->setCaption(
-      mrpt::format(
-        "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
-        state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
+    gui_.lbSensorRange->setCaption(mrpt::format(
+      "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
+      state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
   } else {
     gui_.lbSensorRange->setCaption("Est. max range: (Not available)");
   }
 
   {
     const double dtAvr = profiler_.getMeanTime("onLidar");
-    gui_.lbTime->setCaption(
-      mrpt::format(
-        "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr, dtAvr > 0 ? 1.0 / dtAvr : .0));
+    gui_.lbTime->setCaption(mrpt::format(
+      "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr, dtAvr > 0 ? 1.0 / dtAvr : .0));
   }
 
   {
     const double averageLidarQueue = profiler_.getMeanTime("onNewObservation.lidar_queue_length");
 
-    gui_.lbLidarQueue->setCaption(
-      mrpt::format(
-        "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
+    gui_.lbLidarQueue->setCaption(mrpt::format(
+      "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
   }
-  gui_.lbMapStats->setCaption(
-    mrpt::format(
-      "Keyframes: Localmap=%zu, simplemap=%zu", state_.distance_checker_local_map->size(),
-      state_.distance_checker_simplemap->size()));
+  gui_.lbMapStats->setCaption(mrpt::format(
+    "Keyframes: Localmap=%zu, simplemap=%zu", state_.distance_checker_local_map->size(),
+    state_.distance_checker_simplemap->size()));
 
   if (state_.last_motion_model_output) {
     const auto & tw = state_.last_motion_model_output->twist;
     const double speed = mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz).norm();
 
-    gui_.lbSpeed->setCaption(
-      mrpt::format(
-        "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed, speed * 3600.0 / 1000.0,
-        speed / 0.44704));
+    gui_.lbSpeed->setCaption(mrpt::format(
+      "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed, speed * 3600.0 / 1000.0,
+      speed / 0.44704));
   } else {
     gui_.lbSpeed->setCaption("Speed: (Not available)");
   }
