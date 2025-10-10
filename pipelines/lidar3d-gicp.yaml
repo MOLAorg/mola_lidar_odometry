@@ -9,7 +9,7 @@
 # =====================================================================================
 
 params:
-  pipeline_name: 'GICP (Generalized ICP) with cov-to-cov pairings' # For display/debug only
+  pipeline_name: "GICP (Generalized ICP) with cov-to-cov pairings" # For display/debug only
 
   # These sensor labels will be handled as LIDAR observations:
   # Can be overridden with cli flag --lidar-sensor-label
@@ -49,7 +49,7 @@ params:
   local_map_updates:
     enabled: "${MOLA_MAPPING_ENABLED|true}"
     load_existing_local_map: ${MOLA_LOAD_MM|""}
-    save_final_local_map: ${MOLA_SAVE_MM|""}  # If not empty, saves the final local metric map to a ".mm" file
+    save_final_local_map: ${MOLA_SAVE_MM|""} # If not empty, saves the final local metric map to a ".mm" file
 
     # Idea: don't integrate scans with a high rotational speed since they are probably not correctly deskewed:
     min_translation_between_keyframes: "${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}" # [m]
@@ -104,11 +104,11 @@ params:
     show_current_observation: false # shows "live deskewed" LiDAR points
     show_last_deskewed_observations_decay: true # shows "live deskewed" LiDAR points over time
     last_deskewed_observations_point_size: ${MOLA_GUI_LAST_CLOUDS_POINT_SIZE|1.0}
-    last_deskewed_observations_colormap: ${MOLA_GUI_LAST_CLOUDS_COLORMAP|cmJET}  # mrpt::img::TColormap
+    last_deskewed_observations_colormap: ${MOLA_GUI_LAST_CLOUDS_COLORMAP|cmJET} # mrpt::img::TColormap
     observations_initial_alpha: 0.10
     observations_decay_seconds: ${MOLA_GUI_CLOUDS_DECAY_SECS|10.0} # For deskewed clouds above
     current_observation_point_size: ${MOLA_GUI_CURRENT_CLOUD_POINT_SIZE|2.0}
-    current_observation_colormap: ${MOLA_GUI_CURRENT_CLOUD_COLORMAP|cmHOT}  # mrpt::img::TColormap
+    current_observation_colormap: ${MOLA_GUI_CURRENT_CLOUD_COLORMAP|cmHOT} # mrpt::img::TColormap
     current_observation_alpha: 0.20
 
     background_color_gray_level: "${MOLA_GUI_BACKGROUND_GRAY_LEVEL|0.3}"
@@ -201,7 +201,7 @@ icp_settings_with_vel:
       params:
         maxIterations: 1
         robustKernel: "${MOLA_LO_ROBUST_KERNEL|RobustKernel::GemanMcClure}"
-        robustKernelParam: "${MOLA_LO_ROBUST_KERNEL_PARAM|6.0}"  # In GICP, errors are normalized by covariance
+        robustKernelParam: "${MOLA_LO_ROBUST_KERNEL_PARAM|6.0}" # In GICP, errors are normalized by covariance
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -209,14 +209,14 @@ icp_settings_with_vel:
   matchers:
     - class: mp2p_icp::Matcher_Cov2Cov
       params:
-        threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'
+        threshold: "2.0*ADAPTIVE_THRESHOLD_SIGMA"
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         # Both layers here must be of type 'mola::KeyframePointCloudMap'
         layerMatches:
           - {
               global: "${MOLA_LOCALMAP_LAYER_NAME|localmap}",
-              local: "observation"
+              local: "observation",
             }
 
   quality:
@@ -253,7 +253,7 @@ localmap_generator:
         renderOpts:
           color.A: 0.25 # [0,1] Use this alpha value for points, RGB from colormap
           colormap: "cmHOT" # cmJET, cmHOT, cmGRAYSCALE
-          recolorizeByCoordinateIndex: 3  # {0,1,2}={x,y,z}, 3=Intensity
+          recolorizeByCoordinateIndex: 3 # {0,1,2}={x,y,z}, 3=Intensity
           #point_size: 1.0  # superseded by visualization.local_map_point_size above
 
 # ---------------------------------------------------------------------------------
@@ -271,6 +271,7 @@ observations_generator:
   #
   - class_name: mp2p_icp_filters::Generator
     params:
+      name: "Generator (raw)"
       target_layer: "raw"
       throw_on_unhandled_observation_class: true
       process_class_names_regex: ".*"
@@ -279,6 +280,7 @@ observations_generator:
   # This just creates an empty layer of the custom class 'mola::KeyframePointCloudMap'
   - class_name: mp2p_icp_filters::Generator
     params:
+      name: "Generator (obs)"
       target_layer: "observation"
       throw_on_unhandled_observation_class: true
       process_class_names_regex: "" # NONE: don't process observations in the generator.
@@ -289,7 +291,7 @@ observations_generator:
         # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/latest/group_mrpt_maps_grp.html
         class: mola::KeyframePointCloudMap
         plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
-        creationOpts: ~  # none required
+        creationOpts: ~ # none required
         insertOpts: ~
         likelihoodOpts: ~ # none required
         renderOpts: ~
@@ -315,11 +317,12 @@ observations_filter_1st_pass:
 
   - class_name: mp2p_icp_filters::FilterDecimateAdaptive
     params:
+      name: "FilterDecimateAdaptive (map)"
       input_pointcloud_layer: "raw"
       output_pointcloud_layer: "decimated_unfiltered"
       voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.15}" # [m]
       desired_output_point_count: "${MOLA_DECIMATED_POINTS_MAP|10000}"
-      parallelization_grain_size: 8000  # When TBB is enabled, the grainsize for splitting the input clouds into threads
+      parallelization_grain_size: 8000 # When TBB is enabled, the grainsize for splitting the input clouds into threads
 
   # Remove points too close, to prevent "noise" from the vehicle,
   # the person next to the robot, etc.
@@ -333,12 +336,12 @@ observations_filter_1st_pass:
 
   - class_name: mp2p_icp_filters::FilterDecimateAdaptive
     params:
+      name: "FilterDecimateAdaptive (icp)"
       input_pointcloud_layer: "decimated_skewed_for_map"
       output_pointcloud_layer: "decimated_skewed_for_icp"
       voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.10}" # [m]
       desired_output_point_count: "${MOLA_DECIMATED_POINTS_ICP|3000}"
-      parallelization_grain_size: 8000  # When TBB is enabled, the grainsize for splitting the input clouds into threads
-
+      parallelization_grain_size: 8000 # When TBB is enabled, the grainsize for splitting the input clouds into threads
 
 # 2nd pass:
 observations_filter_2nd_pass:
@@ -349,11 +352,12 @@ observations_filter_2nd_pass:
 
   - class_name: mp2p_icp_filters::FilterDeskew
     params:
+      name: "FilterDeskew (map)"
       input_pointcloud_layer: "decimated_skewed_for_map"
       output_pointcloud_layer: "decimated_for_map"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
-      output_layer_class: 'mrpt::maps::CPointsMapXYZI'  # Keep intensity, ring, time channels
+      output_layer_class: "mrpt::maps::CPointsMapXYZI" # Keep intensity, ring, time channels
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
@@ -361,6 +365,7 @@ observations_filter_2nd_pass:
 
   - class_name: mp2p_icp_filters::FilterDeskew
     params:
+      name: "FilterDeskew (icp)"
       input_pointcloud_layer: "decimated_skewed_for_icp"
       output_pointcloud_layer: "decimated_for_icp"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
@@ -371,9 +376,9 @@ observations_filter_2nd_pass:
       # mp2p_icp::Parameterizable API to update them dynamically.
       twist: [vx, vy, vz, wx, wy, wz]
 
-
   - class_name: mp2p_icp_filters::FilterMerge
     params:
+      name: "FilterMerge (icp into obs)"
       input_pointcloud_layer: "decimated_for_icp"
       target_layer: "observation"
 
@@ -395,6 +400,7 @@ observations_filter_final_pass:
 insert_observation_into_local_map:
   - class_name: mp2p_icp_filters::FilterMerge
     params:
+      name: "FilterMerge (map into localmap)"
       input_pointcloud_layer: "decimated_for_map"
       target_layer: "${MOLA_LOCALMAP_LAYER_NAME|localmap}"
       input_layer_in_local_coordinates: true
@@ -414,6 +420,7 @@ observations_filter_deskew_for_visualization:
 
   - class_name: mp2p_icp_filters::FilterDeskew
     params:
+      name: "FilterDeskew (viz)"
       input_pointcloud_layer: "raw_filtered"
       output_pointcloud_layer: "viz"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
