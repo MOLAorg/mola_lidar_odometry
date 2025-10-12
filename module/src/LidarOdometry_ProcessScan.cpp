@@ -639,8 +639,10 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
     }
 
     // 2/4: Make sure dynamic variables are up-to-date,
-    // in particular, [robot_x, ..., robot_roll]
-    updatePipelineDynamicVariables(this_obs_tim);
+    // in particular, [robot_x, ..., robot_roll]:
+    updatePipelineDynamicVariablesRobotPoseOnly();
+    // Make all changes effective and evaluate the variables now:
+    state_.parameter_source.realize();
 
     // 3/4: Apply pipeline
     mp2p_icp_filters::apply_filter_pipeline(state_.obs2map_merge, *state_.local_map, profiler_);

@@ -52,6 +52,17 @@ namespace
 namespace mola
 {
 
+void LidarOdometry::updatePipelineDynamicVariablesRobotPoseOnly()
+{
+  const auto & p = state_.last_lidar_pose.mean;
+  state_.parameter_source.updateVariable("robot_x", p.x());
+  state_.parameter_source.updateVariable("robot_y", p.y());
+  state_.parameter_source.updateVariable("robot_z", p.z());
+  state_.parameter_source.updateVariable("robot_yaw", p.yaw());
+  state_.parameter_source.updateVariable("robot_pitch", p.pitch());
+  state_.parameter_source.updateVariable("robot_roll", p.roll());
+}
+
 void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point & stamp)
 {
   const auto stamp_s = mrpt::Clock::toDouble(stamp);
@@ -73,13 +84,8 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
   }
 
   // robot pose:
+  updatePipelineDynamicVariablesRobotPoseOnly();
   const auto & p = state_.last_lidar_pose.mean;
-  state_.parameter_source.updateVariable("robot_x", p.x());
-  state_.parameter_source.updateVariable("robot_y", p.y());
-  state_.parameter_source.updateVariable("robot_z", p.z());
-  state_.parameter_source.updateVariable("robot_yaw", p.yaw());
-  state_.parameter_source.updateVariable("robot_pitch", p.pitch());
-  state_.parameter_source.updateVariable("robot_roll", p.roll());
 
   state_.parameter_source.localVelocityBuffer.add_orientation(stamp_s, p.getRotationMatrix());
 

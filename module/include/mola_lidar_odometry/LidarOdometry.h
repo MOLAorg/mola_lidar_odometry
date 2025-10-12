@@ -774,6 +774,7 @@ private:
 
   void updatePipelineDynamicVariables(const mrpt::Clock::time_point & stamp);
   void updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw);
+  void updatePipelineDynamicVariablesRobotPoseOnly();
 
   void updateVisualization(const mp2p_icp::metric_map_t & currentObservation);
 
