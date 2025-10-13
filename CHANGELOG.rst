@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.0 (2025-10-13)
+------------------
 * Merge pull request #26 from MOLAorg/feature/better-lio
   Better LIO & new GICP pipeline
 * CI: Run on ROS testing only
