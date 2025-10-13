@@ -76,12 +76,19 @@ LidarOdometry::~LidarOdometry()
         2.0, "Destructor: waiting for remaining tasks on the worker threads...");
       std::this_thread::sleep_for(100ms);
     }
-    worker_.clear();
+    worker_lidar_.clear();
+    worker_others_.clear();
 
-    if (params_.simplemap.generate)  //
+    if (params_.simplemap.generate) {
       saveReconstructedMapToFile();
+    }
 
-    if (params_.estimated_trajectory.save_to_file) saveEstimatedTrajectoryToFile();
+    if (params_.estimated_trajectory.save_to_file) {
+      saveEstimatedTrajectoryToFile();
+    }
+    if (!params_.local_map_updates.save_final_local_map.empty()) {
+      saveLocalMapToFile();
+    }
   } catch (const std::exception & e) {
     std::cerr << "[~LidarOdometry] Exception: " << e.what();
   }
@@ -142,7 +149,7 @@ bool LidarOdometry::isBusy() const
   is_busy_mtx_.lock();
   b = (state_.worker_tasks_lidar != 0) || (state_.worker_tasks_others != 0);
   is_busy_mtx_.unlock();
-  return b || worker_.pendingTasks();
+  return b || worker_lidar_.pendingTasks() || worker_others_.pendingTasks();
 }
 
 bool LidarOdometry::isActive() const
@@ -174,12 +181,16 @@ LidarOdometry::lastEstimatedState() const
 {
   {
     auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
-    if (!state_.initialized || state_.fatal_error) return {};
+    if (!state_.initialized || state_.fatal_error) {
+      return {};
+    }
   }
 
   auto lck = mrpt::lockHelper(state_mtx_);
 
-  if (!state_.last_motion_model_output) return {};
+  if (!state_.last_motion_model_output) {
+    return {};
+  }
   const auto & tw = state_.last_motion_model_output->twist;
   const auto & pose = state_.last_lidar_pose;
   return {{pose, tw}};
@@ -187,7 +198,9 @@ LidarOdometry::lastEstimatedState() const
 
 void LidarOdometry::saveEstimatedTrajectoryToFile() const
 {
-  if (params_.estimated_trajectory.output_file.empty()) return;
+  if (params_.estimated_trajectory.output_file.empty()) {
+    return;
+  }
 
   auto lck = mrpt::lockHelper(state_trajectory_mtx_);
 
@@ -204,7 +217,9 @@ void LidarOdometry::saveEstimatedTrajectoryToFile() const
 
 void LidarOdometry::saveReconstructedMapToFile() const
 {
-  if (params_.simplemap.save_final_map_to_file.empty()) return;
+  if (params_.simplemap.save_final_map_to_file.empty()) {
+    return;
+  }
 
   // make sure the unload queue is empty first,
   // so if we have this feature enabled, all SF entries have been
@@ -226,6 +241,24 @@ void LidarOdometry::saveReconstructedMapToFile() const
   MRPT_LOG_INFO("Final simplemap saved.");
 }
 
+void LidarOdometry::saveLocalMapToFile() const
+{
+  if (params_.local_map_updates.save_final_local_map.empty()) {
+    return;
+  }
+
+  auto lck = mrpt::lockHelper(state_mtx_);
+
+  const auto fil = params_.local_map_updates.save_final_local_map;
+
+  MRPT_LOG_INFO_STREAM("Saving final metric map to file '" << fil << "'...");
+  std::cout.flush();
+
+  state_.local_map->save_to_file(fil);
+
+  MRPT_LOG_INFO("Final local metric map saved.");
+}
+
 void LidarOdometry::unloadPastSimplemapObservations(const size_t maxSizeUnloadQueue) const
 {
   auto lck = mrpt::lockHelper(state_simplemap_mtx_);
@@ -233,7 +266,9 @@ void LidarOdometry::unloadPastSimplemapObservations(const size_t maxSizeUnloadQu
   auto & pso = state_.past_simplemaps_observations;
 
   while (pso.size() > maxSizeUnloadQueue) {
-    for (auto & o : *pso.begin()->second) handleUnloadSinglePastObservation(o);
+    for (auto & o : *pso.begin()->second) {
+      handleUnloadSinglePastObservation(o);
+    }
 
     pso.erase(pso.begin());
   }
@@ -249,14 +284,21 @@ void LidarOdometry::handleUnloadSinglePastObservation(mrpt::obs::CObservation::P
 
   // special case: point cloud
   auto oPts = std::dynamic_pointer_cast<CObservationPointCloud>(o);
-  if (!oPts) return;
+  if (!oPts) {
+    return;
+  }
 
-  if (oPts->isExternallyStored()) return;  // already external, do nothing.
+  if (oPts->isExternallyStored()) {
+    return;  // already external, do nothing.
+  }
 
-  if (params_.simplemap.save_final_map_to_file.empty())
+  if (params_.simplemap.save_final_map_to_file.empty()) {
     return;  // no generation of simplemap requested by the user
+  }
 
-  if (!params_.simplemap.generate_lazy_load_scan_files) return;  // feature is disabled
+  if (!params_.simplemap.generate_lazy_load_scan_files) {
+    return;  // feature is disabled
+  }
 
   ASSERT_(oPts->pointcloud);
 
@@ -274,10 +316,9 @@ void LidarOdometry::handleUnloadSinglePastObservation(mrpt::obs::CObservation::P
   if (!mrpt::system::directoryExists(out_basedir)) {
     const bool dirCreatedOk = mrpt::system::createDirectory(out_basedir);
     ASSERTMSG_(
-      dirCreatedOk, mrpt::format(
-                      "Error creating lazy-load directory for "
-                      "output simplemap: '%s'",
-                      out_basedir.c_str()));
+      dirCreatedOk,
+      mrpt::format(
+        "Error creating lazy-load directory for output simplemap: '%s'", out_basedir.c_str()));
 
     MRPT_LOG_INFO_STREAM("Creating lazy-load directory for output .simplemap: " << out_basedir);
   }
@@ -314,10 +355,13 @@ void LidarOdometry::processPendingUserRequests()
 
 void LidarOdometry::doWriteDebugTracesFile(const mrpt::Clock::time_point & this_obs_tim)
 {
-  if (!params_.debug_traces.save_to_file) return;  // disabled
+  if (!params_.debug_traces.save_to_file) {
+    return;  // disabled
+  }
 
-  if (debug_traces_of_ && !debug_traces_of_->is_open())
+  if (debug_traces_of_ && !debug_traces_of_->is_open()) {
     return;  // apparently, an error creating the file
+  }
 
   bool firstLine = false;
   if (!debug_traces_of_) {
@@ -340,12 +384,14 @@ void LidarOdometry::doWriteDebugTracesFile(const mrpt::Clock::time_point & this_
   vars["time_onLidar"] = profiler_.getLastTime("onLidar");
 
   if (firstLine) {
-    for (const auto & [name, value] : vars)  //
+    for (const auto & [name, value] : vars) {
       of << "\"" << name << "\",";
+    }
     of << "\n";
   }
-  for (const auto & [name, value] : vars)  //
+  for (const auto & [name, value] : vars) {
     of << mrpt::format("%f,", value);
+  }
   of << "\n";
 }
 
@@ -353,8 +399,9 @@ void LidarOdometry::addDropStats(bool frame_is_dropped)
 {
   state_.drop_frames_stats_good[state_.drop_frames_stats_next_index] = !frame_is_dropped;
   state_.drop_frames_stats_dropped[state_.drop_frames_stats_next_index] = frame_is_dropped;
-  if (++state_.drop_frames_stats_next_index >= MethodState::DROP_STATS_WINDOW_LENGHT)
+  if (++state_.drop_frames_stats_next_index >= MethodState::DROP_STATS_WINDOW_LENGTH) {
     state_.drop_frames_stats_next_index = 0;
+  }
 }
 
 double LidarOdometry::getDropStats() const

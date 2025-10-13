@@ -78,7 +78,7 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
     }
 
     // Yes, it's an IMU obs:
-    auto fut = worker_.enqueue(&LidarOdometry::onIMU, this, o);
+    auto fut = worker_others_.enqueue(&LidarOdometry::onIMU, this, o);
     (void)fut;
   }
 
@@ -90,46 +90,63 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
       auto lck = mrpt::lockHelper(is_busy_mtx_);
       state_.worker_tasks_others++;
     }
-    auto fut = worker_.enqueue(&LidarOdometry::onGPS, this, o);
+    auto fut = worker_others_.enqueue(&LidarOdometry::onGPS, this, o);
     (void)fut;
   }
 
   // Is it a LIDAR obs?
   for (const auto & re : params_.lidar_sensor_labels) {
-    if (!std::regex_match(o->sensorLabel, re)) continue;
+    if (!std::regex_match(o->sensorLabel, re)) {
+      continue;
+    }
 
     // Yes, it's a LIDAR obs:
-    const int queued = [this]() {
-      auto lck = mrpt::lockHelper(is_busy_mtx_);
-      return state_.worker_tasks_lidar;
-    }();
-
-    profiler_.registerUserMeasure("onNewObservation.lidar_queue_length", queued);
-    if (queued > params_.max_lidar_queue_before_drop) {
-      MRPT_LOG_THROTTLE_WARN_FMT(
-        1.0, "Dropping observation due to LiDAR worker thread too busy (dropped frames: %.02f%%)",
-        getDropStats() * 100.0);
-      profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
-      addDropStats(true);
-      return;
-    }
-    addDropStats(false);
-    profiler_.enter("delay_onNewObs_to_process");
-
-    {
-      auto lck = mrpt::lockHelper(is_busy_mtx_);
-      state_.worker_tasks_lidar++;
-    }
-
-    // Enqueue task:
-    auto fut = worker_.enqueue(&LidarOdometry::onLidar, this, o);
-
-    (void)fut;
+    sendLidarScanToProcessQueue(o);
 
     break;  // do not keep processing the list
   }
 
   MRPT_TRY_END
+}
+
+void LidarOdometry::sendLidarScanToProcessQueue(const CObservation::Ptr & o)
+{
+  // If we don't rely on IMU, directly enqueue the task. Otherwise, put it on the wait list until
+  // IMU data for the required timestamps has arrived so we can do de-skew:
+
+  int queued = [this]() {
+    auto lck = mrpt::lockHelper(is_busy_mtx_);
+    return state_.worker_tasks_lidar + worker_lidar_.pendingTasks();
+  }() + [this]() {
+    auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
+    return static_cast<int>(worker_lidar_wait_for_imu_list_.size());
+  }();
+
+  profiler_.registerUserMeasure("onNewObservation.lidar_queue_length", queued);
+  if (queued > params_.max_lidar_queue_before_drop) {
+    MRPT_LOG_THROTTLE_WARN_FMT(
+      1.0, "Dropping observation due to LiDAR worker thread too busy (dropped frames: %.02f%%)",
+      getDropStats() * 100.0);
+    profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
+    addDropStats(true);
+    return;
+  }
+  addDropStats(false);
+  profiler_.enter("delay_onNewObs_to_process");
+
+  if (!isPipelineUsingIMU()) {
+    {
+      auto lck = mrpt::lockHelper(is_busy_mtx_);
+      state_.worker_tasks_lidar++;
+    }
+
+    auto fut = worker_lidar_.enqueue(&LidarOdometry::onLidar, this, o);
+    (void)fut;
+  } else {
+    // IMU usage:
+    auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
+    worker_lidar_wait_for_imu_list_.emplace(mrpt::Clock::toDouble(o->getTimeStamp()), o);
+  }
 }
 
 void LidarOdometry::onLidar(const CObservation::Ptr & o)
@@ -202,17 +219,58 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
   // 1) Initial pitch/roll estimation:
   {
     auto lckState = mrpt::lockHelper(state_mtx_);
-    if (state_.imu_averager.has_value()) {
-      state_.imu_averager->add(imu);
+    if (state_.imu_initializer.has_value()) {
+      state_.imu_initializer->add(imu);
     }
+
+    // and for rate stats:
+    state_.append_imu_stamp(imu->timestamp);
   }
 
   // 2) Precise scan de-skewing is done via Generator, which in turns passes the IMU data to the
   //    LocalVelocityBuffer inside the ParameterSource.
+  //    The LocalVelocityBuffer also needs velocity and orientation estimations, which are sent out
+  //    in updatePipelineDynamicVariables()
   {
     auto lckState = mrpt::lockHelper(state_mtx_);
     mp2p_icp::metric_map_t dummy_map;
     mp2p_icp_filters::apply_generators(state_.obs_generators, *imu, dummy_map);
+  }
+
+  // Finally, schedule to run those LiDAR scans that were waiting for IMU data:
+  if (isPipelineUsingIMU()) {
+    const auto imuTim = mrpt::Clock::toDouble(imu->timestamp);
+
+    const auto rate_lidar_hz = [&] {
+      auto lckState = mrpt::lockHelper(state_mtx_);
+      auto [rate_lidar, _] = state_.get_lidar_imu_sensor_rates();
+      return rate_lidar;
+    }();
+
+    const double lidar_scan_period = rate_lidar_hz > 0 ? 1.0 / rate_lidar_hz : 0.1;
+
+    auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
+
+    for (auto it = worker_lidar_wait_for_imu_list_.begin();
+         it != worker_lidar_wait_for_imu_list_.end();) {
+      const auto [lidarTim, lidarObs] = *it;
+
+      const double lidar2imu_dt = imuTim - lidarTim;
+      if (lidar2imu_dt > lidar_scan_period) {
+        // Enqueue this one:
+        {
+          auto lck2 = mrpt::lockHelper(is_busy_mtx_);
+          state_.worker_tasks_lidar++;
+        }
+        auto fut = worker_lidar_.enqueue(&LidarOdometry::onLidar, this, lidarObs);
+        (void)fut;
+
+        // and remove from the list:
+        it = worker_lidar_wait_for_imu_list_.erase(it);
+      } else {
+        ++it;
+      }
+    }
   }
 }
 
@@ -281,6 +339,57 @@ bool LidarOdometry::doCheckIsValidObservation(const mp2p_icp::metric_map_t & m)
 
   MRPT_LOG_DEBUG_STREAM("Observation validity check: layer size=" << pts->size());
   return valid;
+}
+
+namespace
+{
+double rate_from_stamps_buffer(const mrpt::containers::circular_buffer<double> & stamps)
+{
+  if (stamps.size() < 2) {
+    return .0;
+  }
+  double rate_accum = 0;
+  for (std::size_t i = 0; i < stamps.size() - 1; i++) {
+    const auto ti = stamps.peek(i);
+    const auto tj = stamps.peek(i + 1);
+    rate_accum += tj != ti ? 1.0 / (tj - ti) : .0;
+  }
+  rate_accum *= 1.0 / static_cast<double>(stamps.size() - 1);
+  return rate_accum;
+}
+
+}  // namespace
+
+std::tuple<double, double> LidarOdometry::MethodState::get_lidar_imu_sensor_rates()
+{
+  const double lidar_rate = recent_lidar_stamps.empty()
+                              ? 10.0
+                              : rate_from_stamps_buffer(recent_lidar_stamps.begin()->second);
+
+  const double imu_rate = rate_from_stamps_buffer(recent_imu_stamps);
+
+  return {lidar_rate, imu_rate};
+}
+
+void LidarOdometry::MethodState::append_lidar_stamp(
+  const std::string & sensorLabel, const mrpt::Clock::time_point & stamp)
+{
+  constexpr std::size_t LIDAR_STAMPS_QUEUE_LENGTH = 50;
+
+  auto [it_stamps, is_new] =
+    recent_lidar_stamps.try_emplace(sensorLabel, LIDAR_STAMPS_QUEUE_LENGTH);
+  auto & stamps = it_stamps->second;
+  if (stamps.available() == 0) {
+    stamps.pop();
+  }
+  stamps.push(mrpt::Clock::toDouble(stamp));
+}
+void LidarOdometry::MethodState::append_imu_stamp(const mrpt::Clock::time_point & stamp)
+{
+  if (recent_imu_stamps.size() >= recent_imu_stamps.capacity() - 2) {
+    recent_imu_stamps.pop();
+  }
+  recent_imu_stamps.push(mrpt::Clock::toDouble(stamp));
 }
 
 }  // namespace mola

@@ -252,7 +252,7 @@ Scan de-skew options
   will be just processed without doing any de-skew on them. If this variable is set to ``false``, an exception will be triggered
   in such event, which can be used as a fail-safe check against missing stamps, important in high velocity scenarios.
 
-- ``MOLA_SKIP_DESKEW`` (Default: ``false``): If enabled, scan de-skew (motion compensation) will be skipped.
+- ``MOLA_DESKEW_METHOD`` (Default: ``false``): If enabled, scan de-skew (motion compensation) will be skipped.
 
 General options
 ^^^^^^^^^^^^^^^^^^^^^^

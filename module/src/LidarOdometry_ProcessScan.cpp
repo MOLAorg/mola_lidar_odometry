@@ -22,34 +22,74 @@
 // This module:
 #include <mola_lidar_odometry/LidarOdometry.h>
 
+// mp2p_icp:
+#include <mp2p_icp_filters/FilterDeskew.h>
+
 // MRPT:
+#include <mrpt/maps/CPointsMapXYZI.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservationComment.h>
 #include <mrpt/obs/CObservationGPS.h>
+#include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/poses/Lie/SO.h>
 
 namespace mola
 {
+
+bool LidarOdometry::isPipelineUsingIMU() const
+{
+  auto lckState = mrpt::lockHelper(state_mtx_);
+
+  if (state_.isPipelinesUsingIMU.has_value()) {
+    return *state_.isPipelinesUsingIMU;
+  }
+
+  const auto hasDeskewStage = [](const mp2p_icp_filters::FilterPipeline & pipeline) {
+    for (const auto & stage : pipeline) {
+      auto deskew = std::dynamic_pointer_cast<mp2p_icp_filters::FilterDeskew>(stage);
+      if (!deskew) {
+        continue;
+      }
+      // It's deskew: we need IMU if using IMU-based methods:
+      return deskew->method != mp2p_icp_filters::MotionCompensationMethod::None &&
+             deskew->method != mp2p_icp_filters::MotionCompensationMethod::Linear;
+    }
+    return false;
+  };
+
+  state_.isPipelinesUsingIMU = hasDeskewStage(state_.pc_filter1) ||
+                               hasDeskewStage(state_.pc_filter2) ||
+                               hasDeskewStage(state_.pc_filter3);
+
+  return *state_.isPipelinesUsingIMU;
+}
 
 // here happens the main stuff:
 void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 {
   using namespace std::string_literals;
 
+  const ProfilerEntry tle_global(profiler_, "onLidar");
+
   // Check if we need to process any pending async request:
-  processPendingUserRequests();
+  {
+    const ProfilerEntry tle_ur(profiler_, "onLidar.userRequests");
+    processPendingUserRequests();
+  }
+
+  // make sure data is loaded, if using an offline lazy-load dataset.
+  ASSERT_(obs);
+  obs->load();
+  const auto this_obs_tim = obs->timestamp;
 
   auto lckState = mrpt::lockHelper(state_mtx_);
 
-  ASSERT_(obs);
-
   profiler_.leave("delay_onNewObs_to_process");
 
-  // make sure data is loaded, if using an offline lazy-load dataset.
-  obs->load();
+  // for rate stats:
+  state_.append_lidar_stamp(obs->sensorLabel, obs->timestamp);
 
   // Only process pointclouds that are sufficiently apart in time:
-  const auto this_obs_tim = obs->timestamp;
 
   // Keep timestamps for logging purposes:
   state_.last_obs_timestamp = this_obs_tim;
@@ -78,83 +118,30 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 
   state_.last_obs_tim_by_label[obs->sensorLabel] = this_obs_tim;
 
-  const ProfilerEntry tleg(profiler_, "onLidar");
-
   // Use the observation to update the estimated sensor range:
   if (!state_.estimated_sensor_max_range.has_value()) {
     doInitializeEstimatedMaxSensorRange(*obs);
   }
 
   // Handle multiple simultaneous LIDARs:
-  mrpt::obs::CSensoryFrame sf;
-  if (params_.multiple_lidars.lidar_count > 1) {
-    // Synchronize 2+ lidars:
-    state_.sync_obs[obs->sensorLabel] = obs;
-    if (state_.sync_obs.size() < params_.multiple_lidars.lidar_count) {
-      MRPT_LOG_THROTTLE_DEBUG(5.0, "Skipping ICP since still waiting for all of multiple LIDARs");
-      return;
-    }
-    // now, keep all of them within the time window:
-    for (const auto & [label, o] : state_.sync_obs) {
-      const auto dt = std::abs(mrpt::system::timeDifference(o->timestamp, obs->timestamp));
-      if (dt > params_.multiple_lidars.max_time_offset) {
-        continue;
-      }
-
-      sf += o;  // include this observation
-    }
-    // and clear for the next iter:
-    state_.sync_obs.clear();
-
-    ASSERT_(!sf.empty());
-    MRPT_LOG_DEBUG_STREAM(
-      "multiple_lidars: " << sf.size() << " valid observations have been synchronized.");
-  } else {
-    // Single LIDAR:
-    sf.insert(obs);
+  const mrpt::obs::CSensoryFrame sf = collectRawObservations(obs);
+  if (sf.empty()) {
+    return;  // not all required LiDARs yet.
   }
 
   // Refresh dyn. variables used in the mp2p_icp pipelines:
-  updatePipelineDynamicVariables();
+  updatePipelineDynamicVariables(this_obs_tim);
 
   MRPT_LOG_DEBUG_STREAM("Dynamic variables: " << state_.parameter_source.printVariableValues());
 
   // Extract points from observation:
-  auto observation = mp2p_icp::metric_map_t::Create();
-
-  ProfilerEntry tle0(profiler_, "onLidar.0.apply_generators");
-
-  ASSERT_(!sf.empty());
-  const auto timeOfFirstSFObs = sf.getObservationByIndex(0)->timestamp;
-
-  for (const auto & o : sf) {
-    mp2p_icp::metric_map_t thisObs;
-    mp2p_icp::metric_map_t * obsTrg = sf.size() == 1 ? observation.get() : &thisObs;
-
-    mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *obsTrg);
-
-    // Update relative timestamps for multiple lidars:
-    const double dt = mrpt::system::timeDifference(timeOfFirstSFObs, o->timestamp);
-
-    state_.parameter_source.updateVariable("SENSOR_TIME_OFFSET", dt);
-    // Make all changes effective and evaluate the variables now:
-    state_.parameter_source.realize();
-
-    mp2p_icp_filters::apply_filter_pipeline(state_.pc_filterAdjustTimes, *obsTrg, profiler_);
-
-    // for multiple LiDAR setups:
-    if (obsTrg != observation.get()) {
-      observation->merge_with(*obsTrg);
-    }
-  }
+  auto observation = observationFromRawSensor(sf);
 
   // Keep a copy of "raw" for visualization in the GUI:
   mp2p_icp::metric_map_t observationRawForViz;
   if (observation->layers.count("raw")) {
     observationRawForViz.layers["raw"] = observation->layers.at("raw");
   }
-
-  tle0.stop();
 
   // Filter/segment the point cloud (optional, but normally will be
   // present):
@@ -295,6 +282,8 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
           in.prior->cov_inv(3, 3) = large_certainty;  // rx
           in.prior->cov_inv(4, 4) = large_certainty;  // ry
         }
+
+        MRPT_LOG_DEBUG_STREAM("ICP prior=" << *in.prior);
       }
 
       MRPT_LOG_DEBUG_STREAM(
@@ -447,11 +436,17 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 
     MRPT_LOG_DEBUG_FMT(
       "ICP (kind=%u): goodness=%.02f%% iters=%u pose=%s "
-      "termReason=%s",
+      "termReason=%s pose_cov diagonal sigmas:{%e %e %e [m] %e %e %e [deg]}",
       static_cast<unsigned int>(in.align_kind), 100.0 * out.goodness,
       static_cast<unsigned int>(icp_result.nIterations),
       out.found_pose_to_wrt_from.getMeanVal().asString().c_str(),
-      mrpt::typemeta::enum2str(icp_result.terminationReason).c_str());
+      mrpt::typemeta::enum2str(icp_result.terminationReason).c_str(),
+      std::sqrt(out.found_pose_to_wrt_from.cov(0, 0)),
+      std::sqrt(out.found_pose_to_wrt_from.cov(1, 1)),
+      std::sqrt(out.found_pose_to_wrt_from.cov(2, 2)),
+      mrpt::RAD2DEG(std::sqrt(out.found_pose_to_wrt_from.cov(3, 3))),
+      mrpt::RAD2DEG(std::sqrt(out.found_pose_to_wrt_from.cov(4, 4))),
+      mrpt::RAD2DEG(std::sqrt(out.found_pose_to_wrt_from.cov(5, 5))));
 
     tle_icp.stop();
     // ------------------------------------------------------
@@ -462,6 +457,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 
     state_.last_icp_was_good = icpIsGood;
     state_.last_icp_quality = out.goodness;
+    state_.last_icp_iterations = out.icp_iterations;
 
     if (icpIsGood) {
       state_.last_lidar_pose = out.found_pose_to_wrt_from;
@@ -525,7 +521,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
     const auto [isFirstPoseInChecker, distanceToClosest] =
       state_.distance_checker_local_map->check(state_.last_lidar_pose.mean);
 
-    const double dist_eucl_since_last = distanceToClosest.norm();
+    const double euclidean_dist_since_last = distanceToClosest.norm();
     const double rot_since_last =
       mrpt::poses::Lie::SO<3>::log(distanceToClosest.getRotationMatrix()).norm();
 
@@ -537,7 +533,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
        // skip map update for the special ICP alignment without motion model
        hasMotionModel &&
        (isFirstPoseInChecker ||
-        dist_eucl_since_last > params_.local_map_updates.min_translation_between_keyframes ||
+        euclidean_dist_since_last > params_.local_map_updates.min_translation_between_keyframes ||
         rot_since_last >
           mrpt::DEG2RAD(params_.local_map_updates.min_rotation_between_keyframes))
        );
@@ -567,13 +563,13 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
     const auto [isFirstPoseInSMChecker, distanceToClosestSM] =
       state_.distance_checker_simplemap->check(state_.last_lidar_pose.mean);
 
-    const double dist_eucl_since_last_sm = distanceToClosestSM.norm();
+    const double euclidean_dist_since_last_sm = distanceToClosestSM.norm();
     const double rot_since_last_sm =
       mrpt::poses::Lie::SO<3>::log(distanceToClosestSM.getRotationMatrix()).norm();
 
     distance_enough_sm =
       isFirstPoseInSMChecker ||
-      dist_eucl_since_last_sm > params_.simplemap.min_translation_between_keyframes ||
+      euclidean_dist_since_last_sm > params_.simplemap.min_translation_between_keyframes ||
       rot_since_last_sm > mrpt::DEG2RAD(params_.simplemap.min_rotation_between_keyframes);
 
     // clang-format off
@@ -584,13 +580,14 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
        );
     // clang-format on
 
-    if (updateSimpleMap && distance_enough_sm)
+    if (updateSimpleMap && distance_enough_sm) {
       state_.distance_checker_simplemap->insert(state_.last_lidar_pose.mean);
+    }
 
     MRPT_LOG_DEBUG_FMT(
       "Since last KF: dist=%5.03f m rotation=%.01f deg updateLocalMap=%s "
       "updateSimpleMap=%s",
-      dist_eucl_since_last, mrpt::RAD2DEG(rot_since_last), updateLocalMap ? "YES" : "NO",
+      euclidean_dist_since_last, mrpt::RAD2DEG(rot_since_last), updateLocalMap ? "YES" : "NO",
       updateSimpleMap ? "YES" : "NO");
 
   }  // end: yes, we can do ICP
@@ -642,14 +639,18 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
     }
 
     // 2/4: Make sure dynamic variables are up-to-date,
-    // in particular, [robot_x, ..., robot_roll]
-    updatePipelineDynamicVariables();
+    // in particular, [robot_x, ..., robot_roll]:
+    updatePipelineDynamicVariablesRobotPoseOnly();
+    // Make all changes effective and evaluate the variables now:
+    state_.parameter_source.realize();
 
     // 3/4: Apply pipeline
     mp2p_icp_filters::apply_filter_pipeline(state_.obs2map_merge, *state_.local_map, profiler_);
 
     // 4/4: remove temporary layers:
-    for (const auto & [lyName, lyMap] : observation->layers) state_.local_map->layers.erase(lyName);
+    for (const auto & [lyName, lyMap] : observation->layers) {
+      state_.local_map->layers.erase(lyName);
+    }
 
     tle3.stop();
 
@@ -659,106 +660,11 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 
   // Optional build simplemap:
   if (updateSimpleMap) {
-    auto lck = mrpt::lockHelper(state_simplemap_mtx_);
-
-    auto obsSF = mrpt::obs::CSensoryFrame::Create();
-    // Add observations only if this is a real keyframe
-    // (the alternative is this is a regular frame, but the option
-    //  add_non_keyframes_too is set):
-    if (distance_enough_sm) {
-      *obsSF += sf;
-
-      const auto curLidarStamp = obs->getTimeStamp();
-
-      // insert GNSS too? Search for a close-enough observation:
-      std::optional<double> closestTimeAbsDiff;
-      mrpt::obs::CObservationGPS::Ptr closestGPS;
-
-      for (const auto & [gpsStamp, gpsObs] : state_.last_gnss_) {
-        const double timeDiff = std::abs(mrpt::system::timeDifference(gpsStamp, curLidarStamp));
-
-        if (timeDiff > params_.simplemap.save_gnss_max_age) {
-          continue;
-        }
-
-        if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff) {
-          closestTimeAbsDiff = timeDiff;
-          closestGPS = gpsObs;
-        }
-      }
-      if (closestGPS) *obsSF += closestGPS;
-    } else {
-      // Otherwise (we are in here because add_non_keyframes_too).
-      // Since we are adding anyway a "comment" observation with the
-      // valid timestamp of this frame, it is enough for postprocessing
-      // tools.
-      ASSERT_(params_.simplemap.add_non_keyframes_too);
-    }
-
-    // Add metadata ("comment") observation:
-    auto metadataObs = mrpt::obs::CObservationComment::Create();
-    metadataObs->timestamp = this_obs_tim;
-    metadataObs->sensorLabel = "metadata";
-
-    mrpt::containers::yaml kf_metadata = mrpt::containers::yaml::Map();
-    std::optional<mrpt::math::TBoundingBoxf> bbox;
-    for (const auto & [layerName, layerMap] : observation->layers) {
-      if (bbox) {
-        bbox = bbox->unionWith(layerMap->boundingBox());
-      } else {
-        bbox = layerMap->boundingBox();
-      }
-    }
-    if (bbox) {
-      kf_metadata["frame_bbox_min"] = "'"s + bbox->min.asString() + "'"s;
-      kf_metadata["frame_bbox_max"] = "'"s + bbox->max.asString() + "'"s;
-    }
-
-    // Store local velocity buffer in the KF metadata so it is possible to deskew the scan later on with precision
-#if MP2P_ICP_HAS_VELOCITY_BUFFER
-    kf_metadata["local_velocity_buffer"] = state_.parameter_source.localVelocityBuffer.toYAML();
-#endif
-
-    // convert yaml to string:
-    std::stringstream ss;
-    ss << kf_metadata;
-    metadataObs->text = ss.str();
-
-    // insert it:
-    *obsSF += metadataObs;
-
-    // Add keyframe to simple map:
-    MRPT_LOG_DEBUG_STREAM("New SimpleMap KeyFrame. SF=" << obsSF->size() << " observations.");
-
-    std::optional<mrpt::math::TTwist3D> curTwist;
-    if (hasMotionModel) {
-      curTwist = state_.last_motion_model_output->twist;
-    }
-
-    state_.reconstructed_simplemap.insert(
-      // Pose: mean + covariance
-      mrpt::poses::CPose3DPDFGaussian::Create(state_.last_lidar_pose),
-      // SensoryFrame: set of observations from this KeyFrame:
-      obsSF,
-      // twist
-      curTwist);
-
-    // Mechanism to free old SFs:
-    // We cannot unload them right now, for the case when they are being
-    // used in a GUI, etc.
-    // (1/2) Add to the list:
-    state_.past_simplemaps_observations[this_obs_tim] = obsSF;
-
-    const ProfilerEntry tleUnloadSM(profiler_, "onLidar.5.unload_past_sm_obs");
-
-    // (2/2) Unload old lazy-load observations to save RAM, if applicable:
-    constexpr size_t MAX_SIZE_UNLOAD_QUEUE = 100;
-    unloadPastSimplemapObservations(MAX_SIZE_UNLOAD_QUEUE);
-
-  }  // end update simple map
+    doUpdateSimpleMap(sf, distance_enough_sm, observation, this_obs_tim);
+  }
 
   // In any case, publish the vehicle pose, no matter if it's a keyframe or not,
-  // but if ICP quality was good enough:
+  // if ICP quality was good enough:
   if (state_.last_icp_was_good) {
     doPublishUpdatedLocalization(this_obs_tim);
   }
@@ -775,6 +681,195 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
 
     updateVisualization(observationRawForViz);
   }
+}
+
+mp2p_icp::metric_map_t::Ptr LidarOdometry::observationFromRawSensor(
+  const mrpt::obs::CSensoryFrame & sf)
+{
+  auto observation = mp2p_icp::metric_map_t::Create();
+
+  ProfilerEntry tle0(profiler_, "onLidar.0.apply_generators");
+
+  ASSERT_(!sf.empty());
+  const auto timeOfFirstSFObs = sf.getObservationByIndex(0)->timestamp;
+
+  for (const auto & o : sf) {
+    mp2p_icp::metric_map_t thisObs;
+    mp2p_icp::metric_map_t * obsTrg = sf.size() == 1 ? observation.get() : &thisObs;
+
+    mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *obsTrg);
+
+    // Update relative timestamps for multiple lidars:
+    const double dt = mrpt::system::timeDifference(timeOfFirstSFObs, o->timestamp);
+
+    state_.parameter_source.updateVariable("SENSOR_TIME_OFFSET", dt);
+    // Make all changes effective and evaluate the variables now:
+    state_.parameter_source.realize();
+
+    mp2p_icp_filters::apply_filter_pipeline(state_.pc_filterAdjustTimes, *obsTrg, profiler_);
+
+    // for multiple LiDAR setups:
+    if (obsTrg != observation.get()) {
+      observation->merge_with(*obsTrg);
+    }
+  }
+  tle0.stop();
+  return observation;
+}
+
+mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
+  const mrpt::obs::CObservation::Ptr & obs)
+{
+  mrpt::obs::CSensoryFrame sf;
+  if (params_.multiple_lidars.lidar_count > 1) {
+    // Synchronize 2+ lidars:
+    state_.sync_obs[obs->sensorLabel] = obs;
+    if (state_.sync_obs.size() < params_.multiple_lidars.lidar_count) {
+      MRPT_LOG_THROTTLE_DEBUG(5.0, "Skipping ICP since still waiting for all of multiple LIDARs");
+      return {};
+    }
+    // now, keep all of them within the time window:
+    for (const auto & [label, o] : state_.sync_obs) {
+      const auto dt = std::abs(mrpt::system::timeDifference(o->timestamp, obs->timestamp));
+      if (dt > params_.multiple_lidars.max_time_offset) {
+        continue;
+      }
+
+      sf += o;  // include this observation
+    }
+    // and clear for the next iter:
+    state_.sync_obs.clear();
+
+    ASSERT_(!sf.empty());
+    MRPT_LOG_DEBUG_STREAM(
+      "multiple_lidars: " << sf.size() << " valid observations have been synchronized.");
+  } else {
+    // Single LIDAR:
+    sf.insert(obs);
+  }
+
+  return sf;
+}
+
+void LidarOdometry::doUpdateSimpleMap(
+  const mrpt::obs::CSensoryFrame & sf, const bool distance_enough_sm,
+  const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & this_obs_tim)
+{
+  using namespace std::string_literals;
+
+  auto lck = mrpt::lockHelper(state_simplemap_mtx_);
+
+  auto keyframe_obs = mrpt::obs::CSensoryFrame::Create();
+  // Add observations only if this is a real keyframe
+  // (the alternative is this is a regular frame, but the option
+  //  add_non_keyframes_too is set):
+  if (distance_enough_sm) {
+    *keyframe_obs += sf;
+
+    if (params_.simplemap.save_deskewed_scans) {
+      mp2p_icp::metric_map_t mm;
+      mm.layers["raw"] = observation->layers.at("raw");
+      // This will remove the "raw" layer and replace it with a "deskewed" one:
+      mp2p_icp_filters::apply_filter_pipeline(state_.obsDeskewForViz, mm);
+      const auto deskewed_cloud = mm.point_layer(mm.layers.begin()->first);
+
+      auto od = mrpt::obs::CObservationPointCloud::Create();
+      od->timestamp = this_obs_tim;
+      auto spc = mrpt::maps::CPointsMapXYZI::Create();
+      spc->insertAnotherMap(deskewed_cloud.get(), {});
+      od->pointcloud = spc;
+      od->sensorLabel = "deskewed";
+      keyframe_obs->insert(od);
+    }
+
+    const auto curLidarStamp = this_obs_tim;
+
+    // insert GNSS too? Search for a close-enough observation:
+    std::optional<double> closestTimeAbsDiff;
+    mrpt::obs::CObservationGPS::Ptr closestGPS;
+
+    for (const auto & [gpsStamp, gpsObs] : state_.last_gnss_) {
+      const double timeDiff = std::abs(mrpt::system::timeDifference(gpsStamp, curLidarStamp));
+
+      if (timeDiff > params_.simplemap.save_gnss_max_age) {
+        continue;
+      }
+
+      if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff) {
+        closestTimeAbsDiff = timeDiff;
+        closestGPS = gpsObs;
+      }
+    }
+    if (closestGPS) {
+      *keyframe_obs += closestGPS;
+    }
+  } else {
+    // Otherwise (we are in here because add_non_keyframes_too).
+    // Since we are adding anyway a "comment" observation with the
+    // valid timestamp of this frame, it is enough for postprocessing
+    // tools.
+    ASSERT_(params_.simplemap.add_non_keyframes_too);
+  }
+
+  // Add metadata ("comment") observation:
+  auto metadataObs = mrpt::obs::CObservationComment::Create();
+  metadataObs->timestamp = this_obs_tim;
+  metadataObs->sensorLabel = "metadata";
+
+  mrpt::containers::yaml kf_metadata = mrpt::containers::yaml::Map();
+  std::optional<mrpt::math::TBoundingBoxf> bbox;
+  for (const auto & [layerName, layerMap] : observation->layers) {
+    if (bbox) {
+      bbox = bbox->unionWith(layerMap->boundingBox());
+    } else {
+      bbox = layerMap->boundingBox();
+    }
+  }
+  if (bbox) {
+    kf_metadata["frame_bbox_min"] = "'"s + bbox->min.asString() + "'"s;
+    kf_metadata["frame_bbox_max"] = "'"s + bbox->max.asString() + "'"s;
+  }
+
+  // Store local velocity buffer in the KF metadata so it is possible to deskew the scan later on with precision
+#if MP2P_ICP_VERSION >= 0x010801  // 1.8.1
+  kf_metadata["local_velocity_buffer"] = state_.parameter_source.localVelocityBuffer.toYAML();
+#endif
+
+  // convert yaml to string:
+  std::stringstream ss;
+  ss << kf_metadata;
+  metadataObs->text = ss.str();
+
+  // insert it:
+  *keyframe_obs += metadataObs;
+
+  // Add keyframe to simple map:
+  MRPT_LOG_DEBUG_STREAM("New SimpleMap KeyFrame. SF=" << keyframe_obs->size() << " observations.");
+
+  std::optional<mrpt::math::TTwist3D> curTwist;
+  if (state_.last_motion_model_output) {
+    curTwist = state_.last_motion_model_output->twist;
+  }
+
+  state_.reconstructed_simplemap.insert(
+    // Pose: mean + covariance
+    mrpt::poses::CPose3DPDFGaussian::Create(state_.last_lidar_pose),
+    // SensoryFrame: set of observations from this KeyFrame:
+    keyframe_obs,
+    // twist
+    curTwist);
+
+  // Mechanism to free old SFs:
+  // We cannot unload them right now, for the case when they are being
+  // used in a GUI, etc.
+  // (1/2) Add to the list:
+  state_.past_simplemaps_observations[this_obs_tim] = keyframe_obs;
+
+  const ProfilerEntry tleUnloadSM(profiler_, "onLidar.5.unload_past_sm_obs");
+
+  // (2/2) Unload old lazy-load observations to save RAM, if applicable:
+  constexpr size_t MAX_SIZE_UNLOAD_QUEUE = 100;
+  unloadPastSimplemapObservations(MAX_SIZE_UNLOAD_QUEUE);
 }
 
 }  // namespace mola

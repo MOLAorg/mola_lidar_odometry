@@ -52,8 +52,21 @@ namespace
 namespace mola
 {
 
-void LidarOdometry::updatePipelineDynamicVariables()
+void LidarOdometry::updatePipelineDynamicVariablesRobotPoseOnly()
 {
+  const auto & p = state_.last_lidar_pose.mean;
+  state_.parameter_source.updateVariable("robot_x", p.x());
+  state_.parameter_source.updateVariable("robot_y", p.y());
+  state_.parameter_source.updateVariable("robot_z", p.z());
+  state_.parameter_source.updateVariable("robot_yaw", p.yaw());
+  state_.parameter_source.updateVariable("robot_pitch", p.pitch());
+  state_.parameter_source.updateVariable("robot_roll", p.roll());
+}
+
+void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point & stamp)
+{
+  const auto stamp_s = mrpt::Clock::toDouble(stamp);
+
   // Set dynamic variables for twist usage within ICP pipelines
   // (e.g. de-skew methods)
   {
@@ -63,16 +76,18 @@ void LidarOdometry::updatePipelineDynamicVariables()
     }
 
     this->updatePipelineTwistVariables(twistForIcpVars);
+
+    state_.parameter_source.localVelocityBuffer.add_linear_velocity(
+      stamp_s, {twistForIcpVars.vx, twistForIcpVars.vy, twistForIcpVars.vz});
+    state_.parameter_source.localVelocityBuffer.add_angular_velocity(
+      stamp_s, {twistForIcpVars.wx, twistForIcpVars.wy, twistForIcpVars.wz});
   }
 
   // robot pose:
+  updatePipelineDynamicVariablesRobotPoseOnly();
   const auto & p = state_.last_lidar_pose.mean;
-  state_.parameter_source.updateVariable("robot_x", p.x());
-  state_.parameter_source.updateVariable("robot_y", p.y());
-  state_.parameter_source.updateVariable("robot_z", p.z());
-  state_.parameter_source.updateVariable("robot_yaw", p.yaw());
-  state_.parameter_source.updateVariable("robot_pitch", p.pitch());
-  state_.parameter_source.updateVariable("robot_roll", p.roll());
+
+  state_.parameter_source.localVelocityBuffer.add_orientation(stamp_s, p.getRotationMatrix());
 
   state_.parameter_source.updateVariable(
     "ADAPTIVE_THRESHOLD_SIGMA", state_.adapt_thres_sigma != 0
@@ -125,7 +140,9 @@ double computeModelError(const mrpt::poses::CPose3D & model_deviation, double ma
 
 void LidarOdometry::doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastMotionModelError)
 {
-  if (!state_.estimated_sensor_max_range.has_value()) return;
+  if (!state_.estimated_sensor_max_range.has_value()) {
+    return;
+  }
 
   const double max_range = state_.estimated_sensor_max_range.value();
 
@@ -135,20 +152,22 @@ void LidarOdometry::doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastM
   double rot_error = 0;
   if (state_.last_motion_model_output) {
     const auto & tw = state_.last_motion_model_output->twist;
-    rot_error = 0.1 * mrpt::math::TVector3D(tw.wx, tw.wy, tw.wz).norm() * max_range;
+    rot_error = 0.01 * mrpt::math::TVector3D(tw.wx, tw.wy, tw.wz).norm() * max_range;
   }
-
-  computeModelError(lastMotionModelError, max_range);
 
   // proportional controller constant
   const double KP = params_.adaptive_threshold.kp;
   ASSERT_(KP > 1.0);
 
   const double new_sigma =
-    (model_error + rot_error) * mrpt::saturate_val(KP * (1.0 - state_.last_icp_quality), 0.1, KP);
+    (model_error + rot_error) *
+    mrpt::saturate_val(
+      KP * (params_.adaptive_threshold.icp_quality_controller_setpoint - state_.last_icp_quality),
+      0.1, KP);
 
-  if (state_.adapt_thres_sigma == 0)  // initial
+  if (state_.adapt_thres_sigma == 0) {  // initial
     state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;
+  }
 
   state_.adapt_thres_sigma = ALPHA * state_.adapt_thres_sigma + (1.0 - ALPHA) * new_sigma;
 
@@ -167,7 +186,7 @@ void LidarOdometry::doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObserv
   ASSERT_(!maxRange.has_value());  // this method is for 1st call only
 
   mp2p_icp_filters::Generator gen;
-  gen.params_.target_layer = "raw";
+  gen.params.target_layer = "raw";
   gen.initialize({});
 
   mp2p_icp::metric_map_t map;
@@ -175,7 +194,9 @@ void LidarOdometry::doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObserv
 
   auto pts = map.point_layer("raw");
 
-  if (pts->empty()) return;
+  if (pts->empty()) {
+    return;
+  }
 
   const auto bb = pts->boundingBox();
 
@@ -205,10 +226,14 @@ void LidarOdometry::doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t
 
   for (const auto & [layerName, layer] : m.layers) {
     auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layer);
-    if (!pts || pts->empty()) continue;
+    if (!pts || pts->empty()) {
+      continue;
+    }
 
     const auto bb = pts->boundingBox();
-    if (!isNormalPoint(bb.min) || !isNormalPoint(bb.max)) continue;  // skip NaN, INF, etc.
+    if (!isNormalPoint(bb.min) || !isNormalPoint(bb.max)) {
+      continue;  // skip NaN, INF, etc.
+    }
 
     double radius = std::max(bb.max.norm(), bb.min.norm());
 

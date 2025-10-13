@@ -491,7 +491,7 @@ int main_odometry(Cli & cli)
   if (cli.arg_stateEstimatorParams.isSet()) {
     const auto seParamsFile = cli.arg_stateEstimatorParams.getValue();
     auto seParams = mrpt::containers::yaml::FromFile(seParamsFile);
-    stateEstimator->initialize(seParams["params"]);
+    stateEstimator->initialize(mola::parse_yaml(seParams));
   }
 
   // Make both modules discoverables to each other:
@@ -702,11 +702,18 @@ int main_odometry(Cli & cli)
       }
       unmark_emitted_log();
 
+      std::optional<mrpt::poses::CPose3D> lastPose;
+      if (const auto optPoseAndTwist = liodom->lastEstimatedState(); optPoseAndTwist) {
+        const auto [pose, twist] = *optPoseAndTwist;
+        lastPose = pose.mean;
+      }
+
       std::cout << mrpt::system::progress(pc, 30)
                 << mrpt::format(
-                     " %6zu/%6zu (%.02f%%) ETA=%s / T=%s\n", i, N, 100 * pc,
+                     " %6zu/%6zu (%.02f%%) ETA=%s/T=%s | Pose=%s\n", i, N, 100 * pc,
                      mrpt::system::formatTimeInterval(ETA).c_str(),
-                     mrpt::system::formatTimeInterval(totalTime).c_str());
+                     mrpt::system::formatTimeInterval(totalTime).c_str(),
+                     lastPose.has_value() ? lastPose->asString().c_str() : "(None)");
       std::cout.flush();
     }
 

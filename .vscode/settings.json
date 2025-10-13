@@ -14,11 +14,14 @@
         "--compile-commands-dir=${workspaceFolder}/build",
         "--completion-style=detailed",
         "--header-insertion=never",
-        "--pretty"
+        "--pretty",
+        // Tell clangd to use the project’s .clang-format file
+        "--fallback-style=none"
     ],
     "[cpp]": {
         "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
     },
+    "editor.formatOnSave": true,
     "cSpell.allowCompoundWords": true,
     "cSpell.ignorePaths": [
         "**/.git/objects/**",
@@ -33,5 +36,17 @@
         "**/install": true,
         "**/log": true
     },
-    "ros.distro": "humble"
+    "ros.distro": "humble",
+    "cSpell.words": [
+        "deskewed",
+        "DPDF",
+        "ENTYPO",
+        "liodom",
+        "recolorize",
+        "relocalize",
+        "thres"
+    ],
+    "cSpell.ignoreWords": [
+        "Boxf"
+    ]
 }

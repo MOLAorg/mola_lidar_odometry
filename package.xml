@@ -51,6 +51,7 @@
   <!-- <test_depend>mola_state_estimation_simple</test_depend> -->
   <!-- for it to be detected and used as default s.e. in the cli -->
   <depend>mola_state_estimation_simple</depend>
+  <depend>mola_imu_preintegration</depend>
 
   <!-- Needed by the mola-lo-* scripts: -->
   <exec_depend>mola_launcher</exec_depend>

@@ -4,8 +4,8 @@
 
 params:
   # These sensor labels will be handled as LIDAR observations:
-  # Can be overriden with cli flag --lidar-sensor-label
-  lidar_sensor_labels: ['${MOLA_LIDAR_NAME|lidar}', '/ouster/points']
+  # Can be overridden with cli flag --lidar-sensor-label
+  lidar_sensor_labels: ["${MOLA_LIDAR_NAME|lidar}", "/ouster/points"]
 
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 0 # 0.2  # [seconds]
@@ -17,9 +17,9 @@ params:
 
   # How often to update the local map model:
   local_map_updates:
-    enabled: '${MOLA_MAPPING_ENABLED|true}'
-    min_translation_between_keyframes: 0  # [m]
-    min_rotation_between_keyframes: 0  # [deg]
+    enabled: "${MOLA_MAPPING_ENABLED|true}"
+    min_translation_between_keyframes: 0 # [m]
+    min_rotation_between_keyframes: 0 # [deg]
 
   # Minimum ICP quality to insert it into the map:
   min_icp_goodness: 0.30
@@ -33,9 +33,9 @@ params:
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
   simplemap:
-    generate: ${MOLA_GENERATE_SIMPLEMAP|false}   # Can be overriden with CLI flag --output-simplemap
-    min_translation_between_keyframes: 0.05   # m
-    min_rotation_between_keyframes: 3.0  # deg
+    generate: ${MOLA_GENERATE_SIMPLEMAP|false} # Can be overridden with CLI flag --output-simplemap
+    min_translation_between_keyframes: 0.05 # m
+    min_rotation_between_keyframes: 3.0 # deg
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
 
   # Save the final trajectory in TUM format. Disabled by default.
@@ -43,7 +43,7 @@ params:
     save_to_file: ${MOLA_SAVE_TRAJECTORY|false}
     output_file: ${MOLA_TUM_TRAJECTORY_OUTPUT|'estimated_trajectory.txt'}
 
-  # If run within a mola-cli container, and mola_viz is present, use these options 
+  # If run within a mola-cli container, and mola_viz is present, use these options
   # to show live progress:
   visualization:
     map_update_decimation: 20
@@ -60,10 +60,9 @@ params:
 # Include example:
 #icp_settings_with_vel: $include{./icp-pipeline-kissicp-like.yaml}
 
-
 # ICP parameters for a regular time step:
 icp_settings_with_vel:
-  # mp2p_icp ICP pipeline configuration file, for use in ICP 
+  # mp2p_icp ICP pipeline configuration file, for use in ICP
   # odometry and SLAM packages.
   #
   # YAML configuration file for use with the CLI tool mp2p-icp-run or
@@ -79,7 +78,7 @@ icp_settings_with_vel:
 
     #debugPrintIterationProgress: true  # Print progress
     #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
-    saveIterationDetails: false  # Store partial solutions and pairings for each ICP iteration
+    saveIterationDetails: false # Store partial solutions and pairings for each ICP iteration
     decimationIterationDetails: 3
     debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
     decimationDebugFiles: ${MP2P_ICP_LOG_FILES_DECIMATION|10}
@@ -88,8 +87,8 @@ icp_settings_with_vel:
     - class: mp2p_icp::Solver_GaussNewton
       params:
         maxIterations: 1
-        robustKernel: 'RobustKernel::GemanMcClure'
-        robustKernelParam: '0.3*ADAPTIVE_THRESHOLD_SIGMA'  # [m]  # (adaptive)
+        robustKernel: "RobustKernel::GemanMcClure"
+        robustKernelParam: "0.3*ADAPTIVE_THRESHOLD_SIGMA" # [m]  # (adaptive)
         #innerLoopVerbose: true
 
   # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
@@ -97,17 +96,16 @@ icp_settings_with_vel:
   matchers:
     - class: mp2p_icp::Matcher_Points_DistanceThreshold
       params:
-        threshold: '3.0*ADAPTIVE_THRESHOLD_SIGMA'   # [m]
-        thresholdAngularDeg: 0  # deg
+        threshold: "3.0*ADAPTIVE_THRESHOLD_SIGMA" # [m]
+        thresholdAngularDeg: 0 # deg
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         pointLayerMatches:
-          - {global: "localmap", local: "decimated_for_icp", weight: 1.0}
+          - { global: "localmap", local: "decimated_for_icp", weight: 1.0 }
 
   quality:
     - class: mp2p_icp::QualityEvaluator_PairedRatio
-      params:
-        ~  # none required
+      params: ~ # none required
 
 # Local map updates:
 # Very first observation: Use the mp2p_icp pipeline generator to create the local map:
@@ -120,26 +118,26 @@ localmap_generator:
   #
   - class_name: mp2p_icp_filters::Generator
     params:
-      target_layer: 'localmap'
+      target_layer: "localmap"
       throw_on_unhandled_observation_class: true
-      process_class_names_regex: ''  # NONE: don't process observations in the generator.
+      process_class_names_regex: "" # NONE: don't process observations in the generator.
       #process_sensor_labels_regex: '.*'
       # metric_map_definition_ini_file: '${CURRENT_YAML_FILE_PATH}/localmap_definition_voxelmap.ini'
-      
+
       metric_map_definition:
         # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/latest/group_mrpt_maps_grp.html
         class: mola::HashedVoxelPointCloud
-        plugin: 'libmola_metric_maps.so' # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
+        plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
           voxel_size: 1.0
         insertOpts:
           max_points_per_voxel: 20
-          min_distance_between_points: 0  # [m]
+          min_distance_between_points: 0 # [m]
           # if !=0, remove voxels farther (L1) than the current observation insert point
           remove_voxels_farther_than: 100
         likelihoodOpts:
-          sigma_dist: 1.0    # [m]
-          max_corr_distance: 2.0  #[m]
+          sigma_dist: 1.0 # [m]
+          max_corr_distance: 2.0 #[m]
           decimation: 10
 
 # ---------------------------------------------------------------------------------
@@ -157,10 +155,10 @@ observations_generator:
   #
   - class_name: mp2p_icp_filters::Generator
     params:
-      target_layer: 'raw'
+      target_layer: "raw"
       throw_on_unhandled_observation_class: true
-      process_class_names_regex: '.*'
-      process_sensor_labels_regex: '.*'
+      process_class_names_regex: ".*"
+      process_sensor_labels_regex: ".*"
 
 observations_filter_1st_pass:
   # Filters:
@@ -171,51 +169,51 @@ observations_filter_1st_pass:
   #
   - class_name: mp2p_icp_filters::FilterDeskew
     params:
-      input_pointcloud_layer: 'raw'
-      output_pointcloud_layer: 'deskewed'
+      input_pointcloud_layer: "raw"
+      output_pointcloud_layer: "deskewed"
       silently_ignore_no_timestamps: true # To handle more dataset types
-      output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity & ring channels
-      
+      output_layer_class: "mrpt::maps::CPointsMapXYZIRT" # Keep intensity & ring channels
+
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
-      twist: [vx,vy,vz,wx,wy,wz]
+      twist: [vx, vy, vz, wx, wy, wz]
 
-  # Remove points too close, to prevent "noise" from the vehicle, 
+  # Remove points too close, to prevent "noise" from the vehicle,
   # the person next to the robot, etc. Remove too distant points since
   # the tiniest angular error projects to a large translational error.
   - class_name: mp2p_icp_filters::FilterByRange
     params:
-      input_pointcloud_layer: 'deskewed'
-      output_layer_between: 'filtered'
+      input_pointcloud_layer: "deskewed"
+      output_layer_between: "filtered"
       range_min: 5.0
       range_max: 100.0
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
-      input_pointcloud_layer: 'filtered'
-      output_pointcloud_layer: 'decimated_for_map'
+      input_pointcloud_layer: "filtered"
+      output_pointcloud_layer: "decimated_for_map"
       voxel_filter_resolution: 0.5
       decimate_method: DecimateMethod::FirstPoint
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
-      input_pointcloud_layer: 'decimated_for_map'
-      output_pointcloud_layer: 'decimated_for_icp'
+      input_pointcloud_layer: "decimated_for_map"
+      output_pointcloud_layer: "decimated_for_icp"
       voxel_filter_resolution: 1.50
       decimate_method: DecimateMethod::FirstPoint
 
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ['raw','deskewed', 'filtered']
-
+      pointcloud_layer_to_remove: ["raw", "deskewed", "filtered"]
 
 # To populate the local map, one or more observation layers are merged
 # into the local map via this pipeline:
 insert_observation_into_local_map:
   - class_name: mp2p_icp_filters::FilterMerge
     params:
-      input_pointcloud_layer: 'decimated_for_map'
-      target_layer: 'localmap'
+      input_pointcloud_layer: "decimated_for_map"
+      target_layer: "localmap"
       input_layer_in_local_coordinates: true
-      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
+      robot_pose:
+        [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]

@@ -21,6 +21,7 @@
 #pragma once
 
 // MOLA interfaces:
+#include <mola_kernel/id.h>  // INVALID_ID
 #include <mola_kernel/interfaces/FrontEndBase.h>
 #include <mola_kernel/interfaces/LocalizationSourceBase.h>
 #include <mola_kernel/interfaces/MapServer.h>
@@ -30,6 +31,7 @@
 #include <mola_kernel/version.h>
 
 // Other packages:
+#include <mola_imu_preintegration/ImuInitialCalibrator.h>
 #include <mola_pose_list/SearchablePoseList.h>
 
 // MP2P_ICP
@@ -39,6 +41,7 @@
 #include <mp2p_icp_filters/Generator.h>
 
 // MRPT
+#include <mrpt/containers/circular_buffer.h>
 #include <mrpt/core/WorkerThreadsPool.h>
 #include <mrpt/maps/CSimpleMap.h>
 #include <mrpt/obs/obs_frwds.h>
@@ -59,7 +62,7 @@
 #include <string>
 #include <vector>
 
-// Fwrd decls:
+// Forward declarations:
 namespace nanogui
 {
 class Label;
@@ -94,6 +97,12 @@ class LidarOdometry : public mola::FrontEndBase,
 public:
   LidarOdometry();
   ~LidarOdometry() override;
+
+  // Prevent copying and moving
+  LidarOdometry(const LidarOdometry &) = delete;
+  LidarOdometry & operator=(const LidarOdometry &) = delete;
+  LidarOdometry(LidarOdometry &&) = delete;
+  LidarOdometry & operator=(LidarOdometry &&) = delete;
 
   /** @name Main API
      * @{ */
@@ -209,6 +218,9 @@ public:
              */
       std::string load_existing_local_map;
 
+      /** If not empty, saves the final local metric map to a ".mm" file */
+      std::string save_final_local_map;
+
       void initialize(const Yaml & c, Parameters & parent);
     };
 
@@ -224,13 +236,36 @@ public:
 
     struct Visualization
     {
+      /// Show a sliding window of decaying past observations to visualize a "dense local map"
+      bool show_last_deskewed_observations_decay = true;
+      double observations_decay_seconds = 5.0;
+      float observations_initial_alpha = 0.10f;
+      float current_observation_alpha = 0.20f;
+
+      /// Show just the latest observation
+      /// (redundant if `show_last_deskewed_observations_decay` is enabled)
+      bool show_current_observation = false;
+
+      /// Show the (decimated) underlying local map used to register observations
+      /// to (less dense than `show_last_deskewed_observations_decay`).
+      bool show_localmap = false;
+      float local_map_point_size = 3.0f;
+
+      /// If show_localmap==true, how many frames to wait to update the visualization of the
+      /// map, which is a costly operation.
       int map_update_decimation = 10;
+
+      float background_color_gray_level = 0.3f;
+
       bool show_trajectory = true;
+      std::vector<float> trajectory_rgba = {0.1f, 0.1f, 0.1f, 1.0f};
       bool show_ground_grid = true;
       float ground_grid_spacing = 5.0f;
-      bool show_current_observation = true;
-      double current_pose_corner_size = 1.5;  //! [m]
-      float local_map_point_size = 3.0f;
+      float current_pose_corner_size = 1.5f;  //! [m]
+      float current_observation_point_size = 3.0f;
+      mrpt::img::TColormap current_observation_colormap = mrpt::img::TColormap::cmJET;
+      float last_deskewed_observations_point_size = 1.0f;
+      mrpt::img::TColormap last_deskewed_observations_colormap = mrpt::img::TColormap::cmJET;
       bool local_map_render_voxelmap_free_space = false;
       bool gui_subwindow_starts_hidden = false;
       bool show_console_messages = true;
@@ -261,6 +296,7 @@ public:
       double min_motion = 0.10;
       double kp = 5.0;
       double alpha = 0.99;
+      double icp_quality_controller_setpoint = 0.85;
 
       void initialize(const Yaml & c);
     };
@@ -328,6 +364,9 @@ public:
              */
       std::string load_existing_simple_map;
 
+      /** If enabled, saved keyframes will contain an additional 'deskewed' observation with the motion-compensated cloud. */
+      bool save_deskewed_scans = false;
+
       void initialize(const Yaml & c, Parameters & parent);
     };
 
@@ -374,10 +413,10 @@ public:
       uint32_t additional_uncertainty_after_reloc_how_many_timesteps = 5;
 
       /// Number of IMU (accelerometer) samples to accumulate while stationary to estimate Pitch & Roll:
-      uint32_t pitch_and_roll_from_imu_sample_count = 50;
+      uint32_t imu_initial_calibration_sample_count = 50;
 
-      /// Maximum time span (in seconds) for the "pitch_and_roll_from_imu_sample_count" IMU samples:
-      double pitch_and_roll_from_imu_max_age = 0.75;
+      /// Maximum time span (in seconds) for the "imu_initial_calibration_sample_count" IMU samples:
+      double imu_initial_calibration_max_age = 0.75;
 
       void initialize(const Yaml & c);
     };
@@ -442,6 +481,7 @@ public:
 
   void saveEstimatedTrajectoryToFile() const;
   void saveReconstructedMapToFile() const;
+  void saveLocalMapToFile() const;
 
   /** Enqueue a custom user request to be executed on the main LidarOdometry
      *  thread on the next iteration.
@@ -456,7 +496,7 @@ public:
   /** @name Virtual interface of Relocalization
      *{ */
 
-  /** Re-localize near this pose, including uncetainty.
+  /** Re-localize near this pose, including uncertainty.
      *  \param[in] pose The pose, in the local map frame.
      *  There is no return value from this method.
      */
@@ -525,25 +565,6 @@ private:
     uint32_t icp_iterations = 0;
   };
 
-  class ImuAverager
-  {
-  public:
-    ImuAverager(const std::size_t required_samples, const double max_samples_age)
-    : required_samples_(required_samples), max_samples_age_(max_samples_age)
-    {
-      ASSERT_(required_samples > 0);
-    }
-
-    void add(const std::shared_ptr<const mrpt::obs::CObservationIMU> & obs);
-    [[nodiscard]] bool isReady() const;
-    [[nodiscard]] std::tuple<double, double> getPitchRoll() const;
-
-  private:
-    std::size_t required_samples_;
-    double max_samples_age_;
-    std::map<double, std::shared_ptr<const mrpt::obs::CObservationIMU>> samples_;
-  };
-
   /** All variables that hold the algorithm state */
   struct MethodState
   {
@@ -559,11 +580,11 @@ private:
     int worker_tasks_lidar = 0;
     int worker_tasks_others = 0;
 
-    static constexpr std::size_t DROP_STATS_WINDOW_LENGHT = 128;
-    std::array<bool, DROP_STATS_WINDOW_LENGHT> drop_frames_stats_good =
-      create_array<DROP_STATS_WINDOW_LENGHT>(true);
-    std::array<bool, DROP_STATS_WINDOW_LENGHT> drop_frames_stats_dropped =
-      create_array<DROP_STATS_WINDOW_LENGHT>(false);
+    static constexpr std::size_t DROP_STATS_WINDOW_LENGTH = 128;
+    std::array<bool, DROP_STATS_WINDOW_LENGTH> drop_frames_stats_good =
+      create_array<DROP_STATS_WINDOW_LENGTH>(true);
+    std::array<bool, DROP_STATS_WINDOW_LENGTH> drop_frames_stats_dropped =
+      create_array<DROP_STATS_WINDOW_LENGTH>(false);
     std::size_t drop_frames_stats_next_index = 0;
     // ------ ^^^ end of these flags are protected ^^^^      ---------
 
@@ -572,13 +593,15 @@ private:
     // will be true after the first incoming LiDAR frame and re-localization is enabled and run
     bool initial_localization_done = false;
 
-    std::optional<ImuAverager> imu_averager;  //!< Used for pitch & roll initialization
+    /// Used for pitch & roll initialization
+    std::optional<mola::imu::ImuInitialCalibrator> imu_initializer;
 
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 
     std::map<std::string, mrpt::Clock::time_point> last_obs_tim_by_label;
     bool last_icp_was_good = true;
     double last_icp_quality = .0;
+    std::size_t last_icp_iterations = 0;
 
     std::optional<mrpt::Clock::time_point> first_ever_timestamp;
     std::optional<mrpt::Clock::time_point> last_obs_timestamp;
@@ -608,6 +631,9 @@ private:
     mp2p_icp_filters::GeneratorSet local_map_generators;
     mp2p_icp::metric_map_t::Ptr local_map = mp2p_icp::metric_map_t::Create();
     mp2p_icp_filters::FilterPipeline obs2map_merge;
+    mp2p_icp_filters::FilterPipeline obsDeskewForViz;
+
+    mutable std::optional<bool> isPipelinesUsingIMU;  //!< See isPipelineUsingIMU()
 
     mrpt::poses::CPose3DInterpolator estimated_trajectory;
     mrpt::maps::CSimpleMap reconstructed_simplemap;
@@ -652,18 +678,36 @@ private:
     mutable std::map<mrpt::Clock::time_point, mrpt::obs::CSensoryFrame::Ptr>
       past_simplemaps_observations;
 
+    /// Used to estimate sensor rate, mapped by sensorLabel
+    std::map<std::string, mrpt::containers::circular_buffer<double>> recent_lidar_stamps;
+
+    /// Used to estimate sensor rate
+    mrpt::containers::circular_buffer<double> recent_imu_stamps{1500};
+
+    /// Returns the rates (Hz) of incoming LiDAR and IMU sensors for the past few seconds
+    std::tuple<double, double> get_lidar_imu_sensor_rates();
+
+    void append_lidar_stamp(const std::string & sensorLabel, const mrpt::Clock::time_point & stamp);
+    void append_imu_stamp(const mrpt::Clock::time_point & stamp);
+
   };  // end of MethodState
 
-  /** The worker thread pool with 1 thread for processing incomming
-     * IMU or LIDAR observations*/
-  mrpt::WorkerThreadsPool worker_{
-    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_lidar_odom"};
+  /** The worker thread pool with 1 thread for processing incoming observations*/
+  mrpt::WorkerThreadsPool worker_lidar_{
+    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_lidar"};
+
+  std::multimap<double /*timestamp*/, CObservation::Ptr> worker_lidar_wait_for_imu_list_;
+  std::mutex worker_lidar_wait_for_imu_list_mtx_;
+
+  /** The worker thread pool with 1 thread for processing incoming observations*/
+  mrpt::WorkerThreadsPool worker_others_{
+    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_imu"};
 
   MethodState state_;
   const MethodState & state() const { return state_; }
   MethodState stateCopy() const { return state_; }
 
-  // Accessing this struct in gui_ requires adquiring state_gui_mtx_
+  // Accessing this struct in gui_ requires acquiring state_gui_mtx_
   struct StateUI
   {
     StateUI() = default;
@@ -672,17 +716,18 @@ private:
 
     nanogui::Window * ui = nullptr;
     nanogui::Label * lbIcpQuality = nullptr;
-    nanogui::Label * lbSigma = nullptr;
+    nanogui::Label * lbSensorRates = nullptr;
     nanogui::Label * lbSensorRange = nullptr;
     nanogui::Label * lbTime = nullptr;
     nanogui::Label * lbSpeed = nullptr;
     nanogui::Label * lbLidarQueue = nullptr;
+    nanogui::Label * lbMapStats = nullptr;
     nanogui::CheckBox * cbActive = nullptr;
     nanogui::CheckBox * cbMapping = nullptr;
     nanogui::CheckBox * cbSaveSimplemap = nullptr;
   };
 
-  // Accessing this struct in gui_ requires adquiring state_gui_mtx_
+  // Accessing this struct in gui_ requires acquiring state_gui_mtx_
   StateUI gui_;
 
   /// The configuration used in the last call to initialize()
@@ -700,7 +745,7 @@ private:
   std::vector<std::function<void()>> requests_;
   std::mutex requests_mtx_;
 
-  /// Must be called from a scope with state_flags_mtx_ already adquired!
+  /// Must be called from a scope with state_flags_mtx_ already acquired!
   void addDropStats(bool frame_is_dropped);
 
   /// Returns the ratio [0,1] of lidar frames dropped due to slow processing in the last few seconds.
@@ -727,12 +772,15 @@ private:
   /// Returns false if the scan/observation is not valid:
   bool doCheckIsValidObservation(const mp2p_icp::metric_map_t & m);
 
-  void updatePipelineDynamicVariables();
+  void updatePipelineDynamicVariables(const mrpt::Clock::time_point & stamp);
   void updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw);
+  void updatePipelineDynamicVariablesRobotPoseOnly();
 
   void updateVisualization(const mp2p_icp::metric_map_t & currentObservation);
 
   void internalBuildGUI();
+
+  void doRemoveCloudsWithDecay();
 
   void doPublishUpdatedLocalization(const mrpt::Clock::time_point & this_obs_tim);
 
@@ -747,6 +795,15 @@ private:
 
   void onPublishDiagnostics();
   void handleInitialLocalization();
+
+  bool isPipelineUsingIMU() const;
+  void sendLidarScanToProcessQueue(const CObservation::Ptr & o);
+  mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
+  mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::Ptr & obs);
+
+  void doUpdateSimpleMap(
+    const mrpt::obs::CSensoryFrame & sf, const bool distance_enough_sm,
+    const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & this_obs_tim);
 };
 
 namespace detail

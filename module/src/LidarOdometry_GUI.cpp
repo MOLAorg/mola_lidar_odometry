@@ -30,9 +30,11 @@
 #include <mrpt/opengl/CAssimpModel.h>
 #include <mrpt/opengl/CGridPlaneXY.h>
 #include <mrpt/opengl/COpenGLScene.h>
+#include <mrpt/opengl/CPointCloudColoured.h>
 #include <mrpt/opengl/CText.h>
 #include <mrpt/opengl/stock_objects.h>
 #include <mrpt/system/filesystem.h>
+#include <mrpt/version.h>
 
 namespace mola
 {
@@ -64,11 +66,12 @@ void LidarOdometry::internalBuildGUI()
 
   // tab 1: status
   gui_.lbIcpQuality = tab1->add<nanogui::Label>(" ");
-  gui_.lbSigma = tab1->add<nanogui::Label>(" ");
+  gui_.lbSensorRates = tab1->add<nanogui::Label>(" ");
   gui_.lbSensorRange = tab1->add<nanogui::Label>(" ");
   gui_.lbSpeed = tab1->add<nanogui::Label>(" ");
   gui_.lbTime = tab1->add<nanogui::Label>(" ");
   gui_.lbLidarQueue = tab1->add<nanogui::Label>(" ");
+  gui_.lbMapStats = tab1->add<nanogui::Label>(" ");
 
   // tab 2: control
   gui_.cbActive = tab2->add<nanogui::CheckBox>("Active");
@@ -141,10 +144,10 @@ void LidarOdometry::internalBuildGUI()
     panel->setLayout(
       new nanogui::BoxLayout(nanogui::Orientation::Horizontal, nanogui::Alignment::Maximum, 1, 1));
 
-    auto * btnSaveTraj = panel->add<nanogui::Button>("Save traj. now", ENTYPO_ICON_SAVE);
-    btnSaveTraj->setFontSize(14);
+    auto * btnSaveTrajectory = panel->add<nanogui::Button>("Save trajectory now", ENTYPO_ICON_SAVE);
+    btnSaveTrajectory->setFontSize(14);
 
-    btnSaveTraj->setCallback([this]() { this->saveEstimatedTrajectoryToFile(); });
+    btnSaveTrajectory->setCallback([this]() { this->saveEstimatedTrajectoryToFile(); });
 
     auto * btnSaveMap = panel->add<nanogui::Button>("Save map now", ENTYPO_ICON_SAVE);
     btnSaveMap->setFontSize(14);
@@ -189,6 +192,19 @@ void LidarOdometry::internalBuildGUI()
       [this, checked]() { params_.visualization.show_current_observation = checked; });
   });
 
+  auto * cbShowDLM = tab3->add<nanogui::CheckBox>("Show dense local map (decaying)");
+  cbShowDLM->setChecked(params_.visualization.show_last_deskewed_observations_decay);
+  cbShowDLM->setCallback([&](bool checked) {
+    this->enqueue_request(
+      [this, checked]() { params_.visualization.show_last_deskewed_observations_decay = checked; });
+  });
+
+  auto * cbShowSLM = tab3->add<nanogui::CheckBox>("Show local map");
+  cbShowSLM->setChecked(params_.visualization.show_localmap);
+  cbShowSLM->setCallback([&](bool checked) {
+    this->enqueue_request([this, checked]() { params_.visualization.show_localmap = checked; });
+  });
+
   auto * cbFollowVeh = tab3->add<nanogui::CheckBox>("Camera follows vehicle");
   cbFollowVeh->setChecked(params_.visualization.camera_follows_vehicle);
   cbFollowVeh->setCallback([&](bool checked) {
@@ -210,6 +226,12 @@ void LidarOdometry::internalBuildGUI()
       [this, checked]() { params_.visualization.show_console_messages = checked; });
   });
 
+  // Background 3D scene: change background color
+  visualizer_->execute_custom_code_on_background_scene([this](mrpt::opengl::Scene & scene) {
+    const auto f = params_.visualization.background_color_gray_level;
+    scene.getViewport()->setCustomBackgroundColor({f, f, f});
+  });
+
   this->mrpt::system::COutputLogger::logRegisterCallback(
     [&](
       std::string_view msg, const mrpt::system::VerbosityLevel level, std::string_view loggerName,
@@ -228,6 +250,16 @@ void LidarOdometry::internalBuildGUI()
         "["s + mrpt::system::timeLocalToString(timestamp) + "|"s + mrpt::typemeta::enum2str(level) +
         " |"s + std::string(loggerName) + "]"s + std::string(msg));
     });
+}
+
+void LidarOdometry::doRemoveCloudsWithDecay()
+{
+  // Remove possible old 3D objects if the user disabled visualization on the fly:
+#if MOLA_VERSION_CHECK(2, 0, 0)
+  if (visualizer_) {
+    visualizer_->clear_all_point_clouds_with_decay();
+  }
+#endif
 }
 
 void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentObservation)
@@ -269,7 +301,7 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
         m->loadScene(localFileName, loadFlags);
 
-        m->setScale(model.scale);
+        m->setScale(static_cast<float>(model.scale));
         m->setPose(model.tf);
 
         state_.glVehicleFrame->insert(m);
@@ -283,34 +315,141 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
   updateTasks.emplace_back(
     [this]() { visualizer_->update_3d_object("liodom/vehicle", state_.glVehicleFrame); });
 
-  // Update current observation
-  // ----------------------------
-  if (currentObservation.layers.count("raw") && params_.visualization.show_current_observation) {
-    const ProfilerEntry tle1(profiler_, "updateVisualization.update_cur_obs");
-
-    // Visualize the raw data only, not the filtered layers:
-    mp2p_icp::metric_map_t mm;
-    mm.layers["raw"] = currentObservation.layers.at("raw");
-
-    mp2p_icp::render_params_t rp;
-    rp.points.allLayers.pointSize = 1.0f;
-    auto & cm = rp.points.allLayers.colorMode.emplace();
-    cm.colorMap = mrpt::img::cmJET;
-    cm.keep_original_cloud_color = true;
-    // cm.recolorizeByCoordinate     = mp2p_icp::Coordinate::Z;
-
-    // get visualization
-    auto glCurrentObservation = mm.get_visualization(rp);
-    // move to current pose
-    glCurrentObservation->setPose(state_.last_lidar_pose.mean);
-    // and enqueue for updating in the opengl thread:
-    updateTasks.emplace_back(
-      [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
-  } else {
+  auto doRemoveVizCurCloud = [&]() {
     // Remove possible old 3D objects if the user disabled visualization on the fly:
     auto glCurrentObservation = mrpt::opengl::CSetOfObjects::Create();
     updateTasks.emplace_back(
       [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
+  };
+
+  auto doColorizeByIntensity = [&](
+                                 const mrpt::img::TColormap & colormap,
+                                 const mrpt::maps::CPointsMap * org_cloud,
+                                 mrpt::opengl::CPointCloudColoured & cloud) {
+    if (colormap == mrpt::img::TColormap::cmNONE) {
+      return;
+    }
+
+    // Colorize by intensity with custom color map?
+    if (!org_cloud || !org_cloud->hasField_Intensity()) {
+      return;
+    }
+
+    const auto * Is = org_cloud->getPointsBufferRef_intensity();
+    ASSERT_(Is);
+
+    // Thread-local cache for max intensity
+    thread_local float max_intensity_cache = 1.0f;
+
+    // Find max intensity in current cloud
+    float current_max = 0.0f;
+    for (const auto & I : *Is) {
+      if (I > current_max) {
+        current_max = I;
+      }
+    }
+
+    // Smooth update of max intensity
+    max_intensity_cache = 0.9f * max_intensity_cache + 0.1f * current_max;
+    const float scale = (max_intensity_cache > 0.0f) ? (1.0f / max_intensity_cache) : 1.0f;
+
+    for (size_t i = 0; i < Is->size(); i++) {
+      const float I_norm = (*Is)[i] * scale;  // normalize to [0,1] using smoothed max
+      float r = 0, g = 0, b = 0;
+      mrpt::img::colormap(colormap, I_norm, r, g, b);
+      cloud.setPointColor_fast(i, r, g, b);
+    }
+
+    cloud.markAllPointsAsNew();
+  };
+
+  // Update current observation
+  // ----------------------------
+  if (
+    currentObservation.layers.count("raw") &&
+    (params_.visualization.show_current_observation ||
+     params_.visualization.show_last_deskewed_observations_decay)) {
+    const ProfilerEntry tle1(profiler_, "updateVisualization.update_cur_obs");
+
+    // Visualize the raw data only, not the filtered layers:
+    // or, if we have a deskewing pipeline, the accurately-deskewed points:
+    mp2p_icp::metric_map_t mm;
+    mm.layers["raw"] = currentObservation.layers.at("raw");
+    if (!state_.obsDeskewForViz.empty()) {
+      const ProfilerEntry tle2(profiler_, "updateVisualization.deskew_for_viz");
+      // This will remove the "raw" layer and replace it with a "deskewed" one:
+      mp2p_icp_filters::apply_filter_pipeline(state_.obsDeskewForViz, mm);
+    }
+
+    const auto org_cloud = mm.point_layer(mm.layers.begin()->first);
+
+    mp2p_icp::render_params_t rp;
+
+    auto & cm = rp.points.allLayers.colorMode.emplace();
+    cm.keep_original_cloud_color = true;
+
+#if MP2P_ICP_VERSION >= 0x010801  // 1.8.1
+    rp.points.allLayers.force_alpha_channel = true;
+#endif
+
+    // cm.colorMap = mrpt::img::cmJET;
+    // cm.recolorizeByCoordinate     = mp2p_icp::Coordinate::Z;
+
+    // Current cloud only:
+    if (params_.visualization.show_current_observation) {
+      rp.points.allLayers.pointSize = params_.visualization.current_observation_point_size;
+      rp.points.allLayers.color.A = mrpt::f2u8(params_.visualization.current_observation_alpha);
+
+      // get visualization
+      auto glCurrentObservation = mm.get_visualization(rp);
+
+      // move to current pose
+      glCurrentObservation->setPose(state_.last_lidar_pose.mean);
+
+      if (auto cloud = glCurrentObservation->getByClass<mrpt::opengl::CPointCloudColoured>(0);
+          cloud) {
+        doColorizeByIntensity(
+          params_.visualization.current_observation_colormap, org_cloud.get(), *cloud);
+      }
+
+      // and enqueue for updating in the opengl thread:
+      updateTasks.emplace_back(
+        [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
+    } else {
+      doRemoveVizCurCloud();
+    }
+
+    // Decaying last clouds:
+    if (params_.visualization.show_last_deskewed_observations_decay) {
+      rp.points.allLayers.pointSize = params_.visualization.last_deskewed_observations_point_size;
+      rp.points.allLayers.color.A = mrpt::f2u8(params_.visualization.observations_initial_alpha);
+
+      // get visualization
+      auto glCurrentObservation = mm.get_visualization(rp);
+
+      if (auto cloud = glCurrentObservation->getByClass<mrpt::opengl::CPointCloudColoured>(0);
+          cloud) {
+        // move to current pose
+        cloud->setPose(state_.last_lidar_pose.mean);
+
+        doColorizeByIntensity(
+          params_.visualization.last_deskewed_observations_colormap, org_cloud.get(), *cloud);
+
+        // and enqueue for updating in the opengl thread:
+#if MOLA_VERSION_CHECK(2, 0, 0)
+        updateTasks.emplace_back([=]() {
+          visualizer_->insert_point_cloud_with_decay(
+            cloud, params_.visualization.observations_decay_seconds);
+        });
+#endif
+      }
+    } else {
+      doRemoveCloudsWithDecay();
+    }
+  } else {
+    // None enabled:
+    doRemoveVizCurCloud();
+    doRemoveCloudsWithDecay();
   }
 
   // Estimated path:
@@ -320,8 +459,8 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
     if (!state_.glEstimatedPath) {
       state_.glEstimatedPath = mrpt::opengl::CSetOfLines::Create();
-      state_.glEstimatedPath->setColor_u8(0x30, 0x30, 0x30);
-
+      const auto & rgba = params_.visualization.trajectory_rgba;
+      state_.glEstimatedPath->setColor(rgba.at(0), rgba.at(1), rgba.at(2), rgba.at(3));
       state_.glPathGrp = mrpt::opengl::CSetOfObjects::Create();
     }
     // Update path viz:
@@ -370,8 +509,9 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
   // Local map:
   // -----------------------------
   if (
-    state_.local_map && ((state_.mapUpdateCnt++ > params_.visualization.map_update_decimation) &&
-                         state_.local_map_needs_viz_update)) {
+    params_.visualization.show_localmap && state_.local_map &&
+    ((state_.mapUpdateCnt++ > params_.visualization.map_update_decimation) &&
+     state_.local_map_needs_viz_update)) {
     const ProfilerEntry tle2(profiler_, "updateVisualization.update_local_map");
 
     state_.mapUpdateCnt = 0;
@@ -383,7 +523,20 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     rp.points.allLayers.render_voxelmaps_free_space =
       params_.visualization.local_map_render_voxelmap_free_space;
 
-    // ground grid:
+    // local map:
+    auto glMap = state_.local_map->get_visualization(rp);
+
+    updateTasks.emplace_back([=]() { visualizer_->update_3d_object("liodom/localmap", glMap); });
+  }
+
+  // Clear the local map if the user clicks on "hide it" at runtime:
+  if (!params_.visualization.show_localmap) {
+    auto glMap = mrpt::opengl::CSetOfObjects::Create();
+    updateTasks.emplace_back([=]() { visualizer_->update_3d_object("liodom/localmap", glMap); });
+  }
+
+  // ground grid:
+  {
     auto glGroundGrid = mrpt::opengl::CSetOfObjects::Create();
     if (params_.visualization.show_ground_grid) {
       auto glGrid = mrpt::opengl::CGridPlaneXY::Create();
@@ -402,18 +555,14 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
       glGroundGrid->insert(glGrid);
     }
-
-    // local map:
-    auto glMap = state_.local_map->get_visualization(rp);
-
-    updateTasks.emplace_back([=]() {
-      visualizer_->update_3d_object("liodom/localmap", glMap);
-      visualizer_->update_3d_object("liodom/groundgrid", glGroundGrid);
-    });
+    updateTasks.emplace_back(
+      [=]() { visualizer_->update_3d_object("liodom/groundgrid", glGroundGrid); });
   }
 
   // now, update all visual elements at once:
-  for (const auto & ut : updateTasks) ut();
+  for (const auto & ut : updateTasks) {
+    ut();
+  }
 
   // Show a warning if no lidar input is being received:
   if (state_.local_map->empty()) {
@@ -437,9 +586,16 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
   const ProfilerEntry tle3(profiler_, "updateVisualization.update_gui");
 
-  gui_.lbIcpQuality->setCaption(
-    mrpt::format("ICP quality: %.01f%%", 100.0 * state_.last_icp_quality));
-  gui_.lbSigma->setCaption(mrpt::format("Threshold sigma: %.02f", state_.adapt_thres_sigma));
+  gui_.lbIcpQuality->setCaption(mrpt::format(
+    "ICP quality: %.01f%% | Thresh: %.02f | Iters: %zu", 100.0 * state_.last_icp_quality,
+    state_.adapt_thres_sigma, state_.last_icp_iterations));
+
+  {
+    const auto [rate_lidar, rate_imu] = state_.get_lidar_imu_sensor_rates();
+    gui_.lbSensorRates->setCaption(
+      mrpt::format("LiDAR=%6.02f Hz | IMU=%6.02f Hz", rate_lidar, rate_imu));
+  }
+
   if (state_.estimated_sensor_max_range) {
     gui_.lbSensorRange->setCaption(mrpt::format(
       "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
@@ -460,6 +616,9 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     gui_.lbLidarQueue->setCaption(mrpt::format(
       "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
   }
+  gui_.lbMapStats->setCaption(mrpt::format(
+    "Keyframes: Localmap=%zu, simplemap=%zu", state_.distance_checker_local_map->size(),
+    state_.distance_checker_simplemap->size()));
 
   if (state_.last_motion_model_output) {
     const auto & tw = state_.last_motion_model_output->twist;
