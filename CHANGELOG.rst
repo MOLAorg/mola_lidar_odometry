@@ -2,6 +2,58 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Merge pull request #26 from MOLAorg/feature/better-lio
+  Better LIO & new GICP pipeline
+* CI: Run on ROS testing only
+* Add custom 'name' to pipeline stages for profiler
+* Update docs: Show example of use for MOLA_TF_BASE_LINK=os_sensor
+* Feature: add option to save deskewed clouds
+* refactor part of processScan() for code clarity
+* fix clang-tidy warnings
+* New config flag MOLA_SAVE_MM to save final metric map at session end
+* add option to re-colorize clouds by intensity (local map)
+* Add a clear message at initialization showing the name of the used pipeline
+* Fix macro to detect newer mp2p_icp version
+* cli app: show LO pose
+* Refactor the way Lidar scans are enqueued depending on LO/LIO usage
+* ICP pipelines: renamed old 'default' as 'icp', and add new 'default' symlink pointing to 'gicp'
+* cli: use MOLA YAML parser for state estimation files
+* Fix kitti eval scripts
+* cli: fix expected contents of state estimation param files
+* Debug traces: more covariance data
+* GUI: Show keyframe stats
+* configurable icp quality setpoint
+* Fix lidar rate for multiple lidars
+* New param to change the color of trajectory in the GUI
+* reset local viz clouds when re-localizing
+* gicp pipeline: use 2 resolutions (icp / map)
+* Auto-scale intensity for visualization
+* Less aggressive P controller for adaptive sigma
+* Use adaptive sampler
+* Update to latest mp2p_icp library API
+* Progress optimizing new gicp pipeline
+* New GICP pipeline file
+* Fix for latest mola imu API changes
+* Send velocity and orientations to the local velocity buffer
+* Better visualization of current / past clouds, with configurable colormaps from the yaml file
+* Move to the new deskew_method flag in mp2p_icp
+* README.md: update bibtex reference
+* Move IMU initialization to package mola_imu_preintegration
+* IMU initializer moved out to the mola_imu_preintegration package for better reusability
+* PitchRoll init: Add to-do note on IMU bias
+* GUI: show lidar & imu rates
+* remove obsolete pipeline
+* Fix typos in YAML comments
+* Configurable GUI background color
+* Implement display dense local map (decaying deskewed clouds)
+* Implement visualization of past clouds as transparent, decaying clouds
+* Add missing header for latest mola_kernel
+* option to show mulran dataset clouds with their real intensity channel
+* Visualization: show the deskewed current observation instead of raw
+* Contributors: Jose Luis Blanco-Claraco
+
 0.9.0 (2025-08-26)
 ------------------
 * FIX: bug in formula for pitch-roll initialization from IMU
