@@ -113,8 +113,8 @@ params:
 
     background_color_gray_level: "${MOLA_GUI_BACKGROUND_GRAY_LEVEL|0.3}"
 
-    show_localmap: false
-    local_map_point_size: 2
+    show_localmap: ${MOLA_GUI_SHOW_LOCAL_MAP|true}
+    local_map_point_size: 1
 
     show_ground_grid: ${MOLA_GUI_SHOW_GROUND_GRID|true}
     ground_grid_spacing: 5.0 # [m]
@@ -253,7 +253,7 @@ localmap_generator:
         renderOpts:
           color.A: 0.25 # [0,1] Use this alpha value for points, RGB from colormap
           colormap: "cmHOT" # cmJET, cmHOT, cmGRAYSCALE
-          recolorizeByCoordinateIndex: 3 # {0,1,2}={x,y,z}, 3=Intensity
+          recolorizeByCoordinateIndex: ${MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE|3} # {0,1,2}={x,y,z}, 3=Intensity
           #point_size: 1.0  # superseded by visualization.local_map_point_size above
 
 # ---------------------------------------------------------------------------------

@@ -9,7 +9,7 @@
 # =====================================================================================
 
 params:
-  pipeline_name: 'point-to-point 3D ICP with voxelized maps' # For display/debug only
+  pipeline_name: "point-to-point 3D ICP with voxelized maps" # For display/debug only
 
   # These sensor labels will be handled as LIDAR observations:
   # Can be overridden with cli flag --lidar-sensor-label
@@ -49,7 +49,7 @@ params:
   local_map_updates:
     enabled: "${MOLA_MAPPING_ENABLED|true}"
     load_existing_local_map: ${MOLA_LOAD_MM|""}
-    save_final_local_map: ${MOLA_SAVE_MM|""}  # If not empty, saves the final local metric map to a ".mm" file
+    save_final_local_map: ${MOLA_SAVE_MM|""} # If not empty, saves the final local metric map to a ".mm" file
 
     # Idea: don't integrate scans with a high rotational speed since they are probably not correctly deskewed:
     min_translation_between_keyframes: "${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}" # [m]
@@ -99,17 +99,17 @@ params:
     show_current_observation: false # shows "live deskewed" LiDAR points
     show_last_deskewed_observations_decay: true # shows "live deskewed" LiDAR points over time
     last_deskewed_observations_point_size: ${MOLA_GUI_LAST_CLOUDS_POINT_SIZE|1.0}
-    last_deskewed_observations_colormap: ${MOLA_GUI_LAST_CLOUDS_COLORMAP|cmJET}  # mrpt::img::TColormap
+    last_deskewed_observations_colormap: ${MOLA_GUI_LAST_CLOUDS_COLORMAP|cmJET} # mrpt::img::TColormap
     observations_initial_alpha: 0.10
     observations_decay_seconds: ${MOLA_GUI_CLOUDS_DECAY_SECS|10.0} # For deskewed clouds above
     current_observation_point_size: ${MOLA_GUI_CURRENT_CLOUD_POINT_SIZE|2.0}
-    current_observation_colormap: ${MOLA_GUI_CURRENT_CLOUD_COLORMAP|cmHOT}  # mrpt::img::TColormap
+    current_observation_colormap: ${MOLA_GUI_CURRENT_CLOUD_COLORMAP|cmHOT} # mrpt::img::TColormap
     current_observation_alpha: 0.20
 
     background_color_gray_level: "${MOLA_GUI_BACKGROUND_GRAY_LEVEL|0.3}"
 
-    show_localmap: false
-    local_map_point_size: 2
+    show_localmap: ${MOLA_GUI_SHOW_LOCAL_MAP|true}
+    local_map_point_size: 1
 
     show_ground_grid: ${MOLA_GUI_SHOW_GROUND_GRID|true}
     ground_grid_spacing: 5.0 # [m]
