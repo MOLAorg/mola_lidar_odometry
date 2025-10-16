@@ -57,18 +57,12 @@ void LidarOdometry::doPublishUpdatedLocalization(const mrpt::Clock::time_point &
   advertiseUpdatedLocalization(lu);
 }
 
-void LidarOdometry::doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs_tim)
+void LidarOdometry::doPublishUpdatedLocalMap(const mrpt::Clock::time_point & this_obs_tim)
 {
   // Publish geo-referenced data for the map, if applicable.
   publishMetricMapGeoreferencingData();
 
   if (!state_.local_map_needs_publish) {
-    return;
-  }
-
-  // Don't publish if nobody is listening, OR, if it is still
-  // pending to subscribe to us:
-  if (!anyUpdateMapSubscriber()) {
     return;
   }
 
@@ -78,14 +72,16 @@ void LidarOdometry::doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs
     return;
   }
 
-  state_.local_map_needs_publish = false;
-
+  // Don't publish if nobody is listening, OR, if it is still
+  // pending to subscribe to us:
   if (!anyUpdateMapSubscriber()) {
-    MRPT_LOG_DEBUG("doPublishUpdatedMap: Skipping, since we have no subscriber.");
+    MRPT_LOG_DEBUG("doPublishUpdatedLocalMap: Skipping, since we have no subscriber.");
     return;
   }
 
-  const ProfilerEntry tleCleanup(profiler_, "advertiseMap");
+  state_.local_map_needs_publish = false;
+
+  const ProfilerEntry tleCleanup(profiler_, "doPublishUpdatedLocalMap");
   state_.localmap_advertise_updates_counter = 0;
 
   MapUpdate mu;
@@ -144,6 +140,37 @@ void LidarOdometry::doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs
     mu.map.reset();  // no map, just metadata
     advertiseUpdatedMap(mu);
   }
+}
+
+void LidarOdometry::doPublishDeskewedScan(const mrpt::Clock::time_point & this_obs_tim)
+{
+  if (!state_.last_deskewed_scan_for_publishing) {
+    return;
+  }
+
+  const auto deskewedScan = state_.last_deskewed_scan_for_publishing;
+  state_.last_deskewed_scan_for_publishing.reset();
+
+  // Don't publish if nobody is listening, OR, if it is still
+  // pending to subscribe to us:
+  if (!anyUpdateMapSubscriber()) {
+    MRPT_LOG_DEBUG("doPublishDeskewedScan: Skipping, since we have no subscriber.");
+    return;
+  }
+
+  const ProfilerEntry tleCleanup(profiler_, "doPublishDeskewedScan");
+
+  MapUpdate mu;
+  mu.method = "lidar_odometry";
+  mu.reference_frame = params_.publish_vehicle_frame;
+  mu.timestamp = this_obs_tim;
+  mu.map_name = "deskewed_scan";
+  mu.map = deskewedScan;
+
+  // send it out:
+  advertiseUpdatedMap(mu);
+
+  MRPT_LOG_DEBUG("Published deskewed map");
 }
 
 void LidarOdometry::publishMetricMapGeoreferencingData()
