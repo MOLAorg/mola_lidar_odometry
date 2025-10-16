@@ -36,7 +36,11 @@
 namespace mola
 {
 
+#if MOLA_VERSION_CHECK(2, 1, 0)
+void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
+#else
 void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
+#endif
 {
   MRPT_TRY_START
   const ProfilerEntry tleg(profiler_, "onNewObservation");
@@ -109,12 +113,12 @@ void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
   MRPT_TRY_END
 }
 
-void LidarOdometry::sendLidarScanToProcessQueue(const CObservation::Ptr & o)
+void LidarOdometry::sendLidarScanToProcessQueue(const CObservation::ConstPtr & o)
 {
   // If we don't rely on IMU, directly enqueue the task. Otherwise, put it on the wait list until
   // IMU data for the required timestamps has arrived so we can do de-skew:
 
-  int queued = [this]() {
+  auto queued = [this]() {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
     return state_.worker_tasks_lidar + worker_lidar_.pendingTasks();
   }() + [this]() {
@@ -122,7 +126,7 @@ void LidarOdometry::sendLidarScanToProcessQueue(const CObservation::Ptr & o)
     return static_cast<int>(worker_lidar_wait_for_imu_list_.size());
   }();
 
-  profiler_.registerUserMeasure("onNewObservation.lidar_queue_length", queued);
+  profiler_.registerUserMeasure("onNewObservation.lidar_queue_length", static_cast<double>(queued));
   if (queued > params_.max_lidar_queue_before_drop) {
     MRPT_LOG_THROTTLE_WARN_FMT(
       1.0, "Dropping observation due to LiDAR worker thread too busy (dropped frames: %.02f%%)",
@@ -149,7 +153,7 @@ void LidarOdometry::sendLidarScanToProcessQueue(const CObservation::Ptr & o)
   }
 }
 
-void LidarOdometry::onLidar(const CObservation::Ptr & o)
+void LidarOdometry::onLidar(const CObservation::ConstPtr & o)
 {
   const bool abort_running = [this]() {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
@@ -174,7 +178,7 @@ void LidarOdometry::onLidar(const CObservation::Ptr & o)
   }
 }
 
-void LidarOdometry::onIMU(const CObservation::Ptr & o)
+void LidarOdometry::onIMU(const CObservation::ConstPtr & o)
 {
   // All methods that are enqueued into a thread pool should have its own
   // top-level try-catch:
@@ -192,13 +196,13 @@ void LidarOdometry::onIMU(const CObservation::Ptr & o)
   }
 }
 
-void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
+void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
 {
   ASSERT_(o);
 
   const ProfilerEntry tleg(profiler_, "onIMU");
 
-  auto imu = std::dynamic_pointer_cast<mrpt::obs::CObservationIMU>(o);
+  auto imu = std::dynamic_pointer_cast<const mrpt::obs::CObservationIMU>(o);
   ASSERTMSG_(
     imu, mrpt::format(
            "IMU observation with label '%s' does not have the expected "
@@ -274,7 +278,7 @@ void LidarOdometry::onIMUImpl(const CObservation::Ptr & o)
   }
 }
 
-void LidarOdometry::onGPS(const CObservation::Ptr & o)
+void LidarOdometry::onGPS(const CObservation::ConstPtr & o)
 {
   // All methods that are enqueued into a thread pool should have its own
   // top-level try-catch:
@@ -292,13 +296,13 @@ void LidarOdometry::onGPS(const CObservation::Ptr & o)
   }
 }
 
-void LidarOdometry::onGPSImpl(const CObservation::Ptr & o)
+void LidarOdometry::onGPSImpl(const CObservation::ConstPtr & o)
 {
   ASSERT_(o);
 
   const ProfilerEntry tleg(profiler_, "onGPS");
 
-  auto gps = std::dynamic_pointer_cast<mrpt::obs::CObservationGPS>(o);
+  auto gps = std::dynamic_pointer_cast<const mrpt::obs::CObservationGPS>(o);
   ASSERTMSG_(
     gps, mrpt::format(
            "GPS observation with label '%s' does not have the expected "

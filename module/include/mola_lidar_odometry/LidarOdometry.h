@@ -110,7 +110,11 @@ public:
   // See docs in base class
   void initialize_frontend(const Yaml & cfg) override;
   void spinOnce() override;
+#if MOLA_VERSION_CHECK(2, 1, 0)
+  void onNewObservation(const CObservation::ConstPtr & o) override;
+#else
   void onNewObservation(const CObservation::Ptr & o) override;
+#endif
 
   /** Re-initializes the odometry system. It effectively calls initialize()
      *  once again with the same parameters that were used the first time.
@@ -438,7 +442,7 @@ public:
 
     bool start_active = true;
 
-    int32_t max_lidar_queue_before_drop = 15;
+    uint32_t max_lidar_queue_before_drop = 15;
 
     uint32_t gnss_queue_max_size = 100;
 
@@ -606,7 +610,7 @@ private:
     std::optional<mrpt::Clock::time_point> last_icp_timestamp;
 
     /// Cache for multiple LIDAR synchronization:
-    std::map<std::string /*label*/, mrpt::obs::CObservation::Ptr> sync_obs;
+    std::map<std::string /*label*/, mrpt::obs::CObservation::ConstPtr> sync_obs;
 
     // navstate_fuse to merge pose estimates, IMU, odom, estimate twist.
     std::shared_ptr<mola::NavStateFilter> navstate_fuse;
@@ -658,12 +662,15 @@ private:
 
     void mark_local_map_georef_as_updated() { local_map_georef_needs_publish = true; }
 
+    /// For visualization on ROS: a decaying "cloud" of the last deskewed scans.
+    mrpt::maps::CPointsMap::ConstPtr last_deskewed_scan_for_publishing;
+
     /// To handle post-re-localization. >0 means we are "recovering" from a request to re-localize:
     uint32_t step_counter_post_relocalization = 0;
 
     // GNSS: keep a list of recent observations to later on search the one
     // closest to each LIDAR observation:
-    std::map<mrpt::Clock::time_point, std::shared_ptr<mrpt::obs::CObservationGPS>> last_gnss_;
+    std::map<mrpt::Clock::time_point, std::shared_ptr<const mrpt::obs::CObservationGPS>> last_gnss_;
 
     // Visualization:
     mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glPathGrp;
@@ -694,7 +701,7 @@ private:
   mrpt::WorkerThreadsPool worker_lidar_{
     1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_lidar"};
 
-  std::multimap<double /*timestamp*/, CObservation::Ptr> worker_lidar_wait_for_imu_list_;
+  std::multimap<double /*timestamp*/, CObservation::ConstPtr> worker_lidar_wait_for_imu_list_;
   std::mutex worker_lidar_wait_for_imu_list_mtx_;
 
   /** The worker thread pool with 1 thread for processing incoming observations*/
@@ -752,14 +759,14 @@ private:
   // Process requests_(), at the spinOnce() rate.
   void processPendingUserRequests();
 
-  void onLidar(const CObservation::Ptr & o);
-  void processLidarScan(const CObservation::Ptr & obs);
+  void onLidar(const CObservation::ConstPtr & o);
+  void processLidarScan(const CObservation::ConstPtr & obs);
 
-  void onIMU(const CObservation::Ptr & o);
-  void onIMUImpl(const CObservation::Ptr & o);
+  void onIMU(const CObservation::ConstPtr & o);
+  void onIMUImpl(const CObservation::ConstPtr & o);
 
-  void onGPS(const CObservation::Ptr & o);
-  void onGPSImpl(const CObservation::Ptr & o);
+  void onGPS(const CObservation::ConstPtr & o);
+  void onGPSImpl(const CObservation::ConstPtr & o);
 
   // KISS-ICP adaptive threshold method:
   void doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastMotionModelError);
@@ -782,7 +789,9 @@ private:
 
   void doPublishUpdatedLocalization(const mrpt::Clock::time_point & this_obs_tim);
 
-  void doPublishUpdatedMap(const mrpt::Clock::time_point & this_obs_tim);
+  void doPublishUpdatedLocalMap(const mrpt::Clock::time_point & this_obs_tim);
+
+  void doPublishDeskewedScan(const mrpt::Clock::time_point & this_obs_tim);
 
   void doWriteDebugTracesFile(const mrpt::Clock::time_point & this_obs_tim);
   std::optional<std::ofstream> debug_traces_of_;
@@ -795,9 +804,9 @@ private:
   void handleInitialLocalization();
 
   bool isPipelineUsingIMU() const;
-  void sendLidarScanToProcessQueue(const CObservation::Ptr & o);
+  void sendLidarScanToProcessQueue(const CObservation::ConstPtr & o);
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
-  mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::Ptr & obs);
+  mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
 
   void doUpdateSimpleMap(
     const mrpt::obs::CSensoryFrame & sf, const bool distance_enough_sm,

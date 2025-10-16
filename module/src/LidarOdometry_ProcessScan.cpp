@@ -65,7 +65,7 @@ bool LidarOdometry::isPipelineUsingIMU() const
 }
 
 // here happens the main stuff:
-void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
+void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)
 {
   using namespace std::string_literals;
 
@@ -269,7 +269,7 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
         in.prior.emplace(state_.last_motion_model_output->pose);
 
         // Special case: 2D lidars mean we are working on SE(2):
-        if (std::dynamic_pointer_cast<mrpt::obs::CObservation2DRangeScan>(obs)) {
+        if (std::dynamic_pointer_cast<const mrpt::obs::CObservation2DRangeScan>(obs)) {
           // fix: z, pitch (rot_y), roll (rot_x):
           const double large_certainty = 1e6;
 
@@ -669,8 +669,9 @@ void LidarOdometry::processLidarScan(const CObservation::Ptr & obs)
     doPublishUpdatedLocalization(this_obs_tim);
   }
 
-  // Publish new local map:
-  doPublishUpdatedMap(this_obs_tim);
+  // Publish new local map & deskewed scan for visualization on external systems (ROS):
+  doPublishUpdatedLocalMap(this_obs_tim);
+  doPublishDeskewedScan(this_obs_tim);
 
   // Optional debug traces to CSV file:
   doWriteDebugTracesFile(this_obs_tim);
@@ -718,7 +719,7 @@ mp2p_icp::metric_map_t::Ptr LidarOdometry::observationFromRawSensor(
 }
 
 mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
-  const mrpt::obs::CObservation::Ptr & obs)
+  const mrpt::obs::CObservation::ConstPtr & obs)
 {
   mrpt::obs::CSensoryFrame sf;
   if (params_.multiple_lidars.lidar_count > 1) {
@@ -735,7 +736,7 @@ mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
         continue;
       }
 
-      sf += o;  // include this observation
+      sf += std::const_pointer_cast<mrpt::obs::CObservation>(o);  // include this observation
     }
     // and clear for the next iter:
     state_.sync_obs.clear();
@@ -745,7 +746,7 @@ mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
       "multiple_lidars: " << sf.size() << " valid observations have been synchronized.");
   } else {
     // Single LIDAR:
-    sf.insert(obs);
+    sf.insert(std::const_pointer_cast<mrpt::obs::CObservation>(obs));
   }
 
   return sf;
@@ -786,7 +787,7 @@ void LidarOdometry::doUpdateSimpleMap(
 
     // insert GNSS too? Search for a close-enough observation:
     std::optional<double> closestTimeAbsDiff;
-    mrpt::obs::CObservationGPS::Ptr closestGPS;
+    mrpt::obs::CObservationGPS::ConstPtr closestGPS;
 
     for (const auto & [gpsStamp, gpsObs] : state_.last_gnss_) {
       const double timeDiff = std::abs(mrpt::system::timeDifference(gpsStamp, curLidarStamp));
@@ -801,7 +802,7 @@ void LidarOdometry::doUpdateSimpleMap(
       }
     }
     if (closestGPS) {
-      *keyframe_obs += closestGPS;
+      *keyframe_obs += std::const_pointer_cast<mrpt::obs::CObservationGPS>(closestGPS);
     }
   } else {
     // Otherwise (we are in here because add_non_keyframes_too).
