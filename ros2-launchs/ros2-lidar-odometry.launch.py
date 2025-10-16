@@ -163,6 +163,11 @@ def generate_launch_description():
         "mola_deskew_method", default_value="MotionCompensationMethod::Linear", description="Which motion-compensation method to use to align LiDAR scans more precisely")
     mola_deskew_method_env_var = SetEnvironmentVariable(
         name='MOLA_DESKEW_METHOD', value=LaunchConfiguration('mola_deskew_method'))
+    # ~~~~~~~~~~~~
+    mola_tf_base_link_arg = DeclareLaunchArgument(
+        "mola_tf_base_link", default_value="base_link", description="The /tf frame name for the robot base link.")
+    mola_tf_base_link_env_var = SetEnvironmentVariable(
+        name='MOLA_TF_BASE_LINK', value=LaunchConfiguration('mola_tf_base_link'))
 
     # Namespace (Based on Nav2's bring-up launch file!)
     # ---------------------------------------------------
@@ -273,6 +278,8 @@ def generate_launch_description():
         lidar_scan_validity_enable_env_var,
         mola_deskew_method_arg,
         mola_deskew_method_env_var,
+        mola_tf_base_link_arg,
+        mola_tf_base_link_env_var,
         use_rviz_arg,
         node_group
     ])

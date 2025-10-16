@@ -128,7 +128,7 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
             (default: 'False')
 
          'initial_localization_method':
-            What method to use for initialization.  See https://docs.mola-slam.org/latest/ros2api.html#initial-localization
+            What method to use for initialization. See https://docs.mola-slam.org/latest/ros2api.html#initial-localization
             (default: 'InitLocalization::FixedPose')
 
          'use_state_estimator':
@@ -143,9 +143,22 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
             The /tf frame name to be used as reference for MOLA State Estimators to publish pose updates
             (default: 'map')
 
+         'lidar_scan_validity_minimum_point_count':
+            Minimum number of points in each LiDAR raw scan for it to be considered valid; otherwise, it is ignored.
+            (default: '100')
+
+         'mola_deskew_method':
+            Which motion-compensation method to use to align LiDAR scans more precisely
+            (default: 'MotionCompensationMethod::Linear')
+
+         'mola_tf_base_link':
+            The /tf frame name for the robot base link.
+            (default: 'base_link')
+
          'use_rviz':
             Whether to launch RViz2 with default lidar-odometry.rviz configuration
             (default: 'True')
+
 
 
 .. _mola_lo_ros_mola-cli-env-vars:
