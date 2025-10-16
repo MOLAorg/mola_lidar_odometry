@@ -187,7 +187,6 @@ void LidarOdometry::Parameters::ObservationValidityChecks::initialize(const Yaml
   YAML_LOAD_OPT(minimum_point_count, uint32_t);
 }
 
-#if MOLA_VERSION_CHECK(1, 4, 0)
 void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_values)
 {
   if (names_values.isNullNode() || names_values.empty()) {
@@ -224,11 +223,9 @@ void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_value
     }
   });
 }
-#endif
 
 void LidarOdometry::onExposeParameters()
 {
-#if MOLA_VERSION_CHECK(1, 4, 0)
   mrpt::containers::yaml nv = mrpt::containers::yaml::Map();
   nv["active"] = isActive();
   nv["mapping_enabled"] = params_.local_map_updates.enabled;
@@ -236,7 +233,6 @@ void LidarOdometry::onExposeParameters()
   nv["reset_state"] = false;
 
   this->exposeParameters(nv);
-#endif
 }
 
 }  // namespace mola

@@ -533,10 +533,8 @@ public:
   /** @} */
 
 protected:
-#if MOLA_VERSION_CHECK(1, 4, 0)  // Parameters added in MOLA v1.4.0
   // See docs in base class.
   void onParameterUpdate(const mrpt::containers::yaml & names_values) override;
-#endif
   void onExposeParameters();  // called after initialization
 
   void publishMetricMapGeoreferencingData();

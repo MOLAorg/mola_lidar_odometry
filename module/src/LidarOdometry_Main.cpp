@@ -124,11 +124,9 @@ void LidarOdometry::spinOnce()
   }
 
   // Publish optional regular diagnostics:
-#if MOLA_VERSION_CHECK(1, 6, 2)
   if (module_is_time_to_publish_diagnostics()) {
     onPublishDiagnostics();
   }
-#endif
 
   MRPT_TRY_END
 }
