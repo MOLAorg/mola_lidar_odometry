@@ -26,6 +26,9 @@
 #include <mrpt/io/CMemoryStream.h>
 #include <mrpt/serialization/CArchive.h>
 
+// MOLA:
+#include <mola_kernel/version.h>
+
 // SFINAE to detect for mp2p_icp map metadata:
 namespace
 {
@@ -166,6 +169,9 @@ void LidarOdometry::doPublishDeskewedScan(const mrpt::Clock::time_point & this_o
   mu.timestamp = this_obs_tim;
   mu.map_name = "deskewed_scan";
   mu.map = deskewedScan;
+#if MOLA_VERSION_CHECK(2, 1, 0)
+  mu.keep_last_one_only = false;  // Aggregate all scans
+#endif
 
   // send it out:
   advertiseUpdatedMap(mu);
