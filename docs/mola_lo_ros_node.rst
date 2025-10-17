@@ -15,20 +15,33 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
 .. tab-set::
 
-   .. tab-item:: Basic usage
-      :selected:
+   .. tab-item:: Basic LO usage
 
       .. code-block:: bash
 
-         # Minimal use case (requires correct LiDAR sensor /tf):
+         # Minimal LO use case (requires correct LiDAR sensor /tf):
          ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
             lidar_topic_name:=ouster/points
 
-         # Usage without sensor /tf:
+         # LO usage without sensor /tf:
          ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
             lidar_topic_name:=ouster/points \
             ignore_lidar_pose_from_tf:=True \
             publish_localization_following_rep105:=False
+
+   .. tab-item:: LIO usage
+      :selected:
+
+      This is how to use LiDAR-Inertial Odometry (LIO) by using LiDAR clouds plus an IMU:
+
+      .. code-block:: bash
+
+         # Example LIO usage for Ouster LiDAR + integrated IMU:
+         ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
+           mola_deskew_method:=MotionCompensationMethod::IMU \
+           lidar_topic_name:=/ouster/points \
+           imu_topic_name:=/ouster/imu \
+           mola_tf_base_link:=os_sensor
 
    .. tab-item:: Robot with NS
       :selected:

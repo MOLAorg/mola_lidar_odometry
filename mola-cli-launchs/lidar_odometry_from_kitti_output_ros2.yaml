@@ -10,10 +10,10 @@ modules:
   # =====================
   - name: viz
     type: mola::MolaViz
-    verbosity_level: '${MOLA_VERBOSITY_MOLA_VIZ|INFO}'
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
     params: ~ # none
 
-# Offline or online sensory data sources =====================
+  # Offline or online sensory data sources =====================
   # =====================
   # KittiOdometryDataset
   # =====================
@@ -22,7 +22,7 @@ modules:
     execution_rate: 20 # Hz
     #verbosity_level: INFO
     quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|false}
-    
+
     gui_preview_sensors:
       - raw_sensor_label: lidar
         decimation: 1
@@ -42,30 +42,30 @@ modules:
 
   - name: lidar_odom
     type: mola::LidarOdometry
-    verbosity_level: '${MOLA_VERBOSITY_MOLA_LO|INFO}'
-    raw_data_source: 'dataset_input'
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_LO|INFO}"
+    raw_data_source: "dataset_input"
     # This includes here a whole block "params: (...)"
     # with the LIDAR-Odometry pipeline configuration:
-    params: '${MOLA_ODOMETRY_PIPELINE_YAML|../pipelines/lidar3d-default.yaml}'
+    params: "${MOLA_ODOMETRY_PIPELINE_YAML|../pipelines/lidar3d-default.yaml}"
 
   - name: state_estimation
-    type: '${MOLA_STATE_ESTIMATOR|mola::state_estimation_simple::StateEstimationSimple}'
-    verbosity_level: '${MOLA_VERBOSITY_MOLA_STATE_ESTIMATOR|INFO}'
+    type: "${MOLA_STATE_ESTIMATOR|mola::state_estimation_simple::StateEstimationSimple}"
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_STATE_ESTIMATOR|INFO}"
 
     # This includes here a whole block "params: (...)":
-    params: '${MOLA_STATE_ESTIMATOR_YAML|../state-estimator-params/state-estimation-simple.yaml}'
+    params: "${MOLA_STATE_ESTIMATOR_YAML|../state-estimator-params/state-estimation-simple.yaml}"
 
   # MOLA -> ROS 2 bridge  =====================
   - name: ros2_bridge
     type: mola::BridgeROS2
-    verbosity_level: '${MOLA_VERBOSITY_BRIDGE_ROS2|INFO}'
+    verbosity_level: "${MOLA_VERBOSITY_BRIDGE_ROS2|INFO}"
 
     execution_rate: 20 # Hz
 
     params:
       # tf frame name with respect to sensor poses are measured, and also used for publishing
       # SLAM/localization results (read below).
-      base_link_frame: 'base_link'
+      base_link_frame: "base_link"
 
       # If not empty, the node will broadcast a static /tf from base_footprint to
       # base_link with the TF base_footprint_to_base_link_tf at start up.
@@ -76,7 +76,7 @@ modules:
       # (a) importing odometry to MOLA if ``forward_ros_tf_as_mola_odometry_observations=true``
       # (b) querying ``${odom_frame} => ${base_link_frame}`` when
       #     ``publish_localization_following_rep105=true``.
-      odom_frame: 'odom'
+      odom_frame: "odom"
 
       # tf frame used for:
       # (a) See ``publish_tf_from_robot_pose_observations``
@@ -116,9 +116,9 @@ modules:
       publish_in_sim_time: false
 
       period_publish_new_localization: 0.1 # [s]
-      period_publish_new_map: 5.0 # [s]
+      period_publish_new_map: 0.1 # [s]
 
       # georeferenced map frames:
-      georef_map_reference_frame: 'map'
-      georef_map_utm_frame: 'utm'
-      georef_map_enu_frame: 'enu'
+      georef_map_reference_frame: "map"
+      georef_map_utm_frame: "utm"
+      georef_map_enu_frame: "enu"

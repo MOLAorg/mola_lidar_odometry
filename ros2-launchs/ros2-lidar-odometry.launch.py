@@ -31,6 +31,11 @@ def generate_launch_description():
     fixed_sensorpose_env_var = SetEnvironmentVariable(
         name='MOLA_USE_FIXED_LIDAR_POSE', value=LaunchConfiguration('ignore_lidar_pose_from_tf'))
     # ~~~~~~~~~~~~
+    ignore_imu_pose_from_tf_arg = DeclareLaunchArgument(
+        "ignore_imu_pose_from_tf", default_value="false", description="If true, the IMU pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf")
+    fixed_imu_sensorpose_env_var = SetEnvironmentVariable(
+        name='MOLA_USE_FIXED_IMU_POSE', value=LaunchConfiguration('ignore_imu_pose_from_tf'))
+    # ~~~~~~~~~~~~
     gnss_topic_name_arg = DeclareLaunchArgument(
         "gnss_topic_name", default_value="gps", description="Topic name to listen for NavSatFix input from a GNSS (for example '/gps')")
     gps_topic_env_var = SetEnvironmentVariable(
@@ -278,6 +283,8 @@ def generate_launch_description():
         lidar_scan_validity_enable_env_var,
         mola_deskew_method_arg,
         mola_deskew_method_env_var,
+        ignore_imu_pose_from_tf_arg,
+        fixed_imu_sensorpose_env_var,
         mola_tf_base_link_arg,
         mola_tf_base_link_env_var,
         use_rviz_arg,

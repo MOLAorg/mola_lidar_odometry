@@ -131,7 +131,7 @@ modules:
 
       # Period [s] to publish the updated map to ROS2 from the MOLA SLAM solution:
       # Note that no repeated maps are published. This is just the period for checking the need to republish.
-      period_publish_new_map: 1.0 # [s]
+      period_publish_new_map: 0.1 # [s]
 
       # A placeholder for optional flags from "ros2 launch", captured
       # as all cli arguments after "--ros-args":
