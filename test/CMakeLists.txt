@@ -40,13 +40,11 @@ ament_add_gtest(test_lidar_odometry_kitti test_lidar_odometry_rawlog.cpp
   ENV LO_TEST_GT_TUM=${KITTI00_GT_TUM}
   ENV MOLA_PROFILER=false
 )
-ament_target_dependencies(test_lidar_odometry_kitti
-  mrpt-obs
-  mola_state_estimation_simple
-)
 target_link_libraries(test_lidar_odometry_kitti
-    mola::mola_lidar_odometry
-    mola::mola_state_estimation_simple
+  mrpt::obs
+  mola::mola_state_estimation_simple
+  mola::mola_lidar_odometry
+  mola::mola_state_estimation_simple
 )
 
 
@@ -65,13 +63,11 @@ ament_add_gtest(test_lidar_odometry_mulran test_lidar_odometry_rawlog.cpp
   ENV LO_TEST_GT_TUM=${MULRAN_KAIST01_GT_TUM}
   ENV MOLA_PROFILER=false
 )
-ament_target_dependencies(test_lidar_odometry_mulran
-  mrpt-obs
-  mola_state_estimation_simple
-)
 target_link_libraries(test_lidar_odometry_mulran
-    mola::mola_lidar_odometry
-    mola::mola_state_estimation_simple
+  mrpt::obs
+  mola::mola_state_estimation_simple
+  mola::mola_lidar_odometry
+  mola::mola_state_estimation_simple
 )
 endif()
 
