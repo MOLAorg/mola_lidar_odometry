@@ -122,7 +122,7 @@ modules:
       # Everything published to ROS2 will have timestamps from:
       #  - true: the original dataset timestamps.
       #  - false: the wall-clock time.
-      publish_in_sim_time: false
+      publish_in_sim_time: true
 
       # Period [s] to publish new localization estimates to ROS2 from the MOLA SLAM solution:
       # Note that no repeated localization are published. This is just the period for checking if new
