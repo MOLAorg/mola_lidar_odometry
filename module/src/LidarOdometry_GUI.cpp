@@ -27,6 +27,7 @@
 
 // MRPT:
 #include <mrpt/gui/CDisplayWindowGUI.h>
+#include <mrpt/maps/CPointsMapXYZI.h>
 #include <mrpt/opengl/CAssimpModel.h>
 #include <mrpt/opengl/CGridPlaneXY.h>
 #include <mrpt/opengl/COpenGLScene.h>
@@ -380,7 +381,12 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     }
 
     const auto org_cloud = mm.point_layer(mm.layers.begin()->first);
-    state_.last_deskewed_scan_for_publishing = org_cloud;
+    {
+      // Publish a transformed cloud to avoid perfect positioning in RViz / FoxGlove due to latency between /tf and scans:
+      auto tfCloud = mrpt::maps::CPointsMapXYZI::Create();
+      tfCloud->insertAnotherMap(org_cloud.get(), state_.last_lidar_pose.mean);
+      state_.last_deskewed_scan_for_publishing = tfCloud;
+    }
 
     mp2p_icp::render_params_t rp;
 

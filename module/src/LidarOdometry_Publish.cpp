@@ -165,7 +165,7 @@ void LidarOdometry::doPublishDeskewedScan(const mrpt::Clock::time_point & this_o
 
   MapUpdate mu;
   mu.method = "lidar_odometry";
-  mu.reference_frame = params_.publish_vehicle_frame;
+  mu.reference_frame = params_.publish_reference_frame;
   mu.timestamp = this_obs_tim;
   mu.map_name = "deskewed_scan";
   mu.map = deskewedScan;
