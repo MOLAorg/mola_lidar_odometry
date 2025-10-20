@@ -82,7 +82,7 @@ def generate_launch_description():
     # ~~~~~~~~~~~~
     mola_lo_pipeline_arg = DeclareLaunchArgument(
         "mola_lo_pipeline", default_value="../pipelines/lidar3d-default.yaml", description="The LiDAR-Odometry pipeline configuration YAML file defining the LO system. Absolute path, or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'. Default is the 'lidar3d-default.yaml' system described in the IJRR 2025 paper.")
-    mola_lo_pipeline_arg_env_var = SetEnvironmentVariable(
+    mola_lo_pipeline_env_var = SetEnvironmentVariable(
         name='MOLA_ODOMETRY_PIPELINE_YAML', value=LaunchConfiguration('mola_lo_pipeline'))
     # ~~~~~~~~~~~~
     generate_simplemap_arg = DeclareLaunchArgument(
@@ -267,8 +267,8 @@ def generate_launch_description():
         mola_initial_map_mm_file_env_var,
         mola_initial_map_sm_file_arg,
         mola_initial_map_sm_file_env_var,
-        mola_lo_pipeline_arg_env_var,
         mola_lo_pipeline_arg,
+        mola_lo_pipeline_env_var,
         mola_lo_reference_frame_arg,
         mola_lo_reference_frame_env_var,
         mola_se_reference_frame_arg,
