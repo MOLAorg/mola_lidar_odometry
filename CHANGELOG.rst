@@ -2,6 +2,21 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Docs: describe the new GICP and LIO pipelines
+* Update rviz settings
+* Prefer to publish deskewed clouds in 'map' frame
+* FIX: ROS2 interface must use correct cloud and pose timestamps
+* Update and fix LIO ROS2 launch demo and docs
+* ROS: support rendering deskewed clouds
+* Replace deprecated ament_target_dependencies() with pure cmake
+* Publish deskewed scans for ROS visualization
+* Make use of ConstPtr for processing incoming observations
+* Code clean up: remove macros for building against very old mola_kernel versions
+* ros2 launch: add argument 'mola_tf_base_link'
+* Contributors: Jose Luis Blanco-Claraco
+
 1.0.0 (2025-10-13)
 ------------------
 * Merge pull request #26 from MOLAorg/feature/better-lio
