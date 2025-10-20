@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.1.0 (2025-10-20)
+------------------
 * Docs: describe the new GICP and LIO pipelines
 * Update rviz settings
 * Prefer to publish deskewed clouds in 'map' frame
