@@ -61,12 +61,6 @@ Visualization Manager:
           Value: true
         map:
           Value: true
-        os_imu:
-          Value: true
-        os_lidar:
-          Value: true
-        os_sensor:
-          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
@@ -75,7 +69,8 @@ Visualization Manager:
       Tree:
         map:
           base_link:
-            {}
+            base_footprint:
+              {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -166,13 +161,13 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 6.177739143371582
+      Max Intensity: 24.94203758239746
       Min Color: 0; 0; 0
-      Min Intensity: -0.21623460948467255
+      Min Intensity: -3.687281370162964
       Name: LocalMap
       Position Transformer: XYZ
       Selectable: true
-      Size (Pixels): 3
+      Size (Pixels): 1
       Size (m): 0.15000000596046448
       Style: Points
       Topic:
@@ -200,9 +195,9 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: true
       Max Color: 255; 255; 255
-      Max Intensity: 325
+      Max Intensity: 255
       Min Color: 0; 0; 0
-      Min Intensity: 2
+      Min Intensity: 4
       Name: Deskewed Local Scans
       Position Transformer: XYZ
       Selectable: true
@@ -265,7 +260,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 17.271032333374023
+      Distance: 58.812652587890625
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -280,10 +275,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7997967600822449
+      Pitch: 0.3397965133190155
       Target Frame: base_link
       Value: Orbit (rviz_default_plugins)
-      Yaw: 1.942205548286438
+      Yaw: 5.155391216278076
     Saved: ~
 Window Geometry:
   Displays:
