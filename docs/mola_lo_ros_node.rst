@@ -239,6 +239,8 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 .. dropdown:: More LO parameters
     :icon: list-unordered
 
-    The ``lidar3d-default.yaml`` pipeline file defines plenty of :ref:`additional parameters and options <mola_3d_default_pipeline>` that you can explore.
+    If using the default :ref:`pipeline <mola_lo_pipelines>`, the ``lidar3d-gicp.yaml`` pipeline file defines plenty
+    of :ref:`additional parameters and options <mola_3d_gicp_pipeline>` that you can explore.
+
     See also the docs for the :ref:`ROS 2 API <mola_ros2api>` and :ref:`this tutorial <tutorial-mola-lo-map-and-localize>` on how to save and load a map using ROS 2 MOLA-LO nodes.
 

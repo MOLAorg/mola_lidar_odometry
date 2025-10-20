@@ -1,7 +1,7 @@
 .. _mola_lo_pipelines:
 
 ============================
-LiDAR odometry pipelines
+LO/LIO pipelines
 ============================
 
 ____________________________________________
@@ -19,7 +19,7 @@ Basically, the whole design about how many **local map layers** exist, the point
 **ICP matchers and optimizers**, etc. can be changed from this YAML file, without the need to touch the code or recompile.
 Users can design new systems by learning how to modify the provided pipeline files.
 
-The best way to understand the different parts of this file is to browse the YAML file of :ref:`the default pipeline <mola_3d_default_pipeline>`
+The best way to understand the different parts of this file is to browse the YAML file of :ref:`the default GICP pipeline <mola_3d_gicp_pipeline>`
 provided for 3D LiDARs. Most of the times, comments in the YAML are self-explanatory.
 In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLAorg/mola/issues>`_ to ask.
 
@@ -37,7 +37,8 @@ In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLA
 .. dropdown:: Specifying the pipeline file in MOLA-LO apps
    :icon: checklist
 
-   All MOLA-LO :ref:`GUI applications <mola_lo_apps>` defaults to using the :ref:`3D LiDAR pipeline <mola_3d_default_pipeline>`
+   All MOLA-LO :ref:`GUI applications <mola_lo_apps>` defaults to using the symlink `lidar3d-default.yaml` which at presents
+   points to the :ref:`3D LiDAR GICP pipeline <mola_3d_gicp_pipeline>`
    defined below. To use the alternative 2D pipeline or any other custom pipeline, please set the corresponding environment
    variable before invoking the :ref:`GUI application <mola_lo_apps>` (or derive your own script by copying and modifying the provided ones).
    For example:
@@ -59,14 +60,63 @@ ____________________________________________
 
 |
 
+.. _mola_3d_gicp_pipeline:
 
-.. _mola_3d_default_pipeline:
+1. Generalized ICP (GICP) pipeline for 3D LiDAR (``lidar3d-gicp.yaml``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+As of Oct 2025, this is the **default and recommended configuration** for most common sensor setups and environments.
 
-1. Default pipeline for 3D LiDAR (``lidar3d-default.yaml``)
+A peer-reviewed paper describing this pipeline is in preparation, but very briefly, this pipeline defines a
+local map based on key-frames of point clouds, and exploits the Generalized ICP algorithm :cite:`segal2009gicp`.
+
+.. image:: https://mrpt.github.io/imgs/MOLA_LIO_Oxford_Spires_stairs.gif
+
+
+.. note::
+
+   This pipeline can be LO (default) or LIO. To **actually employ IMU data**, you must enable the ROS 2 launch file argument:
+
+   .. code-block:: bash
+
+      ros2 launch [...] \
+        mola_deskew_method:=MotionCompensationMethod::IMU \
+        [...]
+
+   or, if using MOLA from the CLI: 
+
+   .. code-block:: bash
+
+      MOLA_DESKEW_METHOD=MotionCompensationMethod::IMU \
+      mola-lo-gui-rosbag2 [...]
+
+
+.. note::
+
+   See: :ref:`pipelines_env_vars`
+
+.. dropdown:: YAML listing
+    :icon: code-review
+
+    File: `mola_lidar_odometry/pipelines/lidar3d-gicp.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/lidar3d-gicp.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/lidar3d-gicp.yaml
+       :language: yaml
+
+|
+
+____________________________________________
+
+|
+
+.. _mola_3d_icp_pipeline:
+
+2. ICP pipeline for 3D LiDAR (``lidar3d-icp.yaml``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-This is the **reference configuration** used for most examples in the MOLA-LO paper, and should work great
-out of the box for most common situations.
-As described in the paper :cite:`blanco2025mola_lo`, it defines a **voxel-based 3D point-cloud local map**,
+This was the **reference configuration** used for most examples in the MOLA-LO paper :cite:`blanco2025mola_lo`,
+and should work great out of the box for most common situations; although as of Oct 2025, the newer pipeline :ref:`lidar3d-gicp.yaml <mola_3d_gicp_pipeline>`
+is now the default and recommended in general.
+
+As described in the paper :cite:`blanco2025mola_lo`, this pipeline defines a **voxel-based 3D point-cloud local map**,
 and filtering pipelines to **downsample** incoming raw LiDAR data.
 
 .. image:: https://mrpt.github.io/imgs/mola-slam-kitti-demo.gif
@@ -93,7 +143,7 @@ ____________________________________________
 
 .. _mola_3d_ndt_pipeline:
 
-2. 3D mapping pipeline using 3D-NDT (``lidar3d-ndt.yaml``)
+3. 3D mapping pipeline using 3D-NDT (``lidar3d-ndt.yaml``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 This is an **alternative configuration** for 3D mapping used in the MOLA-LO paper, and should also work great
 out of the box for most common situations where, *at least*, part of the environment has flat surfaces.
@@ -129,7 +179,7 @@ ____________________________________________
 |
 
 
-3. Pipeline for 2D LiDAR (``lidar2d.yaml``)
+4. Pipeline for 2D LiDAR (``lidar2d.yaml``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 This alternative configuration uses an **occupancy voxel map** instead of point clouds
 as local map, and performs **ray-tracing** to accumulate evidence about the freeness
@@ -215,7 +265,6 @@ Sensor inputs: IMU (optional)
    To manually override the sensor pose on the vehicle/robot, see also :ref:`these environment variables <mola_lo_ros_mola-cli-env-vars>`,
    or the corresponding :ref:`ROS2 launch arguments <mola_lo_ros_launch_arguments>`.
 
-
 - ``MOLA_IMU_NAME`` (Default: ``imu``): **Sensor label** (or regex) of the observations with IMU data, if it exists.
   This is used to estimate the vehicle's pose and velocity, and to deskew point clouds.
   For most dataset sources, the default ``imu`` is enough.
@@ -223,6 +272,9 @@ Sensor inputs: IMU (optional)
   incoming **ROS topic names**, so **set this to your ROS 2 topic name for the IMU**, but in principle both are different things.
   Read carefully the contents of the `mola-cli launch files <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_
   and the comments therein to understand the differences.
+
+- ``MOLA_DESKEW_METHOD`` (Default: ``MotionCompensationMethod::Linear``): **IMPORTANT**: If you do not change this from its default,
+  the IMU data will not be used for deskewing. To fully achieve the best accuracy, set this variable to ``MotionCompensationMethod::IMU``.
 
 
 Sensor inputs: Wheels odometry (optional)

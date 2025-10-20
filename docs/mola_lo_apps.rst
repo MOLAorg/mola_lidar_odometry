@@ -342,7 +342,8 @@ Process a ROS 2 bag
 .. dropdown:: More parameters
     :icon: list-unordered
 
-    The ``lidar3d-default.yaml`` pipeline file defines plenty of :ref:`additional parameters and options <mola_3d_default_pipeline>` that you can explore.
+    If using the default :ref:`pipeline <mola_lo_pipelines>`, the ``lidar3d-gicp.yaml`` pipeline file defines plenty
+    of :ref:`additional parameters and options <mola_3d_gicp_pipeline>` that you can explore.
 
 |
 
@@ -366,7 +367,8 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
 .. dropdown:: More parameters
     :icon: list-unordered
 
-    The ``lidar3d-default.yaml`` pipeline file defines plenty of :ref:`additional parameters and options <mola_3d_default_pipeline>` that you can explore.
+    If using the default :ref:`pipeline <mola_lo_pipelines>`, the ``lidar3d-gicp.yaml`` pipeline file defines plenty
+    of :ref:`additional parameters and options <mola_3d_gicp_pipeline>` that you can explore.
 
 |
 

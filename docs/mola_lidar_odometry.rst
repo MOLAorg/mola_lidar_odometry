@@ -1,8 +1,8 @@
 .. _mola_lidar_odometry:
 
-============================
-3D LiDAR odometry
-============================
+=============================
+3D LiDAR (inertial) odometry
+=============================
 
 :octicon:`mark-github` `MOLA LiDAR odometry (MOLA-LO) <https://github.com/MOLAorg/mola_lidar_odometry/>`_ is
 the main MOLA component for 3D and 2D LiDAR odometry and localization.
@@ -11,6 +11,9 @@ default configuration provided to **work out of the box** for you without
 parameter tuning: it works for **16 to 128** ring LiDARs,
 indoors or outdoors, with motion profiles ranging from
 hand-held, slow wheeled or quadruped robots, to fast vehicles on highways.
+
+If a synchronized IMU stream is available, the LIO mode can be enabled to provide
+better scan deskewing.
 
 This page explains the role of this component in the MOLA ecosystem,
 how to deal with generated maps, and gives a glimpse into its internal
@@ -123,12 +126,3 @@ Refer to the MOLA LO paper for further details.
   You cannot debug what you cannot see. A powerful GUI named :ref:`icp-log-viewer <app_icp-log-viewer>`
   is provided to carefully inspect the internals of ICP optimization iterations.
 
-
-How to cite it
--------------------------
-
-The ``mola_lidar_odometry`` system was presented in :cite:`blanco2025mola_lo`:
-
-  Blanco-Claraco JL. A flexible framework for accurate LiDAR odometry, map manipulation, and localization.
-  The International Journal of Robotics Research. 2025;0(0).
-  doi:10.1177/02783649251316881
