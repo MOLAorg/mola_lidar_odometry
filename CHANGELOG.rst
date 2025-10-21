@@ -2,6 +2,14 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Tune ROS2 publication rates for reduced viz load
+* New option 'publish_deskewed_scans'
+* Fix unit tests
+* ros2 launch: sort arguments
+* Contributors: Jose Luis Blanco-Claraco
+
 1.1.0 (2025-10-20)
 ------------------
 * Docs: describe the new GICP and LIO pipelines
