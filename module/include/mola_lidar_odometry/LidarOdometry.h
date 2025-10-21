@@ -454,6 +454,10 @@ public:
 
     /** When publishing pose updates, the vehicle frame name.*/
     std::string publish_vehicle_frame = "base_link";
+
+    /* If enabled, deskewed scans will be published (so, they will be available as ROS2 messages), mostly for visualization.
+   * This may slow-down the system, so it is disabled by default. */
+    bool publish_deskewed_scans = false;
   };
 
   /** Algorithm parameters */

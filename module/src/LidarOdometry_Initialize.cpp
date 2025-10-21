@@ -144,6 +144,7 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
 
   YAML_LOAD_OPT(params_, publish_reference_frame, std::string);
   YAML_LOAD_OPT(params_, publish_vehicle_frame, std::string);
+  YAML_LOAD_OPT(params_, publish_deskewed_scans, bool);
 
   if (cfg.has("adaptive_threshold")) {
     params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);

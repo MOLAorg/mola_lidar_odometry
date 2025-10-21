@@ -45,6 +45,10 @@ params:
   # When publishing pose updates, the vehicle frame name.
   publish_vehicle_frame: "${MOLA_LO_PUBLISH_VEHICLE_FRAME|base_link}"
 
+  # If enabled, deskewed scans will be published (so, they will be available as ROS2 messages), mostly for visualization.
+  # This may slow-down the system, so it is disabled by default.
+  publish_deskewed_scans: "${MOLA_LO_PUBLISH_DESKEWED_SCANS|false}"
+
   # How often to update the local map model:
   local_map_updates:
     enabled: "${MOLA_MAPPING_ENABLED|true}"

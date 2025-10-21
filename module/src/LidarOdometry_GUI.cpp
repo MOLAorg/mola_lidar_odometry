@@ -381,8 +381,9 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     }
 
     const auto org_cloud = mm.point_layer(mm.layers.begin()->first);
-    {
-      // Publish a transformed cloud to avoid perfect positioning in RViz / FoxGlove due to latency between /tf and scans:
+
+    // Publish a transformed cloud to avoid perfect positioning in RViz / FoxGlove due to latency between /tf and scans:
+    if (params_.publish_deskewed_scans) {
       auto tfCloud = mrpt::maps::CPointsMapXYZI::Create();
       tfCloud->insertAnotherMap(org_cloud.get(), state_.last_lidar_pose.mean);
       state_.last_deskewed_scan_for_publishing = tfCloud;

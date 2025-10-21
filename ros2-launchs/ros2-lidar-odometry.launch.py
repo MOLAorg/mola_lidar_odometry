@@ -43,7 +43,7 @@ def generate_launch_description():
     # ~~~~~~~~~~~~
     imu_topic_name_arg = DeclareLaunchArgument(
         "imu_topic_name", default_value="imu", description="Topic name to listen for Imu input (for example '/imu')")
-    imu_topic_env_var = SetEnvironmentVariable(
+    imu_topic_name_env_var = SetEnvironmentVariable(
         name='MOLA_IMU_TOPIC', value=LaunchConfiguration('imu_topic_name'))
     # ~~~~~~~~~~~~
     use_rviz = LaunchConfiguration('use_rviz')
@@ -125,7 +125,7 @@ def generate_launch_description():
         default_value="False",
         description="If false, the basic state estimator 'mola::state_estimation_simple::StateEstimationSimple' will be used. If true, 'mola::state_estimation_smoother::StateEstimationSmoother' is used instead."
     )
-    state_estimator_env_var = SetEnvironmentVariable(
+    use_state_estimator_env_var = SetEnvironmentVariable(
         name='MOLA_STATE_ESTIMATOR', value=PythonExpression(
             ["'mola::state_estimation_smoother::StateEstimationSmoother' if ",
              LaunchConfiguration(
@@ -248,8 +248,8 @@ def generate_launch_description():
         ignore_imu_pose_from_tf_env_var,
         ignore_lidar_pose_from_tf_arg,
         ignore_lidar_pose_from_tf_env_var,
-        imu_topic_env_var,
         imu_topic_name_arg,
+        imu_topic_name_env_var,
         initial_localization_method_arg,
         initial_localization_method_env_var,
         lidar_scan_validity_enable_env_var,
@@ -257,8 +257,6 @@ def generate_launch_description():
         lidar_scan_validity_minimum_point_env_var,
         lidar_topic_env_var,
         lidar_topic_name_arg,
-        localization_publish_odom_source_env_var,
-        localization_publish_tf_source_env_var,
         mola_deskew_method_arg,
         mola_deskew_method_env_var,
         mola_footprint_to_base_link_tf_arg,
@@ -281,12 +279,16 @@ def generate_launch_description():
         start_active_env_var,
         start_mapping_enabled_arg,
         start_mapping_enabled_env_var,
-        state_estimator_config_yaml_arg,
-        state_estimator_config_yaml_env_var,
-        state_estimator_env_var,
         use_mola_gui_arg,
         use_mola_gui_env_var,
         use_rviz_arg,
         use_state_estimator_arg,
+        use_state_estimator_env_var,
+        # Must come later:
+        state_estimator_config_yaml_arg,
+        state_estimator_config_yaml_env_var,
+        localization_publish_tf_source_env_var,
+        localization_publish_odom_source_env_var,
+        # group
         node_group
     ])
