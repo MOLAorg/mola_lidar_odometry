@@ -316,7 +316,7 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       state_.local_map->load_from_file(params_.local_map_updates.load_existing_local_map);
     ASSERT_(loadOk);
 
-    state_.mark_local_map_as_updated();
+    state_.mark_local_map_as_updated(true);
     state_.mark_local_map_georef_as_updated();
   }
 

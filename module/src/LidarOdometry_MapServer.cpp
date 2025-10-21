@@ -48,13 +48,15 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
 
   // Update the GUI and publish the map, even if we are not being fed with incoming obs:
   // (and even if we fail to load the maps, so they are shown as empty).
-  state_.mark_local_map_as_updated();
+  state_.mark_local_map_as_updated(true);
   state_.mark_local_map_georef_as_updated();
 
   bool mmLoadOk = false;
   try {
     // do not show the default error msg for this simple error, which is long and may intimidate newest users:
-    if (!mrpt::system::fileExists(mmFile)) throw std::runtime_error("");
+    if (!mrpt::system::fileExists(mmFile)) {
+      throw std::runtime_error("");
+    }
 
     mmLoadOk = state_.local_map->load_from_file(mmFile);
   } catch (const std::exception &) {
@@ -63,7 +65,9 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
   bool smLoadOk = false;
   try {
     // do not show the default error msg for this simple error, which is long and may intimidate newest users:
-    if (!mrpt::system::fileExists(smFile)) throw std::runtime_error("");
+    if (!mrpt::system::fileExists(smFile)) {
+      throw std::runtime_error("");
+    }
 
     smLoadOk = state_.reconstructed_simplemap.loadFromFile(smFile);
   } catch (const std::exception &) {
@@ -71,15 +75,19 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
 
   ret.success = mmLoadOk;  // smLoadOk: not mandatory
 
-  if (!mmLoadOk) ret.error_message = "Error loading metric local map from: "s + mmFile + ". ";
-  if (!smLoadOk)
+  if (!mmLoadOk) {
+    ret.error_message = "Error loading metric local map from: "s + mmFile + ". ";
+  }
+  if (!smLoadOk) {
     ret.error_message = "Warning: no simplemap (keyframes) file found (expected: '"s + smFile +
                         "'). Required for multisession mapping. ";
+  }
 
   if (ret.success) {
     MRPT_LOG_INFO_STREAM("[map_load] Successful.");
-  } else
+  } else {
     MRPT_LOG_ERROR_STREAM("[map_load] Error loading from map prefix: " << path);
+  }
 
   return ret;
 }
@@ -102,13 +110,18 @@ MapServer::ReturnStatus LidarOdometry::map_save(const std::string & path)
 
   ret.success = mmSaveOk && smSaveOk;
 
-  if (!mmSaveOk) ret.error_message = "Error saving metric local map from: "s + mmFile + ". ";
-  if (!smSaveOk) ret.error_message = "Error saving simplemap (keyframes) from: "s + smFile + ". ";
+  if (!mmSaveOk) {
+    ret.error_message = "Error saving metric local map from: "s + mmFile + ". ";
+  }
+  if (!smSaveOk) {
+    ret.error_message = "Error saving simplemap (keyframes) from: "s + smFile + ". ";
+  }
 
-  if (ret.success)
+  if (ret.success) {
     MRPT_LOG_INFO_STREAM("[map_save] Successful.");
-  else
+  } else {
     MRPT_LOG_ERROR_STREAM("[map_save] Error saving map to map prefix: " << path);
+  }
 
   return ret;
 }
