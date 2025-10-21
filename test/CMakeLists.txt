@@ -48,8 +48,8 @@ target_link_libraries(test_lidar_odometry_kitti
 )
 
 
-# Test: from rawlog file, using MULRAN fragment (incl IMU,GPS)
-# ---------------------------------------------------------------
+# LIO Test: from rawlog file, using MULRAN fragment (incl IMU,GPS)
+# ------------------------------------------------------------------
 set(MULRAN_KAIST01_DATASET_FILE "${mola_test_datasets_DIR}/../datasets/mulran/mulran_KAIST01_extract.rawlog")
 set(MULRAN_KAIST01_GT_TUM ${mola_lidar_odometry_SOURCE_DIR}/test/mulran_KAIST01_fragment_gt.tum)
 
@@ -61,6 +61,7 @@ ament_add_gtest(test_lidar_odometry_mulran test_lidar_odometry_rawlog.cpp
   ENV LO_STATE_ESTIM_YAML=${DEFAULT_STATE_ESTIMATOR_YAML}
   ENV LO_TEST_RAWLOG=${MULRAN_KAIST01_DATASET_FILE}
   ENV LO_TEST_GT_TUM=${MULRAN_KAIST01_GT_TUM}
+  ENV MOLA_DESKEW_METHOD="MotionCompensationMethod::IMU"
   ENV MOLA_PROFILER=false
 )
 target_link_libraries(test_lidar_odometry_mulran
@@ -94,7 +95,7 @@ if(EXISTS "${RSLIDAR_DATASET_FILE}")
     MOLA_USE_FIXED_LIDAR_POSE=true  # so we don't need /tf topic in test dataset
     MOLA_IGNORE_NO_POINT_STAMPS=${IGNORE_POINT_STAMPS} # make it fail if no timestamps are found
   )
-  ament_target_dependencies(test_lidar_odometry_rslidar 
+  ament_target_dependencies(test_lidar_odometry_rslidar
     mrpt-obs
     mola_state_estimation_simple
   )

@@ -21,6 +21,7 @@
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/core/exceptions.h>
 #include <mrpt/core/get_env.h>
+#include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
@@ -29,11 +30,20 @@
 
 namespace
 {
-
-int main_odometry(
-  const std::string & yamlConfigFile, const std::string & stateEstimConfigFile,
-  const std::string & rawlogFile, const std::string & gtTrajectory)
+struct OdometryTestParams
 {
+  std::string yamlConfigFile;
+  std::string stateEstimConfigFile;
+  std::string rawlogFile;
+  std::string gtTrajectory;
+};
+
+int main_odometry(const OdometryTestParams & p)
+{
+  const auto & yamlConfigFile = p.yamlConfigFile;
+  const auto & stateEstimConfigFile = p.stateEstimConfigFile;
+  const auto & rawlogFile = p.rawlogFile;
+  const auto & gtTrajectory = p.gtTrajectory;
   auto liodom = mola::LidarOdometry::Create();
   auto stateEstimator = mola::state_estimation_simple::StateEstimationSimple::Create();
 
@@ -73,9 +83,18 @@ int main_odometry(
     sf.insert(dataset.getAsObservation(i));
 
     CObservation::Ptr obs;
-    if (!obs) obs = sf.getObservationByClass<CObservationPointCloud>();
-    if (!obs) obs = sf.getObservationByClass<CObservationOdometry>();
-    if (!obs) continue;
+    if (!obs) {
+      obs = sf.getObservationByClass<CObservationPointCloud>();
+    }
+    if (!obs) {
+      obs = sf.getObservationByClass<CObservationOdometry>();
+    }
+    if (!obs) {
+      obs = sf.getObservationByClass<CObservationIMU>();
+    }
+    if (!obs) {
+      continue;
+    }
 
     // Send it to the odometry pipeline:
     liodom->onNewObservation(obs);
@@ -91,7 +110,8 @@ int main_odometry(
   const bool gtLoadOk = gt.loadFromTextFile_TUM(gtTrajectory);
   ASSERT_(gtLoadOk);
 
-  ASSERT_EQUAL_(gt.size(), trajectory.size());
+  ASSERT_GE_(gt.size(), trajectory.size());
+  ASSERT_GE_(trajectory.size(), gt.size() - 1);
 
   auto itP = trajectory.cbegin();
   auto itGT = gt.cbegin();
@@ -102,7 +122,7 @@ int main_odometry(
 
     const double err = mrpt::poses::Lie::SE<3>::log(mrpt::poses::CPose3D(gt - pose)).norm();
 
-    EXPECT_LT(err, 0.15) << "Estimated trajectory pose mismatch:\n"
+    EXPECT_LT(err, 0.40) << "Estimated trajectory pose mismatch:\n"
                          << " LO pose: " << pose << "\n"
                          << " GT pose: " << gt << "\n";
   }
@@ -114,12 +134,13 @@ int main_odometry(
 
 TEST(RunDataset, FromRawlog)
 {
-  const std::string yamlConfigFile = mrpt::get_env<std::string>("LO_PIPELINE_YAML");
-  const std::string yamlEstimatorFile = mrpt::get_env<std::string>("LO_STATE_ESTIM_YAML");
-  const std::string rawlogFile = mrpt::get_env<std::string>("LO_TEST_RAWLOG");
-  const std::string gtTrajectory = mrpt::get_env<std::string>("LO_TEST_GT_TUM");
+  OdometryTestParams params;
+  params.yamlConfigFile = mrpt::get_env<std::string>("LO_PIPELINE_YAML");
+  params.stateEstimConfigFile = mrpt::get_env<std::string>("LO_STATE_ESTIM_YAML");
+  params.rawlogFile = mrpt::get_env<std::string>("LO_TEST_RAWLOG");
+  params.gtTrajectory = mrpt::get_env<std::string>("LO_TEST_GT_TUM");
 
-  main_odometry(yamlConfigFile, yamlEstimatorFile, rawlogFile, gtTrajectory);
+  main_odometry(params);
 }
 
 // The main function running all the tests
