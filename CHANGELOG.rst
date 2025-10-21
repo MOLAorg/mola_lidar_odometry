@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.2.0 (2025-10-21)
+------------------
 * Tune ROS2 publication rates for reduced viz load
 * New option 'publish_deskewed_scans'
 * Fix unit tests
