@@ -2,6 +2,13 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Fix build against upcoming mrpt v2.15.0
+* Reduce the limit of published points to avoid FoxGlove WS overflow
+* docs: show first usage with rosbags & rawlogs
+* Contributors: Jose Luis Blanco-Claraco
+
 1.2.0 (2025-10-21)
 ------------------
 * Tune ROS2 publication rates for reduced viz load
