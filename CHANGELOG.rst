@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.2.1 (2025-10-28)
+------------------
 * Fix build against upcoming mrpt v2.15.0
 * Reduce the limit of published points to avoid FoxGlove WS overflow
 * docs: show first usage with rosbags & rawlogs
