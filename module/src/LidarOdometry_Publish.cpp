@@ -75,12 +75,13 @@ void LidarOdometry::doPublishUpdatedLocalMap(const mrpt::Clock::time_point & thi
     return;
   }
 
+  // === This was ===
   // Don't publish if nobody is listening, OR, if it is still
   // pending to subscribe to us:
-  if (!anyUpdateMapSubscriber()) {
-    MRPT_LOG_DEBUG("doPublishUpdatedLocalMap: Skipping, since we have no subscriber.");
-    return;
-  }
+  //if (!anyUpdateMapSubscriber()) { return; }
+  // ================
+  // However, DON'T do this, since if publishing to ROS, latched messages
+  // from a once-at-start-up publication would be expected.
 
   state_.local_map_needs_publish = false;
 
@@ -195,11 +196,13 @@ void LidarOdometry::publishMetricMapGeoreferencingData()
     return;
   }
 
+  // === This was ===
   // Don't publish if nobody is listening, OR, if it is still
   // pending to subscribe to us:
-  if (!anyUpdateMapSubscriber()) {
-    return;
-  }
+  //if (!anyUpdateMapSubscriber()) { return; }
+  // ================
+  // However, DON'T do this, since if publishing to ROS, latched messages
+  // from a once-at-start-up publication would be expected.
 
   state_.local_map_georef_needs_publish = false;
 
