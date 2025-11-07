@@ -78,6 +78,25 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
 |
 
+
+.. dropdown:: How to invoke for a rosbag (``.mcap``, ``.db3``)
+    :icon: list-unordered
+
+    You can also directly run MOLA-LO on a dataset instead of live ROS messages, which is normally more efficient.
+    See MOLA-LO GUI apps for all the details.
+
+    .. code-block:: bash
+
+       # Example: run MOLA-LIO on a Ouster dataset.
+       MOLA_DESKEW_METHOD=MotionCompensationMethod::IMU  \
+       MOLA_IMU_TOPIC=/ouster/imu \
+       MOLA_LIDAR_TOPIC=/ouster/points \
+       MOLA_TF_BASE_LINK=os_sensor \
+       mola-lo-gui-rosbag2  /path/to/your/dataset.mcap
+
+|
+
+
 .. _mola_lo_ros_launch_arguments:
 
 .. dropdown:: All launch arguments
