@@ -24,8 +24,7 @@
 
 // MP2P_ICP:
 #include <mp2p_icp/Solver_GaussNewton.h>
-
-// MRPT:
+#include <mrpt/config/CConfigFile.h>
 #include <mrpt/config/CConfigFileMemory.h>
 #include <mrpt/containers/yaml.h>
 #include <mrpt/core/initializer.h>
@@ -51,6 +50,21 @@
 // STD:
 #include <chrono>
 #include <thread>
+
+// Portable config path
+#include "libcfgpath/cfgpath.h"
+
+// Portable online version check:
+#if defined(MOLA_LO_HAS_ONLINE_VERSION_CHECK)
+#include <arpa/inet.h>  // for sockaddr_in
+#include <netdb.h>      // for gethostbyname(), hostent
+#include <unistd.h>     // for close()
+
+#include <cstring>  // for memset
+#include <iostream>
+#include <sstream>
+#include <string>
+#endif
 
 namespace mola
 {
@@ -349,6 +363,188 @@ void LidarOdometry::processPendingUserRequests()
     }
   }
   requests_.clear();
+}
+
+#if defined(MOLA_LO_HAS_ONLINE_VERSION_CHECK)
+std::string http_get(const std::string & host, const std::string & path = "/")
+{
+  const int port = 80;
+
+  // Resolve hostname
+  hostent * server = gethostbyname(host.c_str());
+  if (!server) {
+    throw std::runtime_error("Error: no such host");
+  }
+
+  // Create socket
+  int sock = socket(AF_INET, SOCK_STREAM, 0);
+  if (sock < 0) {
+    throw std::runtime_error("Error: opening socket");
+  }
+
+  // Build server address struct
+  sockaddr_in serv_addr{};
+  serv_addr.sin_family = AF_INET;
+  serv_addr.sin_port = htons(port);
+  std::memcpy(&serv_addr.sin_addr.s_addr, server->h_addr, server->h_length);
+
+  // Connect
+  if (connect(sock, (sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+    close(sock);
+    throw std::runtime_error("Error: connecting");
+  }
+
+  // Send HTTP request
+  std::ostringstream request;
+  request << "GET " << path << " HTTP/1.0\r\n"
+          << "Host: " << host << "\r\n"
+          << "Connection: close\r\n\r\n";
+
+  std::string req_str = request.str();
+  send(sock, req_str.c_str(), req_str.size(), 0);
+
+  // Read response
+  std::string response;
+  char buffer[1024];
+  ssize_t bytes;
+  while ((bytes = recv(sock, buffer, sizeof(buffer) - 1, 0)) > 0) {
+    buffer[bytes] = '\0';
+    response += buffer;
+  }
+
+  close(sock);
+  return response;
+}
+bool parse_http_response(const std::string & response, std::string & body_out)
+{
+  std::istringstream ss(response);
+  std::string line;
+
+  // Parse status line
+  if (!std::getline(ss, line)) {
+    return false;
+  }
+
+  if (line.find("200") == std::string::npos) {
+    return false;  // not 200 OK
+  }
+
+  // Skip headers
+  while (std::getline(ss, line)) {
+    if (line == "\r" || line.empty()) {
+      break;
+    }
+  }
+
+  // Read remaining lines as body
+  std::ostringstream body;
+  while (std::getline(ss, line)) {
+    body << line;
+    if (!ss.eof()) {
+      body << '\n';
+    }
+  }
+
+  // Trim whitespace
+  std::string raw = body.str();
+
+  // Remove leading whitespace
+  size_t start = raw.find_first_not_of(" \t\r\n");
+  if (start == std::string::npos) {
+    body_out.clear();
+    return true;
+  }
+
+  // Remove trailing whitespace
+  size_t end = raw.find_last_not_of(" \t\r\n");
+
+  body_out = raw.substr(start, end - start + 1);
+  return true;
+}
+
+bool version_greater(const std::string & a, const std::string & b)  // NOLINT
+{
+  std::istringstream sa(a), sb(b);
+  int va, vb;
+  char dot;
+
+  while (true) {
+    if (!(sa >> va)) {
+      va = 0;  // default 0 if missing
+    }
+    if (!(sb >> vb)) {
+      vb = 0;
+    }
+
+    if (va > vb) {
+      return true;
+    }
+    if (va < vb) {
+      return false;
+    }
+
+    // consume '.' if present
+    if (!(sa >> dot) && !(sb >> dot)) {
+      break;  // both ended
+    }
+  }
+  return false;  // equal or smaller
+}
+
+void check_new_version(mrpt::config::CConfigFile & cfg, mrpt::system::COutputLogger * logger)
+{
+  // Do we need to check today?
+  const auto lastTim = cfg.read_double("config", "last_version_check", 0);
+  const auto now = mrpt::Clock::nowDouble();
+  if (now < lastTim + 24 * 60 * 60) {
+    return;
+  }
+  // Check in a detached thread:
+  std::thread([logger]() {
+    try {
+      auto response = http_get("docs.mola-slam.org", "/latest/mola_lidar_odometry.version");
+      std::string body;
+      if (parse_http_response(response, body)) {
+        if (version_greater(MOLA_LO_VERSION, body)) {
+          logger->logFmt(
+            mrpt::system::LVL_DEBUG,
+            "[mola-lidar-odometry module] There is a newer version of mola_lidar_odometry "
+            "available online: '%s' vs current '%s'",
+            body.c_str(), MOLA_LO_VERSION);
+        }
+
+      } else {
+        std::cout << "[FAIL] Invalid response\n";
+      }
+    } catch (const std::exception & e) {
+      logger->logFmt(mrpt::system::LVL_DEBUG, "[check_new_version] Error: %s", e.what());
+    }
+  }).detach();
+
+  cfg.write("config", "last_version_check", mrpt::format("%f", now));
+}
+
+#endif
+
+void LidarOdometry::onInitializePersistentState()
+{
+  try {
+    // Get user app config file
+    char appCfgFile[2048];
+    ::get_user_config_file(appCfgFile, sizeof(appCfgFile), "mola-lidar-odometry");
+    mrpt::config::CConfigFile appCfg(appCfgFile);
+
+    // Handle persistent values:
+    appCfg.write("config", "last_run", mrpt::format("%f", mrpt::Clock::nowDouble()));
+
+    // Handle printing a notice of newer versions available:
+#if defined(MOLA_LO_HAS_ONLINE_VERSION_CHECK)
+    check_new_version(appCfg, this);
+#endif
+
+  } catch (const std::exception & e) {
+    MRPT_LOG_WARN_STREAM("Error initializing persistent config file:\n" << e.what());
+  }
 }
 
 void LidarOdometry::doWriteDebugTracesFile(const mrpt::Clock::time_point & this_obs_tim)

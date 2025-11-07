@@ -815,6 +815,8 @@ private:
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
 
+  void onInitializePersistentState();
+
   void doUpdateSimpleMap(
     const mrpt::obs::CSensoryFrame & sf, const bool distance_enough_sm,
     const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & this_obs_tim);

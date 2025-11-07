@@ -67,6 +67,14 @@ install(
 mola_version_to_hexadecimal(MP2P_ICP_VERSION_HEX "${mp2p_icp_VERSION}")
 target_compile_definitions(${PROJECT_NAME} PRIVATE MP2P_ICP_VERSION=${MP2P_ICP_VERSION_HEX})
 
+get_target_property(MY_VERSION ${PROJECT_NAME} VERSION)
+target_compile_definitions(${PROJECT_NAME} PRIVATE MOLA_LO_VERSION=\"${MY_VERSION}\")
+
+option(ENABLE_ONLINE_VERSION_CHECK "Enable checking for new versions" ON)
+if(ENABLE_ONLINE_VERSION_CHECK)
+    target_compile_definitions(${PROJECT_NAME}  PRIVATE MOLA_LO_HAS_ONLINE_VERSION_CHECK)
+endif()
+
 # CLI apps
 # ---------------------------------
 find_package(mola_input_kitti_dataset) # optional

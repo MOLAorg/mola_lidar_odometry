@@ -350,6 +350,9 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   // Make runtime params exposed:
   onExposeParameters();
 
+  // Handle any optional persistent state/settings:
+  onInitializePersistentState();
+
   MRPT_TRY_END
 }
 
