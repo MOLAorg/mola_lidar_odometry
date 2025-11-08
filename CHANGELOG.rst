@@ -2,6 +2,13 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Add quick instructions to launch mola-lo-gui on an Ouster dataset
+* Add option to store persistent settings and check version
+* Fix: missing publication of LocalMap if BridgeROS2 loads after this module.
+* Contributors: Jose Luis Blanco-Claraco
+
 1.2.1 (2025-10-28)
 ------------------
 * Fix build against upcoming mrpt v2.15.0
