@@ -228,7 +228,7 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
     }
 
     // and for rate stats:
-    state_.append_imu_stamp(imu->timestamp);
+    state_.append_imu_stamp(imu->timestamp, *this);
   }
 
   // 2) Precise scan de-skewing is done via Generator, which in turns passes the IMU data to the
@@ -376,7 +376,8 @@ std::tuple<double, double> LidarOdometry::MethodState::get_lidar_imu_sensor_rate
 }
 
 void LidarOdometry::MethodState::append_lidar_stamp(
-  const std::string & sensorLabel, const mrpt::Clock::time_point & stamp)
+  const std::string & sensorLabel, const mrpt::Clock::time_point & stamp,
+  const mrpt::system::COutputLogger & logger)
 {
   constexpr std::size_t LIDAR_STAMPS_QUEUE_LENGTH = 50;
 
@@ -387,13 +388,36 @@ void LidarOdometry::MethodState::append_lidar_stamp(
     stamps.pop();
   }
   stamps.push(mrpt::Clock::toDouble(stamp));
+
+  // Trigger a warning if stamps seems to move backwards in time, since this is never expected:
+  if (const auto nLidarStamps = stamps.size(); nLidarStamps > 2) {
+    const auto tm1 = stamps.peek(nLidarStamps - 1);
+    const auto tm2 = stamps.peek(nLidarStamps - 2);
+    if (tm1 < tm2) {
+      logger.logFmt(
+        mrpt::system::LVL_WARN,
+        "LiDAR timestamps seem to have gone backwards in time (!): t[k-1]=%f, t[k]=%f", tm2, tm1);
+    }
+  }
 }
-void LidarOdometry::MethodState::append_imu_stamp(const mrpt::Clock::time_point & stamp)
+void LidarOdometry::MethodState::append_imu_stamp(
+  const mrpt::Clock::time_point & stamp, const mrpt::system::COutputLogger & logger)
 {
   if (recent_imu_stamps.size() >= recent_imu_stamps.capacity() - 2) {
     recent_imu_stamps.pop();
   }
   recent_imu_stamps.push(mrpt::Clock::toDouble(stamp));
+
+  // Trigger a warning if stamps seems to move backwards in time, since this is never expected:
+  if (const auto nImuStamps = recent_imu_stamps.size(); nImuStamps > 2) {
+    const auto tm1 = recent_imu_stamps.peek(nImuStamps - 1);
+    const auto tm2 = recent_imu_stamps.peek(nImuStamps - 2);
+    if (tm1 < tm2) {
+      logger.logFmt(
+        mrpt::system::LVL_WARN,
+        "IMU timestamps seem to have gone backwards in time (!): t[k-1]=%f, t[k]=%f", tm2, tm1);
+    }
+  }
 }
 
 }  // namespace mola

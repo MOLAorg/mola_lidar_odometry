@@ -699,8 +699,11 @@ private:
     /// Returns the rates (Hz) of incoming LiDAR and IMU sensors for the past few seconds
     std::tuple<double, double> get_lidar_imu_sensor_rates();
 
-    void append_lidar_stamp(const std::string & sensorLabel, const mrpt::Clock::time_point & stamp);
-    void append_imu_stamp(const mrpt::Clock::time_point & stamp);
+    void append_lidar_stamp(
+      const std::string & sensorLabel, const mrpt::Clock::time_point & stamp,
+      const mrpt::system::COutputLogger & logger);
+    void append_imu_stamp(
+      const mrpt::Clock::time_point & stamp, const mrpt::system::COutputLogger & logger);
 
   };  // end of MethodState
 

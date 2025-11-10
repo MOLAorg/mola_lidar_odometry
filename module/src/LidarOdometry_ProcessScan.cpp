@@ -87,7 +87,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)
   profiler_.leave("delay_onNewObs_to_process");
 
   // for rate stats:
-  state_.append_lidar_stamp(obs->sensorLabel, obs->timestamp);
+  state_.append_lidar_stamp(obs->sensorLabel, obs->timestamp, *this);
 
   // Only process pointclouds that are sufficiently apart in time:
 
