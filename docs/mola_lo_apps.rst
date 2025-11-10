@@ -65,7 +65,14 @@ This command will open the mola_viz GUI and build a map from ROS 2 bags:
 
      .. code-block:: bash
 
-        # Usage for a single bag file:
+        # Use LIO (Lidar-Inertial) from a live Ouster:
+        MOLA_DESKEW_METHOD=MotionCompensationMethod::IMU \
+        MOLA_IMU_TOPIC="/ouster/imu" \
+        MOLA_LIDAR_TOPIC="/ouster/points" \
+        MOLA_TF_BASE_LINK="os_sensor" \
+        mola-lo-gui-rosbag2 /path/to/your/dataset.mcap
+
+        # Usage for LO (LiDAR odometry) a single bag file:
         MOLA_LIDAR_TOPIC=/ouster/points \
         mola-lo-gui-rosbag2 /path/to/your/dataset.mcap
 
