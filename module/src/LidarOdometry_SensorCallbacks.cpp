@@ -312,10 +312,13 @@ void LidarOdometry::onGPSImpl(const CObservation::ConstPtr & o)
   MRPT_LOG_DEBUG_FMT("GNSS observation received, t=%.03f", mrpt::Clock::toDouble(gps->timestamp));
 
   // ensure covariance is valid:
-  const auto minCov = gps->covariance_enu->minimumDiagonal();
-  if (minCov < 0 || std::isnan(minCov) || std::isinf(minCov)) {
-    MRPT_LOG_THROTTLE_WARN_STREAM(5.0, "Discarding GPS observation with invalid covariance matrix");
-    return;
+  if (gps->covariance_enu) {
+    const auto minCov = gps->covariance_enu->minimumDiagonal();
+    if (minCov < 0 || std::isnan(minCov) || std::isinf(minCov)) {
+      MRPT_LOG_THROTTLE_WARN_STREAM(
+        5.0, "Discarding GPS observation with invalid covariance matrix");
+      return;
+    }
   }
 
   // Keep the latest GPS observations for simplemap insertion:
