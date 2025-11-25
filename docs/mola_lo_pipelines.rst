@@ -60,6 +60,37 @@ ____________________________________________
 
 |
 
+.. _mola_icp_pipelines_summary:
+Summary of ICP pipelines
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The table below summarizes the optimization algorithm and local-map types used by the ICP pipelines in MOLA-LO.
+When saving a map to a ``*.mm`` file, the corresponding C++ class will match the “Local map type” column.
+Remember that the accompanying ``.simplemap`` file will always contain a keyframe-map representation
+independent of the local map type used for ICP.
+
+To use a prepared ``.mm`` map for localization, ensure it contains a layer named ``localmap`` with the **exact C++ class** listed below.
+
++-----------------------+---------------------------------------------------------+---------------------------------------------+
+| Pipeline config file  | Local map type                                          | ICP algorithm                               |
++=======================+=========================================================+=============================================+
+| ``lidar3d-gicp.yaml`` | Keyframe-based 3D point clouds                          | Generalized ICP (“cov-to-cov”)              |
+|    (Default)          | (:ref:`doxid-classmola_1_1_keyframe_point_cloud_map`)   |                                             |
++-----------------------+---------------------------------------------------------+---------------------------------------------+
+| ``lidar3d-icp.yaml``  | Voxel-based 3D point clouds                             | Standard ICP (point-to-point)               |
+|                       | (:ref:`doxid-classmola_1_1_hashed_voxel_point_cloud`)   |                                             |
++-----------------------+---------------------------------------------------------+---------------------------------------------+
+| ``lidar3d-ndt.yaml``  | Voxel-based 3D NDT map                                  | Standard ICP (point-to-plane, point-to-     |
+|                       | (:ref:`doxid-classmola_1_1_n_d_t`)                      | point)                                      |
++-----------------------+---------------------------------------------------------+---------------------------------------------+
+| ``lidar2d.yaml``      | Voxel-based 2D occupancy map                            | Standard ICP (point-to-occupied-voxel)      |
+|                       | (``mrpt::maps::CVoxelMap``)                             |                                             |
++-----------------------+---------------------------------------------------------+---------------------------------------------+
+
+____________________________________________
+
+|
+
 .. _mola_3d_gicp_pipeline:
 
 1. Generalized ICP (GICP) pipeline for 3D LiDAR (``lidar3d-gicp.yaml``)
