@@ -422,6 +422,9 @@ public:
       /// Maximum time span (in seconds) for the "imu_initial_calibration_sample_count" IMU samples:
       double imu_initial_calibration_max_age = 0.75;
 
+      /// If provided by the IMU, prefer gravity-aligned orientation from the sensor instead of accelerometer data.
+      bool use_imu_orientation = true;
+
       void initialize(const Yaml & c);
     };
 

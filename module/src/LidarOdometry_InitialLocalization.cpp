@@ -89,6 +89,9 @@ void LidarOdometry::handleInitialLocalization()
         state_.imu_initializer->parameters.max_samples_age = il.imu_initial_calibration_max_age;
         state_.imu_initializer->parameters.required_samples =
           il.imu_initial_calibration_sample_count;
+#if defined(MOLA_IMU_PREINT_HAS_USE_IMU_ORIENT_PARAM)  // Remove in a few months from Dec 2025
+        state_.imu_initializer->parameters.use_imu_orientation = il.use_imu_orientation;
+#endif
       }
       // Already collected enough samples?
       if (state_.imu_initializer->isReady()) {
