@@ -1,3 +1,8 @@
+[![CI Build colcon](https://github.com/MOLAorg/mola_lidar_odometry/actions/workflows/build-ros.yml/badge.svg)](https://github.com/MOLAorg/mola_lidar_odometry/actions/workflows/build-ros.yml)
+[![CI clang-format](https://github.com/MOLAorg/mola_lidar_odometry/actions/workflows/check-clang-format.yml/badge.svg)](https://github.com/MOLAorg/mola_lidar_odometry/actions/workflows/check-clang-format.yml)
+[![Docs](https://img.shields.io/badge/docs-latest-brightgreen.svg)]([https://docs.mola-slam.org/latest/](https://docs.mola-slam.org/latest/mola_state_estimators.html))
+[![codecov](https://codecov.io/gh/MOLAorg/mola_lidar_odometry/graph/badge.svg?token=C11VFFK0NW)](https://codecov.io/gh/MOLAorg/mola_lidar_odometry)
+
 # mola_lidar_odometry
 LIDAR odometry component based on the MOLA and MRPT frameworks,
 compatible with ROS 2.
