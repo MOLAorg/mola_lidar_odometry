@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.3.0 (2025-12-15)
+------------------
 * Add CI and documentation badges to README
   Added badges for CI build, clang-format, documentation, and code coverage.
 * Add option 'use_imu_orientation' to disable using IMU orientation for initialization
