@@ -2,6 +2,19 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Add CI and documentation badges to README
+  Added badges for CI build, clang-format, documentation, and code coverage.
+* Add option 'use_imu_orientation' to disable using IMU orientation for initialization
+* docs: add table clarifying localmap types
+* Make it compatible with observations w/o cov
+* Discard GPS readings with invalid cov matrix
+* Add warning if sensor stamps go backwards in time
+* Update usage instructions for mola_lo_apps.rst
+  Added usage instructions for LIO with Ouster in mola_lo_apps.rst.
+* Contributors: Jose Luis Blanco-Claraco
+
 1.2.2 (2025-11-08)
 ------------------
 * Add quick instructions to launch mola-lo-gui on an Ouster dataset
