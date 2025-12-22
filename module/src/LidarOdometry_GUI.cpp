@@ -27,7 +27,6 @@
 
 // MRPT:
 #include <mrpt/gui/CDisplayWindowGUI.h>
-#include <mrpt/maps/CPointsMapXYZI.h>
 #include <mrpt/opengl/CAssimpModel.h>
 #include <mrpt/opengl/CGridPlaneXY.h>
 #include <mrpt/opengl/COpenGLScene.h>
@@ -36,6 +35,12 @@
 #include <mrpt/opengl/stock_objects.h>
 #include <mrpt/system/filesystem.h>
 #include <mrpt/version.h>
+
+#if MRPT_VERSION >= 0x020f03  // 2.15.3
+#include <mrpt/maps/CGenericPointsMap.h>
+#else
+#include <mrpt/maps/CPointsMapXYZI.h>
+#endif
 
 namespace mola
 {
@@ -334,8 +339,13 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     if (!org_cloud) {
       return;
     }
-    const auto * Is =
-      org_cloud->getPointsBufferRef_float_field(mrpt::maps::CPointsMapXYZI::POINT_FIELD_INTENSITY);
+#if MRPT_VERSION >= 0x020f03  // 2.15.3
+    constexpr auto INTENSITY_CHANNEL_NAME = mrpt::maps::CPointsMap::POINT_FIELD_INTENSITY;
+#else
+    constexpr auto INTENSITY_CHANNEL_NAME = mrpt::maps::CPointsMapXYZI::POINT_FIELD_INTENSITY;
+#endif
+
+    const auto * Is = org_cloud->getPointsBufferRef_float_field(INTENSITY_CHANNEL_NAME);
 #else
     if (!org_cloud || !org_cloud->hasField_Intensity()) {
       return;
@@ -390,9 +400,13 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
     const auto org_cloud = mm.point_layer(mm.layers.begin()->first);
 
-    // Publish a transformed cloud to avoid perfect positioning in RViz / FoxGlove due to latency between /tf and scans:
+    // Publish a transformed cloud to avoid imperfect positioning in RViz / FoxGlove due to latency between /tf and scans:
     if (params_.publish_deskewed_scans) {
+#if MRPT_VERSION >= 0x020f03  // 2.15.3
+      auto tfCloud = mrpt::maps::CGenericPointsMap::Create();
+#else
       auto tfCloud = mrpt::maps::CPointsMapXYZI::Create();
+#endif
       tfCloud->insertAnotherMap(org_cloud.get(), state_.last_lidar_pose.mean);
       state_.last_deskewed_scan_for_publishing = tfCloud;
     }
@@ -401,10 +415,7 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
     auto & cm = rp.points.allLayers.colorMode.emplace();
     cm.keep_original_cloud_color = true;
-
-#if MP2P_ICP_VERSION >= 0x010801  // 1.8.1
     rp.points.allLayers.force_alpha_channel = true;
-#endif
 
     // cm.colorMap = mrpt::img::cmJET;
     // cm.recolorizeByCoordinate     = mp2p_icp::Coordinate::Z;

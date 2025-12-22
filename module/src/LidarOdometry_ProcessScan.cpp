@@ -26,7 +26,7 @@
 #include <mp2p_icp_filters/FilterDeskew.h>
 
 // MRPT:
-#include <mrpt/maps/CPointsMapXYZI.h>
+#include <mrpt/maps/CGenericPointsMap.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservationComment.h>
 #include <mrpt/obs/CObservationGPS.h>
@@ -776,7 +776,7 @@ void LidarOdometry::doUpdateSimpleMap(
 
       auto od = mrpt::obs::CObservationPointCloud::Create();
       od->timestamp = this_obs_tim;
-      auto spc = mrpt::maps::CPointsMapXYZI::Create();
+      auto spc = mrpt::maps::CGenericPointsMap::Create();
       spc->insertAnotherMap(deskewed_cloud.get(), {});
       od->pointcloud = spc;
       od->sensorLabel = "deskewed";
@@ -832,9 +832,7 @@ void LidarOdometry::doUpdateSimpleMap(
   }
 
   // Store local velocity buffer in the KF metadata so it is possible to deskew the scan later on with precision
-#if MP2P_ICP_VERSION >= 0x010801  // 1.8.1
   kf_metadata["local_velocity_buffer"] = state_.parameter_source.localVelocityBuffer.toYAML();
-#endif
 
   // convert yaml to string:
   std::stringstream ss;

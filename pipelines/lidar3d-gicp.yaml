@@ -365,7 +365,7 @@ observations_filter_2nd_pass:
       output_pointcloud_layer: "decimated_for_map"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
-      output_layer_class: "mrpt::maps::CPointsMapXYZI" # Keep intensity, ring, time channels
+      output_layer_class: "mrpt::maps::CGenericPointsMap" # Keep intensity, ring, time channels
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
@@ -378,7 +378,7 @@ observations_filter_2nd_pass:
       output_pointcloud_layer: "decimated_for_icp"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
-      #output_layer_class: 'mrpt::maps::CPointsMapXYZI'  # Keep intensity, ring, time channels
+      output_layer_class: "mrpt::maps::CGenericPointsMap" # Keep intensity, ring, time channels
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
@@ -433,7 +433,7 @@ observations_filter_deskew_for_visualization:
       output_pointcloud_layer: "viz"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
-      output_layer_class: "mrpt::maps::CPointsMapXYZI" # Keep intensity only
+      output_layer_class: "mrpt::maps::CGenericPointsMap" # Keep intensity only
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
