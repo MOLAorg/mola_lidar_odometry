@@ -105,10 +105,12 @@ params:
     show_last_deskewed_observations_decay: true # shows "live deskewed" LiDAR points over time
     last_deskewed_observations_point_size: ${MOLA_GUI_LAST_CLOUDS_POINT_SIZE|1.0}
     last_deskewed_observations_colormap: ${MOLA_GUI_LAST_CLOUDS_COLORMAP|cmJET} # mrpt::img::TColormap
+    last_deskewed_observations_color_by_field: ${MOLA_GUI_LAST_CLOUDS_COLOR_FIELD|intensity}
     observations_initial_alpha: 0.10
     observations_decay_seconds: ${MOLA_GUI_CLOUDS_DECAY_SECS|10.0} # For deskewed clouds above
     current_observation_point_size: ${MOLA_GUI_CURRENT_CLOUD_POINT_SIZE|2.0}
     current_observation_colormap: ${MOLA_GUI_CURRENT_CLOUD_COLORMAP|cmHOT} # mrpt::img::TColormap
+    current_observation_color_by_field: ${MOLA_GUI_CURRENT_CLOUD_COLOR_FIELD|intensity}
     current_observation_alpha: 0.20
 
     background_color_gray_level: "${MOLA_GUI_BACKGROUND_GRAY_LEVEL|0.3}"
@@ -360,7 +362,7 @@ observations_filter_2nd_pass:
       output_pointcloud_layer: "decimated_for_map"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
-      #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
+      output_layer_class: "mrpt::maps::CPointsMapXYZIRT" # Keep intensity, ring, time channels
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
@@ -372,7 +374,7 @@ observations_filter_2nd_pass:
       output_pointcloud_layer: "decimated_for_icp"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
-      #output_layer_class: 'mrpt::maps::CPointsMapXYZIRT'  # Keep intensity, ring, time channels
+      output_layer_class: "mrpt::maps::CPointsMapXYZIRT" # Keep intensity, ring, time channels
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
@@ -420,7 +422,7 @@ observations_filter_deskew_for_visualization:
       output_pointcloud_layer: "viz"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
-      output_layer_class: "mrpt::maps::CPointsMapXYZI" # Keep intensity only
+      output_layer_class: "mrpt::maps::CGenericPointsMap" # Keep intensity only
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.

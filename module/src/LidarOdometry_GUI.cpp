@@ -27,7 +27,7 @@
 
 // MRPT:
 #include <mrpt/gui/CDisplayWindowGUI.h>
-#include <mrpt/maps/CPointsMapXYZI.h>
+#include <mrpt/obs/customizable_obs_viz.h>
 #include <mrpt/opengl/CAssimpModel.h>
 #include <mrpt/opengl/CGridPlaneXY.h>
 #include <mrpt/opengl/COpenGLScene.h>
@@ -36,6 +36,12 @@
 #include <mrpt/opengl/stock_objects.h>
 #include <mrpt/system/filesystem.h>
 #include <mrpt/version.h>
+
+#if MRPT_VERSION >= 0x020f03  // 2.15.3
+#include <mrpt/maps/CGenericPointsMap.h>
+#else
+#include <mrpt/maps/CPointsMapXYZI.h>
+#endif
 
 namespace mola
 {
@@ -321,53 +327,20 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
       [=]() { visualizer_->update_3d_object("liodom/cur_obs", glCurrentObservation); });
   };
 
-  auto doColorizeByIntensity = [&](
-                                 const mrpt::img::TColormap & colormap,
-                                 const mrpt::maps::CPointsMap * org_cloud,
-                                 mrpt::opengl::CPointCloudColoured & cloud) {
+  auto doRecolorize = [&](
+                        const mrpt::img::TColormap & colormap, const std::string & colorByField,
+                        const mrpt::maps::CPointsMap * org_cloud,
+                        const mrpt::opengl::CPointCloudColoured::Ptr & cloud) {
     if (colormap == mrpt::img::TColormap::cmNONE) {
       return;
     }
 
-    // Colorize by intensity with custom color map?
-#if MRPT_VERSION >= 0x020f00  // 2.15.0
-    if (!org_cloud) {
-      return;
-    }
-    const auto * Is =
-      org_cloud->getPointsBufferRef_float_field(mrpt::maps::CPointsMapXYZI::POINT_FIELD_INTENSITY);
-#else
-    if (!org_cloud || !org_cloud->hasField_Intensity()) {
-      return;
-    }
+    // Colorize by intensity with custom color map:
+    mrpt::obs::PointCloudRecoloringParameters rp;
+    rp.colorMap = colormap;
+    rp.colorizeByField = colorByField;
 
-    const auto * Is = org_cloud->getPointsBufferRef_intensity();
-#endif
-    ASSERT_(Is);
-
-    // Thread-local cache for max intensity
-    thread_local float max_intensity_cache = 1.0f;
-
-    // Find max intensity in current cloud
-    float current_max = 0.0f;
-    for (const auto & I : *Is) {
-      if (I > current_max) {
-        current_max = I;
-      }
-    }
-
-    // Smooth update of max intensity
-    max_intensity_cache = 0.9f * max_intensity_cache + 0.1f * current_max;
-    const float scale = (max_intensity_cache > 0.0f) ? (1.0f / max_intensity_cache) : 1.0f;
-
-    for (size_t i = 0; i < Is->size(); i++) {
-      const float I_norm = (*Is)[i] * scale;  // normalize to [0,1] using smoothed max
-      float r = 0, g = 0, b = 0;
-      mrpt::img::colormap(colormap, I_norm, r, g, b);
-      cloud.setPointColor_fast(i, r, g, b);
-    }
-
-    cloud.markAllPointsAsNew();
+    mrpt::obs::recolorize3Dpc(cloud, org_cloud, rp);
   };
 
   // Update current observation
@@ -382,6 +355,7 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     // or, if we have a deskewing pipeline, the accurately-deskewed points:
     mp2p_icp::metric_map_t mm;
     mm.layers["raw"] = currentObservation.layers.at("raw");
+
     if (!state_.obsDeskewForViz.empty()) {
       const ProfilerEntry tle2(profiler_, "updateVisualization.deskew_for_viz");
       // This will remove the "raw" layer and replace it with a "deskewed" one:
@@ -390,9 +364,13 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
     const auto org_cloud = mm.point_layer(mm.layers.begin()->first);
 
-    // Publish a transformed cloud to avoid perfect positioning in RViz / FoxGlove due to latency between /tf and scans:
+    // Publish a transformed cloud to avoid imperfect positioning in RViz / FoxGlove due to latency between /tf and scans:
     if (params_.publish_deskewed_scans) {
+#if MRPT_VERSION >= 0x020f03  // 2.15.3
+      auto tfCloud = mrpt::maps::CGenericPointsMap::Create();
+#else
       auto tfCloud = mrpt::maps::CPointsMapXYZI::Create();
+#endif
       tfCloud->insertAnotherMap(org_cloud.get(), state_.last_lidar_pose.mean);
       state_.last_deskewed_scan_for_publishing = tfCloud;
     }
@@ -400,14 +378,11 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
     mp2p_icp::render_params_t rp;
 
     auto & cm = rp.points.allLayers.colorMode.emplace();
-    cm.keep_original_cloud_color = true;
-
-#if MP2P_ICP_VERSION >= 0x010801  // 1.8.1
+    //cm.keep_original_cloud_color = true;
     rp.points.allLayers.force_alpha_channel = true;
-#endif
 
-    // cm.colorMap = mrpt::img::cmJET;
-    // cm.recolorizeByCoordinate     = mp2p_icp::Coordinate::Z;
+    cm.colorMap = params_.visualization.current_observation_colormap;
+    cm.recolorizeByField = params_.visualization.current_observation_color_by_field;
 
     // Current cloud only:
     if (params_.visualization.show_current_observation) {
@@ -422,8 +397,9 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
       if (auto cloud = glCurrentObservation->getByClass<mrpt::opengl::CPointCloudColoured>(0);
           cloud) {
-        doColorizeByIntensity(
-          params_.visualization.current_observation_colormap, org_cloud.get(), *cloud);
+        doRecolorize(
+          params_.visualization.current_observation_colormap,
+          params_.visualization.current_observation_color_by_field, org_cloud.get(), cloud);
       }
 
       // and enqueue for updating in the opengl thread:
@@ -446,8 +422,9 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
         // move to current pose
         cloud->setPose(state_.last_lidar_pose.mean);
 
-        doColorizeByIntensity(
-          params_.visualization.last_deskewed_observations_colormap, org_cloud.get(), *cloud);
+        doRecolorize(
+          params_.visualization.last_deskewed_observations_colormap,
+          params_.visualization.last_deskewed_observations_color_by_field, org_cloud.get(), cloud);
 
         // and enqueue for updating in the opengl thread:
 #if MOLA_VERSION_CHECK(2, 0, 0)
