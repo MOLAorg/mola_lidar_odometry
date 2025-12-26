@@ -268,8 +268,12 @@ public:
       float current_pose_corner_size = 1.5f;  //! [m]
       float current_observation_point_size = 3.0f;
       mrpt::img::TColormap current_observation_colormap = mrpt::img::TColormap::cmJET;
+      /// Can be any pointcloud field name. Will change to "z" for simple XYZ clouds.
+      std::string current_observation_color_by_field = "intensity";
       float last_deskewed_observations_point_size = 1.0f;
       mrpt::img::TColormap last_deskewed_observations_colormap = mrpt::img::TColormap::cmJET;
+      /// Can be any pointcloud field name. Will change to "z" for simple XYZ clouds.
+      std::string last_deskewed_observations_color_by_field = "intensity";
       bool local_map_render_voxelmap_free_space = false;
       bool gui_subwindow_starts_hidden = false;
       bool show_console_messages = true;

@@ -68,7 +68,9 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(local_map_render_voxelmap_free_space, bool);
 
   MCP_LOAD_OPT(cfg, current_observation_colormap);
+  MCP_LOAD_OPT(cfg, current_observation_color_by_field);
   MCP_LOAD_OPT(cfg, last_deskewed_observations_colormap);
+  MCP_LOAD_OPT(cfg, last_deskewed_observations_color_by_field);
 
   if (cfg.has("model")) {
     ASSERT_(cfg["model"].isSequence());
