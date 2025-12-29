@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.3.1 (2025-12-29)
+------------------
 * Merge pull request #36 from MOLAorg/feat/use-generic-map-fields
   Use CGenericPointsMap to propagate all sensor per-point fields thru mapping pipelines
 * Support to visualize clouds in MOLA Viz recolorized by any cloud point field
