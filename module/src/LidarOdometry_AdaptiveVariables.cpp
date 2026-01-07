@@ -169,7 +169,7 @@ void LidarOdometry::doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastM
     state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;
   }
 
-  state_.adapt_thres_sigma = ALPHA * state_.adapt_thres_sigma + (1.0 - ALPHA) * new_sigma;
+  state_.adapt_thres_sigma = (ALPHA * state_.adapt_thres_sigma) + ((1.0 - ALPHA) * new_sigma);
 
   mrpt::saturate(
     state_.adapt_thres_sigma, params_.adaptive_threshold.min_motion,
@@ -242,7 +242,7 @@ void LidarOdometry::doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t
     state_.instantaneous_sensor_max_range = radius;
 
     // low-pass filter update:
-    maxRange = maxRange.value() * ALPHA + radius * (1.0 - ALPHA);
+    maxRange = (maxRange.value() * ALPHA) + (radius * (1.0 - ALPHA));
 
     MRPT_LOG_DEBUG_STREAM(
       "Estimated sensor max range=" << *state_.estimated_sensor_max_range
