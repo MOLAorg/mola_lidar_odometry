@@ -470,6 +470,30 @@ public:
   /** Algorithm parameters */
   Parameters params_;
 
+  /**
+   * Report whether the odometry pipeline is currently busy processing tasks.
+   *
+   * @returns `true` if there are active worker tasks handling observations, `false` otherwise.
+   */
+  /**
+   * Query whether the frontend will process incoming sensors.
+   *
+   * @returns `true` if the frontend is active and will process incoming sensor data, `false` otherwise.
+   */
+  /**
+   * Enable or disable processing of incoming sensor data by the frontend.
+   *
+   * @param active If `true`, the frontend will process incoming sensors; if `false`, incoming sensors will be ignored.
+   */
+  /**
+   * Save the current estimated trajectory to the configured trajectory output file.
+   */
+  /**
+   * Save the reconstructed simplemap to the configured simplemap output file.
+   */
+  /**
+   * Save the current local metric map to the configured local-map output file.
+   */
   bool isBusy() const;
 
   bool isActive() const;

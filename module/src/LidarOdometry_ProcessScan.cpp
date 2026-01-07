@@ -64,7 +64,25 @@ bool LidarOdometry::isPipelineUsingIMU() const
   return *state_.isPipelinesUsingIMU;
 }
 
-// here happens the main stuff:
+/**
+ * @brief Process an incoming LIDAR observation and update odometry, maps, and outputs.
+ *
+ * Processes a single LIDAR observation: synchronizes multi-lidar inputs, applies
+ * generator and filter pipelines (including optional pre-filter), runs ICP to
+ * estimate relative pose, updates the internal trajectory and motion model,
+ * decides and performs local-map and simple-map keyframe insertion, adapts
+ * ICP thresholds, and publishes updated localization, local-map, deskewed
+ * scans, debug traces, and visualization overlays as applicable.
+ *
+ * The method may drop an observation (e.g., if it is too close in time to the
+ * previous one or deemed invalid) and may restart or initialize mapping state
+ * on first frames. It updates internal state members protected by mutexes and
+ * records profiling information and logging messages.
+ *
+ * @param obs Incoming observation to process (must be non-null). The function
+ *            reads the observation's timestamp and sensor label and may call
+ *            obs->load() to ensure data availability.
+ */
 void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)
 {
   using namespace std::string_literals;

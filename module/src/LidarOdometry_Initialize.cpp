@@ -42,7 +42,27 @@ void load_icp_set_of_params(
   out.icp = icp;
   out.icp_parameters = params;
 }
-}  // namespace
+}  /**
+ * @brief Initialize the LidarOdometry frontend from a YAML configuration.
+ *
+ * Loads runtime parameters, filter/generator pipelines, ICP configurations,
+ * optional preloaded maps, and attaches required services and profilers.
+ * After successful initialization the module's internal state is marked
+ * initialized and the active flag is set according to the configuration.
+ *
+ * @param c YAML node holding the full initialization configuration. Expected
+ *          keys include (but are not limited to) "params" (containing
+ *          "lidar_sensor_labels", "local_map_updates", ICP settings, and
+ *          runtime options), pipeline definitions such as
+ *          "insert_observation_into_local_map", observation filter/generator
+ *          entries (e.g. "observations_generator", "observations_filter_*"),
+ *          and optional entries like "observations_prefilter_file" and
+ *          "localmap_generator".
+ *
+ * @throws std::runtime_error If required YAML entries are missing, a legacy
+ *         configuration layout is detected (e.g. "navstate_fuse_params"),
+ *         or asserted configuration/file checks fail.
+ */
 
 void LidarOdometry::initialize_frontend(const Yaml & c)
 {
