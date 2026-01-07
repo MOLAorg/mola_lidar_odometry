@@ -27,6 +27,7 @@
 
 // MP2P_ICP:
 #include <mp2p_icp/icp_pipeline_from_yaml.h>
+#include <mrpt/system/filesystem.h>
 
 namespace mola
 {
@@ -248,6 +249,22 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       MRPT_LOG_WARN(
         "No YAML entry 'observations_filter_adjust_timestamps', this "
         "filter stage will have no effect.");
+    }
+
+    if (c.has("observations_prefilter_file")) {
+      if (const auto prefilterFile = c["observations_prefilter_file"].as<std::string>();
+          !prefilterFile.empty()) {
+        ASSERT_FILE_EXISTS_(prefilterFile);
+
+        const auto prefilterYaml = mrpt::containers::yaml::FromFile(prefilterFile);
+
+        // Create, and copy my own verbosity level:
+        state_.pc_prefilter =
+          mp2p_icp_filters::filter_pipeline_from_yaml(prefilterYaml, this->getMinLoggingLevel());
+
+        // Attach to the parameter source for dynamic parameters:
+        mp2p_icp::AttachToParameterSource(state_.pc_prefilter, state_.parameter_source);
+      }
     }
 
     if (c.has("observations_filter_1st_pass")) {

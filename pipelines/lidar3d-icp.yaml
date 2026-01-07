@@ -295,6 +295,9 @@ observations_filter_adjust_timestamps:
       time_offset: "SENSOR_TIME_OFFSET"
       method: "${MOLA_SCAN_POINT_STAMPS_ADJUST_METHOD|TimestampAdjustMethod::MiddleIsZero}"
 
+# Path to an (optional) user-customizable pipeline definition file. Default: empty = none.
+observations_prefilter_file: ${MOLA_LO_OBS_PREFILTER_PIPELINE_FILE|""}
+
 observations_filter_1st_pass:
   # Filters:
   #
