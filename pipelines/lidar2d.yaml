@@ -9,7 +9,7 @@
 # =====================================================================================
 
 params:
-  pipeline_name: 'point-to-gridmap 2D ICP' # For display/debug only
+  pipeline_name: "point-to-gridmap 2D ICP" # For display/debug only
 
   # These sensor labels will be handled as LIDAR observations:
   # Can be overridden with cli flag --lidar-sensor-label
@@ -205,6 +205,9 @@ observations_generator:
       throw_on_unhandled_observation_class: true
       process_class_names_regex: ".*"
       process_sensor_labels_regex: ".*"
+
+# Path to an (optional) user-customizable pipeline definition file. Default: empty = none.
+observations_prefilter_file: ${MOLA_LO_OBS_PREFILTER_PIPELINE_FILE|""}
 
 observations_filter_1st_pass:
   # Filters:

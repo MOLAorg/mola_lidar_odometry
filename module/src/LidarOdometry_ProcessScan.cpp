@@ -143,18 +143,22 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)
     observationRawForViz.layers["raw"] = observation->layers.at("raw");
   }
 
-  // Filter/segment the point cloud (optional, but normally will be
-  // present):
-  ProfilerEntry tle1(profiler_, "onLidar.1.filter_1st");
+  // Filter/segment the point cloud (optional, but normally will be present):
 
-  mp2p_icp_filters::apply_filter_pipeline(state_.pc_filter1, *observation, profiler_);
-  tle1.stop();
+  if (!state_.pc_prefilter.empty()) {  // optional pre-filter stage
+    ProfilerEntry tle1(profiler_, "onLidar.1.filter_pre");
+    mp2p_icp_filters::apply_filter_pipeline(state_.pc_prefilter, *observation, profiler_);
+  }
 
-  ProfilerEntry tle1b(profiler_, "onLidar.1.filter_2nd");
+  {
+    ProfilerEntry tle1(profiler_, "onLidar.1.filter_1st");
+    mp2p_icp_filters::apply_filter_pipeline(state_.pc_filter1, *observation, profiler_);
+  }
 
-  mp2p_icp_filters::apply_filter_pipeline(state_.pc_filter2, *observation, profiler_);
-
-  tle1b.stop();
+  {
+    ProfilerEntry tle1(profiler_, "onLidar.1.filter_2nd");
+    mp2p_icp_filters::apply_filter_pipeline(state_.pc_filter2, *observation, profiler_);
+  }
 
   // Update sensor max range from the obs map layers:
   doUpdateEstimatedMaxSensorRange(*observation);
