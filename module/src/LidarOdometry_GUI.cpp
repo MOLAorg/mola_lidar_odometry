@@ -340,14 +340,12 @@ void LidarOdometry::updateVisualization(const mp2p_icp::metric_map_t & currentOb
 
   if (params_.visualization.camera_rotates_with_vehicle) {
     updateTasks.emplace_back([this]() {
-      thread_local std::optional<double> last_yaw;
-
       const double yaw = state_.last_lidar_pose.mean.yaw();
       double yawIncr = 0;
-      if (last_yaw) {
-        yawIncr = mrpt::math::wrapToPi(yaw - *last_yaw);
+      if (state_.last_yaw_for_viz_camera) {
+        yawIncr = mrpt::math::wrapToPi(yaw - *state_.last_yaw_for_viz_camera);
       }
-      last_yaw = yaw;
+      state_.last_yaw_for_viz_camera = yaw;
 
       visualizer_->update_viewport_camera_azimuth(yawIncr, false /*incremental*/);
     });

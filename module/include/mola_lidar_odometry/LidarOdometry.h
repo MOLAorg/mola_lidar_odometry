@@ -668,6 +668,8 @@ private:
     bool local_map_needs_publish = true;
     bool local_map_georef_needs_publish = true;
 
+    std::optional<double> last_yaw_for_viz_camera;
+
     void mark_local_map_as_updated(bool force_republish = false)
     {
       local_map_needs_viz_update = true;
