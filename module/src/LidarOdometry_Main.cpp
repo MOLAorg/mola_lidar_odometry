@@ -341,7 +341,16 @@ void LidarOdometry::handleUnloadSinglePastObservation(mrpt::obs::CObservation::P
   oPts->setAsExternalStorage(
     filename, CObservationPointCloud::ExternalStorageFormat::MRPT_Serialization);
 
-  oPts->unload();  // this actually saves the data to disk
+  // Since unload() does the actual saving to disk and it might take some time, let's run it in its own detached thread:
+  std::thread([oPts]() {
+    try {
+      oPts->unload();
+    } catch (const std::exception & e) {
+      std::cerr
+        << "[LidarOdometry] handleUnloadSinglePastObservation(): Error saving observation to disk: "
+        << e.what() << "\n";
+    }
+  }).detach();
 }
 
 void LidarOdometry::enqueue_request(const std::function<void()> & userRequest)
