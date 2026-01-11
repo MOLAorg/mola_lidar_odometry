@@ -292,6 +292,9 @@ public:
       std::vector<ModelPart> model;
 
       void initialize(const Yaml & c);
+
+    private:
+      void initializeModelPart(const Yaml & c);
     };
     Visualization visualization;
 
@@ -473,7 +476,7 @@ public:
   bool isBusy() const;
 
   bool isActive() const;
-  void setActive(const bool active);
+  void setActive(bool active);
 
   /** Returns a copy of the estimated trajectory, with timestamps for each
      * lidar observation.
@@ -800,6 +803,14 @@ private:
 
   void updateVisualization(const mp2p_icp::metric_map_t & currentObservation);
 
+  void updateVisualizationInitVehFrame();
+  void updateVisualizationCurrentObservation(
+    const mp2p_icp::metric_map_t & currentObservation,
+    std::vector<std::function<void()>> & updateTasks);
+  void updateVisualizationLocalMap(std::vector<std::function<void()>> & updateTasks);
+  void updateVisualizationPath(std::vector<std::function<void()>> & updateTasks);
+  void updateVisualizationTextLabels();
+
   void internalBuildGUI();
 
   void doRemoveCloudsWithDecay();
@@ -813,7 +824,7 @@ private:
   void doWriteDebugTracesFile(const mrpt::Clock::time_point & this_obs_tim);
   std::optional<std::ofstream> debug_traces_of_;
 
-  void unloadPastSimplemapObservations(const size_t maxSizeUnloadQueue) const;
+  void unloadPastSimplemapObservations(size_t maxSizeUnloadQueue) const;
 
   void handleUnloadSinglePastObservation(CObservation::Ptr & o) const;
 
@@ -828,14 +839,15 @@ private:
   void onInitializePersistentState();
 
   void doUpdateSimpleMap(
-    const mrpt::obs::CSensoryFrame & sf, const bool distance_enough_sm,
+    const mrpt::obs::CSensoryFrame & sf, bool distance_enough_sm,
     const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & this_obs_tim);
 };
 
 namespace detail
 {
 template <typename T, std::size_t... Is>
-constexpr std::array<T, sizeof...(Is)> create_array(T value, std::index_sequence<Is...>)
+constexpr std::array<T, sizeof...(Is)> create_array(
+  T value, [[maybe_unused]] std::index_sequence<Is...> seq)
 {
   // cast Is to void to remove the warning: unused value
   return {{(static_cast<void>(Is), value)...}};

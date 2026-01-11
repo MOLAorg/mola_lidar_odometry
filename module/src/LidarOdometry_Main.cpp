@@ -112,7 +112,7 @@ void LidarOdometry::spinOnce()
 {
   MRPT_TRY_START
 
-  const ProfilerEntry tleg(profiler_, "spinOnce");
+  const ProfilerEntry tle(profiler_, "spinOnce");
 
   processPendingUserRequests();
 
@@ -157,11 +157,11 @@ void LidarOdometry::reset()
 
 bool LidarOdometry::isBusy() const
 {
-  bool b;
+  bool b = false;
   is_busy_mtx_.lock();
   b = (state_.worker_tasks_lidar != 0) || (state_.worker_tasks_others != 0);
   is_busy_mtx_.unlock();
-  return b || worker_lidar_.pendingTasks() || worker_others_.pendingTasks();
+  return b || worker_lidar_.pendingTasks() != 0 || worker_others_.pendingTasks() != 0;
 }
 
 bool LidarOdometry::isActive() const
@@ -366,13 +366,15 @@ void LidarOdometry::processPendingUserRequests()
 }
 
 #if defined(MOLA_LO_HAS_ONLINE_VERSION_CHECK)
+namespace
+{
 std::string http_get(const std::string & host, const std::string & path = "/")
 {
   const int port = 80;
 
   // Resolve hostname
-  hostent * server = gethostbyname(host.c_str());
-  if (!server) {
+  hostent * server = gethostbyname(host.c_str());  // NOLINT
+  if (server == nullptr) {
     throw std::runtime_error("Error: no such host");
   }
 
@@ -389,7 +391,7 @@ std::string http_get(const std::string & host, const std::string & path = "/")
   std::memcpy(&serv_addr.sin_addr.s_addr, server->h_addr, server->h_length);
 
   // Connect
-  if (connect(sock, (sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+  if (connect(sock, reinterpret_cast<sockaddr *>(&serv_addr), sizeof(serv_addr)) < 0) {  // NOLINT
     close(sock);
     throw std::runtime_error("Error: connecting");
   }
@@ -405,11 +407,11 @@ std::string http_get(const std::string & host, const std::string & path = "/")
 
   // Read response
   std::string response;
-  char buffer[1024];
-  ssize_t bytes;
-  while ((bytes = recv(sock, buffer, sizeof(buffer) - 1, 0)) > 0) {
+  std::array<char, 1024> buffer = {};
+  ssize_t bytes = 0;
+  while ((bytes = recv(sock, buffer.data(), buffer.size() - 1, 0)) > 0) {
     buffer[bytes] = '\0';
-    response += buffer;
+    response += std::string(buffer.data());
   }
 
   close(sock);
@@ -464,9 +466,11 @@ bool parse_http_response(const std::string & response, std::string & body_out)
 
 bool version_greater(const std::string & a, const std::string & b)  // NOLINT
 {
-  std::istringstream sa(a), sb(b);
-  int va, vb;
-  char dot;
+  std::istringstream sa(a);
+  std::istringstream sb(b);
+  int va = 0;
+  int vb = 0;
+  char dot = 0;
 
   while (true) {
     if (!(sa >> va)) {
@@ -523,7 +527,7 @@ void check_new_version(mrpt::config::CConfigFile & cfg, mrpt::system::COutputLog
 
   cfg.write("config", "last_version_check", mrpt::format("%f", now));
 }
-
+}  // namespace
 #endif
 
 void LidarOdometry::onInitializePersistentState()

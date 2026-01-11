@@ -59,7 +59,9 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
     }
 
     mmLoadOk = state_.local_map->load_from_file(mmFile);
-  } catch (const std::exception &) {
+  } catch (const std::exception & e) {
+    // It's ok if we cannot load the map:
+    (void)e;
   }
 
   bool smLoadOk = false;
@@ -70,7 +72,9 @@ MapServer::ReturnStatus LidarOdometry::map_load(const std::string & path)
     }
 
     smLoadOk = state_.reconstructed_simplemap.loadFromFile(smFile);
-  } catch (const std::exception &) {
+  } catch (const std::exception & e) {
+    // It's ok if we cannot load the map:
+    (void)e;
   }
 
   ret.success = mmLoadOk;  // smLoadOk: not mandatory

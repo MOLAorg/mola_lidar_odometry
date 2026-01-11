@@ -62,13 +62,6 @@ void LidarOdometry::handleInitialLocalization()
       lambdaInitFromPose(initPose);
       doRemoveCloudsWithDecay();
 
-#if 0
-      // And now, fake a twist estimation with a large covariance to make sure the filter does not become overconfident on it starting with zero velocity:
-      auto twistCov = mrpt::math::CMatrixDouble66::Identity();
-      twistCov *= 1e3;
-      state_.navstate_fuse->fuse_twist(t2, mrpt::math::TTwist3D(), twistCov);
-#endif
-
       MRPT_LOG_INFO_STREAM("Initial re-localization done with pose: " << initPose.mean);
 
       state_.initial_localization_done = true;
