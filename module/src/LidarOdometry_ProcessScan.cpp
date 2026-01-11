@@ -65,7 +65,7 @@ bool LidarOdometry::isPipelineUsingIMU() const
 }
 
 // here happens the main stuff:
-void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)
+void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOLINT
 {
   using namespace std::string_literals;
 
@@ -102,7 +102,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)
     handleInitialLocalization();
   }
 
-  if (state_.last_obs_tim_by_label.count(obs->sensorLabel)) {
+  if (state_.last_obs_tim_by_label.count(obs->sensorLabel) != 0) {
     const double lidar_delta_time =
       mrpt::system::timeDifference(state_.last_obs_tim_by_label[obs->sensorLabel], this_obs_tim);
 
@@ -139,7 +139,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)
 
   // Keep a copy of "raw" for visualization in the GUI:
   mp2p_icp::metric_map_t observationRawForViz;
-  if (observation->layers.count("raw")) {
+  if (observation->layers.count("raw") != 0) {
     observationRawForViz.layers["raw"] = observation->layers.at("raw");
   }
 

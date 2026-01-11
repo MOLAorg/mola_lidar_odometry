@@ -44,7 +44,8 @@
         "liodom",
         "recolorize",
         "relocalize",
-        "thres"
+        "thres",
+        "voxelmaps"
     ],
     "cSpell.ignoreWords": [
         "Boxf"

@@ -72,49 +72,56 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   MCP_LOAD_OPT(cfg, last_deskewed_observations_colormap);
   MCP_LOAD_OPT(cfg, last_deskewed_observations_color_by_field);
 
-  if (cfg.has("model")) {
-    ASSERT_(cfg["model"].isSequence());
-    const auto models = cfg["model"].asSequenceRange();
-    for (const auto & e : models) {
-      ASSERT_(e.isMap());
-      auto c = e.asMap();
-      auto & m = model.emplace_back();
-      ASSERT_(c.count("file") != 0);
-      m.file = c["file"].as<std::string>();
-
-      if (m.file.empty()) {
-        model.erase(--model.end());
-        continue;
-      }
-
-      if (c.count("tf.x")) {
-        m.tf.x = c["tf.x"].as<float>();
-      }
-      if (c.count("tf.y")) {
-        m.tf.y = c["tf.y"].as<float>();
-      }
-      if (c.count("tf.z")) {
-        m.tf.z = c["tf.z"].as<float>();
-      }
-      if (c.count("tf.yaw")) {
-        m.tf.yaw = mrpt::DEG2RAD(c["tf.yaw"].as<float>());
-      }
-      if (c.count("tf.pitch")) {
-        m.tf.pitch = mrpt::DEG2RAD(c["tf.pitch"].as<float>());
-      }
-      if (c.count("tf.roll")) {
-        m.tf.roll = mrpt::DEG2RAD(c["tf.roll"].as<float>());
-      }
-      if (c.count("scale")) {
-        m.scale = c["scale"].as<float>();
-      }
-    }
-  }
-
   YAML_LOAD_OPT(gui_subwindow_starts_hidden, bool);
   YAML_LOAD_OPT(camera_follows_vehicle, bool);
   YAML_LOAD_OPT(camera_rotates_with_vehicle, bool);
   YAML_LOAD_OPT(camera_orthographic, bool);
+
+  initializeModelPart(cfg);
+}
+
+void LidarOdometry::Parameters::Visualization::initializeModelPart(const Yaml & cfg)
+{
+  if (!cfg.has("model")) {
+    return;
+  }
+
+  ASSERT_(cfg["model"].isSequence());
+  const auto models = cfg["model"].asSequenceRange();
+  for (const auto & e : models) {
+    ASSERT_(e.isMap());
+    auto c = e.asMap();
+    auto & m = model.emplace_back();
+    ASSERT_(c.count("file") != 0);
+    m.file = c["file"].as<std::string>();
+
+    if (m.file.empty()) {
+      model.erase(--model.end());
+      continue;
+    }
+
+    if (c.count("tf.x") != 0) {
+      m.tf.x = c["tf.x"].as<float>();
+    }
+    if (c.count("tf.y") != 0) {
+      m.tf.y = c["tf.y"].as<float>();
+    }
+    if (c.count("tf.z") != 0) {
+      m.tf.z = c["tf.z"].as<float>();
+    }
+    if (c.count("tf.yaw") != 0) {
+      m.tf.yaw = mrpt::DEG2RAD(c["tf.yaw"].as<float>());
+    }
+    if (c.count("tf.pitch") != 0) {
+      m.tf.pitch = mrpt::DEG2RAD(c["tf.pitch"].as<float>());
+    }
+    if (c.count("tf.roll") != 0) {
+      m.tf.roll = mrpt::DEG2RAD(c["tf.roll"].as<float>());
+    }
+    if (c.count("scale") != 0) {
+      m.scale = c["scale"].as<float>();
+    }
+  }
 }
 
 void LidarOdometry::Parameters::SimpleMapOptions::initialize(const Yaml & cfg, Parameters & parent)

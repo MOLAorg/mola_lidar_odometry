@@ -28,7 +28,7 @@
 #include <mrpt/core/initializer.h>
 #include <mrpt/rtti/CObject.h>
 
-MRPT_INITIALIZER(do_register_mola_lidar_odometry)
+MRPT_INITIALIZER(do_register_mola_lidar_odometry)  // NOLINT
 {
   using mrpt::rtti::registerClass;
 
