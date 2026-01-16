@@ -279,11 +279,19 @@ void doRecolorize(
   }
 
   // Colorize by intensity with custom color map:
+#if MRPT_VERSION >= 0x020f03  // 2.15.3
   mrpt::obs::PointCloudRecoloringParameters rp;
   rp.colorMap = colormap;
   rp.colorizeByField = colorByField;
 
   mrpt::obs::recolorize3Dpc(cloud, org_cloud, rp);
+#else
+  // Not supported in MRPT < 2.15.3
+  (void)colormap;
+  (void)colorByField;
+  (void)org_cloud;
+  (void)cloud;
+#endif
 };
 
 void doRemoveVizCurCloud(
@@ -482,7 +490,9 @@ void LidarOdometry::updateVisualizationCurrentObservation(
     rp.points.allLayers.force_alpha_channel = true;
 
     cm.colorMap = params_.visualization.current_observation_colormap;
+#if MP2P_ICP_VERSION > 0x020200  // >= 2.2.0
     cm.recolorizeByField = params_.visualization.current_observation_color_by_field;
+#endif
 
     // Current cloud only:
     if (params_.visualization.show_current_observation) {
