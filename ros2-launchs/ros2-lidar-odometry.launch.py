@@ -22,7 +22,7 @@ def generate_launch_description():
     # -------------------
     # Mandatory
     lidar_topic_name_arg = DeclareLaunchArgument(
-        "lidar_topic_name", description="Topic name to listen for PointCloud2 input from the LiDAR (for example '/ouster/points')")
+        "lidar_topic_name", description="Topic name to listen for LiDAR input, for example '/ouster/points' for PointCloud2 or '/scan' for LaserScan; see lidar_topic_type")
     lidar_topic_env_var = SetEnvironmentVariable(
         name='MOLA_LIDAR_TOPIC', value=LaunchConfiguration('lidar_topic_name'))
     # ~~~~~~~~~~~~
