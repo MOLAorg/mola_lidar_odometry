@@ -44,7 +44,6 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
            mola_tf_base_link:=os_sensor
 
    .. tab-item:: LIO usage (No /tf)
-      :selected:
 
       This is how to use LiDAR-Inertial Odometry (LIO) by using LiDAR clouds plus an IMU,
       when no /tf is available for the sensor poses so you must manually specify them:
@@ -64,7 +63,6 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
 
    .. tab-item:: Robot with NS
-      :selected:
 
       If your robot uses a ROS 2 namespace ``ROBOT_NS`` for all its sensor and tf topics, use:
 
@@ -76,8 +74,21 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
             use_namespace:=True \
             namespace:=ROBOT_NS
 
-|
+   .. tab-item:: 2D LiDAR
 
+      To use with a 2D LiDAR, define the argument `lidar_topic_type:=LaserScan`, e.g.:
+
+      .. code-block:: bash
+
+         # Minimal use case:
+         ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
+            lidar_topic_name:=/scan \
+            lidar_topic_type:=LaserScan \
+            mola_lo_pipeline:=../pipelines/lidar2d.yaml \
+            ignore_lidar_pose_from_tf:=False \
+            publish_localization_following_rep105:=True
+
+|
 
 .. dropdown:: How to invoke for a rosbag (``.mcap``, ``.db3``)
     :icon: list-unordered

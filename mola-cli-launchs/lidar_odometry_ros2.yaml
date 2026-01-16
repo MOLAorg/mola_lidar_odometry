@@ -140,7 +140,7 @@ modules:
       # ROS2 topics to be forwarded to the MOLA system:
       subscribe:
         - topic: ${MOLA_LIDAR_TOPIC|/ouster/points}
-          msg_type: PointCloud2
+          msg_type: ${MOLA_LIDAR_TOPIC_TYPE|PointCloud2} # Can be PointCloud2 or LaserScan
           output_sensor_label: ${MOLA_LIDAR_NAME|lidar}
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''

@@ -26,6 +26,11 @@ def generate_launch_description():
     lidar_topic_env_var = SetEnvironmentVariable(
         name='MOLA_LIDAR_TOPIC', value=LaunchConfiguration('lidar_topic_name'))
     # ~~~~~~~~~~~~
+    lidar_topic_type_arg = DeclareLaunchArgument(
+        "lidar_topic_type", default_value="PointCloud2", description="The type of LiDAR topic to subscribe to. Options: 'PointCloud2' (default) or 'LaserScan'")
+    lidar_topic_type_env_var = SetEnvironmentVariable(
+        name='MOLA_LIDAR_TOPIC_TYPE', value=LaunchConfiguration('lidar_topic_type'))
+    # ~~~~~~~~~~~~
     ignore_lidar_pose_from_tf_arg = DeclareLaunchArgument(
         "ignore_lidar_pose_from_tf", default_value="false", description="If true, the LiDAR pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf")
     ignore_lidar_pose_from_tf_env_var = SetEnvironmentVariable(
@@ -257,6 +262,8 @@ def generate_launch_description():
         lidar_scan_validity_minimum_point_env_var,
         lidar_topic_env_var,
         lidar_topic_name_arg,
+        lidar_topic_type_arg,
+        lidar_topic_type_env_var,
         mola_deskew_method_arg,
         mola_deskew_method_env_var,
         mola_footprint_to_base_link_tf_arg,
