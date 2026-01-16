@@ -166,6 +166,10 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
           'lidar_topic_name':
              Topic name to listen for PointCloud2 input from the LiDAR (for example '/ouster/points')
 
+          'lidar_topic_type':
+             The type of LiDAR topic to subscribe to. Options: 'PointCloud2' (default) or 'LaserScan'
+             (default: 'PointCloud2')
+
           'mola_deskew_method':
              Which motion-compensation method to use to align LiDAR scans more precisely
              (default: 'MotionCompensationMethod::Linear')
