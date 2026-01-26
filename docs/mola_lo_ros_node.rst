@@ -119,29 +119,29 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
        $ ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py --show-args
        Arguments (pass arguments as '<name>:=<value>'):
 
-          'namespace':
-             Top-level namespace
-             (default: '')
+         'namespace':
+            Top-level namespace
+            (default: '')
 
-          'use_namespace':
-             Whether to apply a namespace to the navigation stack
-             (default: 'false')
+         'use_namespace':
+            Whether to apply a namespace to the navigation stack
+            (default: 'false')
 
-          'enforce_planar_motion':
-             Whether to enforce z, pitch, and roll to be zero.
-             (default: 'False')
+         'enforce_planar_motion':
+            Whether to enforce z, pitch, and roll to be zero.
+            (default: 'False')
 
-          'forward_ros_tf_odom_to_mola':
-             Whether to import an existing /tf 'odom'->'base_link' odometry into the MOLA subsystem.
-             (default: 'False')
+         'forward_ros_tf_odom_to_mola':
+            Whether to import an existing /tf 'odom'->'base_link' odometry.
+            (default: 'False')
 
-          'generate_simplemap':
-             Whether to create a '.simplemap', useful for map post-processing. Refer to online tutorials.
-             (default: 'False')
+         'generate_simplemap':
+            Whether to create a '.simplemap'
+            (default: 'False')
 
-          'gnss_topic_name':
-             Topic name to listen for NavSatFix input from a GNSS (for example '/gps')
-             (default: 'gps')
+         'gnss_topic_name':
+            Topic name to listen for NavSatFix input from a GNSS (for example '/gps')
+            (default: 'gps')
 
           'gpsfix_topic_name':
              Topic name to listen for gps_msgs/GPSFix input from a GNSS (for example '/gpsfix')
@@ -151,24 +151,24 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
              If true, the IMU pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf
              (default: 'false')
 
-          'ignore_lidar_pose_from_tf':
-             If true, the LiDAR pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf
-             (default: 'false')
+         'ignore_lidar_pose_from_tf':
+            If true, the LiDAR pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf
+            (default: 'false')
 
-          'imu_topic_name':
-             Topic name to listen for Imu input (for example '/imu')
-             (default: 'imu')
+         'imu_topic_name':
+            Topic name to listen for Imu input (for example '/imu')
+            (default: 'imu')
 
-          'initial_localization_method':
-             What method to use for initialization. See https://docs.mola-slam.org/latest/ros2api.html#initial-localization
-             (default: 'InitLocalization::FixedPose')
+         'initial_localization_method':
+            Method for initialization.
+            (default: 'InitLocalization::FixedPose')
 
-          'lidar_scan_validity_minimum_point_count':
-             Minimum number of points in each LiDAR raw scan for it to be considered valid; otherwise, it is ignored.
-             (default: '100')
+         'lidar_scan_validity_minimum_point_count':
+            Minimum number of points in each LiDAR raw scan for it to be considered valid; otherwise, it is ignored.
+            (default: '100')
 
-          'lidar_topic_name':
-             Topic name to listen for PointCloud2 input from the LiDAR (for example '/ouster/points')
+         'lidar_topic_name':
+            Topic name to listen for PointCloud2 input from the LiDAR (for example '/ouster/points')
 
           'lidar_topic_type':
              The type of LiDAR topic to subscribe to. Options: 'PointCloud2' (default) or 'LaserScan'
@@ -178,65 +178,81 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
              Which motion-compensation method to use to align LiDAR scans more precisely
              (default: 'MotionCompensationMethod::Linear')
 
-          'mola_footprint_to_base_link_tf':
-             Can be used to define a custom transformation between base_footprint and base_link. The coordinates are [x, y, z, yaw_deg, pitch_deg, roll_deg].
-             (default: '[0, 0, 0, 0, 0, 0]')
+         'mola_footprint_to_base_link_tf':
+            Can be used to define a custom transformation between base_footprint and base_link. The coordinates are [x, y, z, yaw_deg, pitch_deg, roll_deg].
+            (default: '[0, 0, 0, 0, 0, 0]')
 
-          'mola_initial_map_mm_file':
-             Can be used to provide a metric map '.mm' file to be loaded as initial map. Refer to online tutorials.
-             (default: '""')
+         'mola_initial_map_mm_file':
+            Can be used to provide a metric map '.mm' file to be loaded as initial map. Refer to online tutorials.
+            (default: '""')
 
-          'mola_initial_map_sm_file':
-             Can be used to provide a keyframes map '.simplemap' file to be loaded as initial map. Refer to online tutorials.
-             (default: '""')
+         'mola_initial_map_sm_file':
+            Initial keyframes map '.simplemap' file.
+            (default: '""')
 
-          'mola_lo_pipeline':
-             The LiDAR-Odometry pipeline configuration YAML file defining the LO system. Absolute path, or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'. Default is the 'lidar3d-default.yaml' system described in the IJRR 2025 paper.
-             (default: '../pipelines/lidar3d-default.yaml')
+         'mola_lo_pipeline':
+            The LiDAR-Odometry pipeline configuration YAML file defining the LO system.
+            (default: '../pipelines/lidar3d-default.yaml')
 
-          'mola_lo_reference_frame':
-             The /tf frame name to be used for MOLA-LO localization updates
-             (default: 'map')
+         'mola_lo_reference_frame':
+            The /tf frame name to be used for MOLA-LO localization updates
+            (default: 'map')
 
-          'mola_state_estimator_reference_frame':
-             The /tf frame name to be used as reference for MOLA State Estimators to publish pose updates
-             (default: 'map')
+         'mola_state_estimator_reference_frame':
+            The /tf frame name to be used as reference for MOLA State Estimators to publish pose updates
+            (default: 'map')
 
-          'mola_tf_base_link':
-             The /tf frame name for the robot base link.
-             (default: 'base_link')
+         'mola_tf_base_link':
+            The /tf frame name for the robot base link.
+            (default: 'base_link')
 
-          'publish_localization_following_rep105':
-             Whether to publish localization TFs in between map->odom (true) or directly map->base_link (false)
-             (default: 'True')
+         'publish_localization_following_rep105':
+            Whether to publish localization TFs in between map->odom (true) or directly map->base_link (false)
+            (default: 'True')
 
-          'start_active':
-             Whether MOLA-LO should start active, that is, processing incoming sensor data (true), or ignoring them (false)
-             (default: 'True')
+         'start_active':
+            Whether MOLA-LO should start active, that is, processing incoming sensor data (true), or ignoring them (false)
+            (default: 'True')
 
-          'start_mapping_enabled':
-             Whether MOLA-LO should start with map update enabled (true), or in localization-only mode (false)
-             (default: 'True')
+         'start_mapping_enabled':
+            Whether MOLA-LO should start with map update enabled (true), or in localization-only mode (false)
+            (default: 'True')
 
-          'state_estimator_config_yaml':
-             A YAML file with settings for the state estimator. Absolute path or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'
-             (default: PythonExpr(''../state-estimator-params/state-estimation-smoother.yaml' if ' + LaunchConfig('use_state_estimator') + ' else '../state-estimator-params/state-estimation-simple.yaml''))
+         'use_mola_gui':
+            Whether to open MolaViz GUI interface for watching live mapping and control UI
+            (default: 'True')
 
-          'use_mola_gui':
-             Whether to open MolaViz GUI interface for watching live mapping and control UI
-             (default: 'True')
+         'use_rviz':
+            Whether to launch RViz2 with default lidar-odometry.rviz configuration
+            (default: 'True')
 
-          'use_rviz':
-             Whether to launch RViz2 with default lidar-odometry.rviz configuration
-             (default: 'True')
+         'use_state_estimator':
+            If true, uses StateEstimationSmoother (requires optional package).
+            (default: 'False')
 
-          'use_state_estimator':
-             If false, the basic state estimator 'mola::state_estimation_simple::StateEstimationSimple' will be used. If true, 'mola::state_estimation_smoother::StateEstimationSmoother' is used instead.
-             (default: 'False')
+         'navstate_kinematic_model':
+            [Smoother only] Kinematic model for internal motion model factors. Options: KinematicModel::ConstantVelocity, KinematicModel::Tricycle.
+            (default: 'KinematicModel::ConstantVelocity')
 
-          'state_estimator_config_yaml':
-             A YAML file with settings for the state estimator. Absolute path or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'
+         'navstate_sliding_window_sec':
+            [Smoother only] Time window to keep past observations in the filter [seconds].
+            (default: '2.5')
 
+         'navstate_sigma_random_walk_linacc':
+            [Smoother only] Random walk model for linear acceleration uncertainty [m/s²].
+            (default: '1.0')
+
+         'navstate_sigma_random_walk_angacc':
+            [Smoother only] Random walk angular acceleration uncertainty [rad/s²].
+            (default: '10.0')
+
+         'estimate_geo_reference':
+            [Smoother only] Whether to estimate the best geo-referencing for {enu} -> {map} from incoming GNSS readings.
+            (default: 'False')
+
+         'state_estimator_config_yaml':
+            Path to estimator YAML. If empty, it is auto-resolved based on use_state_estimator.
+            (default: '')
 
 .. _mola_lo_ros_mola-cli-env-vars:
 

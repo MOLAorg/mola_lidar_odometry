@@ -459,6 +459,7 @@ void LidarOdometry::internalBuildGUI_Legacy()
 
 void LidarOdometry::doRemoveCloudsWithDecay()
 {
+  // Remove possible old 3D objects if the user disabled visualization on the fly:
   if (visualizer_) {
     visualizer_->clear_all_point_clouds_with_decay();
   }

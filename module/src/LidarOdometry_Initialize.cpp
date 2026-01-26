@@ -379,6 +379,27 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     MRPT_LOG_DEBUG("Attached to the state estimation module");
   }
 
+  // If using FromStateEstimator initialization, also subscribe to map updates
+  // from the state estimator to receive geo-referencing information:
+  if (params_.initial_localization.method == InitLocalization::FromStateEstimator) {
+    // The state estimator may also be a MapSourceBase (for geo-ref publishing)
+    if (auto mapSrc = std::dynamic_pointer_cast<MapSourceBase>(state_.navstate_fuse); mapSrc) {
+      mapSrc->subscribeToMapUpdates(
+        [this](const MapSourceBase::MapUpdate & mu) { onExternalMapUpdate(mu); });
+      MRPT_LOG_DEBUG("Subscribed to state estimator's map updates for geo-referencing");
+    }
+
+    // Also subscribe to localization updates for pose convergence checking
+    if (auto locSrc = std::dynamic_pointer_cast<LocalizationSourceBase>(state_.navstate_fuse);
+        locSrc) {
+      locSrc->subscribeToLocalizationUpdates(
+        [this](const LocalizationSourceBase::LocalizationUpdate & lu) {
+          onExternalLocalizationUpdate(lu);
+        });
+      MRPT_LOG_DEBUG("Subscribed to state estimator's localization updates");
+    }
+  }
+
   // end of initialization:
   {
     auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);

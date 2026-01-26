@@ -186,6 +186,11 @@ initial_localization:
   imu_initial_calibration_max_age: 5.0
   use_imu_orientation: "${MOLA_LO_INITIAL_IMU_USE_ORIENTATION|true}"
 
+  # Parameters for InitLocalization::FromStateEstimator:
+  from_state_estimator_max_position_sigma: "${MOLA_LO_INIT_SE_MAX_POS_SIGMA|0.5}"
+  from_state_estimator_max_orientation_sigma_deg: "${MOLA_LO_INIT_SE_MAX_ORI_SIGMA|3.0}"
+  from_state_estimator_timeout: "${MOLA_LO_INIT_SE_TIMEOUT|60.0}"
+
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
 # ICP settings can be included from an external YAML file if desired, or defined
 # in this same YAML for self-completeness:
