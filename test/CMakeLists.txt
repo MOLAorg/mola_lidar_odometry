@@ -95,11 +95,8 @@ if(EXISTS "${RSLIDAR_DATASET_FILE}")
     MOLA_USE_FIXED_LIDAR_POSE=true  # so we don't need /tf topic in test dataset
     MOLA_IGNORE_NO_POINT_STAMPS=${IGNORE_POINT_STAMPS} # make it fail if no timestamps are found
   )
-  ament_target_dependencies(test_lidar_odometry_rslidar
-    mrpt-obs
-    mola_state_estimation_simple
-  )
   target_link_libraries(test_lidar_odometry_rslidar
+    mrpt::obs
     mola::mola_lidar_odometry
     mola::mola_input_rosbag2
     mola::mola_state_estimation_simple
