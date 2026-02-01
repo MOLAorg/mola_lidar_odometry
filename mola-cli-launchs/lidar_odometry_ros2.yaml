@@ -124,11 +124,6 @@ modules:
       #  - false: the wall-clock time.
       publish_in_sim_time: ${MOLA_ROS2_PUBLISH_IN_SIM_TIME|true}
 
-      # Period [s] to publish new localization estimates to ROS2 from the MOLA SLAM solution:
-      # Note that no repeated localization are published. This is just the period for checking if new
-      # estimates are available and waiting to be published.
-      period_publish_new_localization: ${MOLA_ROS2_PUBLISH_LOCALIZATION_PERIOD|0.050} # [s]
-
       # Period [s] to publish the updated map to ROS2 from the MOLA SLAM solution:
       # Note that no repeated maps are published. This is just the period for checking the need to republish.
       period_publish_new_map: ${MOLA_ROS2_PUBLISH_MAPS_PERIOD|1.0} # [s]

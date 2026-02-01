@@ -115,7 +115,6 @@ modules:
       # Otherwise, the wallclock time will be used.
       publish_in_sim_time: true
 
-      period_publish_new_localization: 0.020 # [s]
       period_publish_new_map: 0.1 # [s]
 
       # georeferenced map frames:
