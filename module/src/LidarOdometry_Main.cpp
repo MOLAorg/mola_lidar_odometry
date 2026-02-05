@@ -103,6 +103,15 @@ LidarOdometry::~LidarOdometry()
     if (!params_.local_map_updates.save_final_local_map.empty()) {
       saveLocalMapToFile();
     }
+
+    // This must come after save map calls above:
+    while (worker_disk_io_.pendingTasks() > 0) {
+      MRPT_LOG_THROTTLE_WARN(
+        2.0, "Destructor: waiting for pending tasks on the lazy-load write thread...");
+      std::this_thread::sleep_for(100ms);
+    }
+    worker_disk_io_.clear();
+
   } catch (const std::exception & e) {
     std::cerr << "[~LidarOdometry] Exception: " << e.what();
   }
@@ -266,9 +275,12 @@ void LidarOdometry::saveLocalMapToFile() const
   MRPT_LOG_INFO_STREAM("Saving final metric map to file '" << fil << "'...");
   std::cout.flush();
 
-  state_.local_map->save_to_file(fil);
-
-  MRPT_LOG_INFO("Final local metric map saved.");
+  const bool saved_ok = state_.local_map->save_to_file(fil);
+  if (!saved_ok) {
+    MRPT_LOG_ERROR_STREAM("Error saving map to: " << fil);
+  } else {
+    MRPT_LOG_INFO("Final local metric map saved.");
+  }
 }
 
 void LidarOdometry::unloadPastSimplemapObservations(const size_t maxSizeUnloadQueue) const
@@ -341,16 +353,17 @@ void LidarOdometry::handleUnloadSinglePastObservation(mrpt::obs::CObservation::P
   oPts->setAsExternalStorage(
     filename, CObservationPointCloud::ExternalStorageFormat::MRPT_Serialization);
 
-  // Since unload() does the actual saving to disk and it might take some time, let's run it in its own detached thread:
-  std::thread([oPts]() {
+  // Since unload() does the actual saving to disk and it might take some time, let's run it in its own thread.
+  const auto fut = this->worker_disk_io_.enqueue([oPts]() {
     try {
       oPts->unload();
     } catch (const std::exception & e) {
-      std::cerr
-        << "[LidarOdometry] handleUnloadSinglePastObservation(): Error saving observation to disk: "
-        << e.what() << "\n";
+      std::cerr << "[LidarOdometry] handleUnloadSinglePastObservation(): Error saving "
+                   "observation to disk: "
+                << e.what() << "\n";
     }
-  }).detach();
+  });
+  (void)fut;
 }
 
 void LidarOdometry::enqueue_request(const std::function<void()> & userRequest)
