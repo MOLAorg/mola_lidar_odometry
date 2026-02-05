@@ -278,9 +278,9 @@ void LidarOdometry::saveLocalMapToFile() const
   const bool saved_ok = state_.local_map->save_to_file(fil);
   if (!saved_ok) {
     MRPT_LOG_ERROR_STREAM("Error saving map to: " << fil);
+  } else {
+    MRPT_LOG_INFO("Final local metric map saved.");
   }
-
-  MRPT_LOG_INFO("Final local metric map saved.");
 }
 
 void LidarOdometry::unloadPastSimplemapObservations(const size_t maxSizeUnloadQueue) const
@@ -353,7 +353,7 @@ void LidarOdometry::handleUnloadSinglePastObservation(mrpt::obs::CObservation::P
   oPts->setAsExternalStorage(
     filename, CObservationPointCloud::ExternalStorageFormat::MRPT_Serialization);
 
-  // Since unload() does the actual saving to disk and it might take some time, let's run it in its own detached thread:
+  // Since unload() does the actual saving to disk and it might take some time, let's run it in its own thread.
   const auto fut = this->worker_disk_io_.enqueue([oPts]() {
     try {
       oPts->unload();
