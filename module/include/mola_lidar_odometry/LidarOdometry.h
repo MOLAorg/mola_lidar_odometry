@@ -731,6 +731,10 @@ private:
   mrpt::WorkerThreadsPool worker_others_{
     1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_imu"};
 
+  /** The worker thread pool with 1 thread for processing saving lazy-load observations to disk */
+  mutable mrpt::WorkerThreadsPool worker_disk_io_{
+    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_disk"};
+
   MethodState state_;
   const MethodState & state() const { return state_; }
   MethodState stateCopy() const { return state_; }
