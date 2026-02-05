@@ -266,7 +266,10 @@ void LidarOdometry::saveLocalMapToFile() const
   MRPT_LOG_INFO_STREAM("Saving final metric map to file '" << fil << "'...");
   std::cout.flush();
 
-  state_.local_map->save_to_file(fil);
+  const bool saved_ok = state_.local_map->save_to_file(fil);
+  if (!saved_ok) {
+    MRPT_LOG_ERROR_STREAM("Error saving map to: " << fil);
+  }
 
   MRPT_LOG_INFO("Final local metric map saved.");
 }
