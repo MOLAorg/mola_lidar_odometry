@@ -398,6 +398,15 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     auto icp_params = in.icp_params;
     size_t remainingIcpIters = icp_params.maxIterations;
 
+#if MP2P_ICP_VERSION >= 0x020501
+    if (params_.write_debug_icp_log_if_quality_under.has_value()) {
+      icp_params.functor_should_generate_debug_file =
+        [this](const mp2p_icp::LogRecord & log) -> bool {
+        return log.icpResult.quality < params_.write_debug_icp_log_if_quality_under.value();
+      };
+    }
+#endif
+
     do {
       icp_params.maxIterations = remainingIcpIters;
 
