@@ -102,9 +102,11 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
     }
   };
 
+  // For stats generation in CSV
   ensureVarIsDefined("icp_iterations");
   ensureVarIsDefined("SENSOR_TIME_OFFSET");
   ensureVarIsDefined("twistCorrectionCount");
+  ensureVarIsDefined("icp_quality");
 
   if (state_.estimated_sensor_max_range) {
     state_.parameter_source.updateVariable(

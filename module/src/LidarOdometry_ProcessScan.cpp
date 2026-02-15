@@ -515,10 +515,11 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       state_.estimated_trajectory.insert(this_obs_tim, state_.last_lidar_pose.mean);
     }
 
-    // Update for stats:
+    // Update for stats in CSV format:
     state_.parameter_source.updateVariable("icp_iterations", out.icp_iterations);
     state_.parameter_source.updateVariable(
       "twistCorrectionCount", static_cast<double>(twistCorrectionCount));
+    state_.parameter_source.updateVariable("icp_quality", state_.last_icp_quality);
 
     // KISS-ICP adaptive threshold method:
     if (params_.adaptive_threshold.enabled) {
