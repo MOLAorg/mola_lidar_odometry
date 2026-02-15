@@ -707,7 +707,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   }
 
   // Prepare deskewed scan for publishing:
-  if (params_.publish_deskewed_scans && fullCloudForVizAndPublish) {
+  if (params_.publish_deskewed_scans && fullCloudForVizAndPublish && state_.last_icp_was_good) {
     ProfilerEntry tleDs(profiler_, "onLidar.5.prepare_deskewed_publish");
 
     // If we used the early deskew, fullCloudForVizAndPublish is
@@ -729,13 +729,16 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
   // Publish new local map & deskewed scan for visualization on external systems (ROS):
   doPublishUpdatedLocalMap(this_obs_tim);
-  doPublishDeskewedScan(this_obs_tim);
+
+  if (state_.last_icp_was_good) {
+    doPublishDeskewedScan(this_obs_tim);
+  }
 
   // Optional debug traces to CSV file:
   doWriteDebugTracesFile(this_obs_tim);
 
   // Optional real-time GUI via MOLA VizInterface:
-  if (visualizer_ && state_.local_map) {
+  if (visualizer_ && state_.local_map && state_.last_icp_was_good) {
     const ProfilerEntry tle(profiler_, "onLidar.6.updateVisualization");
 
     updateVisualization(observationRawForViz, fullCloudForVizAndPublish);
