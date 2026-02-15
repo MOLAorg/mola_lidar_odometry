@@ -340,7 +340,7 @@ Scan de-skew options
 General options
 ^^^^^^^^^^^^^^^^^^^^^^
 
-- ``MOLA_OPTIMIZE_TWIST`` (Default: ``true``): Whether to enable the optimization of vehicle twist (linear+angular velocity vectors)
+- ``MOLA_OPTIMIZE_TWIST`` (Default: ``true`` in LO, ``false`` in LIO): Whether to enable the optimization of vehicle twist (linear+angular velocity vectors)
   within the ICP loop. Useful for high-dynamics. Requires incoming point clouds with timestamps.
 
 - ``MOLA_MAPPING_ENABLED`` (Default: ``true``): Whether to update the local map. Might be temporarily disabled if so desired, 

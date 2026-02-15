@@ -98,7 +98,7 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
 
   ASSERT_(!state_.obs2map_merge.empty());
 
-  // Deskew for visualization:
+  // Deskew for visualization in fallback mode (see gicp.yaml comments)
   // If not specified, the "raw" cloud will be shown instead of the de-skewed one.
   if (c.has("observations_filter_deskew_for_visualization")) {
     ASSERT_(c["observations_filter_deskew_for_visualization"].isSequence());
@@ -265,6 +265,17 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
         // Attach to the parameter source for dynamic parameters:
         mp2p_icp::AttachToParameterSource(state_.pc_prefilter, state_.parameter_source);
       }
+    }
+
+    // Early deskew pass:
+    if (c.has("observations_deskew_pass")) {
+      state_.pc_deskew = mp2p_icp_filters::filter_pipeline_from_yaml(
+        c["observations_deskew_pass"], this->getMinLoggingLevel());
+      mp2p_icp::AttachToParameterSource(state_.pc_deskew, state_.parameter_source);
+    } else {
+      MRPT_LOG_WARN(
+        "No YAML entry 'observations_deskew_pass', this "
+        "filter stage will have no effect.");
     }
 
     if (c.has("observations_filter_1st_pass")) {
