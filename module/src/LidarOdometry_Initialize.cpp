@@ -128,6 +128,14 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     params_.multiple_lidars.initialize(cfg["multiple_lidars"], params_);
   }
 
+  // this one is std::optional
+  {
+    const std::string key = "write_debug_icp_log_if_quality_under";
+    if (cfg.has(key) && !cfg[key].isNullNode() && !cfg[key].as<std::string>().empty()) {
+      params_.write_debug_icp_log_if_quality_under.emplace(cfg[key].as<double>());
+    }
+  }
+
   YAML_LOAD_OPT(params_, min_time_between_scans, double);
   YAML_LOAD_REQ(params_, min_icp_goodness, double);
   YAML_LOAD_OPT(params_, max_sensor_range_filter_coefficient, double);

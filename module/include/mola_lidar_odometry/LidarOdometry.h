@@ -230,6 +230,9 @@ public:
          * accepted during regular lidar odometry & mapping */
     double min_icp_goodness = 0.4;
 
+    /** If defined, .icplog files will be saved if ICP quality drops below the given threshold */
+    std::optional<double> write_debug_icp_log_if_quality_under;
+
     bool pipeline_profiler_enabled = false;
     bool icp_profiler_enabled = false;
     bool icp_profiler_full_history = false;
