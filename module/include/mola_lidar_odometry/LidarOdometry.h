@@ -110,11 +110,7 @@ public:
   // See docs in base class
   void initialize_frontend(const Yaml & cfg) override;
   void spinOnce() override;
-#if MOLA_VERSION_CHECK(2, 1, 0)
   void onNewObservation(const CObservation::ConstPtr & o) override;
-#else
-  void onNewObservation(const CObservation::Ptr & o) override;
-#endif
 
   /** Re-initializes the odometry system. It effectively calls initialize()
      *  once again with the same parameters that were used the first time.
@@ -644,10 +640,13 @@ private:
     mp2p_icp_filters::GeneratorSet obs_generators;
     mp2p_icp_filters::FilterPipeline pc_filterAdjustTimes;
     mp2p_icp_filters::FilterPipeline pc_prefilter;
+    mp2p_icp_filters::FilterPipeline pc_deskew;
     mp2p_icp_filters::FilterPipeline pc_filter1, pc_filter2, pc_filter3;
     mp2p_icp_filters::GeneratorSet local_map_generators;
     mp2p_icp::metric_map_t::Ptr local_map = mp2p_icp::metric_map_t::Create();
     mp2p_icp_filters::FilterPipeline obs2map_merge;
+
+    // fallback only for when not using IMU and optimize_twist is enabled:
     mp2p_icp_filters::FilterPipeline obsDeskewForViz;
 
     mutable std::optional<bool> isPipelinesUsingIMU;  //!< See isPipelineUsingIMU()
@@ -735,6 +734,9 @@ private:
   mutable mrpt::WorkerThreadsPool worker_disk_io_{
     1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_disk"};
 
+  /** Runs colorization tasks for clouds to be shown in the gui */
+  mrpt::WorkerThreadsPool worker_viz_{2, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_viz"};
+
   MethodState state_;
   const MethodState & state() const { return state_; }
   MethodState stateCopy() const { return state_; }
@@ -808,12 +810,14 @@ private:
   void updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw);
   void updatePipelineDynamicVariablesRobotPoseOnly();
 
-  void updateVisualization(const mp2p_icp::metric_map_t & currentObservation);
+  void updateVisualization(
+    const mp2p_icp::metric_map_t & currentObservation,
+    const mrpt::maps::CPointsMap::Ptr & deskewedCloud);
 
   void updateVisualizationInitVehFrame();
   void updateVisualizationCurrentObservation(
     const mp2p_icp::metric_map_t & currentObservation,
-    std::vector<std::function<void()>> & updateTasks);
+    const mrpt::maps::CPointsMap::Ptr & deskewedCloud);
   void updateVisualizationLocalMap(std::vector<std::function<void()>> & updateTasks);
   void updateVisualizationPath(std::vector<std::function<void()>> & updateTasks);
   void updateVisualizationTextLabels();
@@ -847,7 +851,8 @@ private:
 
   void doUpdateSimpleMap(
     const mrpt::obs::CSensoryFrame & sf, bool distance_enough_sm,
-    const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & this_obs_tim);
+    const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & this_obs_tim,
+    const mrpt::maps::CPointsMap::Ptr & deskewedCloud);
 };
 
 namespace detail

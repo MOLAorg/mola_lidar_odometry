@@ -92,6 +92,7 @@ LidarOdometry::~LidarOdometry()
     }
     worker_lidar_.clear();
     worker_others_.clear();
+    worker_viz_.clear();
 
     if (params_.simplemap.generate) {
       saveReconstructedMapToFile();
@@ -131,7 +132,7 @@ void LidarOdometry::spinOnce()
   // observations are misconfigured and are not been fed in.
   if (visualizer_ && ((state_.local_map && state_.local_map->empty()) || !isActive())) {
     if (mrpt::Clock::nowDouble() - gui_.timestampLastUpdateUI > 1.0) {
-      updateVisualization({});
+      updateVisualization({}, {});
     }
   }
 

@@ -57,9 +57,9 @@ bool LidarOdometry::isPipelineUsingIMU() const
     return false;
   };
 
-  state_.isPipelinesUsingIMU = hasDeskewStage(state_.pc_filter1) ||
-                               hasDeskewStage(state_.pc_filter2) ||
-                               hasDeskewStage(state_.pc_filter3);
+  state_.isPipelinesUsingIMU =
+    hasDeskewStage(state_.pc_filter1) || hasDeskewStage(state_.pc_filter2) ||
+    hasDeskewStage(state_.pc_filter3) || hasDeskewStage(state_.pc_deskew);
 
   return *state_.isPipelinesUsingIMU;
 }
@@ -148,6 +148,29 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   if (!state_.pc_prefilter.empty()) {  // optional pre-filter stage
     ProfilerEntry tle1(profiler_, "onLidar.1.filter_pre");
     mp2p_icp_filters::apply_filter_pipeline(state_.pc_prefilter, *observation, profiler_);
+  }
+
+  // Use early deskew?
+  const bool use_early_deskew =
+    !state_.pc_deskew.empty() && (!params_.optimize_twist || isPipelineUsingIMU());
+
+  if (use_early_deskew) {
+    ProfilerEntry tle1(profiler_, "onLidar.1.deskew_early");
+    mp2p_icp_filters::apply_filter_pipeline(state_.pc_deskew, *observation, profiler_);
+    // Now observation has a "deskewed" layer with the full cloud deskewed.
+  } else {
+    // Fallback:
+    observation->layers["deskewed"] = observation->layers["raw"];
+  }
+
+  // Keep reference to the deskewed or raw cloud for viz/publish:
+  // (shallow copy, just the shared_ptr)
+  mrpt::maps::CPointsMap::Ptr fullCloudForVizAndPublish;
+  if (observation->layers.count("deskewed") != 0) {
+    auto pts = observation->point_layer("deskewed");
+    if (pts) {
+      fullCloudForVizAndPublish = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(pts);
+    }
   }
 
   {
@@ -664,13 +687,34 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
   // Optional build simplemap:
   if (updateSimpleMap) {
-    doUpdateSimpleMap(sf, distance_enough_sm, observation, this_obs_tim);
+    doUpdateSimpleMap(sf, distance_enough_sm, observation, this_obs_tim, fullCloudForVizAndPublish);
   }
 
   // In any case, publish the vehicle pose, no matter if it's a keyframe or not,
   // if ICP quality was good enough:
   if (state_.last_icp_was_good) {
     doPublishUpdatedLocalization(this_obs_tim);
+  }
+
+  // Prepare deskewed scan for publishing:
+  if (params_.publish_deskewed_scans && fullCloudForVizAndPublish) {
+    ProfilerEntry tleDs(profiler_, "onLidar.5.prepare_deskewed_publish");
+
+    // If we used the early deskew, fullCloudForVizAndPublish is
+    // already deskewed. If in fallback path, we need one final deskew:
+    if (!use_early_deskew && observation->layers.count("raw") != 0) {
+      mp2p_icp::metric_map_t mm;
+      mm.layers["raw"] = observation->layers.at("raw");
+      mp2p_icp_filters::apply_filter_pipeline(state_.obsDeskewForViz, mm);
+      fullCloudForVizAndPublish =
+        std::const_pointer_cast<mrpt::maps::CPointsMap>(mm.point_layer("viz"));
+    }
+
+    // Transform to global (map) frame:
+    // Publish a transformed cloud to avoid imperfect positioning in RViz / FoxGlove due to latency between /tf and scans:
+    auto tfCloud = mrpt::maps::CGenericPointsMap::Create();
+    tfCloud->insertAnotherMap(fullCloudForVizAndPublish.get(), state_.last_lidar_pose.mean);
+    state_.last_deskewed_scan_for_publishing = tfCloud;
   }
 
   // Publish new local map & deskewed scan for visualization on external systems (ROS):
@@ -684,7 +728,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   if (visualizer_ && state_.local_map) {
     const ProfilerEntry tle(profiler_, "onLidar.6.updateVisualization");
 
-    updateVisualization(observationRawForViz);
+    updateVisualization(observationRawForViz, fullCloudForVizAndPublish);
   }
 }
 
@@ -758,7 +802,8 @@ mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
 
 void LidarOdometry::doUpdateSimpleMap(
   const mrpt::obs::CSensoryFrame & sf, const bool distance_enough_sm,
-  const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & this_obs_tim)
+  const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & this_obs_tim,
+  const mrpt::maps::CPointsMap::Ptr & deskewedCloud)
 {
   using namespace std::string_literals;
 
@@ -771,17 +816,11 @@ void LidarOdometry::doUpdateSimpleMap(
   if (distance_enough_sm) {
     *keyframe_obs += sf;
 
-    if (params_.simplemap.save_deskewed_scans) {
-      mp2p_icp::metric_map_t mm;
-      mm.layers["raw"] = observation->layers.at("raw");
-      // This will remove the "raw" layer and replace it with a "deskewed" one:
-      mp2p_icp_filters::apply_filter_pipeline(state_.obsDeskewForViz, mm);
-      const auto deskewed_cloud = mm.point_layer(mm.layers.begin()->first);
-
+    if (params_.simplemap.save_deskewed_scans && deskewedCloud) {
       auto od = mrpt::obs::CObservationPointCloud::Create();
       od->timestamp = this_obs_tim;
       auto spc = mrpt::maps::CGenericPointsMap::Create();
-      spc->insertAnotherMap(deskewed_cloud.get(), {});
+      spc->insertAnotherMap(deskewedCloud.get(), {});
       od->pointcloud = spc;
       od->sensorLabel = "deskewed";
       keyframe_obs->insert(od);
