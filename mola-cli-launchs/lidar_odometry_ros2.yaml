@@ -141,8 +141,17 @@ modules:
           fixed_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
 
+        # For GPS messages of type 'sensor_msgs/NavSatFix'
         - topic: ${MOLA_GNSS_TOPIC|/gps}
           msg_type: NavSatFix
+          output_sensor_label: "gps"
+          # If present, this will override whatever /tf tells about the sensor pose:
+          fixed_sensor_pose: "${GNSS_POSE_X|0} ${GNSS_POSE_Y|0} ${GNSS_POSE_Z|0} ${GNSS_POSE_YAW|0} ${GNSS_POSE_PITCH|0} ${GNSS_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
+
+        # For GPS messages of type 'gps_msgs/GpsFix'
+        - topic: ${MOLA_GPS_FIX_TOPIC|/gps_fix}
+          msg_type: GpsFix
           output_sensor_label: "gps"
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "${GNSS_POSE_X|0} ${GNSS_POSE_Y|0} ${GNSS_POSE_Z|0} ${GNSS_POSE_YAW|0} ${GNSS_POSE_PITCH|0} ${GNSS_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
