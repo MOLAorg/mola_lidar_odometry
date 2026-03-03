@@ -26,7 +26,10 @@
 #include <mola_kernel/version.h>
 
 // MRPT:
+#if !MOLA_VERSION_CHECK(2, 6, 0)
 #include <mrpt/gui/CDisplayWindowGUI.h>
+#endif
+#include <mrpt/maps/CGenericPointsMap.h>
 #include <mrpt/obs/customizable_obs_viz.h>
 #include <mrpt/opengl/CAssimpModel.h>
 #include <mrpt/opengl/CGridPlaneXY.h>
@@ -37,16 +40,206 @@
 #include <mrpt/system/filesystem.h>
 #include <mrpt/version.h>
 
-#if MRPT_VERSION >= 0x020f03  // 2.15.3
-#include <mrpt/maps/CGenericPointsMap.h>
-#else
-#include <mrpt/maps/CPointsMapXYZI.h>
-#endif
-
 namespace mola
 {
 
+#if MOLA_VERSION_CHECK(2, 6, 0)
+
 void LidarOdometry::internalBuildGUI()
+{
+  using namespace mola::gui;
+
+  // Create the LiveStrings shared between the module (writer) and the GUI (reader):
+  gui_.lbIcpQuality = std::make_shared<LiveString>(" ");
+  gui_.lbSensorRates = std::make_shared<LiveString>(" ");
+  gui_.lbSensorRange = std::make_shared<LiveString>(" ");
+  gui_.lbTime = std::make_shared<LiveString>(" ");
+  gui_.lbSpeed = std::make_shared<LiveString>(" ");
+  gui_.lbLidarQueue = std::make_shared<LiveString>(" ");
+  gui_.lbMapStats = std::make_shared<LiveString>(" ");
+
+  WindowDescription desc;
+  desc.title = "mola_lidar_odometry";
+  desc.position = {5, 700};
+  desc.size = {340, 0};
+  desc.starts_hidden = params_.visualization.gui_subwindow_starts_hidden;
+
+  // ------- Tab 1: Status -------
+  {
+    Tab tab;
+    tab.title = "Status";
+    tab.widgets.emplace_back(Label{gui_.lbIcpQuality});
+    tab.widgets.emplace_back(Label{gui_.lbSensorRates});
+    tab.widgets.emplace_back(Label{gui_.lbSensorRange});
+    tab.widgets.emplace_back(Label{gui_.lbSpeed});
+    tab.widgets.emplace_back(Label{gui_.lbTime});
+    tab.widgets.emplace_back(Label{gui_.lbLidarQueue});
+    tab.widgets.emplace_back(Label{gui_.lbMapStats});
+    desc.tabs.emplace_back(std::move(tab));
+  }
+
+  // ------- Tab 2: Control -------
+  {
+    Tab tab;
+    tab.title = "Control";
+
+    tab.widgets.emplace_back(CheckBox{"Active", isActive(), [this](bool checked) {
+                                        this->enqueue_request([this, checked]() {
+                                          auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+                                          state_.active = checked;
+                                        });
+                                      }});
+
+    tab.widgets.emplace_back(CheckBox{
+      "Mapping enabled", params_.local_map_updates.enabled, [this](bool checked) {
+        this->enqueue_request([this, checked]() { params_.local_map_updates.enabled = checked; });
+      }});
+
+    {
+      Label lbl;
+      lbl.text =
+        std::make_shared<LiveString>("Traject./map are saved at exit or when button clicked");
+      lbl.font_size = 14;
+      tab.widgets.emplace_back(std::move(lbl));
+    }
+
+    {
+      Row row;
+      row.widgets.emplace_back(CheckBox{
+        "Save trajectory", params_.estimated_trajectory.save_to_file, [this](bool checked) {
+          this->enqueue_request(
+            [this, checked]() { params_.estimated_trajectory.save_to_file = checked; });
+        }});
+      row.widgets.emplace_back(TextBox{
+        "", params_.estimated_trajectory.output_file, 13, [this](std::string f) {
+          this->enqueue_request([this, f]() { params_.estimated_trajectory.output_file = f; });
+          return true;
+        }});
+      tab.widgets.emplace_back(std::move(row));
+    }
+
+    {
+      Row row;
+      row.widgets.emplace_back(CheckBox{
+        "Generate simplemap", params_.simplemap.generate, [this](bool checked) {
+          this->enqueue_request([this, checked]() { params_.simplemap.generate = checked; });
+        }});
+      row.widgets.emplace_back(TextBox{
+        "", params_.simplemap.save_final_map_to_file, 13, [this](std::string f) {
+          this->enqueue_request([this, f]() { params_.simplemap.save_final_map_to_file = f; });
+          return true;
+        }});
+      tab.widgets.emplace_back(std::move(row));
+    }
+
+    {
+      Row row;
+      row.widgets.emplace_back(Button{
+        "Save trajectory now", 0, "", 14, [this]() { this->saveEstimatedTrajectoryToFile(); }});
+      row.widgets.emplace_back(
+        Button{"Save map now", 0, "", 14, [this]() { this->saveReconstructedMapToFile(); }});
+      tab.widgets.emplace_back(std::move(row));
+    }
+
+    {
+      Row row;
+      row.widgets.emplace_back(Button{
+        "Reset", 0, "", 0, [this]() { this->enqueue_request([this]() { this->reset(); }); }});
+      row.widgets.emplace_back(Button{"Quit", 0, "", 0, [this]() { this->requestShutdown(); }});
+      tab.widgets.emplace_back(std::move(row));
+    }
+
+    desc.tabs.emplace_back(std::move(tab));
+  }
+
+  // ------- Tab 3: View -------
+  {
+    Tab tab;
+    tab.title = "View";
+
+    tab.widgets.emplace_back(CheckBox{
+      "Orthographic camera", params_.visualization.camera_orthographic, [this](bool checked) {
+        this->enqueue_request([this, checked]() {
+          params_.visualization.camera_orthographic = checked;
+          visualizer_->update_viewport_camera_orthographic(checked);
+        });
+      }});
+
+    tab.widgets.emplace_back(
+      CheckBox{"Show trajectory", params_.visualization.show_trajectory, [this](bool checked) {
+                 this->enqueue_request(
+                   [this, checked]() { params_.visualization.show_trajectory = checked; });
+               }});
+
+    tab.widgets.emplace_back(CheckBox{
+      "Show raw observation", params_.visualization.show_current_observation, [this](bool checked) {
+        this->enqueue_request(
+          [this, checked]() { params_.visualization.show_current_observation = checked; });
+      }});
+
+    tab.widgets.emplace_back(CheckBox{
+      "Show dense local map (decaying)",
+      params_.visualization.show_last_deskewed_observations_decay, [this](bool checked) {
+        this->enqueue_request([this, checked]() {
+          params_.visualization.show_last_deskewed_observations_decay = checked;
+        });
+      }});
+
+    tab.widgets.emplace_back(CheckBox{
+      "Show local map", params_.visualization.show_localmap, [this](bool checked) {
+        this->enqueue_request([this, checked]() { params_.visualization.show_localmap = checked; });
+      }});
+
+    tab.widgets.emplace_back(CheckBox{
+      "Camera follows vehicle", params_.visualization.camera_follows_vehicle, [this](bool checked) {
+        this->enqueue_request(
+          [this, checked]() { params_.visualization.camera_follows_vehicle = checked; });
+      }});
+
+    tab.widgets.emplace_back(CheckBox{
+      "Camera rotates with vehicle", params_.visualization.camera_rotates_with_vehicle,
+      [this](bool checked) {
+        this->enqueue_request(
+          [this, checked]() { params_.visualization.camera_rotates_with_vehicle = checked; });
+      }});
+
+    tab.widgets.emplace_back(CheckBox{
+      "Show log messages", params_.visualization.show_console_messages, [this](bool checked) {
+        this->enqueue_request(
+          [this, checked]() { params_.visualization.show_console_messages = checked; });
+      }});
+
+    desc.tabs.emplace_back(std::move(tab));
+  }
+
+  // Background 3D scene: change background color (backend-agnostic)
+  visualizer_->execute_custom_code_on_background_scene([this](mrpt::opengl::Scene & scene) {
+    const auto f = params_.visualization.background_color_gray_level;
+    scene.getViewport()->setCustomBackgroundColor({f, f, f});
+  });
+
+  // Register log messages forwarding to the on-screen console (backend-agnostic)
+  this->mrpt::system::COutputLogger::logRegisterCallback(
+    [this](
+      std::string_view msg, const mrpt::system::VerbosityLevel level, std::string_view loggerName,
+      const mrpt::Clock::time_point timestamp) {
+      using namespace std::string_literals;
+
+      if (!params_.visualization.show_console_messages) return;
+      if (level < this->getMinLoggingLevel()) return;
+
+      visualizer_->output_console_message(
+        "["s + mrpt::system::timeLocalToString(timestamp) + "|"s + mrpt::typemeta::enum2str(level) +
+        " |"s + std::string(loggerName) + "]"s + std::string(msg));
+    });
+
+  // Create the sub-window and block until the GUI thread has processed it:
+  visualizer_->create_subwindow_from_description(desc).get();
+}
+
+#else  // !MOLA_VERSION_CHECK(2, 6, 0): legacy nanogui path
+
+void LidarOdometry::internalBuildGUI_Legacy()
 {
   ASSERT_(gui_.ui);
 
@@ -258,6 +451,8 @@ void LidarOdometry::internalBuildGUI()
     });
 }
 
+#endif  // MOLA_VERSION_CHECK(2, 6, 0)
+
 void LidarOdometry::doRemoveCloudsWithDecay()
 {
   if (visualizer_) {
@@ -384,15 +579,22 @@ void LidarOdometry::updateVisualization(
   // Sub-window with custom UI
   // -------------------------------------
   auto lckGuiMtx = mrpt::lockHelper(state_gui_mtx_);
+#if MOLA_VERSION_CHECK(2, 6, 0)
+  if (!gui_.gui_created) {
+    internalBuildGUI();
+    gui_.gui_created = true;
+  }
+#else
   if (gui_.ui == nullptr) {
     auto fut = visualizer_->create_subwindow("mola_lidar_odometry");
     gui_.ui = fut.get();
 
     // wait until this code is executed in the UI thread:
-    auto fut2 = visualizer_->enqueue_custom_nanogui_code([this]() { internalBuildGUI(); });
+    auto fut2 = visualizer_->enqueue_custom_nanogui_code([this]() { internalBuildGUI_Legacy(); });
 
     fut2.get();
   }
+#endif
 
   // Update indicators:
   updateVisualizationTextLabels();
@@ -604,6 +806,54 @@ void LidarOdometry::updateVisualizationTextLabels()
 {
   const ProfilerEntry tle3(profiler_, "updateVisualization.update_gui");
 
+#if MOLA_VERSION_CHECK(2, 6, 0)
+  if (!gui_.lbIcpQuality) return;  // GUI not yet created
+
+  gui_.lbIcpQuality->set(mrpt::format(
+    "ICP quality: %.01f%% | Thresh: %.02f | Iters: %zu", 100.0 * state_.last_icp_quality,
+    state_.adapt_thres_sigma, state_.last_icp_iterations));
+
+  {
+    const auto [rate_lidar, rate_imu] = state_.get_lidar_imu_sensor_rates();
+    gui_.lbSensorRates->set(mrpt::format("LiDAR=%6.02f Hz | IMU=%6.02f Hz", rate_lidar, rate_imu));
+  }
+
+  if (state_.estimated_sensor_max_range) {
+    gui_.lbSensorRange->set(mrpt::format(
+      "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
+      state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
+  } else {
+    gui_.lbSensorRange->set("Est. max range: (Not available)");
+  }
+
+  {
+    const double dtAvr = profiler_.getMeanTime("onLidar");
+    gui_.lbTime->set(mrpt::format(
+      "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr, dtAvr > 0 ? 1.0 / dtAvr : .0));
+  }
+
+  {
+    const double averageLidarQueue = profiler_.getMeanTime("onNewObservation.lidar_queue_length");
+    gui_.lbLidarQueue->set(mrpt::format(
+      "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
+  }
+
+  gui_.lbMapStats->set(mrpt::format(
+    "Keyframes: Localmap=%zu, simplemap=%zu", state_.distance_checker_local_map->size(),
+    state_.distance_checker_simplemap->size()));
+
+  if (state_.last_motion_model_output) {
+    const auto & tw = state_.last_motion_model_output->twist;
+    const double speed = mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz).norm();
+    gui_.lbSpeed->set(mrpt::format(
+      "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed, speed * 3600.0 / 1000.0,
+      speed / 0.44704));
+  } else {
+    gui_.lbSpeed->set("Speed: (Not available)");
+  }
+
+#else  // legacy nanogui path
+
   gui_.lbIcpQuality->setCaption(mrpt::format(
     "ICP quality: %.01f%% | Thresh: %.02f | Iters: %zu", 100.0 * state_.last_icp_quality,
     state_.adapt_thres_sigma, state_.last_icp_iterations));
@@ -648,6 +898,8 @@ void LidarOdometry::updateVisualizationTextLabels()
   } else {
     gui_.lbSpeed->setCaption("Speed: (Not available)");
   }
+
+#endif  // MOLA_VERSION_CHECK(2, 6, 0)
 }
 
 }  // namespace mola
