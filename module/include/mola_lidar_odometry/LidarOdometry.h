@@ -63,11 +63,16 @@
 #include <vector>
 
 // Forward declarations:
+#if MOLA_VERSION_CHECK(2, 6, 0)
+#include <mola_kernel/GuiWidgetDescription.h>
+#else
 namespace nanogui
 {
+class Window;
 class Label;
 class CheckBox;
 }  // namespace nanogui
+#endif
 
 namespace mola
 {
@@ -751,6 +756,16 @@ private:
 
     double timestampLastUpdateUI = 0;
 
+#if MOLA_VERSION_CHECK(2, 6, 0)
+    bool gui_created = false;
+    mola::gui::LiveString::Ptr lbIcpQuality;
+    mola::gui::LiveString::Ptr lbSensorRates;
+    mola::gui::LiveString::Ptr lbSensorRange;
+    mola::gui::LiveString::Ptr lbTime;
+    mola::gui::LiveString::Ptr lbSpeed;
+    mola::gui::LiveString::Ptr lbLidarQueue;
+    mola::gui::LiveString::Ptr lbMapStats;
+#else
     nanogui::Window * ui = nullptr;
     nanogui::Label * lbIcpQuality = nullptr;
     nanogui::Label * lbSensorRates = nullptr;
@@ -762,6 +777,7 @@ private:
     nanogui::CheckBox * cbActive = nullptr;
     nanogui::CheckBox * cbMapping = nullptr;
     nanogui::CheckBox * cbSaveSimplemap = nullptr;
+#endif
   };
 
   // Accessing this struct in gui_ requires acquiring state_gui_mtx_
@@ -825,7 +841,11 @@ private:
   void updateVisualizationPath(std::vector<std::function<void()>> & updateTasks);
   void updateVisualizationTextLabels();
 
+#if MOLA_VERSION_CHECK(2, 6, 0)
   void internalBuildGUI();
+#else
+  void internalBuildGUI_Legacy();
+#endif
 
   void doRemoveCloudsWithDecay();
 
