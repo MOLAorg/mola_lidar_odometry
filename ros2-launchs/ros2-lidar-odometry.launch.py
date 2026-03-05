@@ -46,6 +46,11 @@ def generate_launch_description():
     gps_topic_env_var = SetEnvironmentVariable(
         name='MOLA_GNSS_TOPIC', value=LaunchConfiguration('gnss_topic_name'))
     # ~~~~~~~~~~~~
+    gpsmsg_topic_name_arg = DeclareLaunchArgument(
+        "gpsfix_topic_name", default_value="gpsfix", description="Topic name to listen for gps_msgs/GPSFix input from a GNSS (for example '/gpsfix')")
+    gpsmsg_topic_env_var = SetEnvironmentVariable(
+        name='MOLA_GPS_FIX_TOPIC', value=LaunchConfiguration('gpsfix_topic_name'))
+    # ~~~~~~~~~~~~
     imu_topic_name_arg = DeclareLaunchArgument(
         "imu_topic_name", default_value="imu", description="Topic name to listen for Imu input (for example '/imu')")
     imu_topic_name_env_var = SetEnvironmentVariable(
@@ -249,6 +254,8 @@ def generate_launch_description():
         generate_simplemap_env_var,
         gnss_topic_name_arg,
         gps_topic_env_var,
+        gpsmsg_topic_name_arg,
+        gpsmsg_topic_env_var,
         ignore_imu_pose_from_tf_arg,
         ignore_imu_pose_from_tf_env_var,
         ignore_lidar_pose_from_tf_arg,

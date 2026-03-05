@@ -143,6 +143,10 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
              Topic name to listen for NavSatFix input from a GNSS (for example '/gps')
              (default: 'gps')
 
+          'gpsfix_topic_name':
+             Topic name to listen for gps_msgs/GPSFix input from a GNSS (for example '/gpsfix')
+             (default: 'gpsfix')
+
           'ignore_imu_pose_from_tf':
              If true, the IMU pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf
              (default: 'false')
@@ -230,6 +234,8 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
              If false, the basic state estimator 'mola::state_estimation_simple::StateEstimationSimple' will be used. If true, 'mola::state_estimation_smoother::StateEstimationSmoother' is used instead.
              (default: 'False')
 
+          'state_estimator_config_yaml':
+             A YAML file with settings for the state estimator. Absolute path or relative to 'mola-cli-launchs/lidar_odometry_ros2.yaml'
 
 
 .. _mola_lo_ros_mola-cli-env-vars:
