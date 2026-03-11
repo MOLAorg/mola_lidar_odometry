@@ -257,7 +257,9 @@ localmap_generator:
         plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
           max_search_keyframes: ${MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES|3}
-          k_correspondences_for_cov: 20
+          k_correspondences_for_cov: ${MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV|20}
+          use_view_direction_filter: ${MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER|true}
+          max_view_angle_deg: ${MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG|120}
           rotation_distance_weight: 2.0
           num_diverse_keyframes: ${MOLA_LOCALMAP_DIVERSE_KEYFRAMES|1} # Must be < max_search_keyframes
         insertOpts:
