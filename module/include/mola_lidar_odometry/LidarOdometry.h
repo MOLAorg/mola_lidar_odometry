@@ -716,13 +716,19 @@ private:
     /// Used to estimate sensor rate
     mrpt::containers::circular_buffer<double> recent_imu_stamps{1500};
 
-    /// Returns the rates (Hz) of incoming LiDAR and IMU sensors for the past few seconds
-    std::tuple<double, double> get_lidar_imu_sensor_rates();
+    /// Used to estimate GNSS sensor rate
+    mrpt::containers::circular_buffer<double> recent_gnss_stamps{100};
+
+    /// Returns the rates (Hz) of incoming LiDAR, IMU, and GNSS sensors
+    /// for the past few seconds. A rate of 0.0 means no data or stale data.
+    std::tuple<double, double, double> get_sensor_rates();
 
     void append_lidar_stamp(
       const std::string & sensorLabel, const mrpt::Clock::time_point & stamp,
       const mrpt::system::COutputLogger & logger);
     void append_imu_stamp(
+      const mrpt::Clock::time_point & stamp, const mrpt::system::COutputLogger & logger);
+    void append_gnss_stamp(
       const mrpt::Clock::time_point & stamp, const mrpt::system::COutputLogger & logger);
 
   };  // end of MethodState

@@ -111,7 +111,7 @@ void LidarOdometry::internalBuildGUI()
             [this, checked]() { params_.estimated_trajectory.save_to_file = checked; });
         }});
       row.widgets.emplace_back(TextBox{
-        "", params_.estimated_trajectory.output_file, 13, [this](std::string f) {
+        "", params_.estimated_trajectory.output_file, 13, [this](std::string f) {  // NOLINT
           this->enqueue_request([this, f]() { params_.estimated_trajectory.output_file = f; });
           return true;
         }});
@@ -125,7 +125,7 @@ void LidarOdometry::internalBuildGUI()
           this->enqueue_request([this, checked]() { params_.simplemap.generate = checked; });
         }});
       row.widgets.emplace_back(TextBox{
-        "", params_.simplemap.save_final_map_to_file, 13, [this](std::string f) {
+        "", params_.simplemap.save_final_map_to_file, 13, [this](std::string f) {  // NOLINT
           this->enqueue_request([this, f]() { params_.simplemap.save_final_map_to_file = f; });
           return true;
         }});
@@ -225,8 +225,12 @@ void LidarOdometry::internalBuildGUI()
       const mrpt::Clock::time_point timestamp) {
       using namespace std::string_literals;
 
-      if (!params_.visualization.show_console_messages) return;
-      if (level < this->getMinLoggingLevel()) return;
+      if (!params_.visualization.show_console_messages) {
+        return;
+      }
+      if (level < this->getMinLoggingLevel()) {
+        return;
+      }
 
       visualizer_->output_console_message(
         "["s + mrpt::system::timeLocalToString(timestamp) + "|"s + mrpt::typemeta::enum2str(level) +
@@ -807,15 +811,18 @@ void LidarOdometry::updateVisualizationTextLabels()
   const ProfilerEntry tle3(profiler_, "updateVisualization.update_gui");
 
 #if MOLA_VERSION_CHECK(2, 6, 0)
-  if (!gui_.lbIcpQuality) return;  // GUI not yet created
+  if (!gui_.lbIcpQuality) {
+    return;  // GUI not yet created
+  }
 
   gui_.lbIcpQuality->set(mrpt::format(
     "ICP quality: %.01f%% | Thresh: %.02f | Iters: %zu", 100.0 * state_.last_icp_quality,
     state_.adapt_thres_sigma, state_.last_icp_iterations));
 
   {
-    const auto [rate_lidar, rate_imu] = state_.get_lidar_imu_sensor_rates();
-    gui_.lbSensorRates->set(mrpt::format("LiDAR=%6.02f Hz | IMU=%6.02f Hz", rate_lidar, rate_imu));
+    const auto [rate_lidar, rate_imu, rate_gnss] = state_.get_sensor_rates();
+    gui_.lbSensorRates->set(mrpt::format(
+      "LiDAR=%6.02f Hz | IMU=%6.02f Hz | GNSS=%5.02f Hz", rate_lidar, rate_imu, rate_gnss));
   }
 
   if (state_.estimated_sensor_max_range) {
@@ -859,9 +866,9 @@ void LidarOdometry::updateVisualizationTextLabels()
     state_.adapt_thres_sigma, state_.last_icp_iterations));
 
   {
-    const auto [rate_lidar, rate_imu] = state_.get_lidar_imu_sensor_rates();
-    gui_.lbSensorRates->setCaption(
-      mrpt::format("LiDAR=%6.02f Hz | IMU=%6.02f Hz", rate_lidar, rate_imu));
+    const auto [rate_lidar, rate_imu, rate_gnss] = state_.get_sensor_rates();
+    gui_.lbSensorRates->setCaption(mrpt::format(
+      "LiDAR=%6.02f Hz | IMU=%6.02f Hz | GNSS=%5.02f Hz", rate_lidar, rate_imu, rate_gnss));
   }
 
   if (state_.estimated_sensor_max_range) {

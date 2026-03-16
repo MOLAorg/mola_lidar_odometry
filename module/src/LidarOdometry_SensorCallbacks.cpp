@@ -247,7 +247,7 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
 
     const auto rate_lidar_hz = [&] {
       auto lckState = mrpt::lockHelper(state_mtx_);
-      auto [rate_lidar, _] = state_.get_lidar_imu_sensor_rates();
+      auto [rate_lidar, rate_imu_, rate_gnss_] = state_.get_sensor_rates();
       return rate_lidar;
     }();
 
@@ -321,6 +321,9 @@ void LidarOdometry::onGPSImpl(const CObservation::ConstPtr & o)
     }
   }
 
+  // for rate stats:
+  state_.append_gnss_stamp(gps->timestamp, *this);
+
   // Keep the latest GPS observations for simplemap insertion:
   state_.last_gnss_.emplace(gps->timestamp, gps);
 
@@ -357,33 +360,71 @@ bool LidarOdometry::doCheckIsValidObservation(const mp2p_icp::metric_map_t & m)
 
 namespace
 {
-double rate_from_stamps_buffer(const mrpt::containers::circular_buffer<double> & stamps)
+/// Computes rate as (N-1)/(t_last - t_first).
+/// Returns 0.0 if the buffer has fewer than 2 stamps, or if the most recent
+/// stamp is older than `staleness_timeout` seconds relative to `ref_time`.
+double rate_from_stamps_buffer(
+  const mrpt::containers::circular_buffer<double> & stamps, double ref_time = 0,
+  double staleness_timeout = 5.0)
 {
-  if (stamps.size() < 2) {
-    return .0;
-  }
-  double rate_accum = 0;
-  for (std::size_t i = 0; i < stamps.size() - 1; i++) {
-    const auto ti = stamps.peek(i);
-    const auto tj = stamps.peek(i + 1);
-    rate_accum += tj != ti ? 1.0 / (tj - ti) : .0;
-  }
-  rate_accum *= 1.0 / static_cast<double>(stamps.size() - 1);
-  return rate_accum;
+  if (stamps.size() < 2) return .0;
+
+  const double t_first = stamps.peek(0);
+  const double t_last = stamps.peek(stamps.size() - 1);
+
+  // Staleness check: if ref_time is provided and the newest stamp
+  // is too old, report 0 (sensor stopped):
+  if (ref_time > 0 && (ref_time - t_last) > staleness_timeout) return .0;
+
+  const double dt = t_last - t_first;
+  if (dt <= 0) return .0;
+
+  return static_cast<double>(stamps.size() - 1) / dt;
 }
 
 }  // namespace
 
-std::tuple<double, double> LidarOdometry::MethodState::get_lidar_imu_sensor_rates()
+std::tuple<double, double, double> LidarOdometry::MethodState::get_sensor_rates()
 {
-  const double lidar_rate = recent_lidar_stamps.empty()
-                              ? 10.0
-                              : rate_from_stamps_buffer(recent_lidar_stamps.begin()->second);
+  // Use the latest observation timestamp as reference for staleness detection.
+  // This works for both live and offline (rawlog/rosbag) data sources.
+  const double ref_time = last_obs_timestamp ? mrpt::Clock::toDouble(*last_obs_timestamp) : 0.0;
 
-  const double imu_rate = rate_from_stamps_buffer(recent_imu_stamps);
+  // Aggregate across all lidar sensors:
+  double lidar_rate = 0;
+  for (auto & [label, stamps] : recent_lidar_stamps)
+    lidar_rate += rate_from_stamps_buffer(stamps, ref_time);
 
-  return {lidar_rate, imu_rate};
+  const double imu_rate = rate_from_stamps_buffer(recent_imu_stamps, ref_time);
+  const double gnss_rate = rate_from_stamps_buffer(recent_gnss_stamps, ref_time);
+
+  return {lidar_rate, imu_rate, gnss_rate};
 }
+
+namespace
+{
+/// Appends a timestamp to a circular buffer, with backwards-time rejection.
+/// Returns true if the stamp was accepted, false if rejected.
+bool append_stamp_to_buffer(
+  mrpt::containers::circular_buffer<double> & stamps, double t, const char * sensor_name,
+  const mrpt::system::COutputLogger & logger)
+{
+  // Reject backwards timestamps instead of just warning:
+  if (stamps.size() > 0) {
+    const double t_prev = stamps.peek(stamps.size() - 1);
+    if (t < t_prev) {
+      logger.logFmt(
+        mrpt::system::LVL_WARN,
+        "%s timestamps went backwards in time: t[k-1]=%f, t[k]=%f (discarding for rate calc)",
+        sensor_name, t_prev, t);
+      return false;
+    }
+  }
+  if (stamps.available() == 0) stamps.pop();
+  stamps.push(t);
+  return true;
+}
+}  // namespace
 
 void LidarOdometry::MethodState::append_lidar_stamp(
   const std::string & sensorLabel, const mrpt::Clock::time_point & stamp,
@@ -393,41 +434,20 @@ void LidarOdometry::MethodState::append_lidar_stamp(
 
   auto [it_stamps, is_new] =
     recent_lidar_stamps.try_emplace(sensorLabel, LIDAR_STAMPS_QUEUE_LENGTH);
-  auto & stamps = it_stamps->second;
-  if (stamps.available() == 0) {
-    stamps.pop();
-  }
-  stamps.push(mrpt::Clock::toDouble(stamp));
 
-  // Trigger a warning if stamps seems to move backwards in time, since this is never expected:
-  if (const auto nLidarStamps = stamps.size(); nLidarStamps > 2) {
-    const auto tm1 = stamps.peek(nLidarStamps - 1);
-    const auto tm2 = stamps.peek(nLidarStamps - 2);
-    if (tm1 < tm2) {
-      logger.logFmt(
-        mrpt::system::LVL_WARN,
-        "LiDAR timestamps seem to have gone backwards in time (!): t[k-1]=%f, t[k]=%f", tm2, tm1);
-    }
-  }
+  append_stamp_to_buffer(it_stamps->second, mrpt::Clock::toDouble(stamp), "LiDAR", logger);
 }
+
 void LidarOdometry::MethodState::append_imu_stamp(
   const mrpt::Clock::time_point & stamp, const mrpt::system::COutputLogger & logger)
 {
-  if (recent_imu_stamps.size() >= recent_imu_stamps.capacity() - 2) {
-    recent_imu_stamps.pop();
-  }
-  recent_imu_stamps.push(mrpt::Clock::toDouble(stamp));
+  append_stamp_to_buffer(recent_imu_stamps, mrpt::Clock::toDouble(stamp), "IMU", logger);
+}
 
-  // Trigger a warning if stamps seems to move backwards in time, since this is never expected:
-  if (const auto nImuStamps = recent_imu_stamps.size(); nImuStamps > 2) {
-    const auto tm1 = recent_imu_stamps.peek(nImuStamps - 1);
-    const auto tm2 = recent_imu_stamps.peek(nImuStamps - 2);
-    if (tm1 < tm2) {
-      logger.logFmt(
-        mrpt::system::LVL_WARN,
-        "IMU timestamps seem to have gone backwards in time (!): t[k-1]=%f, t[k]=%f", tm2, tm1);
-    }
-  }
+void LidarOdometry::MethodState::append_gnss_stamp(
+  const mrpt::Clock::time_point & stamp, const mrpt::system::COutputLogger & logger)
+{
+  append_stamp_to_buffer(recent_gnss_stamps, mrpt::Clock::toDouble(stamp), "GNSS", logger);
 }
 
 }  // namespace mola
