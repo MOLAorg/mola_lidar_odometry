@@ -72,18 +72,18 @@ independent of the local map type used for ICP.
 To use a prepared ``.mm`` map for localization, ensure it contains a layer named ``localmap`` with the **exact C++ class** listed below.
 
 +-----------------------+---------------------------------------------------------+---------------------------------------------+
-| Pipeline config file  | Local map type                                          | ICP algorithm                               |
+| Pipeline config file  | Local map type and layer name                           | ICP algorithm                               |
 +=======================+=========================================================+=============================================+
-| ``lidar3d-gicp.yaml`` | Keyframe-based 3D point clouds                          | Generalized ICP (“cov-to-cov”)              |
+| ``lidar3d-gicp.yaml`` | Keyframe-based 3D point clouds (layer: ``localmap``)    | Generalized ICP (“cov-to-cov”)              |
 |    (Default)          | (:ref:`doxid-classmola_1_1_keyframe_point_cloud_map`)   |                                             |
 +-----------------------+---------------------------------------------------------+---------------------------------------------+
-| ``lidar3d-icp.yaml``  | Voxel-based 3D point clouds                             | Standard ICP (point-to-point)               |
+| ``lidar3d-icp.yaml``  | Voxel-based 3D point clouds (layer: ``localmap``)       | Standard ICP (point-to-point)               |
 |                       | (:ref:`doxid-classmola_1_1_hashed_voxel_point_cloud`)   |                                             |
 +-----------------------+---------------------------------------------------------+---------------------------------------------+
-| ``lidar3d-ndt.yaml``  | Voxel-based 3D NDT map                                  | Standard ICP (point-to-plane, point-to-     |
+| ``lidar3d-ndt.yaml``  | Voxel-based 3D NDT map (layer: ``localmap``)            | Standard ICP (point-to-plane, point-to-     |
 |                       | (:ref:`doxid-classmola_1_1_n_d_t`)                      | point)                                      |
 +-----------------------+---------------------------------------------------------+---------------------------------------------+
-| ``lidar2d.yaml``      | Voxel-based 2D occupancy map                            | Standard ICP (point-to-occupied-voxel)      |
+| ``lidar2d.yaml``      | Voxel-based 2D occupancy map (layer: ``localmap``)      | Standard ICP (point-to-occupied-voxel)      |
 |                       | (``mrpt::maps::CVoxelMap``)                             |                                             |
 +-----------------------+---------------------------------------------------------+---------------------------------------------+
 
