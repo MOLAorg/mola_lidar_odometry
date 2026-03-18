@@ -10,10 +10,10 @@ modules:
   # =====================
   - name: viz
     type: mola::MolaViz
-    verbosity_level: '${MOLA_VERBOSITY_MOLA_VIZ|INFO}'
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
     params: ~ # none
 
-# Offline or online sensory data sources =====================
+  # Offline or online sensory data sources =====================
   # =====================
   # KittiOdometryDataset
   # =====================
@@ -22,7 +22,7 @@ modules:
     execution_rate: 150 # Hz
     #verbosity_level: INFO
     quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|false}
-    
+
     gui_preview_sensors:
       - raw_sensor_label: ${MOLA_LIDAR_NAME|lidar}
         decimation: 1
@@ -33,21 +33,20 @@ modules:
     params:
       rawlog_filename: ${MOLA_INPUT_RAWLOG}
       time_warp_scale: ${MOLA_TIME_WARP|1.0}
-      read_all_first: ${MOLA_INPUT_RAWLOG_READ_ALL_FIRST|false}  # read from disk as needed
+      read_all_first: ${MOLA_INPUT_RAWLOG_READ_ALL_FIRST|false} # read from disk as needed
       start_paused: ${MOLA_DATASET_START_PAUSED|false}
 
   - name: lidar_odom
     type: mola::LidarOdometry
-    verbosity_level: '${MOLA_VERBOSITY_MOLA_LO|INFO}'
-    raw_data_source: 'dataset_input'
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_LO|INFO}"
+    raw_data_source: "dataset_input"
     # This includes here a whole block "params: (...)"
     # with the LIDAR-Odometry pipeline configuration:
-    params: '${MOLA_ODOMETRY_PIPELINE_YAML|../pipelines/lidar3d-default.yaml}'
+    params: "${MOLA_ODOMETRY_PIPELINE_YAML|../pipelines/lidar3d-default.yaml}"
 
   - name: state_estimation
-    type: '${MOLA_STATE_ESTIMATOR|mola::state_estimation_simple::StateEstimationSimple}'
-    verbosity_level: '${MOLA_VERBOSITY_MOLA_STATE_ESTIMATOR|INFO}'
+    type: "${MOLA_STATE_ESTIMATOR|mola::state_estimation_simple::StateEstimationSimple}"
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_STATE_ESTIMATOR|INFO}"
 
     # This includes here a whole block "params: (...)":
-    params: '${MOLA_STATE_ESTIMATOR_YAML|../state-estimator-params/state-estimation-simple.yaml}'
-
+    params: "${MOLA_STATE_ESTIMATOR_YAML|../state-estimator-params/state-estimation-simple.yaml}"
