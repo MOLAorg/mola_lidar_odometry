@@ -323,7 +323,8 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
         - topic: ${MOLA_GNSS_TOPIC|'/gps'}
           sensorLabel: 'gps'
-          type: CObservationGPS
+          #type: CObservationGPS  # This will be determined automatically by Rosbag2Dataset
+          is_optional: true
           fixed_sensor_pose: "${GPS_POSE_X|0} ${GPS_POSE_Y|0} ${GPS_POSE_Z|0} ${GPS_POSE_YAW|0} ${GPS_POSE_PITCH|0} ${GPS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
         - topic: '%s'
