@@ -307,6 +307,34 @@ Sensor inputs: IMU (optional)
 - ``MOLA_DESKEW_METHOD`` (Default: ``MotionCompensationMethod::Linear``): **IMPORTANT**: If you do not change this from its default,
   the IMU data will not be used for deskewing. To fully achieve the best accuracy, set this variable to ``MotionCompensationMethod::IMU``.
 
+IMU gravity correction (pitch/roll)
+"""""""""""""""""""""""""""""""""""""
+
+When an IMU is available, MOLA-LO can use the accelerometer readings to
+continuously estimate the gravity direction and inject it as a **pitch/roll
+constraint** into the ICP prior. This prevents vertical drift in the LiDAR
+odometry output without requiring a full factor-graph smoother.
+
+The feature averages recent accelerometer samples in a circular buffer,
+rotates the result to the vehicle frame using the IMU ``sensorPose``
+extrinsics, and derives pitch and roll from the gravity direction.
+
+.. note::
+
+   This feature acts on the ICP prior independently of the
+   ``StateEstimationSmoother`` gravity factor. Both can be active simultaneously.
+
+- ``MOLA_IMU_GRAVITY_CORRECTION`` (Default: ``false``): Set to ``true`` to enable
+  accelerometer-based pitch/roll correction of the ICP prior.
+
+- ``MOLA_IMU_GRAVITY_SIGMA_DEG`` (Default: ``2.0`` [deg]): Standard deviation of the
+  gravity-derived pitch/roll prior. Lower values give more trust to the IMU.
+  Typical range: 1–5 deg.
+
+- ``MOLA_IMU_GRAVITY_AVG_SAMPLES`` (Default: ``20``): Number of recent accelerometer
+  samples to average for the gravity estimate. The correction activates as soon as
+  3 samples are available, even if the full window has not filled yet.
+
 
 Sensor inputs: Wheels odometry (optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -334,6 +334,41 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       }
     }
 
+    // Apply IMU gravity correction to ICP prior (pitch/roll):
+    if (params_.imu_gravity_correction.enabled) {
+      const auto gravityPR = state_.gravity_estimator.estimatedPitchRoll(
+        std::min(params_.imu_gravity_correction.averaging_samples, 3u));
+
+      if (gravityPR.has_value()) {
+        const auto [imu_pitch, imu_roll] = *gravityPR;
+
+        if (!in.prior.has_value()) {
+          // Create a prior from current initial guess:
+          in.prior.emplace();
+          in.prior->mean = mrpt::poses::CPose3D(in.init_guess_local_wrt_global);
+          in.prior->cov_inv = mrpt::math::CMatrixDouble66::Zero();
+        }
+
+        // Override pitch & roll in the prior mean:
+        double cur_yaw, cur_pitch, cur_roll;
+        in.prior->mean.getYawPitchRoll(cur_yaw, cur_pitch, cur_roll);
+        in.prior->mean.setYawPitchRoll(cur_yaw, imu_pitch, imu_roll);
+
+        // Increase confidence for roll (idx=3) and pitch (idx=4):
+        const double sigma_rad = mrpt::DEG2RAD(params_.imu_gravity_correction.sigma_deg);
+        const double inv_var = 1.0 / (sigma_rad * sigma_rad);
+
+        in.prior->cov_inv(3, 3) = std::max(in.prior->cov_inv(3, 3), inv_var);
+        in.prior->cov_inv(4, 4) = std::max(in.prior->cov_inv(4, 4), inv_var);
+
+        MRPT_LOG_DEBUG_FMT(
+          "IMU gravity correction: pitch=%.2f deg, roll=%.2f deg "
+          "(sigma=%.1f deg, %zu samples)",
+          mrpt::RAD2DEG(imu_pitch), mrpt::RAD2DEG(imu_roll),
+          params_.imu_gravity_correction.sigma_deg, state_.gravity_estimator.acc_buffer.size());
+      }
+    }
+
     // If we don't have a valid twist estimation, use a larger ICP
     // correspondence threshold:
     in.align_kind = hasMotionModel ? AlignKind::RegularOdometry : AlignKind::NoMotionModel;

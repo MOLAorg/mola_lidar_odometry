@@ -454,6 +454,23 @@ public:
 
     ObservationValidityChecks observation_validity_checks;
 
+    struct IMUGravityCorrection
+    {
+      /// Enable accelerometer-based pitch/roll correction in ICP prior.
+      bool enabled = false;
+
+      /// Sigma [degrees] for the gravity-derived pitch/roll prior.
+      /// Lower values = more trust in IMU. Typical: 1–5 deg.
+      double sigma_deg = 2.0;
+
+      /// Number of recent accelerometer samples to average for gravity estimation.
+      uint32_t averaging_samples = 20;
+
+      void initialize(const Yaml & c);
+    };
+
+    IMUGravityCorrection imu_gravity_correction;
+
     bool start_active = true;
 
     uint32_t max_lidar_queue_before_drop = 15;
@@ -615,6 +632,22 @@ private:
 
     /// Used for pitch & roll initialization
     std::optional<mola::imu::ImuInitialCalibrator> imu_initializer;
+
+    /// Accumulates recent accelerometer readings and provides
+    /// a smoothed pitch/roll estimate from the gravity direction.
+    struct GravityEstimator
+    {
+      mrpt::containers::circular_buffer<std::array<double, 3>> acc_buffer{200};
+      mrpt::poses::CPose3D imu_sensor_pose;  ///< last known IMU extrinsics
+
+      void add(const mrpt::obs::CObservationIMU & imu, uint32_t max_samples);
+
+      /// Returns estimated (pitch, roll) in radians from averaged
+      /// accelerometer data in the vehicle frame, or nullopt if not enough data.
+      std::optional<std::pair<double, double>> estimatedPitchRoll(uint32_t required_samples) const;
+    };
+
+    GravityEstimator gravity_estimator;
 
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 

@@ -197,6 +197,13 @@ void LidarOdometry::Parameters::ObservationValidityChecks::initialize(const Yaml
   YAML_LOAD_OPT(minimum_point_count, uint32_t);
 }
 
+void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(enabled, bool);
+  YAML_LOAD_OPT(sigma_deg, double);
+  YAML_LOAD_OPT(averaging_samples, uint32_t);
+}
+
 void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_values)
 {
   if (names_values.isNullNode() || names_values.empty()) {

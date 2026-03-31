@@ -241,6 +241,12 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
     mp2p_icp_filters::apply_generators(state_.obs_generators, *imu, dummy_map);
   }
 
+  // 3) Gravity estimation for ICP verticality correction:
+  if (params_.imu_gravity_correction.enabled) {
+    auto lckState2 = mrpt::lockHelper(state_mtx_);
+    state_.gravity_estimator.add(*imu, params_.imu_gravity_correction.averaging_samples);
+  }
+
   // Finally, schedule to run those LiDAR scans that were waiting for IMU data:
   if (isPipelineUsingIMU()) {
     const auto imuTim = mrpt::Clock::toDouble(imu->timestamp);
@@ -448,6 +454,81 @@ void LidarOdometry::MethodState::append_gnss_stamp(
   const mrpt::Clock::time_point & stamp, const mrpt::system::COutputLogger & logger)
 {
   append_stamp_to_buffer(recent_gnss_stamps, mrpt::Clock::toDouble(stamp), "GNSS", logger);
+}
+
+void LidarOdometry::MethodState::GravityEstimator::add(
+  const mrpt::obs::CObservationIMU & imu, uint32_t max_samples)
+{
+  if (
+    !imu.has(mrpt::obs::IMU_X_ACC) || !imu.has(mrpt::obs::IMU_Y_ACC) ||
+    !imu.has(mrpt::obs::IMU_Z_ACC)) {
+    return;
+  }
+
+  const std::array<double, 3> acc = {
+    imu.get(mrpt::obs::IMU_X_ACC), imu.get(mrpt::obs::IMU_Y_ACC), imu.get(mrpt::obs::IMU_Z_ACC)};
+
+  // Basic sanity: reject readings that are clearly not gravity-like
+  const double norm = std::sqrt(acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2]);
+  if (std::abs(norm - 9.8) > 3.0 && std::abs(norm - 1.0) > 0.5) {
+    return;  // not a plausible gravity reading
+  }
+
+  // Trim buffer to the desired averaging window:
+  while (acc_buffer.size() >= max_samples) {
+    acc_buffer.pop();
+  }
+  acc_buffer.push(acc);
+
+  // Remember the sensor pose for vehicle-frame transform:
+  imu_sensor_pose = imu.sensorPose;
+}
+
+std::optional<std::pair<double, double>>
+LidarOdometry::MethodState::GravityEstimator::estimatedPitchRoll(uint32_t required_samples) const
+{
+  if (acc_buffer.size() < required_samples) {
+    return std::nullopt;
+  }
+
+  // Average the accelerometer readings (in sensor frame):
+  double sx = 0, sy = 0, sz = 0;
+  const auto n = acc_buffer.size();
+  for (std::size_t i = 0; i < n; i++) {
+    const auto & a = acc_buffer.peek(i);
+    sx += a[0];
+    sy += a[1];
+    sz += a[2];
+  }
+  const double inv_n = 1.0 / static_cast<double>(n);
+  const double ax = sx * inv_n;
+  const double ay = sy * inv_n;
+  const double az = sz * inv_n;
+
+  // Transform averaged gravity from IMU sensor frame to vehicle frame:
+  const auto rotMat = imu_sensor_pose.getRotationMatrix();
+
+  const double gx_veh = rotMat(0, 0) * ax + rotMat(0, 1) * ay + rotMat(0, 2) * az;
+  const double gy_veh = rotMat(1, 0) * ax + rotMat(1, 1) * ay + rotMat(1, 2) * az;
+  const double gz_veh = rotMat(2, 0) * ax + rotMat(2, 1) * ay + rotMat(2, 2) * az;
+
+  // From gravity direction in vehicle frame, estimate pitch and roll.
+  // Convention: if vehicle is level, gravity = [0, 0, +g] (z-up).
+  //   pitch = rotation about Y that tilts gravity into X
+  //   roll  = rotation about X that tilts gravity into Y
+  const double g_norm = std::sqrt(gx_veh * gx_veh + gy_veh * gy_veh + gz_veh * gz_veh);
+  if (g_norm < 1e-3) {
+    return std::nullopt;
+  }
+
+  const double nx = gx_veh / g_norm;
+  const double ny = gy_veh / g_norm;
+  const double nz = gz_veh / g_norm;
+
+  const double pitch = std::asin(-nx);
+  const double roll = std::atan2(ny, nz);
+
+  return std::make_pair(pitch, roll);
 }
 
 }  // namespace mola
