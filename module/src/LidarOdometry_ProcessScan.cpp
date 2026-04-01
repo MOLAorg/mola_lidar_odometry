@@ -351,16 +351,16 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
         }
 
         // Override pitch & roll in the prior mean:
-        double cur_yaw, cur_pitch, cur_roll;
-        in.prior->mean.getYawPitchRoll(cur_yaw, cur_pitch, cur_roll);
+        const double cur_yaw = in.prior->mean.yaw();
         in.prior->mean.setYawPitchRoll(cur_yaw, imu_pitch, imu_roll);
 
         // Increase confidence for roll (idx=3) and pitch (idx=4):
         const double sigma_rad = mrpt::DEG2RAD(params_.imu_gravity_correction.sigma_deg);
         const double inv_var = 1.0 / (sigma_rad * sigma_rad);
 
-        in.prior->cov_inv(3, 3) = std::max(in.prior->cov_inv(3, 3), inv_var);
-        in.prior->cov_inv(4, 4) = std::max(in.prior->cov_inv(4, 4), inv_var);
+        // MRPT cov order: x y z yaw pitch[4] roll[5]
+        mrpt::keep_max(in.prior->cov_inv(4, 4), inv_var);
+        mrpt::keep_max(in.prior->cov_inv(5, 5), inv_var);
 
         MRPT_LOG_DEBUG_FMT(
           "IMU gravity correction: pitch=%.2f deg, roll=%.2f deg "
