@@ -457,7 +457,7 @@ public:
     struct IMUGravityCorrection
     {
       /// Enable accelerometer-based pitch/roll correction in ICP prior.
-      bool enabled = false;
+      bool enabled = true;
 
       /// Sigma [degrees] for the gravity-derived pitch/roll prior.
       /// Lower values = more trust in IMU. Typical: 1–5 deg.

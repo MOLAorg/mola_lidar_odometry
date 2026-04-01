@@ -179,6 +179,11 @@ def generate_launch_description():
     mola_deskew_method_env_var = SetEnvironmentVariable(
         name='MOLA_DESKEW_METHOD', value=LaunchConfiguration('mola_deskew_method'))
     # ~~~~~~~~~~~~
+    imu_gravity_correction_arg = DeclareLaunchArgument(
+        "imu_gravity_correction", default_value="true", description="Whether to use IMU accelerometer readings to constrain ICP pitch/roll (prevents vertical drift; safe to leave enabled even without an IMU)")
+    imu_gravity_correction_env_var = SetEnvironmentVariable(
+        name='MOLA_IMU_GRAVITY_CORRECTION', value=LaunchConfiguration('imu_gravity_correction'))
+    # ~~~~~~~~~~~~
     mola_tf_base_link_arg = DeclareLaunchArgument(
         "mola_tf_base_link", default_value="base_link", description="The /tf frame name for the robot base link.")
     mola_tf_base_link_env_var = SetEnvironmentVariable(
@@ -271,6 +276,8 @@ def generate_launch_description():
         lidar_topic_name_arg,
         lidar_topic_type_arg,
         lidar_topic_type_env_var,
+        imu_gravity_correction_arg,
+        imu_gravity_correction_env_var,
         mola_deskew_method_arg,
         mola_deskew_method_env_var,
         mola_footprint_to_base_link_tf_arg,

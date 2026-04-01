@@ -324,8 +324,10 @@ extrinsics, and derives pitch and roll from the gravity direction.
    This feature acts on the ICP prior independently of the
    ``StateEstimationSmoother`` gravity factor. Both can be active simultaneously.
 
-- ``MOLA_IMU_GRAVITY_CORRECTION`` (Default: ``false``): Set to ``true`` to enable
-  accelerometer-based pitch/roll correction of the ICP prior.
+- ``MOLA_IMU_GRAVITY_CORRECTION`` (Default: ``true``): Set to ``false`` to disable
+  accelerometer-based pitch/roll correction of the ICP prior. Safe to leave
+  enabled even without an IMU — when no IMU data is present the correction is
+  silently skipped.
 
 - ``MOLA_IMU_GRAVITY_SIGMA_DEG`` (Default: ``2.0`` [deg]): Standard deviation of the
   gravity-derived pitch/roll prior. Lower values give more trust to the IMU.

@@ -41,7 +41,7 @@ params:
   # IMU accelerometer-based verticality correction:
   # Uses averaged accelerometer readings to constrain ICP pitch/roll.
   imu_gravity_correction:
-    enabled: ${MOLA_IMU_GRAVITY_CORRECTION|false}
+    enabled: ${MOLA_IMU_GRAVITY_CORRECTION|true}
     sigma_deg: ${MOLA_IMU_GRAVITY_SIGMA_DEG|2.0}
     averaging_samples: ${MOLA_IMU_GRAVITY_AVG_SAMPLES|20}
     max_age_seconds: ${MOLA_IMU_GRAVITY_MAX_AGE|2.0}
