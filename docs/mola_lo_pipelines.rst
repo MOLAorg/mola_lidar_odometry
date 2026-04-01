@@ -335,6 +335,11 @@ extrinsics, and derives pitch and roll from the gravity direction.
   samples to average for the gravity estimate. The correction activates as soon as
   3 samples are available, even if the full window has not filled yet.
 
+- ``MOLA_IMU_GRAVITY_MAX_AGE`` (Default: ``2.0`` [s]): Maximum age in seconds for
+  accelerometer samples used in the gravity average. Samples older than this are
+  discarded, ensuring the estimate reflects current orientation rather than stale
+  data. Set to ``0`` to disable age filtering.
+
 
 Sensor inputs: Wheels odometry (optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

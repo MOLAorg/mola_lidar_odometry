@@ -468,39 +468,59 @@ void LidarOdometry::MethodState::GravityEstimator::add(
   const std::array<double, 3> acc = {
     imu.get(mrpt::obs::IMU_X_ACC), imu.get(mrpt::obs::IMU_Y_ACC), imu.get(mrpt::obs::IMU_Z_ACC)};
 
-  // Basic sanity: reject readings that are clearly not gravity-like
+  // Reject readings whose specific-force deviates from gravity by >2 m/s²
+  // (tighter than original threshold to avoid bias during dynamic motion):
   const double norm = std::sqrt(acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2]);
-  if (std::abs(norm - 9.8) > 3.0 && std::abs(norm - 1.0) > 0.5) {
-    return;  // not a plausible gravity reading
+  if (std::abs(norm - 9.81) > 2.0) {
+    return;
   }
+
+  const double stamp = mrpt::Clock::toDouble(imu.timestamp);
 
   // Trim buffer to the desired averaging window:
   while (acc_buffer.size() >= max_samples) {
     acc_buffer.pop();
   }
-  acc_buffer.push(acc);
+  acc_buffer.push({stamp, acc});
 
   // Remember the sensor pose for vehicle-frame transform:
   imu_sensor_pose = imu.sensorPose;
+  imu_sensor_pose_timestamp = stamp;
 }
 
 std::optional<std::pair<double, double>>
-LidarOdometry::MethodState::GravityEstimator::estimatedPitchRoll(uint32_t required_samples) const
+LidarOdometry::MethodState::GravityEstimator::estimatedPitchRoll(
+  uint32_t required_samples, double max_age_seconds) const
 {
   if (acc_buffer.size() < required_samples) {
     return std::nullopt;
   }
 
-  // Average the accelerometer readings (in sensor frame):
+  // Determine the newest timestamp in the buffer for age filtering:
+  const double newest_stamp = acc_buffer.peek(acc_buffer.size() - 1).timestamp;
+  const bool use_age_filter = max_age_seconds > 0;
+
+  // Average the accelerometer readings (in sensor frame),
+  // considering only samples within the age limit:
   double sx = 0, sy = 0, sz = 0;
+  std::size_t count = 0;
   const auto n = acc_buffer.size();
   for (std::size_t i = 0; i < n; i++) {
-    const auto & a = acc_buffer.peek(i);
-    sx += a[0];
-    sy += a[1];
-    sz += a[2];
+    const auto & entry = acc_buffer.peek(i);
+    if (use_age_filter && (newest_stamp - entry.timestamp) > max_age_seconds) {
+      continue;  // too old
+    }
+    sx += entry.acc[0];
+    sy += entry.acc[1];
+    sz += entry.acc[2];
+    ++count;
   }
-  const double inv_n = 1.0 / static_cast<double>(n);
+
+  if (count < required_samples) {
+    return std::nullopt;
+  }
+
+  const double inv_n = 1.0 / static_cast<double>(count);
   const double ax = sx * inv_n;
   const double ay = sy * inv_n;
   const double az = sz * inv_n;

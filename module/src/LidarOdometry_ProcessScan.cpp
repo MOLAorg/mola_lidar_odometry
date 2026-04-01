@@ -337,7 +337,8 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     // Apply IMU gravity correction to ICP prior (pitch/roll):
     if (params_.imu_gravity_correction.enabled) {
       const auto gravityPR = state_.gravity_estimator.estimatedPitchRoll(
-        std::min(params_.imu_gravity_correction.averaging_samples, 3u));
+        std::min(params_.imu_gravity_correction.averaging_samples, 3u),
+        params_.imu_gravity_correction.max_age_seconds);
 
       if (gravityPR.has_value()) {
         const auto [imu_pitch, imu_roll] = *gravityPR;
