@@ -197,6 +197,25 @@ void LidarOdometry::Parameters::ObservationValidityChecks::initialize(const Yaml
   YAML_LOAD_OPT(minimum_point_count, uint32_t);
 }
 
+void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(enabled, bool);
+  YAML_LOAD_OPT(sigma_deg, double);
+  YAML_LOAD_OPT(averaging_samples, uint32_t);
+  YAML_LOAD_OPT(max_age_seconds, double);
+
+  if (enabled) {
+    ASSERTMSG_(
+      averaging_samples >= 1 && averaging_samples <= 200,
+      mrpt::format(
+        "imu_gravity_correction.averaging_samples=%u is out of valid range [1, 200]",
+        static_cast<unsigned>(averaging_samples)));
+
+    ASSERTMSG_(
+      sigma_deg > 0, mrpt::format("imu_gravity_correction.sigma_deg=%.4f must be > 0", sigma_deg));
+  }
+}
+
 void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_values)
 {
   if (names_values.isNullNode() || names_values.empty()) {

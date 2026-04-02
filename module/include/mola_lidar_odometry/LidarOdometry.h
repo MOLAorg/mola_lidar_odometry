@@ -454,6 +454,27 @@ public:
 
     ObservationValidityChecks observation_validity_checks;
 
+    struct IMUGravityCorrection
+    {
+      /// Enable accelerometer-based pitch/roll correction in ICP prior.
+      bool enabled = true;
+
+      /// Sigma [degrees] for the gravity-derived pitch/roll prior.
+      /// Lower values = more trust in IMU. Typical: 1–5 deg.
+      double sigma_deg = 2.0;
+
+      /// Number of recent accelerometer samples to average for gravity estimation.
+      uint32_t averaging_samples = 20;
+
+      /// Maximum age [seconds] for accelerometer samples used in averaging.
+      /// Samples older than this are discarded. 0 = no age limit.
+      double max_age_seconds = 2.0;
+
+      void initialize(const Yaml & c);
+    };
+
+    IMUGravityCorrection imu_gravity_correction;
+
     bool start_active = true;
 
     uint32_t max_lidar_queue_before_drop = 15;
@@ -615,6 +636,31 @@ private:
 
     /// Used for pitch & roll initialization
     std::optional<mola::imu::ImuInitialCalibrator> imu_initializer;
+
+    /// Accumulates recent accelerometer readings and provides
+    /// a smoothed pitch/roll estimate from the gravity direction.
+    struct GravityEstimator
+    {
+      struct TimestampedAcc
+      {
+        double timestamp = 0;
+        std::array<double, 3> acc = {0, 0, 0};
+      };
+
+      mrpt::containers::circular_buffer<TimestampedAcc> acc_buffer{200};
+      mrpt::poses::CPose3D imu_sensor_pose;  ///< last known IMU extrinsics
+      double imu_sensor_pose_timestamp = 0;  ///< timestamp of last sensor pose update
+
+      void add(const mrpt::obs::CObservationIMU & imu, uint32_t max_samples);
+
+      /// Returns estimated (pitch, roll) in radians from averaged
+      /// accelerometer data in the vehicle frame, or nullopt if not enough data.
+      /// max_age_seconds <= 0 means no age filtering.
+      std::optional<std::pair<double, double>> estimatedPitchRoll(
+        uint32_t required_samples, double max_age_seconds) const;
+    };
+
+    GravityEstimator gravity_estimator;
 
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 

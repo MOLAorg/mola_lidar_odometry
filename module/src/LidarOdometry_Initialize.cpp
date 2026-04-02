@@ -183,6 +183,10 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     params_.observation_validity_checks.initialize(cfg["observation_validity_checks"]);
   }
 
+  if (cfg.has("imu_gravity_correction")) {
+    params_.imu_gravity_correction.initialize(cfg["imu_gravity_correction"]);
+  }
+
   if (c.has("initial_localization")) {
     params_.initial_localization.initialize(c["initial_localization"]);
   }

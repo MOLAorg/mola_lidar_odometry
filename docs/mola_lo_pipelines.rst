@@ -307,6 +307,41 @@ Sensor inputs: IMU (optional)
 - ``MOLA_DESKEW_METHOD`` (Default: ``MotionCompensationMethod::Linear``): **IMPORTANT**: If you do not change this from its default,
   the IMU data will not be used for deskewing. To fully achieve the best accuracy, set this variable to ``MotionCompensationMethod::IMU``.
 
+IMU gravity correction (pitch/roll)
+"""""""""""""""""""""""""""""""""""""
+
+When an IMU is available, MOLA-LO can use the accelerometer readings to
+continuously estimate the gravity direction and inject it as a **pitch/roll
+constraint** into the ICP prior. This prevents vertical drift in the LiDAR
+odometry output without requiring a full factor-graph smoother.
+
+The feature averages recent accelerometer samples in a circular buffer,
+rotates the result to the vehicle frame using the IMU ``sensorPose``
+extrinsics, and derives pitch and roll from the gravity direction.
+
+.. note::
+
+   This feature acts on the ICP prior independently of the
+   ``StateEstimationSmoother`` gravity factor. Both can be active simultaneously.
+
+- ``MOLA_IMU_GRAVITY_CORRECTION`` (Default: ``true``): Set to ``false`` to disable
+  accelerometer-based pitch/roll correction of the ICP prior. Safe to leave
+  enabled even without an IMU — when no IMU data is present the correction is
+  silently skipped.
+
+- ``MOLA_IMU_GRAVITY_SIGMA_DEG`` (Default: ``2.0`` [deg]): Standard deviation of the
+  gravity-derived pitch/roll prior. Lower values give more trust to the IMU.
+  Typical range: 1–5 deg.
+
+- ``MOLA_IMU_GRAVITY_AVG_SAMPLES`` (Default: ``20``): Number of recent accelerometer
+  samples to average for the gravity estimate. The correction activates as soon as
+  3 samples are available, even if the full window has not filled yet.
+
+- ``MOLA_IMU_GRAVITY_MAX_AGE`` (Default: ``2.0`` [s]): Maximum age in seconds for
+  accelerometer samples used in the gravity average. Samples older than this are
+  discarded, ensuring the estimate reflects current orientation rather than stale
+  data. Set to ``0`` to disable age filtering.
+
 
 Sensor inputs: Wheels odometry (optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -335,7 +370,7 @@ Scan de-skew options
   will be just processed without doing any de-skew on them. If this variable is set to ``false``, an exception will be triggered
   in such event, which can be used as a fail-safe check against missing stamps, important in high velocity scenarios.
 
-- ``MOLA_DESKEW_METHOD`` (Default: ``false``): If enabled, scan de-skew (motion compensation) will be skipped.
+- ``MOLA_DESKEW_METHOD`` (Default: ``MotionCompensationMethod::Linear``): Selects the scan de-skew (motion compensation) method. Set to ``MotionCompensationMethod::IMU`` to use IMU data for deskewing when an IMU stream is available.
 
 General options
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -349,13 +384,13 @@ General options
 - ``MOLA_LOAD_MM`` (Default: none): An optional path to a metric map (``*.mm``) file with a prebuilt metric map. Useful for
   multisession mapping or localization-only mode.
 
-- ``MOLA_MINIMUM_ICP_QUALITY`` (Default: ``0.25``): Minimum quality (from the ``mpcp_icp`` quality evaluators), in the range [0,1], to
+- ``MOLA_MINIMUM_ICP_QUALITY`` (Default: ``0.50``): Minimum quality (from the ``mpcp_icp`` quality evaluators), in the range [0,1], to
   consider an ICP optimization to be valid.
 
-- ``MOLA_SIGMA_MIN_MOTION`` (Default: ``0.10`` [m]): Absolute minimum adaptive "sigma" threshold (refer to the paper).
+- ``MOLA_SIGMA_MIN_MOTION`` (Default: ``0.04`` [m]): Absolute minimum adaptive "sigma" threshold (refer to the paper).
 
 
-- ``MOLA_ADAPT_THRESHOLD_ALPHA`` (Default: ``0.9``): Alpha parameter of the IIR low-pass filter for adaptive threshold 
+- ``MOLA_ADAPT_THRESHOLD_ALPHA`` (Default: ``0.99``): Alpha parameter of the IIR low-pass filter for adaptive threshold 
   proportional controller (refer to the paper).
 
 - ``MOLA_START_ACTIVE`` (default: ``true``): If set to ``false``, the odometry pipeline will ignore incoming observations
@@ -456,4 +491,3 @@ Trace debug files
 
 - ``MOLA_SAVE_DEBUG_TRACES`` (Default: ``false``): Whether to generate and save this debug information to a file.
 - ``MOLA_DEBUG_TRACES_FILE`` (Default: ``mola-lo-traces.csv``): The name of the file to store trace information, if enabled.
-
