@@ -2,6 +2,53 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Merge pull request `#53 <https://github.com/MOLAorg/mola_lidar_odometry/issues/53>`_ from MOLAorg/feat/use-imu-grav-align
+  Use IMU readings to estimate gravity up vector as ICP prior constraint
+* Add formal CLA
+* mola-cli-launch files: apply yaml format
+* FIX: mola-lidar-odometry-cli now can handle the two types of GPS messages too
+* gui stats: more robust sensor rate estimation (include gnss now too)
+* docs: add layer name to pipeline table
+* gicp pipeline: expose new KF-metric map parameters as optional env vars
+* ros2 launch: add new argument 'gpsfix_topic_name' for GPSFix messages
+* Merge pull request `#50 <https://github.com/MOLAorg/mola_lidar_odometry/issues/50>`_ from MOLAorg/feat/refactor-gui
+  Port to the new backend agnostic GUI API
+* Port to the new backend agnostic GUI API
+* ROS2 node and ros2bags: support gps_msgs/GpsFix messages too
+* On bad ICP, do neither publish or show deskewed scans
+* gicp pipeline: expose more env vars for KF map params
+* Merge pull request `#48 <https://github.com/MOLAorg/mola_lidar_odometry/issues/48>`_ from MOLAorg/feat/selective-icp-log
+  New env var to debug bad ICP cases: MOLA_WRITE_DEBUG_ICP_LOG_IF_QUALITY_UNDER
+* New env var to debug bad ICP cases: MOLA_WRITE_DEBUG_ICP_LOG_IF_QUALITY_UNDER
+* CSV stats: include icp_quality too
+* Merge pull request `#47 <https://github.com/MOLAorg/mola_lidar_odometry/issues/47>`_ from MOLAorg/better-deskew-performance
+  More efficient deskew and visualization
+* refactor deskew and viz updates
+* Ensure no detached threads (`#46 <https://github.com/MOLAorg/mola_lidar_odometry/issues/46>`_)
+  * Fix: potential miss error report saving mm files
+  * Ensure no detached threads for disk io
+  * minor fixes
+* fix obsolete usage of ament_target_dependencies()
+* Remove no longer needed param period_publish_new_localization (Removed in BridgeROS2)
+* Fix: provide a mechanism to read 2D lidar from ROS (`#43 <https://github.com/MOLAorg/mola_lidar_odometry/issues/43>`_)
+  * Fix: provide a mechanism to read 2D lidar from ROS
+  * docs: add new ros launch argument `lidar_topic_type`
+  * doc: better roslaunch arg description
+* Fix building against older versions of mrpt & mp2p_icp
+* Saving simplemap with lazy-load is done in its own detaled thread
+* Merge pull request `#40 <https://github.com/MOLAorg/mola_lidar_odometry/issues/40>`_ from MOLAorg/feat/more-clang-tidy-checks
+  Add many more clang-tidy checks
+* Remove thread_local aux variable for viz camera rotation
+* Increase level of clang-tidy warnings, and fix them
+* Copyright year bump
+* Merge pull request `#39 <https://github.com/MOLAorg/mola_lidar_odometry/issues/39>`_ from MOLAorg/feat/optional-prefilter-pipeline
+  Add optional prefilter pipeline for all ICP methods
+* Add many more clang-tidy checks
+* Add optional prefilter pipeline for all ICP methods
+* Contributors: Jose Luis Blanco-Claraco
+
 1.3.1 (2025-12-29)
 ------------------
 * Merge pull request #36 from MOLAorg/feat/use-generic-map-fields
