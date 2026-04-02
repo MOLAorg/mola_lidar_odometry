@@ -1,4 +1,3 @@
-
 # ROS 2 launch file
 
 from launch import LaunchDescription
@@ -189,6 +188,16 @@ def generate_launch_description():
     imu_gravity_sigma_deg_env_var = SetEnvironmentVariable(
         name='MOLA_IMU_GRAVITY_SIGMA_DEG', value=LaunchConfiguration('imu_gravity_sigma_deg'))
     # ~~~~~~~~~~~~
+    imu_gravity_avg_samples_arg = DeclareLaunchArgument(
+        "imu_gravity_avg_samples", default_value="20", description="Number of IMU samples to average when estimating the gravity direction for pitch/roll correction.")
+    imu_gravity_avg_samples_env_var = SetEnvironmentVariable(
+        name='MOLA_IMU_GRAVITY_AVG_SAMPLES', value=LaunchConfiguration('imu_gravity_avg_samples'))
+    # ~~~~~~~~~~~~
+    imu_gravity_max_age_arg = DeclareLaunchArgument(
+        "imu_gravity_max_age", default_value="2.0", description="Maximum age [seconds] of IMU samples used for gravity alignment. Samples older than this are discarded.")
+    imu_gravity_max_age_env_var = SetEnvironmentVariable(
+        name='MOLA_IMU_GRAVITY_MAX_AGE', value=LaunchConfiguration('imu_gravity_max_age'))
+    # ~~~~~~~~~~~~
     mola_tf_base_link_arg = DeclareLaunchArgument(
         "mola_tf_base_link", default_value="base_link", description="The /tf frame name for the robot base link.")
     mola_tf_base_link_env_var = SetEnvironmentVariable(
@@ -285,6 +294,10 @@ def generate_launch_description():
         imu_gravity_correction_env_var,
         imu_gravity_sigma_deg_arg,
         imu_gravity_sigma_deg_env_var,
+        imu_gravity_avg_samples_arg,
+        imu_gravity_avg_samples_env_var,
+        imu_gravity_max_age_arg,
+        imu_gravity_max_age_env_var,
         mola_deskew_method_arg,
         mola_deskew_method_env_var,
         mola_footprint_to_base_link_tf_arg,
