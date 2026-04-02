@@ -370,7 +370,7 @@ Scan de-skew options
   will be just processed without doing any de-skew on them. If this variable is set to ``false``, an exception will be triggered
   in such event, which can be used as a fail-safe check against missing stamps, important in high velocity scenarios.
 
-- ``MOLA_DESKEW_METHOD`` (Default: ``false``): If enabled, scan de-skew (motion compensation) will be skipped.
+- ``MOLA_DESKEW_METHOD`` (Default: ``MotionCompensationMethod::Linear``): Selects the scan de-skew (motion compensation) method. Set to ``MotionCompensationMethod::IMU`` to use IMU data for deskewing when an IMU stream is available.
 
 General options
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -384,13 +384,13 @@ General options
 - ``MOLA_LOAD_MM`` (Default: none): An optional path to a metric map (``*.mm``) file with a prebuilt metric map. Useful for
   multisession mapping or localization-only mode.
 
-- ``MOLA_MINIMUM_ICP_QUALITY`` (Default: ``0.25``): Minimum quality (from the ``mpcp_icp`` quality evaluators), in the range [0,1], to
+- ``MOLA_MINIMUM_ICP_QUALITY`` (Default: ``0.50``): Minimum quality (from the ``mpcp_icp`` quality evaluators), in the range [0,1], to
   consider an ICP optimization to be valid.
 
-- ``MOLA_SIGMA_MIN_MOTION`` (Default: ``0.10`` [m]): Absolute minimum adaptive "sigma" threshold (refer to the paper).
+- ``MOLA_SIGMA_MIN_MOTION`` (Default: ``0.04`` [m]): Absolute minimum adaptive "sigma" threshold (refer to the paper).
 
 
-- ``MOLA_ADAPT_THRESHOLD_ALPHA`` (Default: ``0.9``): Alpha parameter of the IIR low-pass filter for adaptive threshold 
+- ``MOLA_ADAPT_THRESHOLD_ALPHA`` (Default: ``0.99``): Alpha parameter of the IIR low-pass filter for adaptive threshold 
   proportional controller (refer to the paper).
 
 - ``MOLA_START_ACTIVE`` (default: ``true``): If set to ``false``, the odometry pipeline will ignore incoming observations
@@ -491,4 +491,3 @@ Trace debug files
 
 - ``MOLA_SAVE_DEBUG_TRACES`` (Default: ``false``): Whether to generate and save this debug information to a file.
 - ``MOLA_DEBUG_TRACES_FILE`` (Default: ``mola-lo-traces.csv``): The name of the file to store trace information, if enabled.
-
