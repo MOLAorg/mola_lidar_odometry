@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.0.0 (2026-04-02)
+------------------
 * Merge pull request `#53 <https://github.com/MOLAorg/mola_lidar_odometry/issues/53>`_ from MOLAorg/feat/use-imu-grav-align
   Use IMU readings to estimate gravity up vector as ICP prior constraint
 * Add formal CLA
