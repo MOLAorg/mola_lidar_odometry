@@ -36,11 +36,7 @@
 namespace mola
 {
 
-#if MOLA_VERSION_CHECK(2, 1, 0)
 void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
-#else
-void LidarOdometry::onNewObservation(const CObservation::Ptr & o)
-#endif
 {
   MRPT_TRY_START
   const ProfilerEntry tleg(profiler_, "onNewObservation");

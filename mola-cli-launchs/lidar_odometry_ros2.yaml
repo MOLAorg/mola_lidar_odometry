@@ -39,7 +39,8 @@ modules:
     execution_rate: ${MOLA_STATE_ESTIMATOR_PUBLISH_RATE|10} # Hz
 
     # This includes here a whole block "params: (...)":
-    params: "${MOLA_STATE_ESTIMATOR_YAML|../state-estimator-params/state-estimation-simple.yaml}"
+    # Don't provide a default for the ROS2 system to make sure we are getting the env var from the launch file
+    params: "${MOLA_STATE_ESTIMATOR_YAML|no_default.yaml}"
 
   # =====================
   # ROS2 <-> MOLA
