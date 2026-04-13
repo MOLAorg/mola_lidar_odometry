@@ -276,6 +276,10 @@ def generate_launch_description():
         "mola_tf_base_link", default_value="base_link", description="The /tf frame name for the robot base link.")
     mola_tf_base_link_env_var = SetEnvironmentVariable(
         name='MOLA_TF_BASE_LINK', value=LaunchConfiguration('mola_tf_base_link'))
+    # Ensure LO's published frame matches the bridge/SE base_link frame
+    # (used in LocalizationUpdate.child_frame for TF and odometry output):
+    mola_lo_publish_vehicle_frame_env_var = SetEnvironmentVariable(
+        name='MOLA_LO_PUBLISH_VEHICLE_FRAME', value=LaunchConfiguration('mola_tf_base_link'))
 
     # Namespace (Based on Nav2's bring-up launch file!)
     # ---------------------------------------------------
@@ -387,6 +391,7 @@ def generate_launch_description():
         mola_se_reference_frame_arg,
         mola_tf_base_link_arg,
         mola_tf_base_link_env_var,
+        mola_lo_publish_vehicle_frame_env_var,
         mola_tf_map_env_var,
         publish_localization_following_rep105_arg,
         publish_localization_following_rep105_env_var,
