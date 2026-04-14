@@ -145,6 +145,10 @@ def generate_launch_description():
         "mola_lo_reference_frame", default_value="map", description="The /tf frame name to be used for MOLA-LO localization updates")
     mola_lo_reference_frame_env_var = SetEnvironmentVariable(
         name='MOLA_LO_PUBLISH_REF_FRAME', value=LaunchConfiguration('mola_lo_reference_frame'))
+    # Keep the bridge's odom_frame in sync with LO's reference frame,
+    # so REP105 TF lookups use the correct frame in namespaced setups:
+    mola_tf_estimated_odom_env_var = SetEnvironmentVariable(
+        name='MOLA_TF_ESTIMATED_ODOMETRY', value=LaunchConfiguration('mola_lo_reference_frame'))
 
     mola_se_reference_frame_arg = DeclareLaunchArgument(
         "mola_state_estimator_reference_frame", default_value="map", description="The /tf frame name to be used as reference for MOLA State Estimators to publish pose updates")
@@ -388,6 +392,7 @@ def generate_launch_description():
         mola_lo_pipeline_env_var,
         mola_lo_reference_frame_arg,
         mola_lo_reference_frame_env_var,
+        mola_tf_estimated_odom_env_var,
         mola_se_reference_frame_arg,
         mola_tf_base_link_arg,
         mola_tf_base_link_env_var,
