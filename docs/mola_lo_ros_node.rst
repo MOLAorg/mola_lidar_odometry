@@ -143,13 +143,13 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
             Topic name to listen for NavSatFix input from a GNSS (for example '/gps')
             (default: 'gps')
 
-          'gpsfix_topic_name':
-             Topic name to listen for gps_msgs/GPSFix input from a GNSS (for example '/gpsfix')
-             (default: 'gpsfix')
+         'gpsfix_topic_name':
+            Topic name to listen for gps_msgs/GPSFix input from a GNSS (for example '/gpsfix')
+            (default: 'gpsfix')
 
-          'ignore_imu_pose_from_tf':
-             If true, the IMU pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf
-             (default: 'false')
+         'ignore_imu_pose_from_tf':
+            If true, the IMU pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf
+            (default: 'false')
 
          'ignore_lidar_pose_from_tf':
             If true, the LiDAR pose will be assumed to be at the origin (base_link). Set to false (default) if you want to read the actual sensor pose from /tf
@@ -168,15 +168,31 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
             (default: '100')
 
          'lidar_topic_name':
-            Topic name to listen for PointCloud2 input from the LiDAR (for example '/ouster/points')
+            Topic name to listen for PointCloud2 input from the LiDAR (for example '/ouster/points'), for a 2D LaserScan message (for example '/scan'); see lidar_topic_type
 
-          'lidar_topic_type':
-             The type of LiDAR topic to subscribe to. Options: 'PointCloud2' (default) or 'LaserScan'
-             (default: 'PointCloud2')
+         'lidar_topic_type':
+            The type of LiDAR topic to subscribe to. Options: 'PointCloud2' (default) or 'LaserScan'
+            (default: 'PointCloud2')
 
-          'mola_deskew_method':
-             Which motion-compensation method to use to align LiDAR scans more precisely
-             (default: 'MotionCompensationMethod::Linear')
+         'imu_gravity_correction':
+            Whether to use IMU accelerometer readings to constrain ICP pitch/roll (prevents vertical drift; safe to leave enabled even without an IMU)
+            (default: 'true')
+
+         'imu_gravity_sigma_deg':
+            Sigma [degrees] for the gravity-derived pitch/roll prior. Lower values = more trust in IMU.
+            (default: '2.0')
+
+         'imu_gravity_avg_samples':
+            Number of IMU samples to average when estimating the gravity direction for pitch/roll correction.
+            (default: '20')
+
+         'imu_gravity_max_age':
+            Maximum age [seconds] of IMU samples used for gravity alignment. Samples older than this are discarded.
+            (default: '2.0')
+
+         'mola_deskew_method':
+            Which motion-compensation method to use to align LiDAR scans more precisely
+            (default: 'MotionCompensationMethod::Linear')
 
          'mola_footprint_to_base_link_tf':
             Can be used to define a custom transformation between base_footprint and base_link. The coordinates are [x, y, z, yaw_deg, pitch_deg, roll_deg].
@@ -197,6 +213,10 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
          'mola_lo_reference_frame':
             The /tf frame name to be used for MOLA-LO localization updates
             (default: 'map')
+
+         'mola_bridge_odometry_frame':
+            Used for: (a) importing odometry to MOLA if ``forward_ros_tf_as_mola_odometry_observations=true``, (b) querying ``${odom_frame} => ${base_link_frame}`` when ``publish_localization_following_rep105=true``
+            (default: 'odom')
 
          'mola_state_estimator_reference_frame':
             The /tf frame name to be used as reference for MOLA State Estimators to publish pose updates
@@ -253,6 +273,7 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
          'state_estimator_config_yaml':
             Path to estimator YAML. If empty, it is auto-resolved based on use_state_estimator.
             (default: '')
+
 
 .. _mola_lo_ros_mola-cli-env-vars:
 

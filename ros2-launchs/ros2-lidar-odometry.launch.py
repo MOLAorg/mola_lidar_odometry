@@ -145,10 +145,11 @@ def generate_launch_description():
         "mola_lo_reference_frame", default_value="map", description="The /tf frame name to be used for MOLA-LO localization updates")
     mola_lo_reference_frame_env_var = SetEnvironmentVariable(
         name='MOLA_LO_PUBLISH_REF_FRAME', value=LaunchConfiguration('mola_lo_reference_frame'))
-    # Keep the bridge's odom_frame in sync with LO's reference frame,
-    # so REP105 TF lookups use the correct frame in namespaced setups:
+
+    mola_bridge_odometry_frame_arg = DeclareLaunchArgument(
+        "mola_bridge_odometry_frame", default_value="odom", description="Used in BridgeROS2 for: (a) importing odometry to MOLA if ``forward_ros_tf_as_mola_odometry_observations=true``, (b) querying ``${odom_frame} => ${base_link_frame}`` when ``publish_localization_following_rep105=true``")
     mola_tf_estimated_odom_env_var = SetEnvironmentVariable(
-        name='MOLA_TF_ESTIMATED_ODOMETRY', value=LaunchConfiguration('mola_lo_reference_frame'))
+        name='MOLA_TF_ESTIMATED_ODOMETRY', value=LaunchConfiguration('mola_bridge_odometry_frame'))
 
     mola_se_reference_frame_arg = DeclareLaunchArgument(
         "mola_state_estimator_reference_frame", default_value="map", description="The /tf frame name to be used as reference for MOLA State Estimators to publish pose updates")
@@ -244,7 +245,7 @@ def generate_launch_description():
         description="Path to estimator YAML. If empty, it is auto-resolved based on use_state_estimator.")
 
     lidar_scan_validity_minimum_point_count_arg = DeclareLaunchArgument(
-        "lidar_scan_validity_minimum_point_count", default_value="100")
+        "lidar_scan_validity_minimum_point_count", default_value="100", description="Minimum number of points in each LiDAR raw scan for it to be considered valid; otherwise, it is ignored.")
     lidar_scan_validity_minimum_point_env_var = SetEnvironmentVariable(
         name='MOLA_OBS_VALIDITY_MIN_POINTS', value=LaunchConfiguration('lidar_scan_validity_minimum_point_count'))
     lidar_scan_validity_enable_env_var = SetEnvironmentVariable(
@@ -392,6 +393,7 @@ def generate_launch_description():
         mola_lo_pipeline_env_var,
         mola_lo_reference_frame_arg,
         mola_lo_reference_frame_env_var,
+        mola_bridge_odometry_frame_arg,
         mola_tf_estimated_odom_env_var,
         mola_se_reference_frame_arg,
         mola_tf_base_link_arg,
