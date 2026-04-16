@@ -579,6 +579,13 @@ void LidarOdometry::updateVisualization(
     const auto s = mrpt::format(
       "t=%.03f *WARNING* No input LiDAR observations received yet!", mrpt::Clock::nowDouble());
     visualizer_->output_console_message(s);
+    gui_.was_waiting_for_lidar_data = true;
+  } else if (gui_.was_waiting_for_lidar_data) {
+    gui_.was_waiting_for_lidar_data = false;
+    const auto s =
+      mrpt::format("t=%.03f LiDAR data started to be received.", mrpt::Clock::nowDouble());
+    visualizer_->output_console_message(s);
+    MRPT_LOG_INFO(s);
   }
 
   // Sub-window with custom UI

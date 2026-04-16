@@ -825,6 +825,7 @@ private:
     StateUI() = default;
 
     double timestampLastUpdateUI = 0;
+    bool was_waiting_for_lidar_data = true;
 
 #if MOLA_VERSION_CHECK(2, 6, 0)
     bool gui_created = false;
