@@ -265,10 +265,17 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
   handleInitialLocalizationDoInitFromPose(estimatedPose, false);
   doRemoveCloudsWithDecay();
 
-  MRPT_TODO("Auto-transition into active after convergence");
-
   state_.initial_localization_done = true;
   state_.waiting_for_state_estimator_since.reset();
+
+  // Auto-transition into active after convergence:
+  {
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+    if (!state_.active) {
+      state_.active = true;
+      MRPT_LOG_INFO("Auto-transitioning to active mode after state estimator convergence.");
+    }
+  }
 }
 
 }  // namespace mola
