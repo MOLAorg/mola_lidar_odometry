@@ -45,17 +45,23 @@ def resolve_gnss_mode(context, *args, **kwargs):
                 "\n\n[ERROR] gnss_mode:=live_georef requires use_state_estimator:=True "
                 "(the smoother).\n"
             )
-        actions.append(SetEnvironmentVariable(
-            name='MOLA_ESTIMATE_GEO_REF', value='True'))
+        user_geo_ref = LaunchConfiguration(
+            'estimate_geo_reference').perform(context).strip()
+        if not user_geo_ref:
+            actions.append(SetEnvironmentVariable(
+                name='MOLA_ESTIMATE_GEO_REF', value='True'))
     elif mode == 'relocalize':
         if not use_smoother:
             raise RuntimeError(
                 "\n\n[ERROR] gnss_mode:=relocalize requires use_state_estimator:=True "
                 "(the smoother).\n"
             )
-        actions.append(SetEnvironmentVariable(
-            name='MOLA_LO_INITIAL_LOCALIZATION_METHOD',
-            value='InitLocalization::FromStateEstimator'))
+        user_loc_method = LaunchConfiguration(
+            'initial_localization_method').perform(context).strip()
+        if not user_loc_method:
+            actions.append(SetEnvironmentVariable(
+                name='MOLA_LO_INITIAL_LOCALIZATION_METHOD',
+                value='InitLocalization::FromStateEstimator'))
     else:
         raise RuntimeError(
             f"\n\n[ERROR] Unknown gnss_mode '{mode}'. "
@@ -63,6 +69,28 @@ def resolve_gnss_mode(context, *args, **kwargs):
         )
 
     return actions
+
+
+def validate_odometry_sources(context, *args, **kwargs):
+    """
+    Enforce the BridgeROS2 invariant that external odometry is consumed via
+    exactly one pathway. The TF-based path
+    (`forward_ros_tf_odom_to_mola:=True`) is a single-source legacy mechanism
+    that hardcodes sensorLabel='odom'; combining it with a direct
+    `nav_msgs/Odometry` subscription (`odom_topic_name:=...`) would feed
+    duplicate observations of the same physical source to the state estimator.
+    """
+    tf_path = LaunchConfiguration(
+        'forward_ros_tf_odom_to_mola').perform(context).lower() == 'true'
+    topic = LaunchConfiguration('odom_topic_name').perform(context).strip()
+    if tf_path and topic:
+        raise RuntimeError(
+            "\n\n[ERROR] Two odometry sources are enabled simultaneously:\n"
+            "  forward_ros_tf_odom_to_mola:=True  (via /tf)\n"
+            f"  odom_topic_name:={topic!r}  (via nav_msgs/Odometry topic)\n"
+            "These are mutually exclusive. Disable one of them.\n"
+        )
+    return []
 
 
 def resolve_state_estimator_config(context, *args, **kwargs):
@@ -442,6 +470,8 @@ def generate_launch_description():
         odom_topic_name_env_var,
         odom_sensor_label_arg,
         odom_sensor_label_env_var,
+        # Reject enabling the /tf pathway and a direct /odom subscription at once:
+        OpaqueFunction(function=validate_odometry_sources),
         generate_simplemap_arg,
         generate_simplemap_env_var,
         gnss_topic_name_arg,
@@ -471,6 +501,7 @@ def generate_launch_description():
         imu_gravity_avg_samples_env_var,
         imu_gravity_max_age_arg,
         imu_gravity_max_age_env_var,
+        use_imu_for_lio_arg,
         mola_deskew_method_arg,
         mola_deskew_method_env_var,
         mola_footprint_to_base_link_tf_arg,
@@ -498,7 +529,6 @@ def generate_launch_description():
         use_mola_gui_arg,
         use_mola_gui_env_var,
         use_rviz_arg,
-        use_imu_for_lio_arg,
         use_state_estimator_arg,
         use_state_estimator_env_var,
         gnss_mode_arg,
