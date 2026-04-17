@@ -10,6 +10,89 @@ from ament_index_python import get_package_share_directory
 import os
 
 
+def resolve_gnss_mode(context, *args, **kwargs):
+    """
+    Translate the user-facing `gnss_mode` into the low-level env vars that
+    control georef estimation and initial localization.
+
+    Values:
+      - none         : do not use GNSS for estimation or relocalization (default).
+      - log_only     : subscribe to GNSS and include readings in the simplemap,
+                       but do not affect state estimation (useful for offline
+                       post-processing georeferencing).
+      - live_georef  : estimate the enu->map transform online. Requires smoother.
+      - relocalize   : use GNSS to auto-initialize localization in a loaded
+                       geo-referenced map. Requires smoother + initial map.
+
+    Explicit `estimate_geo_reference` / `initial_localization_method` args
+    still win when set by the user (we only override if this arg is non-empty).
+    """
+    mode = LaunchConfiguration('gnss_mode').perform(context).strip().lower()
+    use_smoother = LaunchConfiguration(
+        'use_state_estimator').perform(context).lower() == 'true'
+
+    if mode in ('', 'none'):
+        return []
+
+    actions = []
+
+    if mode == 'log_only':
+        actions.append(SetEnvironmentVariable(
+            name='MOLA_GENERATE_SIMPLEMAP', value='True'))
+    elif mode == 'live_georef':
+        if not use_smoother:
+            raise RuntimeError(
+                "\n\n[ERROR] gnss_mode:=live_georef requires use_state_estimator:=True "
+                "(the smoother).\n"
+            )
+        user_geo_ref = LaunchConfiguration(
+            'estimate_geo_reference').perform(context).strip()
+        if not user_geo_ref:
+            actions.append(SetEnvironmentVariable(
+                name='MOLA_ESTIMATE_GEO_REF', value='True'))
+    elif mode == 'relocalize':
+        if not use_smoother:
+            raise RuntimeError(
+                "\n\n[ERROR] gnss_mode:=relocalize requires use_state_estimator:=True "
+                "(the smoother).\n"
+            )
+        user_loc_method = LaunchConfiguration(
+            'initial_localization_method').perform(context).strip()
+        if not user_loc_method:
+            actions.append(SetEnvironmentVariable(
+                name='MOLA_LO_INITIAL_LOCALIZATION_METHOD',
+                value='InitLocalization::FromStateEstimator'))
+    else:
+        raise RuntimeError(
+            f"\n\n[ERROR] Unknown gnss_mode '{mode}'. "
+            "Valid values: none, log_only, live_georef, relocalize.\n"
+        )
+
+    return actions
+
+
+def validate_odometry_sources(context, *args, **kwargs):
+    """
+    Enforce the BridgeROS2 invariant that external odometry is consumed via
+    exactly one pathway. The TF-based path
+    (`forward_ros_tf_odom_to_mola:=True`) is a single-source legacy mechanism
+    that hardcodes sensorLabel='odom'; combining it with a direct
+    `nav_msgs/Odometry` subscription (`odom_topic_name:=...`) would feed
+    duplicate observations of the same physical source to the state estimator.
+    """
+    tf_path = LaunchConfiguration(
+        'forward_ros_tf_odom_to_mola').perform(context).lower() == 'true'
+    topic = LaunchConfiguration('odom_topic_name').perform(context).strip()
+    if tf_path and topic:
+        raise RuntimeError(
+            "\n\n[ERROR] Two odometry sources are enabled simultaneously:\n"
+            "  forward_ros_tf_odom_to_mola:=True  (via /tf)\n"
+            f"  odom_topic_name:={topic!r}  (via nav_msgs/Odometry topic)\n"
+            "These are mutually exclusive. Disable one of them.\n"
+        )
+    return []
+
+
 def resolve_state_estimator_config(context, *args, **kwargs):
     """
     Runtime logic to resolve the YAML path. This prevents the launch file 
@@ -186,9 +269,21 @@ def generate_launch_description():
         name='MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION', value=LaunchConfiguration('enforce_planar_motion'))
 
     forward_ros_tf_odom_to_mola_arg = DeclareLaunchArgument(
-        "forward_ros_tf_odom_to_mola", default_value="False", description="Whether to import an existing /tf 'odom'->'base_link' odometry.")
+        "forward_ros_tf_odom_to_mola", default_value="False", description="Whether to import an existing /tf 'odom'->'base_link' odometry (2D CObservationOdometry). Mutually exclusive with `odom_topic_name`.")
     forward_ros_tf_odom_to_mola_env_var = SetEnvironmentVariable(
         name='MOLA_FORWARD_ROS_TF_ODOM_TO_MOLA', value=LaunchConfiguration('forward_ros_tf_odom_to_mola'))
+
+    odom_topic_name_arg = DeclareLaunchArgument(
+        "odom_topic_name", default_value="",
+        description="If non-empty, BridgeROS2 subscribes directly to this nav_msgs/Odometry topic and forwards each message as a 3D CObservationRobotPose (6x6 covariance) — preferred for smoother fusion. Mutually exclusive with `forward_ros_tf_odom_to_mola`.")
+    odom_topic_name_env_var = SetEnvironmentVariable(
+        name='MOLA_ODOM_TOPIC', value=LaunchConfiguration('odom_topic_name'))
+
+    odom_sensor_label_arg = DeclareLaunchArgument(
+        "odom_sensor_label", default_value="odom_wheels",
+        description="sensorLabel attached to observations from `odom_topic_name`. Use distinct labels per source when fusing multiple external odometries.")
+    odom_sensor_label_env_var = SetEnvironmentVariable(
+        name='MOLA_ODOM_SENSOR_LABEL', value=LaunchConfiguration('odom_sensor_label'))
 
     initial_localization_method_arg = DeclareLaunchArgument(
         "initial_localization_method", default_value="InitLocalization::FixedPose", description="Method for initialization.")
@@ -198,6 +293,12 @@ def generate_launch_description():
     use_state_estimator_arg = DeclareLaunchArgument(
         "use_state_estimator", default_value="False",
         description="If true, uses StateEstimationSmoother (requires optional package).")
+
+    # Convenience high-level GNSS mode selector (see resolve_gnss_mode()).
+    gnss_mode_arg = DeclareLaunchArgument(
+        "gnss_mode", default_value="none",
+        description="High-level GNSS usage: none | log_only | live_georef | relocalize. "
+                    "'live_georef' and 'relocalize' require use_state_estimator:=True.")
 
     # Environment variables that only apply if the smoother is active
     smoother_env_vars = GroupAction(
@@ -253,8 +354,22 @@ def generate_launch_description():
     mola_deskew_method_arg = DeclareLaunchArgument(
         "mola_deskew_method", default_value="MotionCompensationMethod::Linear",
         description="Which motion-compensation method to use to align LiDAR scans more precisely")
+
+    # Convenience flag: LiDAR-Inertial Odometry. When true, overrides
+    # `mola_deskew_method` to `MotionCompensationMethod::IMU`. Requires `imu_topic_name`
+    # to be a valid IMU topic.
+    use_imu_for_lio_arg = DeclareLaunchArgument(
+        "use_imu_for_lio", default_value="False",
+        description="If true, enable LIO mode (MotionCompensationMethod::IMU for deskew). Requires a working imu_topic_name.")
     mola_deskew_method_env_var = SetEnvironmentVariable(
-        name='MOLA_DESKEW_METHOD', value=LaunchConfiguration('mola_deskew_method'))
+        name='MOLA_DESKEW_METHOD',
+        value=PythonExpression([
+            "'MotionCompensationMethod::IMU' if ",
+            LaunchConfiguration('use_imu_for_lio'),
+            " else '",
+            LaunchConfiguration('mola_deskew_method'),
+            "'"
+        ]))
     # ~~~~~~~~~~~~
     imu_gravity_correction_arg = DeclareLaunchArgument(
         "imu_gravity_correction", default_value="true", description="Whether to use IMU accelerometer readings to constrain ICP pitch/roll (prevents vertical drift; safe to leave enabled even without an IMU)")
@@ -351,6 +466,12 @@ def generate_launch_description():
         enforce_planar_motion_env_var,
         forward_ros_tf_odom_to_mola_arg,
         forward_ros_tf_odom_to_mola_env_var,
+        odom_topic_name_arg,
+        odom_topic_name_env_var,
+        odom_sensor_label_arg,
+        odom_sensor_label_env_var,
+        # Reject enabling the /tf pathway and a direct /odom subscription at once:
+        OpaqueFunction(function=validate_odometry_sources),
         generate_simplemap_arg,
         generate_simplemap_env_var,
         gnss_topic_name_arg,
@@ -380,6 +501,7 @@ def generate_launch_description():
         imu_gravity_avg_samples_env_var,
         imu_gravity_max_age_arg,
         imu_gravity_max_age_env_var,
+        use_imu_for_lio_arg,
         mola_deskew_method_arg,
         mola_deskew_method_env_var,
         mola_footprint_to_base_link_tf_arg,
@@ -409,6 +531,7 @@ def generate_launch_description():
         use_rviz_arg,
         use_state_estimator_arg,
         use_state_estimator_env_var,
+        gnss_mode_arg,
 
         # Smoother Specific
         navstate_kinematic_model_arg,
@@ -417,6 +540,10 @@ def generate_launch_description():
         navstate_sigma_random_walk_angacc_arg,
         estimate_geo_reference_arg,
         smoother_env_vars,
+
+        # Must run AFTER generate_simplemap_env_var, initial_localization_method_env_var,
+        # and smoother_env_vars so the high-level gnss_mode overrides their low-level args.
+        OpaqueFunction(function=resolve_gnss_mode),
 
         # Config YAML must come later
         state_estimator_config_yaml_arg,

@@ -69,6 +69,11 @@ modules:
 
       base_link_frame_id: "${MOLA_TF_BASE_LINK|base_link}"
 
+      # /tf topic names in the bag. Override for namespaced bags,
+      # e.g. MOLA_TF_TOPIC=/robot1/tf MOLA_TF_STATIC_TOPIC=/robot1/tf_static
+      tf_topic: "${MOLA_TF_TOPIC|/tf}"
+      tf_static_topic: "${MOLA_TF_STATIC_TOPIC|/tf_static}"
+
       # 'sensors' contains maps from output "sensorLabel"s, to the
       # configuration of that data source (mainly, 'type', 'topic'):
       # If no 'sensors' entry is given, all ROSBAG topics will be exposed
