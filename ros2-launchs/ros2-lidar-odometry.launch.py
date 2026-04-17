@@ -241,9 +241,21 @@ def generate_launch_description():
         name='MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION', value=LaunchConfiguration('enforce_planar_motion'))
 
     forward_ros_tf_odom_to_mola_arg = DeclareLaunchArgument(
-        "forward_ros_tf_odom_to_mola", default_value="False", description="Whether to import an existing /tf 'odom'->'base_link' odometry.")
+        "forward_ros_tf_odom_to_mola", default_value="False", description="Whether to import an existing /tf 'odom'->'base_link' odometry (2D CObservationOdometry). Mutually exclusive with `odom_topic_name`.")
     forward_ros_tf_odom_to_mola_env_var = SetEnvironmentVariable(
         name='MOLA_FORWARD_ROS_TF_ODOM_TO_MOLA', value=LaunchConfiguration('forward_ros_tf_odom_to_mola'))
+
+    odom_topic_name_arg = DeclareLaunchArgument(
+        "odom_topic_name", default_value="",
+        description="If non-empty, BridgeROS2 subscribes directly to this nav_msgs/Odometry topic and forwards each message as a 3D CObservationRobotPose (6x6 covariance) — preferred for smoother fusion. Mutually exclusive with `forward_ros_tf_odom_to_mola`.")
+    odom_topic_name_env_var = SetEnvironmentVariable(
+        name='MOLA_ODOM_TOPIC', value=LaunchConfiguration('odom_topic_name'))
+
+    odom_sensor_label_arg = DeclareLaunchArgument(
+        "odom_sensor_label", default_value="odom_wheels",
+        description="sensorLabel attached to observations from `odom_topic_name`. Use distinct labels per source when fusing multiple external odometries.")
+    odom_sensor_label_env_var = SetEnvironmentVariable(
+        name='MOLA_ODOM_SENSOR_LABEL', value=LaunchConfiguration('odom_sensor_label'))
 
     initial_localization_method_arg = DeclareLaunchArgument(
         "initial_localization_method", default_value="InitLocalization::FixedPose", description="Method for initialization.")
@@ -426,6 +438,10 @@ def generate_launch_description():
         enforce_planar_motion_env_var,
         forward_ros_tf_odom_to_mola_arg,
         forward_ros_tf_odom_to_mola_env_var,
+        odom_topic_name_arg,
+        odom_topic_name_env_var,
+        odom_sensor_label_arg,
+        odom_sensor_label_env_var,
         generate_simplemap_arg,
         generate_simplemap_env_var,
         gnss_topic_name_arg,
@@ -486,7 +502,6 @@ def generate_launch_description():
         use_state_estimator_arg,
         use_state_estimator_env_var,
         gnss_mode_arg,
-        OpaqueFunction(function=resolve_gnss_mode),
 
         # Smoother Specific
         navstate_kinematic_model_arg,
@@ -495,6 +510,10 @@ def generate_launch_description():
         navstate_sigma_random_walk_angacc_arg,
         estimate_geo_reference_arg,
         smoother_env_vars,
+
+        # Must run AFTER generate_simplemap_env_var, initial_localization_method_env_var,
+        # and smoother_env_vars so the high-level gnss_mode overrides their low-level args.
+        OpaqueFunction(function=resolve_gnss_mode),
 
         # Config YAML must come later
         state_estimator_config_yaml_arg,

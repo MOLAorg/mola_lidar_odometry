@@ -165,6 +165,13 @@ modules:
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
 
-        #- topic: /odom
-        #  msg_type: Odometry
-        #  output_sensor_label: odom
+        # Optional: direct subscription to a nav_msgs/Odometry topic (e.g., wheel odometry).
+        # Leave MOLA_ODOM_TOPIC empty (default) to disable. Set to e.g. "/wheel_odom" to enable.
+        # Mutually exclusive with `forward_ros_tf_as_mola_odometry_observations` (TF-driven path)
+        # — enabling both feeds duplicate observations to the state estimator.
+        # With `odometry_as_robot_pose_observation=true` (default), this produces a 3D
+        # CObservationRobotPose (6x6 covariance), which is what the Smoother wants for
+        # multi-source fusion.
+        - topic: ${MOLA_ODOM_TOPIC|}
+          msg_type: Odometry
+          output_sensor_label: ${MOLA_ODOM_SENSOR_LABEL|odom_wheels}
