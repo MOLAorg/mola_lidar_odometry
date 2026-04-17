@@ -6,7 +6,14 @@ if [ "$#" -eq 0 ]; then
     echo "Usage: $0 /path/to/dataset.mcap"
     echo "Usage: $0 /path/to/dataset_directory    (It must contain a metadata.yaml)"
     echo ""
-    echo "You can set env var MOLA_LIDAR_TOPIC to define the lidar topic name (default: '/ouster/points')"
+    echo "Common environment variables:"
+    echo "  MOLA_LIDAR_TOPIC       LiDAR topic name (default: '/ouster/points')"
+    echo "  MOLA_IMU_TOPIC         IMU topic name (default: '/imu')"
+    echo "  MOLA_GNSS_TOPIC        GNSS NavSatFix topic name (default: '/gps')"
+    echo "  MOLA_TF_BASE_LINK      Robot base /tf frame id (default: 'base_link')"
+    echo "  MOLA_TF_TOPIC          /tf topic in the bag (default: '/tf')"
+    echo "  MOLA_TF_STATIC_TOPIC   /tf_static topic in the bag (default: '/tf_static')"
+    echo "                         Override both for namespaced bags (e.g. /robot1/tf)."
     exit 1
 fi
 

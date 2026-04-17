@@ -191,6 +191,26 @@ struct Cli
     "base_link",
     cmd};
 
+  TCLAP::ValueArg<std::string> arg_tfTopic{
+    "",
+    "tf-topic",
+    "Only for rosbag2 input: /tf topic name in the bag. Override for namespaced bags "
+    "(e.g. '/robot1/tf').",
+    false,
+    "/tf",
+    "/tf",
+    cmd};
+
+  TCLAP::ValueArg<std::string> arg_tfStaticTopic{
+    "",
+    "tf-static-topic",
+    "Only for rosbag2 input: /tf_static topic name in the bag. Override for namespaced bags "
+    "(e.g. '/robot1/tf_static').",
+    false,
+    "/tf_static",
+    "/tf_static",
+    cmd};
+
 // Input dataset can come from one of these:
 // --------------------------------------------
 #if defined(HAVE_MOLA_INPUT_RAWLOG)
@@ -315,6 +335,8 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
     params:
       rosbag_filename: '%s'
       base_link_frame_id: '%s'
+      tf_topic: '%s'
+      tf_static_topic: '%s'
       sensors:
         - topic: '%s'
           type: CObservationPointCloud
@@ -334,6 +356,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
 )"""",
     rosbag2file.c_str(), cli.arg_baseLinkName.getValue().c_str(),
+    cli.arg_tfTopic.getValue().c_str(), cli.arg_tfStaticTopic.getValue().c_str(),
     cli.arg_lidarLabel.getValue().c_str(), cli.arg_imuLabel.getValue().c_str())));
 
   o->initialize(cfg);

@@ -10,6 +10,61 @@ from ament_index_python import get_package_share_directory
 import os
 
 
+def resolve_gnss_mode(context, *args, **kwargs):
+    """
+    Translate the user-facing `gnss_mode` into the low-level env vars that
+    control georef estimation and initial localization.
+
+    Values:
+      - none         : do not use GNSS for estimation or relocalization (default).
+      - log_only     : subscribe to GNSS and include readings in the simplemap,
+                       but do not affect state estimation (useful for offline
+                       post-processing georeferencing).
+      - live_georef  : estimate the enu->map transform online. Requires smoother.
+      - relocalize   : use GNSS to auto-initialize localization in a loaded
+                       geo-referenced map. Requires smoother + initial map.
+
+    Explicit `estimate_geo_reference` / `initial_localization_method` args
+    still win when set by the user (we only override if this arg is non-empty).
+    """
+    mode = LaunchConfiguration('gnss_mode').perform(context).strip().lower()
+    use_smoother = LaunchConfiguration(
+        'use_state_estimator').perform(context).lower() == 'true'
+
+    if mode in ('', 'none'):
+        return []
+
+    actions = []
+
+    if mode == 'log_only':
+        actions.append(SetEnvironmentVariable(
+            name='MOLA_GENERATE_SIMPLEMAP', value='True'))
+    elif mode == 'live_georef':
+        if not use_smoother:
+            raise RuntimeError(
+                "\n\n[ERROR] gnss_mode:=live_georef requires use_state_estimator:=True "
+                "(the smoother).\n"
+            )
+        actions.append(SetEnvironmentVariable(
+            name='MOLA_ESTIMATE_GEO_REF', value='True'))
+    elif mode == 'relocalize':
+        if not use_smoother:
+            raise RuntimeError(
+                "\n\n[ERROR] gnss_mode:=relocalize requires use_state_estimator:=True "
+                "(the smoother).\n"
+            )
+        actions.append(SetEnvironmentVariable(
+            name='MOLA_LO_INITIAL_LOCALIZATION_METHOD',
+            value='InitLocalization::FromStateEstimator'))
+    else:
+        raise RuntimeError(
+            f"\n\n[ERROR] Unknown gnss_mode '{mode}'. "
+            "Valid values: none, log_only, live_georef, relocalize.\n"
+        )
+
+    return actions
+
+
 def resolve_state_estimator_config(context, *args, **kwargs):
     """
     Runtime logic to resolve the YAML path. This prevents the launch file 
@@ -199,6 +254,12 @@ def generate_launch_description():
         "use_state_estimator", default_value="False",
         description="If true, uses StateEstimationSmoother (requires optional package).")
 
+    # Convenience high-level GNSS mode selector (see resolve_gnss_mode()).
+    gnss_mode_arg = DeclareLaunchArgument(
+        "gnss_mode", default_value="none",
+        description="High-level GNSS usage: none | log_only | live_georef | relocalize. "
+                    "'live_georef' and 'relocalize' require use_state_estimator:=True.")
+
     # Environment variables that only apply if the smoother is active
     smoother_env_vars = GroupAction(
         condition=IfCondition(LaunchConfiguration('use_state_estimator')),
@@ -253,8 +314,22 @@ def generate_launch_description():
     mola_deskew_method_arg = DeclareLaunchArgument(
         "mola_deskew_method", default_value="MotionCompensationMethod::Linear",
         description="Which motion-compensation method to use to align LiDAR scans more precisely")
+
+    # Convenience flag: LiDAR-Inertial Odometry. When true, overrides
+    # `mola_deskew_method` to `MotionCompensationMethod::IMU`. Requires `imu_topic_name`
+    # to be a valid IMU topic.
+    use_imu_for_lio_arg = DeclareLaunchArgument(
+        "use_imu_for_lio", default_value="False",
+        description="If true, enable LIO mode (MotionCompensationMethod::IMU for deskew). Requires a working imu_topic_name.")
     mola_deskew_method_env_var = SetEnvironmentVariable(
-        name='MOLA_DESKEW_METHOD', value=LaunchConfiguration('mola_deskew_method'))
+        name='MOLA_DESKEW_METHOD',
+        value=PythonExpression([
+            "'MotionCompensationMethod::IMU' if ",
+            LaunchConfiguration('use_imu_for_lio'),
+            " else '",
+            LaunchConfiguration('mola_deskew_method'),
+            "'"
+        ]))
     # ~~~~~~~~~~~~
     imu_gravity_correction_arg = DeclareLaunchArgument(
         "imu_gravity_correction", default_value="true", description="Whether to use IMU accelerometer readings to constrain ICP pitch/roll (prevents vertical drift; safe to leave enabled even without an IMU)")
@@ -407,8 +482,11 @@ def generate_launch_description():
         use_mola_gui_arg,
         use_mola_gui_env_var,
         use_rviz_arg,
+        use_imu_for_lio_arg,
         use_state_estimator_arg,
         use_state_estimator_env_var,
+        gnss_mode_arg,
+        OpaqueFunction(function=resolve_gnss_mode),
 
         # Smoother Specific
         navstate_kinematic_model_arg,

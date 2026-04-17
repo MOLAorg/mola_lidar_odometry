@@ -61,6 +61,13 @@ The labeled parts in the GUI are:
 
 1.1. mola-lo-gui-rosbag2
 ------------------------------
+
+.. tip::
+
+   See the :ref:`MOLA in ROS 2 cookbook <mola_ros2_cookbook>` §5.1 for a
+   side-by-side walkthrough of ``mola-lo-gui-rosbag2`` with namespaced
+   bags, smoother, and live parameter editor.
+
 This command will open the mola_viz GUI and build a map from ROS 2 bags:
 
      .. code-block:: bash
@@ -484,6 +491,12 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
 ====================================
 A **ROS 2 node** is provided for running MOLA-LO *live* on a robot or vehicle where sensor drivers
 are already working and publishing ROS topics.
+
+.. tip::
+
+   For a full matrix of supported live configurations (Simple vs Smoother,
+   REP-105 on/off, namespaces, GNSS modes) see the
+   :ref:`MOLA in ROS 2 cookbook <mola_ros2_cookbook>`.
 
 .. dropdown:: Does your system lack ``/tf``?
     :icon: alert

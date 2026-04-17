@@ -7,6 +7,12 @@
 This launch file (`view sources <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/ros2-launchs/ros2-lidar-odometry.launch.py>`_)
 runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrating a few features**:
 
+.. tip::
+
+   See the :ref:`MOLA in ROS 2 cookbook <mola_ros2_cookbook>` for a
+   configuration-by-configuration walkthrough (Simple vs Smoother,
+   namespaced, GNSS modes, etc.) with live-editable commands.
+
 * Launching and visualizing LO in both, ``mola_viz`` and ``RViz2`` (or use FoxGlove if preferred).
 * How MOLA ``mola_lidar_odometry`` publishes the local map,
   the estimated trajectory, and `/tf` for the estimated odometry.
