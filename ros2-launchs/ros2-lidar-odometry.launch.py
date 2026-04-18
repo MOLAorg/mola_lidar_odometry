@@ -25,7 +25,8 @@ def resolve_gnss_mode(context, *args, **kwargs):
                        geo-referenced map. Requires smoother + initial map.
 
     Explicit `estimate_geo_reference` / `initial_localization_method` args
-    still win when set by the user (we only override if this arg is non-empty).
+    still win when set by the user: we only apply the gnss_mode-implied
+    override when that arg was left empty by the user.
     """
     mode = LaunchConfiguration('gnss_mode').perform(context).strip().lower()
     use_smoother = LaunchConfiguration(
@@ -164,8 +165,9 @@ def generate_launch_description():
 
     estimate_geo_reference_arg = DeclareLaunchArgument(
         "estimate_geo_reference",
-        default_value="False",
-        description="[Smoother only] Whether to estimate the best geo-referencing for {enu} -> {map} from incoming GNSS readings.")
+        default_value="",
+        description="[Smoother only] Whether to estimate the best geo-referencing for {enu} -> {map} from incoming GNSS readings. "
+                    "If empty (default), the pipeline YAML fallback is used (false) and `gnss_mode:=live_georef` may flip it to true automatically.")
 
     # ~~~~~~~~~~~~
     # Standard Arguments
@@ -225,16 +227,26 @@ def generate_launch_description():
         name='MOLA_START_ACTIVE', value=LaunchConfiguration('start_active'))
 
     mola_lo_reference_frame_arg = DeclareLaunchArgument(
-        "mola_lo_reference_frame", default_value="map", description="The /tf frame name to be used for MOLA-LO localization updates")
+        "mola_lo_reference_frame", default_value="map",
+        description="Parent /tf frame of the localization update emitted by MOLA-LO (the `reference_frame` of its LocalizationUpdate; see ROS 2 API docs on published /tf).")
     mola_lo_reference_frame_env_var = SetEnvironmentVariable(
         name='MOLA_LO_PUBLISH_REF_FRAME', value=LaunchConfiguration('mola_lo_reference_frame'))
-    # Keep the bridge's odom_frame in sync with LO's reference frame,
-    # so REP105 TF lookups use the correct frame in namespaced setups:
+
+    # BridgeROS2's `odom_frame`. Under REP-105, the bridge publishes
+    # `reference_frame -> odom_frame` (e.g. `map -> odom`) and reads the
+    # external `odom_frame -> base_link` from /tf. This is independent from
+    # LO's publish reference frame (`mola_lo_reference_frame`, the *parent*
+    # of the localization TF).
+    mola_bridge_odometry_frame_arg = DeclareLaunchArgument(
+        "mola_bridge_odometry_frame", default_value="odom",
+        description="BridgeROS2's odom /tf frame name (the REP-105 'odom' child "
+                    "or the parent of an externally-published odometry TF).")
     mola_tf_estimated_odom_env_var = SetEnvironmentVariable(
-        name='MOLA_TF_ESTIMATED_ODOMETRY', value=LaunchConfiguration('mola_lo_reference_frame'))
+        name='MOLA_TF_ESTIMATED_ODOMETRY', value=LaunchConfiguration('mola_bridge_odometry_frame'))
 
     mola_se_reference_frame_arg = DeclareLaunchArgument(
-        "mola_state_estimator_reference_frame", default_value="map", description="The /tf frame name to be used as reference for MOLA State Estimators to publish pose updates")
+        "mola_state_estimator_reference_frame", default_value="map",
+        description="Parent /tf frame of the pose updates emitted by the MOLA State Estimator, and BridgeROS2's `reference_frame` param.")
     mola_tf_map_env_var = SetEnvironmentVariable(
         name='MOLA_TF_MAP', value=LaunchConfiguration('mola_state_estimator_reference_frame'))
 
@@ -286,9 +298,17 @@ def generate_launch_description():
         name='MOLA_ODOM_SENSOR_LABEL', value=LaunchConfiguration('odom_sensor_label'))
 
     initial_localization_method_arg = DeclareLaunchArgument(
-        "initial_localization_method", default_value="InitLocalization::FixedPose", description="Method for initialization.")
-    initial_localization_method_env_var = SetEnvironmentVariable(
-        name='MOLA_LO_INITIAL_LOCALIZATION_METHOD', value=LaunchConfiguration('initial_localization_method'))
+        "initial_localization_method", default_value="",
+        description="Initial-localization method. Options: InitLocalization::FixedPose (start at identity or given pose), "
+                    "InitLocalization::FromStateEstimator (wait for smoother convergence, e.g. from GNSS), "
+                    "InitLocalization::PitchAndRollFromIMU (use IMU to estimate pitch/roll at startup, assumes sensor stationary). "
+                    "If empty (default), the pipeline YAML fallback is used (FixedPose) and `gnss_mode:=relocalize` may switch it to FromStateEstimator.")
+
+    def _apply_initial_localization_method(context, *args, **kwargs):
+        v = LaunchConfiguration('initial_localization_method').perform(context).strip()
+        return [SetEnvironmentVariable(name='MOLA_LO_INITIAL_LOCALIZATION_METHOD', value=v)] if v else []
+    initial_localization_method_env_var = OpaqueFunction(
+        function=_apply_initial_localization_method)
 
     use_state_estimator_arg = DeclareLaunchArgument(
         "use_state_estimator", default_value="False",
@@ -299,6 +319,16 @@ def generate_launch_description():
         "gnss_mode", default_value="none",
         description="High-level GNSS usage: none | log_only | live_georef | relocalize. "
                     "'live_georef' and 'relocalize' require use_state_estimator:=True.")
+
+    # MOLA_ESTIMATE_GEO_REF is set only when the user explicitly provides
+    # `estimate_geo_reference:=...`; otherwise the pipeline YAML fallback
+    # (false) is used, and `gnss_mode:=live_georef` in resolve_gnss_mode()
+    # may still flip it to true.
+    def _apply_estimate_geo_ref(context, *args, **kwargs):
+        if LaunchConfiguration('use_state_estimator').perform(context).lower() != 'true':
+            return []
+        v = LaunchConfiguration('estimate_geo_reference').perform(context).strip()
+        return [SetEnvironmentVariable(name='MOLA_ESTIMATE_GEO_REF', value=v)] if v else []
 
     # Environment variables that only apply if the smoother is active
     smoother_env_vars = GroupAction(
@@ -312,8 +342,7 @@ def generate_launch_description():
                 'navstate_sigma_random_walk_linacc')),
             SetEnvironmentVariable('MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC', LaunchConfiguration(
                 'navstate_sigma_random_walk_angacc')),
-            SetEnvironmentVariable(
-                'MOLA_ESTIMATE_GEO_REF', LaunchConfiguration('estimate_geo_reference')),
+            OpaqueFunction(function=_apply_estimate_geo_ref),
         ]
     )
 
@@ -345,7 +374,8 @@ def generate_launch_description():
         description="Path to estimator YAML. If empty, it is auto-resolved based on use_state_estimator.")
 
     lidar_scan_validity_minimum_point_count_arg = DeclareLaunchArgument(
-        "lidar_scan_validity_minimum_point_count", default_value="100")
+        "lidar_scan_validity_minimum_point_count", default_value="100",
+        description="Minimum number of points required in an incoming LiDAR scan for it to be processed; scans below this threshold are discarded.")
     lidar_scan_validity_minimum_point_env_var = SetEnvironmentVariable(
         name='MOLA_OBS_VALIDITY_MIN_POINTS', value=LaunchConfiguration('lidar_scan_validity_minimum_point_count'))
     lidar_scan_validity_enable_env_var = SetEnvironmentVariable(
@@ -353,7 +383,9 @@ def generate_launch_description():
 
     mola_deskew_method_arg = DeclareLaunchArgument(
         "mola_deskew_method", default_value="MotionCompensationMethod::Linear",
-        description="Which motion-compensation method to use to align LiDAR scans more precisely")
+        description="Motion-compensation (deskew) method for LiDAR scans. Options: MotionCompensationMethod::None, "
+                    "MotionCompensationMethod::Linear (default, constant-velocity), MotionCompensationMethod::IMU "
+                    "(requires an IMU topic; use the higher-level `use_imu_for_lio:=True` to enable LIO mode).")
 
     # Convenience flag: LiDAR-Inertial Odometry. When true, overrides
     # `mola_deskew_method` to `MotionCompensationMethod::IMU`. Requires `imu_topic_name`
@@ -514,6 +546,7 @@ def generate_launch_description():
         mola_lo_pipeline_env_var,
         mola_lo_reference_frame_arg,
         mola_lo_reference_frame_env_var,
+        mola_bridge_odometry_frame_arg,
         mola_tf_estimated_odom_env_var,
         mola_se_reference_frame_arg,
         mola_tf_base_link_arg,
