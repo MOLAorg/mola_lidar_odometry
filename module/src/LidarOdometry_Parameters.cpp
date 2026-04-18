@@ -31,6 +31,17 @@
 namespace mola
 {
 
+void LidarOdometry::Parameters::Diagnostics::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(icp_quality_warn, double);
+  YAML_LOAD_OPT(icp_quality_error, double);
+  YAML_LOAD_OPT(input_stale_sec, double);
+  YAML_LOAD_OPT(input_error_sec, double);
+  YAML_LOAD_OPT(dropped_ratio_warn, double);
+  YAML_LOAD_OPT(dropped_ratio_error, double);
+  YAML_LOAD_OPT(timing_utilization_warn, double);
+}
+
 void LidarOdometry::Parameters::AdaptiveThreshold::initialize(const Yaml & cfg)
 {
   YAML_LOAD_REQ(enabled, bool);

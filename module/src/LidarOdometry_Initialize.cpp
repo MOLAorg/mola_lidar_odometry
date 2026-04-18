@@ -159,6 +159,10 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     params_.adaptive_threshold.initialize(cfg["adaptive_threshold"]);
   }
 
+  if (cfg.has("diagnostics")) {
+    params_.diagnostics.initialize(cfg["diagnostics"]);
+  }
+
   if (cfg.has("visualization")) {
     params_.visualization.initialize(cfg["visualization"]);
   }

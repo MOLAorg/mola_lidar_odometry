@@ -25,6 +25,11 @@
 // MRPT:
 #include <mrpt/io/CMemoryStream.h>
 #include <mrpt/serialization/CArchive.h>
+#include <mrpt/system/datetime.h>
+
+#include <iomanip>
+#include <limits>
+#include <sstream>
 
 // MOLA:
 #include <mola_kernel/version.h>
@@ -250,5 +255,173 @@ void LidarOdometry::onPublishDiagnostics()
 
   module_publish_diagnostics(diag);
 }
+
+#if MOLA_HAS_DIAGNOSTICS_PROVIDER
+namespace
+{
+mola::DiagnosticKeyValue kv_d(const std::string & key, double value, int precision = 3)
+{
+  std::ostringstream ss;
+  ss.precision(precision);
+  ss << std::fixed << value;
+  return {key, ss.str()};
+}
+mola::DiagnosticKeyValue kv_u(const std::string & key, std::size_t value)
+{
+  return {key, std::to_string(value)};
+}
+mola::DiagnosticLevel worst(mola::DiagnosticLevel a, mola::DiagnosticLevel b)
+{
+  using L = mola::DiagnosticLevel;
+  auto rank = [](L x) {
+    switch (x) {
+      case L::OK:
+        return 0;
+      case L::WARN:
+        return 1;
+      case L::STALE:
+        return 2;
+      case L::ERROR:
+        return 3;
+    }
+    return 0;
+  };
+  return rank(a) >= rank(b) ? a : b;
+}
+}  // namespace
+
+void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & status)
+{
+  using L = mola::DiagnosticLevel;
+
+  auto lckState = mrpt::lockHelper(state_mtx_);
+
+  const auto & th = params_.diagnostics;
+  const auto now = mrpt::Clock::now();
+  const double lastObsAgeSec = state_.last_obs_timestamp
+                                 ? mrpt::system::timeDifference(*state_.last_obs_timestamp, now)
+                                 : std::numeric_limits<double>::infinity();
+
+  const double icpQ = state_.last_icp_quality;
+  const double dtAvr = profiler_.getMeanTime("onLidar");
+  const double droppedRatio = getDropStats();
+  const double sensorPeriod = params_.min_time_between_scans;
+
+  // 1) Input Data
+  {
+    mola::DiagnosticStatusMsg s;
+    s.name = "LidarOdometry: Input Data";
+    if (!state_.last_obs_timestamp) {
+      s.level = L::STALE;
+      s.message = "No observations received yet";
+    } else if (lastObsAgeSec > th.input_error_sec) {
+      s.level = L::ERROR;
+      s.message = "No observations for >" + std::to_string(th.input_error_sec) + "s";
+    } else if (lastObsAgeSec > th.input_stale_sec) {
+      s.level = L::STALE;
+      s.message = "Input appears stale";
+    } else if (droppedRatio > th.dropped_ratio_error) {
+      s.level = L::ERROR;
+      s.message = "Very high frame drop rate";
+    } else if (droppedRatio > th.dropped_ratio_warn) {
+      s.level = L::WARN;
+      s.message = "High frame drop rate";
+    } else {
+      s.level = L::OK;
+      s.message = "Nominal";
+    }
+    s.values.push_back(kv_d("last_obs_age_sec", lastObsAgeSec));
+    s.values.push_back(kv_d("dropped_ratio", droppedRatio));
+    status.push_back(std::move(s));
+  }
+
+  // 2) ICP Quality
+  {
+    mola::DiagnosticStatusMsg s;
+    s.name = "LidarOdometry: ICP Quality";
+    if (icpQ < th.icp_quality_error) {
+      s.level = L::ERROR;
+      s.message = "ICP quality critically low";
+    } else if (icpQ < th.icp_quality_warn) {
+      s.level = L::WARN;
+      s.message = "ICP quality degraded";
+    } else {
+      s.level = L::OK;
+      s.message = "Nominal";
+    }
+    s.values.push_back(kv_d("quality", icpQ));
+    s.values.push_back(kv_u("last_icp_iterations", state_.last_icp_iterations));
+    s.values.push_back({"last_icp_was_good", state_.last_icp_was_good ? "true" : "false"});
+    status.push_back(std::move(s));
+  }
+
+  // 3) Timing
+  {
+    mola::DiagnosticStatusMsg s;
+    s.name = "LidarOdometry: Timing";
+    const double util = (sensorPeriod > 0) ? (dtAvr / sensorPeriod) : 0.0;
+    if (sensorPeriod > 0 && util > th.timing_utilization_warn) {
+      s.level = L::WARN;
+      s.message = "Process time close to sensor period";
+    } else {
+      s.level = L::OK;
+      s.message = "Nominal";
+    }
+    s.values.push_back(kv_d("avg_ms", dtAvr * 1000.0));
+    s.values.push_back(kv_d("sensor_period_ms", sensorPeriod * 1000.0));
+    s.values.push_back(kv_d("utilization_pct", util * 100.0));
+    status.push_back(std::move(s));
+  }
+
+  // 4) Local Map (informational)
+  {
+    mola::DiagnosticStatusMsg s;
+    s.name = "LidarOdometry: Local Map";
+    s.level = L::OK;
+    s.message = "Informational";
+    std::size_t numLayers = 0;
+    std::size_t totalPts = 0;
+    if (state_.local_map) {
+      numLayers = state_.local_map->layers.size();
+      for (const auto & [layerName, layerMap] : state_.local_map->layers) {
+        if (!layerMap) continue;
+        if (auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layerMap); pts)
+          totalPts += pts->size();
+      }
+    }
+    s.values.push_back(kv_u("num_layers", numLayers));
+    s.values.push_back(kv_u("total_points", totalPts));
+    status.push_back(std::move(s));
+  }
+
+  // 5) Overall status: worst-of the above
+  {
+    mola::DiagnosticStatusMsg s;
+    s.name = "LidarOdometry: Overall Status";
+    s.level = L::OK;
+    for (const auto & sub : status) {
+      s.level = worst(s.level, sub.level);
+    }
+    switch (s.level) {
+      case L::OK:
+        s.message = "Nominal";
+        break;
+      case L::WARN:
+        s.message = "Degraded";
+        break;
+      case L::STALE:
+        s.message = "Stale input";
+        break;
+      case L::ERROR:
+        s.message = "Non-functional";
+        break;
+    }
+    s.values.push_back(kv_d("icp_quality", icpQ));
+    s.values.push_back(kv_d("process_time_avg_ms", dtAvr * 1000.0));
+    s.values.push_back(kv_d("dropped_frames_ratio", droppedRatio));
+    status.push_back(std::move(s));
+  }
+}
+#endif  // MOLA_HAS_DIAGNOSTICS_PROVIDER
 
 }  // namespace mola

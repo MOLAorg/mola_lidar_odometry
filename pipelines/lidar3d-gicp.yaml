@@ -88,6 +88,17 @@ params:
     kp: 2.0
     alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.99}
 
+  # REP-107 diagnostics thresholds published on /diagnostics via mola_bridge_ros2.
+  # Any of these can be omitted to keep its built-in default.
+  diagnostics:
+    icp_quality_warn: 0.30         # [0-1] WARN if icp_quality below this
+    icp_quality_error: 0.10        # [0-1] ERROR if icp_quality below this
+    input_stale_sec: 3.0           # [s]   STALE if no observation for this long
+    input_error_sec: 5.0           # [s]   ERROR if no observation for this long
+    dropped_ratio_warn: 0.20       # [0-1] WARN if dropped-frames ratio exceeds
+    dropped_ratio_error: 0.50      # [0-1] ERROR if dropped-frames ratio exceeds
+    timing_utilization_warn: 0.80  # [0-1] WARN if avg process time / sensor period exceeds
+
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
   simplemap:

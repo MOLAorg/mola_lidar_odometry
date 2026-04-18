@@ -22,6 +22,10 @@
 
 // MOLA interfaces:
 #include <mola_kernel/id.h>  // INVALID_ID
+#if __has_include(<mola_kernel/interfaces/DiagnosticsProvider.h>)
+#include <mola_kernel/interfaces/DiagnosticsProvider.h>
+#define MOLA_HAS_DIAGNOSTICS_PROVIDER 1
+#endif
 #include <mola_kernel/interfaces/FrontEndBase.h>
 #include <mola_kernel/interfaces/LocalizationSourceBase.h>
 #include <mola_kernel/interfaces/MapServer.h>
@@ -96,6 +100,10 @@ class LidarOdometry : public mola::FrontEndBase,
                       public mola::MapSourceBase,
                       public mola::MapServer,
                       public mola::Relocalization
+#if MOLA_HAS_DIAGNOSTICS_PROVIDER
+,
+                      public mola::DiagnosticsProvider
+#endif
 {
   DEFINE_MRPT_OBJECT(LidarOdometry, mola)
 
@@ -316,6 +324,29 @@ public:
       void initialize(const Yaml & c);
     };
     AdaptiveThreshold adaptive_threshold;
+
+    /** Thresholds for REP-107 diagnostics levels. */
+    struct Diagnostics
+    {
+      double icp_quality_warn = 0.30;
+      double icp_quality_error = 0.10;
+
+      /// Input considered stale if no observation received for this many seconds
+      double input_stale_sec = 3.0;
+
+      /// Fatal-level staleness (no data for this many seconds)
+      double input_error_sec = 5.0;
+
+      /// Warn when dropped-frames ratio exceeds this value
+      double dropped_ratio_warn = 0.20;
+      double dropped_ratio_error = 0.50;
+
+      /// Warn when average process time exceeds this fraction of sensor period
+      double timing_utilization_warn = 0.80;
+
+      void initialize(const Yaml & c);
+    };
+    Diagnostics diagnostics;
 
     /** ICP parameters for the case of having, or not, a good velocity
          * model that works a good prior. Each entry in the vector is an
@@ -937,6 +968,11 @@ private:
   void handleUnloadSinglePastObservation(CObservation::Ptr & o) const;
 
   void onPublishDiagnostics();
+
+#if MOLA_HAS_DIAGNOSTICS_PROVIDER
+  /// REP-107 structured diagnostics, collected by BridgeROS2 at ~1 Hz.
+  void getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & status) override;
+#endif
   void handleInitialLocalization();
   void handleInitialLocalizationStateEstimation();
   void handleInitialLocalizationDoInitFromPose(
