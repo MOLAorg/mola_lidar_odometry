@@ -74,22 +74,46 @@ def resolve_gnss_mode(context, *args, **kwargs):
 
 def validate_odometry_sources(context, *args, **kwargs):
     """
-    Enforce the BridgeROS2 invariant that external odometry is consumed via
-    exactly one pathway. The TF-based path
-    (`forward_ros_tf_odom_to_mola:=True`) is a single-source legacy mechanism
-    that hardcodes sensorLabel='odom'; combining it with a direct
-    `nav_msgs/Odometry` subscription (`odom_topic_name:=...`) would feed
-    duplicate observations of the same physical source to the state estimator.
+    Enforce the BridgeROS2 invariants on external odometry:
+
+    1. Exactly one pathway at a time. The TF-based path
+       (`forward_ros_tf_odom_to_mola:=True`) is a single-source legacy
+       mechanism that hardcodes sensorLabel='odom'; combining it with a
+       direct `nav_msgs/Odometry` subscription (`odom_topic_name:=...`)
+       would feed duplicate observations of the same physical source to
+       the state estimator.
+
+    2. The TF-based path is incompatible with `use_state_estimator:=True`.
+       The smoother publishes `map -> base_link` directly (not REP-105),
+       so if an external wheel driver is also broadcasting
+       `odom -> base_link` to /tf (which is exactly what Variant A needs
+       to be there in order to be read), `base_link` ends up with two
+       parents and tf2 rejects the tree. Use `odom_topic_name:=...`
+       instead — nav_msgs/Odometry is consumed as an observation and does
+       not collide with the bridge's /tf broadcast.
     """
     tf_path = LaunchConfiguration(
         'forward_ros_tf_odom_to_mola').perform(context).lower() == 'true'
     topic = LaunchConfiguration('odom_topic_name').perform(context).strip()
+    use_smoother = LaunchConfiguration(
+        'use_state_estimator').perform(context).lower() == 'true'
     if tf_path and topic:
         raise RuntimeError(
             "\n\n[ERROR] Two odometry sources are enabled simultaneously:\n"
             "  forward_ros_tf_odom_to_mola:=True  (via /tf)\n"
             f"  odom_topic_name:={topic!r}  (via nav_msgs/Odometry topic)\n"
             "These are mutually exclusive. Disable one of them.\n"
+        )
+    if tf_path and use_smoother:
+        raise RuntimeError(
+            "\n\n[ERROR] forward_ros_tf_odom_to_mola:=True is incompatible "
+            "with use_state_estimator:=True (smoother).\n"
+            "The smoother publishes `map -> base_link` directly; if an "
+            "external driver is also publishing `odom -> base_link` to "
+            "/tf, the tf2 tree becomes invalid (two parents for "
+            "base_link).\n"
+            "Use `odom_topic_name:=<your /odom topic>` instead — "
+            "nav_msgs/Odometry observations do not participate in /tf.\n"
         )
     return []
 
@@ -502,8 +526,6 @@ def generate_launch_description():
         odom_topic_name_env_var,
         odom_sensor_label_arg,
         odom_sensor_label_env_var,
-        # Reject enabling the /tf pathway and a direct /odom subscription at once:
-        OpaqueFunction(function=validate_odometry_sources),
         generate_simplemap_arg,
         generate_simplemap_env_var,
         gnss_topic_name_arg,
@@ -564,6 +586,10 @@ def generate_launch_description():
         use_rviz_arg,
         use_state_estimator_arg,
         use_state_estimator_env_var,
+        # Reject: (a) enabling the /tf pathway and a direct /odom subscription
+        # at once, and (b) /tf pathway + smoother (would break tf2 tree).
+        # Must run after use_state_estimator_arg is declared.
+        OpaqueFunction(function=validate_odometry_sources),
         gnss_mode_arg,
 
         # Smoother Specific
