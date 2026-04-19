@@ -548,7 +548,6 @@ def generate_launch_description():
             package='diagnostic_aggregator',
             executable='aggregator_node',
             name='diagnostic_aggregator',
-            remappings=tf_remaps,
             parameters=[os.path.join(
                 get_package_share_directory('mola_lidar_odometry'),
                 'config', 'diagnostics_aggregator.yaml')],

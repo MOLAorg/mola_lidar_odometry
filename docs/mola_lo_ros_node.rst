@@ -261,16 +261,16 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
     * ``state_estimator_config_yaml`` (default ``""``):
       Path to estimator YAML. If empty, it is auto-resolved based on ``use_state_estimator``.
 
-    * ``use_imu_for_lio`` (default ``False``):
-      If ``true``, enables LIO mode (forces ``MotionCompensationMethod::IMU`` for deskew).
-      Requires a working ``imu_topic_name``.
-
     * ``use_diagnostic_aggregator`` (default ``False``):
       Launch a standalone ``diagnostic_aggregator`` with the bundled MOLA-LO
       config (publishes ``/diagnostics_agg`` for ``rqt_robot_monitor``).
       Enable only for isolated bring-up/demos; leave disabled when a central
       aggregator is launched elsewhere in the robot stack. See
       :ref:`mola_lo_diagnostics`.
+
+    * ``use_imu_for_lio`` (default ``False``):
+      If ``true``, enables LIO mode (forces ``MotionCompensationMethod::IMU`` for deskew).
+      Requires a working ``imu_topic_name``.
 
     * ``use_mola_gui`` (default ``True``):
       Whether to open the MolaViz GUI for live mapping visualization and control.
