@@ -50,8 +50,8 @@ void LidarOdometry::Parameters::Diagnostics::initialize(const Yaml & cfg)
   ASSERTMSG_(
     icp_quality_error < icp_quality_warn,
     mrpt::format(
-      "diagnostics: icp_quality_error (%.3f) must be < icp_quality_warn (%.3f)",
-      icp_quality_error, icp_quality_warn));
+      "diagnostics: icp_quality_error (%.3f) must be < icp_quality_warn (%.3f)", icp_quality_error,
+      icp_quality_warn));
 
   ASSERTMSG_(
     input_stale_sec >= 0 && input_error_sec >= 0,
@@ -61,8 +61,8 @@ void LidarOdometry::Parameters::Diagnostics::initialize(const Yaml & cfg)
   ASSERTMSG_(
     input_stale_sec < input_error_sec,
     mrpt::format(
-      "diagnostics: input_stale_sec (%.3f) must be < input_error_sec (%.3f)",
-      input_stale_sec, input_error_sec));
+      "diagnostics: input_stale_sec (%.3f) must be < input_error_sec (%.3f)", input_stale_sec,
+      input_error_sec));
 
   ASSERTMSG_(
     dropped_ratio_warn >= 0 && dropped_ratio_warn <= 1 && dropped_ratio_error >= 0 &&

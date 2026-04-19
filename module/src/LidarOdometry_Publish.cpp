@@ -300,9 +300,10 @@ void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & stat
   const auto now = mrpt::Clock::now();
   // Use wall-clock reception time to avoid false positives when sensor
   // hardware clocks are not synchronized to system time.
-  const double lastObsAgeSec = state_.last_obs_reception_time
-                                 ? mrpt::system::timeDifference(*state_.last_obs_reception_time, now)
-                                 : std::numeric_limits<double>::infinity();
+  const double lastObsAgeSec =
+    state_.last_obs_reception_time
+      ? mrpt::system::timeDifference(*state_.last_obs_reception_time, now)
+      : std::numeric_limits<double>::infinity();
 
   const double icpQ = state_.last_icp_quality;
   const double dtAvr = profiler_.getMeanTime("onLidar");
