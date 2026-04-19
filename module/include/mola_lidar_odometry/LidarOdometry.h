@@ -715,6 +715,7 @@ private:
     std::optional<mrpt::Clock::time_point> first_ever_timestamp;
     std::optional<mrpt::Clock::time_point> last_obs_timestamp;
     std::optional<mrpt::Clock::time_point> last_icp_timestamp;
+    double last_observed_scan_period_sec = 0.0;  //!< seconds between last two processed scans
 
     /// Timestamp when we started waiting for state estimator convergence
     std::optional<mrpt::Clock::time_point> waiting_for_state_estimator_since;

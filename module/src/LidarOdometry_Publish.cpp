@@ -305,7 +305,8 @@ void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & stat
   const double icpQ = state_.last_icp_quality;
   const double dtAvr = profiler_.getMeanTime("onLidar");
   const double droppedRatio = getDropStats();
-  const double sensorPeriod = params_.min_time_between_scans;
+  const std::size_t startIndex = status.size();
+  const double sensorPeriod = state_.last_observed_scan_period_sec;
 
   // 1) Input Data
   {
@@ -339,7 +340,10 @@ void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & stat
   {
     mola::DiagnosticStatusMsg s;
     s.name = "LidarOdometry: ICP Quality";
-    if (icpQ < th.icp_quality_error) {
+    if (!state_.last_icp_timestamp) {
+      s.level = L::STALE;
+      s.message = "No ICP result yet";
+    } else if (icpQ < th.icp_quality_error) {
       s.level = L::ERROR;
       s.message = "ICP quality critically low";
     } else if (icpQ < th.icp_quality_warn) {
@@ -394,13 +398,13 @@ void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & stat
     status.push_back(std::move(s));
   }
 
-  // 5) Overall status: worst-of the above
+  // 5) Overall status: worst-of the entries added by this provider
   {
     mola::DiagnosticStatusMsg s;
     s.name = "LidarOdometry: Overall Status";
     s.level = L::OK;
-    for (const auto & sub : status) {
-      s.level = worst(s.level, sub.level);
+    for (std::size_t i = startIndex; i < status.size(); ++i) {
+      s.level = worst(s.level, status[i].level);
     }
     switch (s.level) {
       case L::OK:

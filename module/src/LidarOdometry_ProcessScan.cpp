@@ -380,6 +380,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     if (state_.last_icp_timestamp) {
       in.time_since_last_keyframe =
         mrpt::system::timeDifference(*state_.last_icp_timestamp, this_obs_tim);
+      state_.last_observed_scan_period_sec = in.time_since_last_keyframe;
     }
     state_.last_icp_timestamp = this_obs_tim;
 
