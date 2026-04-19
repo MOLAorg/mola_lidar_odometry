@@ -715,6 +715,9 @@ private:
     std::optional<mrpt::Clock::time_point> first_ever_timestamp;
     std::optional<mrpt::Clock::time_point> last_obs_timestamp;
     std::optional<mrpt::Clock::time_point> last_icp_timestamp;
+    /// Wall-clock time when the last observation was received (used for
+    /// staleness checks, avoids relying on sensor hardware clocks).
+    std::optional<mrpt::Clock::time_point> last_obs_reception_time;
     double last_observed_scan_period_sec = 0.0;  //!< seconds between last two processed scans
 
     /// Timestamp when we started waiting for state estimator convergence

@@ -93,6 +93,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
   // Keep timestamps for logging purposes:
   state_.last_obs_timestamp = this_obs_tim;
+  state_.last_obs_reception_time = mrpt::Clock::now();
   if (!state_.first_ever_timestamp) {
     state_.first_ever_timestamp = this_obs_tim;
   }
