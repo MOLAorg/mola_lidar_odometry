@@ -65,9 +65,42 @@ Inspecting diagnostics at runtime
    # Raw array:
    ros2 topic echo /diagnostics
 
-   # Human-readable live view:
+   # Human-readable live view (flat list, no aggregator needed):
    ros2 run rqt_runtime_monitor rqt_runtime_monitor
 
-   # Aggregated view (with a diagnostic_aggregator analyzer):
+   # Aggregated / grouped view (requires a running diagnostic_aggregator,
+   # reads /diagnostics_agg):
    ros2 run rqt_robot_monitor rqt_robot_monitor
+
+Foxglove Studio also ships a native *Diagnostics — Detail* and
+*Diagnostics — Summary* panel that consumes ``/diagnostics`` directly; no
+aggregator required.
+
+Testing with the bundled aggregator
+-----------------------------------
+
+For quick bring-up / demos, the launch file can start a standalone
+``diagnostic_aggregator`` preconfigured for MOLA-LO:
+
+.. code-block:: bash
+
+   ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
+       lidar_topic_name:=/ouster/points \
+       use_diagnostic_aggregator:=True
+
+   # In another terminal:
+   ros2 run rqt_robot_monitor rqt_robot_monitor
+
+The sample aggregator YAML is installed at
+``$(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/config/diagnostics_aggregator.yaml``
+and groups MOLA-LO statuses under the ``MOLA LO`` category.
+
+.. note::
+
+   Leave ``use_diagnostic_aggregator:=False`` (the default) when MOLA-LO is
+   part of a larger robot stack that already launches its own central
+   aggregator — two aggregators subscribing to the same ``/diagnostics``
+   will produce duplicated/conflicting ``/diagnostics_agg`` trees. In that
+   case, just add a ``startswith: ['LidarOdometry']`` analyzer to your
+   existing aggregator YAML.
 
