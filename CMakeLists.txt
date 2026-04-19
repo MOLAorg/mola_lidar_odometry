@@ -153,6 +153,7 @@ endif()
 # Install files:
 install(
   DIRECTORY
+    config
     mola-cli-launchs
     pipelines
     ros2-launchs

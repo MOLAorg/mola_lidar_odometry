@@ -102,6 +102,7 @@ Apart of this way to run MOLA-LO, two additional ways are provided for convenien
   It is also great for scripting and automating SLAM pipelines from raw datasets or rosbags.
 * :ref:`ROS 2 integration <mola_lo_ros>`: ROS 2 launch files are also provided for easier integration
   for real-time odometry and mapping.
+* :ref:`ROS 2 diagnostics (REP-107) <mola_lo_diagnostics>`: health monitoring published on ``/diagnostics``.
 
 |
 

@@ -31,6 +31,57 @@
 namespace mola
 {
 
+void LidarOdometry::Parameters::Diagnostics::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(icp_quality_warn, double);
+  YAML_LOAD_OPT(icp_quality_error, double);
+  YAML_LOAD_OPT(input_stale_sec, double);
+  YAML_LOAD_OPT(input_error_sec, double);
+  YAML_LOAD_OPT(dropped_ratio_warn, double);
+  YAML_LOAD_OPT(dropped_ratio_error, double);
+  YAML_LOAD_OPT(timing_utilization_warn, double);
+
+  // Validate thresholds so misconfiguration cannot silently invert severities.
+  ASSERTMSG_(
+    icp_quality_warn >= 0 && icp_quality_error >= 0,
+    mrpt::format(
+      "diagnostics: icp_quality_warn (%.3f) and icp_quality_error (%.3f) must be >= 0",
+      icp_quality_warn, icp_quality_error));
+  ASSERTMSG_(
+    icp_quality_error < icp_quality_warn,
+    mrpt::format(
+      "diagnostics: icp_quality_error (%.3f) must be < icp_quality_warn (%.3f)", icp_quality_error,
+      icp_quality_warn));
+
+  ASSERTMSG_(
+    input_stale_sec >= 0 && input_error_sec >= 0,
+    mrpt::format(
+      "diagnostics: input_stale_sec (%.3f) and input_error_sec (%.3f) must be >= 0",
+      input_stale_sec, input_error_sec));
+  ASSERTMSG_(
+    input_stale_sec < input_error_sec,
+    mrpt::format(
+      "diagnostics: input_stale_sec (%.3f) must be < input_error_sec (%.3f)", input_stale_sec,
+      input_error_sec));
+
+  ASSERTMSG_(
+    dropped_ratio_warn >= 0 && dropped_ratio_warn <= 1 && dropped_ratio_error >= 0 &&
+      dropped_ratio_error <= 1,
+    mrpt::format(
+      "diagnostics: dropped_ratio_warn (%.3f) and dropped_ratio_error (%.3f) must be in [0,1]",
+      dropped_ratio_warn, dropped_ratio_error));
+  ASSERTMSG_(
+    dropped_ratio_warn < dropped_ratio_error,
+    mrpt::format(
+      "diagnostics: dropped_ratio_warn (%.3f) must be < dropped_ratio_error (%.3f)",
+      dropped_ratio_warn, dropped_ratio_error));
+
+  ASSERTMSG_(
+    timing_utilization_warn >= 0 && timing_utilization_warn <= 1,
+    mrpt::format(
+      "diagnostics: timing_utilization_warn (%.3f) must be in [0,1]", timing_utilization_warn));
+}
+
 void LidarOdometry::Parameters::AdaptiveThreshold::initialize(const Yaml & cfg)
 {
   YAML_LOAD_REQ(enabled, bool);

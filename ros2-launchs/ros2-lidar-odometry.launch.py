@@ -230,6 +230,34 @@ def generate_launch_description():
     use_rviz_arg = DeclareLaunchArgument(
         "use_rviz", default_value="True", description="Whether to launch RViz2 with default lidar-odometry.rviz configuration")
 
+    # diagnostic_aggregator is OFF by default.
+    #
+    # Rationale: on a real robot there is typically a single, central
+    # diagnostic_aggregator launched by the system integrator that groups
+    # diagnostics from ALL nodes (drivers, controllers, navigation, MOLA-LO,
+    # ...) into one /diagnostics_agg tree. Launching our own aggregator here
+    # would duplicate / conflict with that system-wide one.
+    #
+    # Enable this flag only when:
+    #   - You are running MOLA-LO in isolation (bring-up, demos, debugging).
+    #   - You just want to quickly visualize MOLA-LO's own health in
+    #     rqt_robot_monitor without setting up a central aggregator.
+    #
+    # Leave it False when:
+    #   - MOLA-LO is part of a larger robot stack that already launches
+    #     diagnostic_aggregator (the common production case). In that case
+    #     just include "LidarOdometry" (or the relevant startswith/contains
+    #     pattern) in your central aggregator YAML.
+    use_diagnostic_aggregator = LaunchConfiguration('use_diagnostic_aggregator')
+    use_diagnostic_aggregator_arg = DeclareLaunchArgument(
+        "use_diagnostic_aggregator", default_value="False",
+        description=(
+            "Whether to launch a standalone diagnostic_aggregator with the "
+            "MOLA-LO sample config (publishes /diagnostics_agg for "
+            "rqt_robot_monitor). Enable for isolated bring-up/demos; leave "
+            "disabled when a central aggregator is launched elsewhere in "
+            "the robot stack."))
+
     use_mola_gui_arg = DeclareLaunchArgument(
         "use_mola_gui", default_value="True", description="Whether to open MolaViz GUI interface for watching live mapping and control UI")
     use_mola_gui_env_var = SetEnvironmentVariable(
@@ -512,6 +540,17 @@ def generate_launch_description():
             remappings=tf_remaps,
             arguments=[
                 '-d', [os.path.join(myDir, 'rviz2', 'lidar-odometry.rviz')]]
+        ),
+
+        # Optional standalone diagnostic_aggregator (see flag docs above).
+        Node(
+            condition=IfCondition(use_diagnostic_aggregator),
+            package='diagnostic_aggregator',
+            executable='aggregator_node',
+            name='diagnostic_aggregator',
+            parameters=[os.path.join(
+                get_package_share_directory('mola_lidar_odometry'),
+                'config', 'diagnostics_aggregator.yaml')],
         )
     ])
 
@@ -584,6 +623,7 @@ def generate_launch_description():
         use_mola_gui_arg,
         use_mola_gui_env_var,
         use_rviz_arg,
+        use_diagnostic_aggregator_arg,
         use_state_estimator_arg,
         use_state_estimator_env_var,
         # Reject: (a) enabling the /tf pathway and a direct /odom subscription

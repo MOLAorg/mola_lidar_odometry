@@ -1,0 +1,28 @@
+# Sample diagnostic_aggregator configuration for MOLA-LO.
+#
+# Usage (launched automatically when passing
+#   use_diagnostic_aggregator:=True
+# to ros2-lidar-odometry.launch.py), or manually with:
+#
+#   ros2 run diagnostic_aggregator aggregator_node \
+#     --ros-args --params-file \
+#     $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/config/diagnostics_aggregator.yaml
+#
+# Then visualize with:
+#   ros2 run rqt_robot_monitor rqt_robot_monitor
+#
+# This groups MOLA-LO's DiagnosticStatus entries under a single "MOLA LO"
+# category so rqt_robot_monitor shows a rolled-up health indicator.
+
+/**:
+  ros__parameters:
+    analyzers:
+      mola_lo:
+        type: diagnostic_aggregator/AnalyzerGroup
+        path: MOLA LO
+        analyzers:
+          odometry:
+            type: diagnostic_aggregator/GenericAnalyzer
+            path: LidarOdometry
+            startswith: ['LidarOdometry']
+            timeout: 5.0
