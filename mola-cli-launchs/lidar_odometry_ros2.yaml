@@ -125,6 +125,13 @@ modules:
       #  - false: the wall-clock time.
       publish_in_sim_time: ${MOLA_ROS2_PUBLISH_IN_SIM_TIME|true}
 
+      # Future-dating offset [s] for the localization /tf stamp.
+      transform_tolerance: ${MOLA_ROS2_TRANSFORM_TOLERANCE|0.1}
+
+      # Period [s] for re-broadcasting the latest localization /tf
+      # (0 disables). Default 20 Hz.
+      transform_publish_period: ${MOLA_ROS2_TRANSFORM_PUBLISH_PERIOD|0.05}
+
       # Period [s] to publish the updated map to ROS2 from the MOLA SLAM solution:
       # Note that no repeated maps are published. This is just the period for checking the need to republish.
       period_publish_new_map: ${MOLA_ROS2_PUBLISH_MAPS_PERIOD|1.0} # [s]
