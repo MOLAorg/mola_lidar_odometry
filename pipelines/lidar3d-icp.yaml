@@ -364,6 +364,7 @@ observations_filter_2nd_pass:
       input_pointcloud_layer: "decimated_for_map_skewed"
       output_pointcloud_layer: "decimated_for_map"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
+      ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|false}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
       output_layer_class: "mrpt::maps::CPointsMapXYZIRT" # Keep intensity, ring, time channels
 
@@ -376,6 +377,7 @@ observations_filter_2nd_pass:
       input_pointcloud_layer: "decimated_for_icp_skewed"
       output_pointcloud_layer: "decimated_for_icp"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
+      ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|false}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
       output_layer_class: "mrpt::maps::CPointsMapXYZIRT" # Keep intensity, ring, time channels
 
@@ -424,6 +426,7 @@ observations_filter_deskew_for_visualization:
       input_pointcloud_layer: "raw_filtered"
       output_pointcloud_layer: "viz"
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
+      ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|false}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
       output_layer_class: "mrpt::maps::CGenericPointsMap" # Keep intensity only
 

@@ -307,6 +307,10 @@ Sensor inputs: IMU (optional)
 - ``MOLA_DESKEW_METHOD`` (Default: ``MotionCompensationMethod::Linear``): **IMPORTANT**: If you do not change this from its default,
   the IMU data will not be used for deskewing. To fully achieve the best accuracy, set this variable to ``MotionCompensationMethod::IMU``.
 
+- ``MOLA_DESKEW_IGNORE_ACCELEROMETER`` (Default: ``false``): Enable if a noisy IMU sensor causes shaky motion in the estimation, 
+  but you still want to use gyroscope for precise deskewing in LIO.
+
+
 IMU gravity correction (pitch/roll)
 """""""""""""""""""""""""""""""""""""
 
