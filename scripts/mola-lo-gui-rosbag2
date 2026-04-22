@@ -10,6 +10,7 @@ if [ "$#" -eq 0 ]; then
     echo "  MOLA_LIDAR_TOPIC       LiDAR topic name (default: '/ouster/points')"
     echo "  MOLA_IMU_TOPIC         IMU topic name (default: '/imu')"
     echo "  MOLA_GNSS_TOPIC        GNSS NavSatFix topic name (default: '/gps')"
+    echo "  MOLA_ODOMETRY_TOPIC    Wheels 2D odometry (optional)"
     echo "  MOLA_TF_BASE_LINK      Robot base /tf frame id (default: 'base_link')"
     echo "  MOLA_TF_TOPIC          /tf topic in the bag (default: '/tf')"
     echo "  MOLA_TF_STATIC_TOPIC   /tf_static topic in the bag (default: '/tf_static')"

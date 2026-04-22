@@ -346,7 +346,7 @@ extrinsics, and derives pitch and roll from the gravity direction.
 Sensor inputs: Wheels odometry (optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``MOLA_ODOMETRY_NAME`` (Default: ``odometry``): **Sensor label** (or regex) of the observations
+- ``MOLA_ODOMETRY_NAME`` (Default: ``wheel_odom``): **Sensor label** (or regex) of the observations
   with wheels odometry, if it exists.
 
 Sensor inputs: GPS (GNSS) (optional)
