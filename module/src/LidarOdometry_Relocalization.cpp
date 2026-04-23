@@ -27,19 +27,37 @@
 
 namespace mola
 {
+// Public entry points: non-blocking wrappers that dispatch the work to the
+// internal lidar worker thread via enqueue_request(). The caller (typically
+// a ROS callback thread) does not take state_mtx_, which decouples it from
+// whatever the main processing loop is currently doing.
+
 void LidarOdometry::relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussian & p)
+{
+  this->enqueue_request([this, p]() { this->relocalize_near_pose_pdf_impl(p); });
+}
+
+void LidarOdometry::relocalize_from_gnss()
+{
+  this->enqueue_request([this]() { this->relocalize_from_gnss_impl(); });
+}
+
+// Synchronous bodies: run on the lidar worker thread (or spin thread) via
+// processPendingUserRequests(). They take state_mtx_ themselves.
+
+void LidarOdometry::relocalize_near_pose_pdf_impl(const mrpt::poses::CPose3DPDFGaussian & p)
 {
   auto lckState = mrpt::lockHelper(state_mtx_);
 
   auto & il = params_.initial_localization;
 
-  // Enforce re-localizatio on the next iteration:
+  // Enforce re-localization on the next iteration:
   state_.initial_localization_done = false;
   // In this pose:
   il.fixed_initial_pose = p.mean.asTPose();
   il.initial_pose_cov = p.cov;
 
-  // Reset adaptative sigma to initial value:
+  // Reset adaptive sigma to initial value:
   state_.adapt_thres_sigma = std::sqrt(p.cov.asEigen().block<2, 2>(0, 0).trace());
 
   // Handle uncertainty in next steps:
@@ -47,11 +65,11 @@ void LidarOdometry::relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussi
     il.additional_uncertainty_after_reloc_how_many_timesteps;
 
   MRPT_LOG_INFO_STREAM(
-    "relocalize_near_pose_pdf(): Using thres_sigma="  //
-    << state_.adapt_thres_sigma << " to relocalize near: " << p.mean);
+    "relocalize_near_pose_pdf(): Using thres_sigma=" << state_.adapt_thres_sigma
+                                                     << " to relocalize near: " << p.mean);
 }
 
-void LidarOdometry::relocalize_from_gnss()
+void LidarOdometry::relocalize_from_gnss_impl()
 {
   MRPT_LOG_INFO("relocalize_from_gnss() called");
 
@@ -63,7 +81,7 @@ void LidarOdometry::relocalize_from_gnss()
   state_.initial_localization_done = false;
   il.method = InitLocalization::FromStateEstimator;
 
-  // Reset adaptative sigma to initial value:
+  // Reset adaptive sigma to initial value:
   state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;
 
   // Handle uncertainty in next steps:

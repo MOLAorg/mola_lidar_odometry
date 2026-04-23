@@ -59,6 +59,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <future>
 #include <limits>
 #include <map>
 #include <memory>
@@ -588,11 +589,18 @@ public:
   /** Re-localize near this pose, including uncertainty.
      *  \param[in] pose The pose, in the local map frame.
      *  There is no return value from this method.
+     *
+     *  Thread-safe: may be called from any thread. The actual work is
+     *  dispatched asynchronously to the internal lidar worker thread via
+     *  enqueue_request(), so this call does not block on state_mtx_ and
+     *  cannot be involved in any deadlock with the main processing loop.
      */
   void relocalize_near_pose_pdf(const mrpt::poses::CPose3DPDFGaussian & p) override;
 
   /** Re-localize with the next incoming GNSS message.
      *  There is no return value from this method.
+     *
+     *  Thread-safe and non-blocking; see relocalize_near_pose_pdf() for details.
      */
   void relocalize_from_gnss() override;
 
@@ -607,6 +615,11 @@ public:
      *
      *  \param[in] path File name(s) prefix for the map to load. Do not add file
      * extension.
+     *
+     *  Thread-safe: the load work is dispatched to the internal lidar worker
+     *  thread via enqueue_request() and this call blocks on an std::future
+     *  until the work completes. The caller holds no internal mutex while
+     *  waiting, so it cannot contribute to deadlock with the processing loop.
      */
   MapServer::ReturnStatus map_load(const std::string & path) override;
 
@@ -616,6 +629,8 @@ public:
      *
      *  \param[in] path File name(s) prefix for the map to save. Do not add file
      * extension.
+     *
+     *  Thread-safe; see map_load() for details on the async dispatch.
      */
   MapServer::ReturnStatus map_save(const std::string & path) override;
 
@@ -904,9 +919,21 @@ private:
   mutable std::recursive_mutex state_simplemap_mtx_;
   mutable std::mutex state_gui_mtx_;
 
-  /// The list of pending tasks from enqueue_request():
+  /// The list of pending tasks from enqueue_request().
+  /// Protected exclusively by requests_mtx_. Must never be accessed while
+  /// holding state_mtx_ to avoid lock-order inversions.
   std::vector<std::function<void()>> requests_;
   std::mutex requests_mtx_;
+
+  // --- Synchronous bodies for the public async API entry points. ---
+  // These run on the internal lidar worker thread (or spin thread) after
+  // being enqueued. They take whatever state_/simplemap_/... locks they need
+  // themselves, so their *callers* (ROS service threads, GUI threads)
+  // never touch these mutexes directly.
+  void relocalize_near_pose_pdf_impl(const mrpt::poses::CPose3DPDFGaussian & p);
+  void relocalize_from_gnss_impl();
+  MapServer::ReturnStatus map_load_impl(const std::string & path);
+  MapServer::ReturnStatus map_save_impl(const std::string & path);
 
   /// Must be called from a scope with state_flags_mtx_ already acquired!
   void addDropStats(bool frame_is_dropped);
