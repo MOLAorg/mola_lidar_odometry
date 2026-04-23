@@ -158,8 +158,11 @@ public:
          */
     double min_time_between_scans = 0.05;
 
-    double max_sensor_range_filter_coefficient = 0.999;
-    double absolute_minimum_sensor_range = 5.0;  // [m]
+    // Low-pass filter alpha for the EMA of ESTIMATED_OBSERVATION_RADIUS, and
+    // the absolute floor for that estimate. Both used to be named *_sensor_*
+    // before the observation-radius rename; the old YAML keys still parse.
+    double observation_radius_filter_coefficient = 0.999;
+    double absolute_minimum_observation_radius = 5.0;  // [m]
 
     /** If enabled (slower), vehicle twist will be optimized during ICP
          *  enabling better and more robust odometry in high dynamics motion.
@@ -740,9 +743,10 @@ private:
     // KISS-ICP-like adaptive threshold method:
     double adapt_thres_sigma = 0;  // 0: initial
 
-    // Automatic estimation of max range:
-    std::optional<double> estimated_sensor_max_range;
-    std::optional<double> instantaneous_sensor_max_range;
+    // Automatic estimation of the observation bounding-radius (measured from
+    // base_link, not from the sensor — see ESTIMATED_OBSERVATION_RADIUS docs):
+    std::optional<double> estimated_observation_radius;
+    std::optional<double> instantaneous_observation_radius;
 
     mp2p_icp_filters::GeneratorSet obs_generators;
     mp2p_icp_filters::FilterPipeline pc_filterAdjustTimes;
@@ -925,8 +929,8 @@ private:
   // KISS-ICP adaptive threshold method:
   void doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastMotionModelError);
 
-  void doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObservation & o);
-  void doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t & m);
+  void doInitializeEstimatedObservationRadius(const mrpt::obs::CObservation & o);
+  void doUpdateEstimatedObservationRadius(const mp2p_icp::metric_map_t & m);
 
   /// Returns false if the scan/observation is not valid:
   bool doCheckIsValidObservation(const mp2p_icp::metric_map_t & m);

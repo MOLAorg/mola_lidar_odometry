@@ -2,6 +2,22 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Rename the family of *_sensor_* pipeline names that actually meant
+  observation-from-``base_link`` to *_observation_radius_* /
+  ``*_OBSERVATION_RADIUS`` to clarify semantics. The legacy names remain as
+  deprecated aliases so existing pipelines keep working unchanged; a
+  one-shot warning is emitted at init when the loaded YAML still references
+  any legacy name. The aliases will be removed in a future release.
+
+  - Dynamic variables: ``ESTIMATED_SENSOR_MAX_RANGE`` →
+    ``ESTIMATED_OBSERVATION_RADIUS``, ``INSTANTANEOUS_SENSOR_MAX_RANGE`` →
+    ``INSTANTANEOUS_OBSERVATION_RADIUS``.
+  - YAML param keys: ``max_sensor_range_filter_coefficient`` →
+    ``observation_radius_filter_coefficient``, ``absolute_minimum_sensor_range``
+    → ``absolute_minimum_observation_radius``.
+
 2.0.0 (2026-04-02)
 ------------------
 * Merge pull request `#53 <https://github.com/MOLAorg/mola_lidar_odometry/issues/53>`_ from MOLAorg/feat/use-imu-grav-align

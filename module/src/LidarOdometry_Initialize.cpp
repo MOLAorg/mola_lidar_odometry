@@ -30,6 +30,9 @@
 #include <mp2p_icp/icp_pipeline_from_yaml.h>
 #include <mrpt/system/filesystem.h>
 
+// Std:
+#include <sstream>
+
 namespace mola
 {
 
@@ -55,6 +58,35 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
 
   // make a copy of the initialization, for use in reset()
   lastInitConfig_ = c;
+
+  // One-shot deprecation warning for the legacy *_sensor_* names. Aliases
+  // are still honored (dynamic variables are double-published; the *_sensor_*
+  // YAML param keys fall back via cfg.getOrDefault below), so old pipelines
+  // keep working, but we nudge users to migrate. Scope-limited substring scan
+  // over the serialized config covers embedded pipeline blocks
+  // (observations_deskew_pass, localmap_generator, etc.) without parsing
+  // them again.
+  {
+    std::stringstream ss;
+    ss << c;
+    const std::string serialized = ss.str();
+    const auto found = [&](const char * needle) {
+      return serialized.find(needle) != std::string::npos;
+    };
+    if (
+      found("ESTIMATED_SENSOR_MAX_RANGE") || found("INSTANTANEOUS_SENSOR_MAX_RANGE") ||
+      found("max_sensor_range_filter_coefficient") || found("absolute_minimum_sensor_range")) {
+      MRPT_LOG_WARN(
+        "Your YAML pipeline references one or more deprecated *_sensor_* "
+        "names (ESTIMATED_SENSOR_MAX_RANGE, INSTANTANEOUS_SENSOR_MAX_RANGE, "
+        "max_sensor_range_filter_coefficient, absolute_minimum_sensor_range). "
+        "They are aliases of ESTIMATED_OBSERVATION_RADIUS, "
+        "INSTANTANEOUS_OBSERVATION_RADIUS, observation_radius_filter_coefficient, "
+        "absolute_minimum_observation_radius respectively (all measured from "
+        "base_link, not from the sensor) and will be removed in a future "
+        "release. Please rename references in your pipeline files.");
+    }
+  }
 
   // Load params:
   const auto cfg = c["params"];
@@ -139,8 +171,15 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
 
   YAML_LOAD_OPT(params_, min_time_between_scans, double);
   YAML_LOAD_REQ(params_, min_icp_goodness, double);
-  YAML_LOAD_OPT(params_, max_sensor_range_filter_coefficient, double);
-  YAML_LOAD_OPT(params_, absolute_minimum_sensor_range, double);
+  // Accept the deprecated *_sensor_* keys as fallbacks before reading the new
+  // canonical names, so a YAML that only sets the old key keeps working and a
+  // YAML that sets both lets the new key win.
+  params_.observation_radius_filter_coefficient = cfg.getOrDefault<double>(
+    "max_sensor_range_filter_coefficient", params_.observation_radius_filter_coefficient);
+  params_.absolute_minimum_observation_radius = cfg.getOrDefault<double>(
+    "absolute_minimum_sensor_range", params_.absolute_minimum_observation_radius);
+  YAML_LOAD_OPT(params_, observation_radius_filter_coefficient, double);
+  YAML_LOAD_OPT(params_, absolute_minimum_observation_radius, double);
   YAML_LOAD_OPT(params_, start_active, bool);
 
   YAML_LOAD_OPT(params_, max_lidar_queue_before_drop, uint32_t);
