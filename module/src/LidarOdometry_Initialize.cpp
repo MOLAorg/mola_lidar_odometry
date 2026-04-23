@@ -26,6 +26,7 @@
 #include <mola_yaml/yaml_helpers.h>
 
 // MP2P_ICP:
+#include <mp2p_icp/IcpPrepareCapable.h>
 #include <mp2p_icp/icp_pipeline_from_yaml.h>
 #include <mrpt/system/filesystem.h>
 
@@ -362,6 +363,37 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
 
     state_.mark_local_map_as_updated(true);
     state_.mark_local_map_georef_as_updated();
+
+    // Pre-warm ICP search structures for each layer that supports it.
+    //
+    // Without this, the very first call to mp2p_icp::ICP::align() for a freshly loaded
+    // map does the prepare-global work (per-keyframe global-frame cloud materialization,
+    // merged submap construction, KD-tree build) on the lidar worker thread. For a
+    // non-trivial map this can stall the first scan for many seconds, during which the
+    // bag-feed backs up and the GUI stops updating. Doing it here moves the cost to
+    // mola-cli startup, alongside the cost of load_from_file the user already pays.
+    //
+    // The ref point used for selection is the configured initial pose (defaults to
+    // origin). If the actual first ICP estimate ends up being far away, the search
+    // submap will be transparently rebuilt then, but the per-keyframe heavy data is
+    // already materialized and that rebuild is cheap.
+    {
+      const ProfilerEntry tle(profiler_, "initialize.prewarm_icp_search");
+      const auto initial_pose =
+        mrpt::poses::CPose3D(params_.initial_localization.fixed_initial_pose);
+      std::size_t prepared_layers = 0;
+      for (const auto & [layer_name, layer_map] : state_.local_map->layers) {
+        const auto * prep = dynamic_cast<const mp2p_icp::IcpPrepareCapable *>(layer_map.get());
+        if (prep == nullptr) {
+          continue;
+        }
+        prep->icp_get_prepared_as_global(initial_pose);
+        ++prepared_layers;
+      }
+      MRPT_LOG_INFO_STREAM(
+        "Pre-warmed ICP search structures for "
+        << prepared_layers << " of " << state_.local_map->layers.size() << " local-map layer(s).");
+    }
   }
 
   if (!params_.simplemap.load_existing_simple_map.empty()) {
