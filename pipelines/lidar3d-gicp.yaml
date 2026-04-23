@@ -13,7 +13,7 @@ params:
 
   # These sensor labels will be handled as LIDAR observations:
   # Can be overridden with cli flag --lidar-sensor-label
-  lidar_sensor_labels: ["${MOLA_LIDAR_NAME|lidar}", "/ouster/points"]
+  lidar_sensor_labels: [ "${MOLA_LIDAR_NAME|lidar}", "/ouster/points" ]
 
   multiple_lidars:
     lidar_count: ${MOLA_LIDAR_COUNT|1} # useful only if using several lidar_sensor_labels or regex's.
@@ -92,13 +92,13 @@ params:
   # REP-107 diagnostics thresholds published on /diagnostics via mola_bridge_ros2.
   # Any of these can be omitted to keep its built-in default.
   diagnostics:
-    icp_quality_warn: 0.30         # [0-1] WARN if icp_quality below this
-    icp_quality_error: 0.10        # [0-1] ERROR if icp_quality below this
-    input_stale_sec: 3.0           # [s]   STALE if no observation for this long
-    input_error_sec: 5.0           # [s]   ERROR if no observation for this long
-    dropped_ratio_warn: 0.20       # [0-1] WARN if dropped-frames ratio exceeds
-    dropped_ratio_error: 0.50      # [0-1] ERROR if dropped-frames ratio exceeds
-    timing_utilization_warn: 0.80  # [0-1] WARN if avg process time / sensor period exceeds
+    icp_quality_warn: 0.30 # [0-1] WARN if icp_quality below this
+    icp_quality_error: 0.10 # [0-1] ERROR if icp_quality below this
+    input_stale_sec: 3.0 # [s]   STALE if no observation for this long
+    input_error_sec: 5.0 # [s]   ERROR if no observation for this long
+    dropped_ratio_warn: 0.20 # [0-1] WARN if dropped-frames ratio exceeds
+    dropped_ratio_error: 0.50 # [0-1] ERROR if dropped-frames ratio exceeds
+    timing_utilization_warn: 0.80 # [0-1] WARN if avg process time / sensor period exceeds
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
@@ -141,6 +141,7 @@ params:
     current_observation_colormap: ${MOLA_GUI_CURRENT_CLOUD_COLORMAP|cmHOT} # mrpt::img::TColormap
     current_observation_color_by_field: ${MOLA_GUI_CURRENT_CLOUD_COLOR_FIELD|intensity}
     current_observation_alpha: 0.20
+    show_gravity_align_vector: ${MOLA_GUI_SHOW_ESTIMATED_GRAVITY_VECTOR|false}
 
     background_color_gray_level: "${MOLA_GUI_BACKGROUND_GRAY_LEVEL|0.3}"
 
@@ -230,7 +231,8 @@ icp_settings_with_vel:
     #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
     saveIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS|false} # Store partial solutions and pairings for each ICP iteration
     decimationIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS_DECIMATION|3}
-    debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
+    debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID\
+      $LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
     decimationDebugFiles: ${MP2P_ICP_LOG_FILES_DECIMATION|10}
 
     # Post-optimization SE(3) covariance estimation (see mp2p_icp::covariance).
@@ -251,8 +253,8 @@ icp_settings_with_vel:
         robustKernelParam: "${MOLA_LO_ROBUST_KERNEL_PARAM|6.0}" # In GICP, errors are normalized by covariance
         #innerLoopVerbose: true
 
-  # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
-  # instances to pair geometric entities between pointclouds.
+        # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
+        # instances to pair geometric entities between pointclouds.
   matchers:
     - class: mp2p_icp::Matcher_Cov2Cov
       params:
@@ -261,10 +263,7 @@ icp_settings_with_vel:
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         # Both layers here must be of type 'mola::KeyframePointCloudMap'
         layerMatches:
-          - {
-              global: "${MOLA_LOCALMAP_LAYER_NAME|localmap}",
-              local: "observation",
-            }
+          - { global: "${MOLA_LOCALMAP_LAYER_NAME|localmap}", local: "observation" }
 
   quality:
     - class: mp2p_icp::QualityEvaluator_PairedRatio
@@ -309,12 +308,12 @@ localmap_generator:
           max_overall_points: ${MOLA_LOCALMAP_VIZ_MAX_POINTS_OVERALL|500000} # Max number of points to render overall (e.g. to avoid FoxGlove WS overflow)
           #point_size: 1.0  # superseded by visualization.local_map_point_size above
 
-# ---------------------------------------------------------------------------------
-# LIDAR observations are, first, loaded using a generator
-# from "observations_generator".
-# then, optionally, filtered before being registered with ICP
-# against the local map with filter "observations_filter_1st_pass".
-# ---------------------------------------------------------------------------------
+          # ---------------------------------------------------------------------------------
+          # LIDAR observations are, first, loaded using a generator
+          # from "observations_generator".
+          # then, optionally, filtered before being registered with ICP
+          # against the local map with filter "observations_filter_1st_pass".
+          # ---------------------------------------------------------------------------------
 observations_generator:
   # Generators:
   #
@@ -359,7 +358,8 @@ observations_filter_adjust_timestamps:
       pointcloud_layer: "raw"
       silently_ignore_no_timestamps: true
       time_offset: "SENSOR_TIME_OFFSET"
-      method: "${MOLA_SCAN_POINT_STAMPS_ADJUST_METHOD|TimestampAdjustMethod::MiddleIsZero}"
+      method: "${MOLA_SCAN_POINT_STAMPS_ADJUST_METHOD|TimestampAdjustMethod::MiddleIs\
+        Zero}"
 
 # Path to an (optional) user-customizable pipeline definition file. Default: empty = none.
 observations_prefilter_file: ${MOLA_LO_OBS_PREFILTER_PIPELINE_FILE|""}
@@ -398,11 +398,11 @@ observations_deskew_pass:
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
-      twist: [vx, vy, vz, wx, wy, wz]
+      twist: [ vx, vy, vz, wx, wy, wz ]
 
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ["raw_range_filtered"]
+      pointcloud_layer_to_remove: [ "raw_range_filtered" ]
 
 observations_filter_1st_pass:
   # Filters:
@@ -442,7 +442,7 @@ observations_filter_final_pass:
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ["raw", "deskewed"]
+      pointcloud_layer_to_remove: [ "raw", "deskewed" ]
 
 # To populate the local map, one or more observation layers are merged
 # into the local map via this pipeline:
@@ -453,8 +453,7 @@ insert_observation_into_local_map:
       input_pointcloud_layer: "decimated_for_map"
       target_layer: "${MOLA_LOCALMAP_LAYER_NAME|localmap}"
       input_layer_in_local_coordinates: true
-      robot_pose:
-        [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
+      robot_pose: [ robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll ]
 
 # Pipeline starting from raw observations (passed through "Generator"), to be
 # sent out for visualization of the sliding-window of recent clouds as a dense local map
@@ -480,9 +479,9 @@ observations_filter_deskew_for_visualization:
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
-      twist: [vx, vy, vz, wx, wy, wz]
+      twist: [ vx, vy, vz, wx, wy, wz ]
 
   # Remove raw layer so it's not visible
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ["raw", "raw_filtered"]
+      pointcloud_layer_to_remove: [ "raw", "raw_filtered" ]
