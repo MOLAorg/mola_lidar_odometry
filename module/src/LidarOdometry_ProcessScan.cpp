@@ -120,8 +120,8 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   state_.last_obs_tim_by_label[obs->sensorLabel] = this_obs_tim;
 
   // Use the observation to update the estimated sensor range:
-  if (!state_.estimated_sensor_max_range.has_value()) {
-    doInitializeEstimatedMaxSensorRange(*obs);
+  if (!state_.estimated_observation_radius.has_value()) {
+    doInitializeEstimatedObservationRadius(*obs);
   }
 
   // Handle multiple simultaneous LIDARs:
@@ -185,7 +185,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   }
 
   // Update sensor max range from the obs map layers:
-  doUpdateEstimatedMaxSensorRange(*observation);
+  doUpdateEstimatedObservationRadius(*observation);
 
   profiler_.enter("onLidar.2.copy_vars");
 

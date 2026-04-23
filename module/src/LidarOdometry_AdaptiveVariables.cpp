@@ -108,15 +108,23 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
   ensureVarIsDefined("twistCorrectionCount");
   ensureVarIsDefined("icp_quality");
 
-  if (state_.estimated_sensor_max_range) {
+  if (state_.estimated_observation_radius) {
     state_.parameter_source.updateVariable(
-      "ESTIMATED_SENSOR_MAX_RANGE", *state_.estimated_sensor_max_range);
+      "ESTIMATED_OBSERVATION_RADIUS", *state_.estimated_observation_radius);
+    // Deprecated alias kept for one release cycle so user pipelines that
+    // still reference the old name keep working unchanged. A one-shot
+    // warning is emitted at init (see initialize()) when the loaded YAML
+    // still uses the legacy name.
+    state_.parameter_source.updateVariable(
+      "ESTIMATED_SENSOR_MAX_RANGE", *state_.estimated_observation_radius);
   }
 
-  state_.parameter_source.updateVariable(
-    "INSTANTANEOUS_SENSOR_MAX_RANGE", state_.instantaneous_sensor_max_range
-                                        ? *state_.instantaneous_sensor_max_range
-                                        : 20.0 /*default, only used once*/);
+  const double instRadius = state_.instantaneous_observation_radius
+                              ? *state_.instantaneous_observation_radius
+                              : 20.0 /*default, only used once*/;
+  state_.parameter_source.updateVariable("INSTANTANEOUS_OBSERVATION_RADIUS", instRadius);
+  // Deprecated alias, see comment above.
+  state_.parameter_source.updateVariable("INSTANTANEOUS_SENSOR_MAX_RANGE", instRadius);
 
   if (state_.last_obs_timestamp && state_.first_ever_timestamp) {
     state_.parameter_source.updateVariable(
@@ -142,11 +150,11 @@ double computeModelError(const mrpt::poses::CPose3D & model_deviation, double ma
 
 void LidarOdometry::doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastMotionModelError)
 {
-  if (!state_.estimated_sensor_max_range.has_value()) {
+  if (!state_.estimated_observation_radius.has_value()) {
     return;
   }
 
-  const double max_range = state_.estimated_sensor_max_range.value();
+  const double max_range = state_.estimated_observation_radius.value();
 
   const double ALPHA = params_.adaptive_threshold.alpha;
 
@@ -182,9 +190,9 @@ void LidarOdometry::doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastM
     state_.last_icp_quality, state_.adapt_thres_sigma);
 }
 
-void LidarOdometry::doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObservation & o)
+void LidarOdometry::doInitializeEstimatedObservationRadius(const mrpt::obs::CObservation & o)
 {
-  auto & maxRange = state_.estimated_sensor_max_range;
+  auto & maxRange = state_.estimated_observation_radius;
   ASSERT_(!maxRange.has_value());  // this method is for 1st call only
 
   mp2p_icp_filters::Generator gen;
@@ -206,24 +214,25 @@ void LidarOdometry::doInitializeEstimatedMaxSensorRange(const mrpt::obs::CObserv
 
   // check for NaN, Infinities, etc.: See: https://github.com/MOLAorg/mola_lidar_odometry/issues/10
   if (!std::isnormal(radius)) {
-    MRPT_LOG_WARN_STREAM("NaN bounding box for sensor point cloud. Using default sensor range.");
-    radius = params_.absolute_minimum_sensor_range;
+    MRPT_LOG_WARN_STREAM(
+      "NaN bounding box for observation point cloud. Using default observation radius.");
+    radius = params_.absolute_minimum_observation_radius;
   } else {
-    mrpt::keep_max(radius, params_.absolute_minimum_sensor_range);
+    mrpt::keep_max(radius, params_.absolute_minimum_observation_radius);
   }
 
   maxRange = radius;
 
   MRPT_LOG_DEBUG_STREAM(
-    "Estimated sensor max range=" << *state_.estimated_sensor_max_range
-                                  << " (instantaneous=" << radius << ")");
+    "Estimated observation radius=" << *state_.estimated_observation_radius
+                                    << " (instantaneous=" << radius << ")");
 }
 
-void LidarOdometry::doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t & m)
+void LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_map_t & m)
 {
-  const double ALPHA = params_.max_sensor_range_filter_coefficient;
+  const double ALPHA = params_.observation_radius_filter_coefficient;
 
-  auto & maxRange = state_.estimated_sensor_max_range;
+  auto & maxRange = state_.estimated_observation_radius;
   ASSERT_(maxRange.has_value());  // this method is for subsequent calls only
 
   for (const auto & [layerName, layer] : m.layers) {
@@ -239,22 +248,22 @@ void LidarOdometry::doUpdateEstimatedMaxSensorRange(const mp2p_icp::metric_map_t
 
     double radius = std::max(bb.max.norm(), bb.min.norm());
 
-    mrpt::keep_max(radius, params_.absolute_minimum_sensor_range);
+    mrpt::keep_max(radius, params_.absolute_minimum_observation_radius);
 
-    state_.instantaneous_sensor_max_range = radius;
+    state_.instantaneous_observation_radius = radius;
 
     // low-pass filter update:
     maxRange = (maxRange.value() * ALPHA) + (radius * (1.0 - ALPHA));
 
     MRPT_LOG_DEBUG_STREAM(
-      "Estimated sensor max range=" << *state_.estimated_sensor_max_range
-                                    << " (instantaneous=" << radius << ")");
+      "Estimated observation radius=" << *state_.estimated_observation_radius
+                                      << " (instantaneous=" << radius << ")");
 
     // one layer is enough:
     return;
   }
   MRPT_LOG_DEBUG(
-    "Estimated sensor max range could NOT be updated, no points layer "
+    "Estimated observation radius could NOT be updated, no points layer "
     "found in observation metric_map_t");
 }
 

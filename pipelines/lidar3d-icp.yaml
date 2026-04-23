@@ -29,8 +29,8 @@ params:
   min_time_between_scans: 1e-3 # [seconds]
 
   # Parameters for max sensor range automatic estimation:
-  max_sensor_range_filter_coefficient: 0.95
-  absolute_minimum_sensor_range: ${MOLA_ABS_MIN_SENSOR_RANGE|5.0}
+  observation_radius_filter_coefficient: 0.95
+  absolute_minimum_observation_radius: ${MOLA_ABS_MIN_SENSOR_RANGE|5.0}
 
   # If enabled, vehicle twist will be optimized during ICP
   # enabling better and more robust odometry in high dynamics motion.
@@ -56,11 +56,11 @@ params:
     save_final_local_map: ${MOLA_SAVE_MM|""} # If not empty, saves the final local metric map to a ".mm" file
 
     # Idea: don't integrate scans with a high rotational speed since they are probably not correctly deskewed:
-    min_translation_between_keyframes: "${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}" # [m]
+    min_translation_between_keyframes: "${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_OBSERVATION_RADIUS}" # [m]
     min_rotation_between_keyframes: "${MOLA_MIN_ROT_BETWEEN_MAP_UPDATES|(15 + sqrt(wx^2+wy^2+wz^2)*500 )}" # [deg]
 
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
-    max_distance_to_keep_keyframes: "${MOLA_LOCAL_MAP_MAX_SIZE|max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}" # [m]
+    max_distance_to_keep_keyframes: "${MOLA_LOCAL_MAP_MAX_SIZE|max(100.0, 1.50*ESTIMATED_OBSERVATION_RADIUS)}" # [m]
     check_for_removal_every_n: 100
     publish_map_updates_every_n: ${MOLA_PUBLISH_LOCAL_MAP_UPDATES_EVERY_N|5}
 
@@ -84,7 +84,7 @@ params:
 
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
 
-    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|(1.0e-2 + sqrt(wx^2+wy^2+wz^2)*1.0)*ESTIMATED_SENSOR_MAX_RANGE} # m
+    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|(1.0e-2 + sqrt(wx^2+wy^2+wz^2)*1.0)*ESTIMATED_OBSERVATION_RADIUS} # m
     min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|15 + sqrt(wx^2+wy^2+wz^2)*500} # deg
 
     generate_lazy_load_scan_files: ${MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD|false} # If enabled, a directory will be create alongside the .simplemap and pointclouds will be externally serialized there.
@@ -248,12 +248,12 @@ localmap_generator:
         class: mola::HashedVoxelPointCloud
         plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
-          voxel_size: "${MOLA_LOCAL_VOXELMAP_RESOLUTION|$f{max(0.5, min(1.0, 0.015*ESTIMATED_SENSOR_MAX_RANGE))}}" # [m]
+          voxel_size: "${MOLA_LOCAL_VOXELMAP_RESOLUTION|$f{max(0.5, min(1.0, 0.015*ESTIMATED_OBSERVATION_RADIUS))}}" # [m]
         insertOpts:
           max_points_per_voxel: ${MOLA_LOCALMAP_MAX_POINTS_PER_VOXEL|20}
           min_distance_between_points: 0 # [m]
           # if !=0, remove voxels farther (L1) than the current observation insert point
-          remove_voxels_farther_than: "${MOLA_LOCAL_MAP_MAX_SIZE|$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}}" # [m]
+          remove_voxels_farther_than: "${MOLA_LOCAL_MAP_MAX_SIZE|$f{max(100.0, 1.50*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
         likelihoodOpts:
           sigma_dist: 1.0 # [m]
           max_corr_distance: 2.0 #[m]
@@ -309,7 +309,7 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: "raw"
       output_pointcloud_layer: "decimated_for_map_raw"
-      voxel_filter_resolution: "${MOLA_MAP_CLOUD_DECIMATION|max(0.20, 0.55*1e-2*ESTIMATED_SENSOR_MAX_RANGE)}" # [m]
+      voxel_filter_resolution: "${MOLA_MAP_CLOUD_DECIMATION|max(0.20, 0.55*1e-2*ESTIMATED_OBSERVATION_RADIUS)}" # [m]
       minimum_input_points_to_filter: 2000 # don't decimate if smaller than this size
       decimate_method: DecimateMethod::FirstPoint
       #decimate_method: DecimateMethod::ClosestToAverage
@@ -321,8 +321,8 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: "decimated_for_map_raw"
       output_layer_between: "decimated_for_map_by_range"
-      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}"
-      range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
+      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
+      range_max: 1.2*ESTIMATED_OBSERVATION_RADIUS
       metric_l_infinity: true
 
   # Remove close ceilings (problematic in most cases!)
@@ -332,22 +332,22 @@ observations_filter_1st_pass:
       outside_pointcloud_layer: "decimated_for_map_skewed"
       bounding_box_min:
         [
-          -0.20*INSTANTANEOUS_SENSOR_MAX_RANGE,
-          -0.20*INSTANTANEOUS_SENSOR_MAX_RANGE,
-          0.01*INSTANTANEOUS_SENSOR_MAX_RANGE,
+          -0.20*INSTANTANEOUS_OBSERVATION_RADIUS,
+          -0.20*INSTANTANEOUS_OBSERVATION_RADIUS,
+          0.01*INSTANTANEOUS_OBSERVATION_RADIUS,
         ]
       bounding_box_max:
         [
-          0.20*INSTANTANEOUS_SENSOR_MAX_RANGE,
-          0.20*INSTANTANEOUS_SENSOR_MAX_RANGE,
-          0.10*INSTANTANEOUS_SENSOR_MAX_RANGE,
+          0.20*INSTANTANEOUS_OBSERVATION_RADIUS,
+          0.20*INSTANTANEOUS_OBSERVATION_RADIUS,
+          0.10*INSTANTANEOUS_OBSERVATION_RADIUS,
         ]
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
       input_pointcloud_layer: "decimated_for_map_skewed"
       output_pointcloud_layer: "decimated_for_icp_skewed"
-      voxel_filter_resolution: "${MOLA_ICP_CLOUD_DECIMATION|max(0.60, 1.6*1e-2*ESTIMATED_SENSOR_MAX_RANGE)}" # [m]
+      voxel_filter_resolution: "${MOLA_ICP_CLOUD_DECIMATION|max(0.60, 1.6*1e-2*ESTIMATED_OBSERVATION_RADIUS)}" # [m]
       minimum_input_points_to_filter: 2000 # don't decimate if smaller than this size
       decimate_method: DecimateMethod::FirstPoint
       #decimate_method: DecimateMethod::ClosestToAverage
@@ -417,8 +417,8 @@ observations_filter_deskew_for_visualization:
     params:
       input_pointcloud_layer: "raw"
       output_layer_between: "raw_filtered"
-      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}"
-      range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
+      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
+      range_max: 1.2*ESTIMATED_OBSERVATION_RADIUS
       metric_l_infinity: true
 
   - class_name: mp2p_icp_filters::FilterDeskew

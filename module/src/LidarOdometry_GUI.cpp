@@ -833,12 +833,12 @@ void LidarOdometry::updateVisualizationTextLabels()
       "LiDAR=%6.02f Hz | IMU=%6.02f Hz | GNSS=%5.02f Hz", rate_lidar, rate_imu, rate_gnss));
   }
 
-  if (state_.estimated_sensor_max_range) {
+  if (state_.estimated_observation_radius) {
     gui_.lbSensorRange->set(mrpt::format(
-      "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
-      state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
+      "Est. obs. radius: %.02f m (inst: %.02f m)", *state_.estimated_observation_radius,
+      state_.instantaneous_observation_radius ? *state_.instantaneous_observation_radius : .0));
   } else {
-    gui_.lbSensorRange->set("Est. max range: (Not available)");
+    gui_.lbSensorRange->set("Est. obs. radius: (Not available)");
   }
 
   {
@@ -879,12 +879,12 @@ void LidarOdometry::updateVisualizationTextLabels()
       "LiDAR=%6.02f Hz | IMU=%6.02f Hz | GNSS=%5.02f Hz", rate_lidar, rate_imu, rate_gnss));
   }
 
-  if (state_.estimated_sensor_max_range) {
+  if (state_.estimated_observation_radius) {
     gui_.lbSensorRange->setCaption(mrpt::format(
-      "Est. max range: %.02f m (inst: %.02f m)", *state_.estimated_sensor_max_range,
-      state_.instantaneous_sensor_max_range ? *state_.instantaneous_sensor_max_range : .0));
+      "Est. obs. radius: %.02f m (inst: %.02f m)", *state_.estimated_observation_radius,
+      state_.instantaneous_observation_radius ? *state_.instantaneous_observation_radius : .0));
   } else {
-    gui_.lbSensorRange->setCaption("Est. max range: (Not available)");
+    gui_.lbSensorRange->setCaption("Est. obs. radius: (Not available)");
   }
 
   {

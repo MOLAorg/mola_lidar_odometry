@@ -30,8 +30,8 @@ params:
   min_time_between_scans: 1e-3 # [seconds]
 
   # Parameters for max sensor range automatic estimation:
-  max_sensor_range_filter_coefficient: 0.95
-  absolute_minimum_sensor_range: ${MOLA_ABS_MIN_SENSOR_RANGE|5.0}
+  observation_radius_filter_coefficient: 0.95
+  absolute_minimum_observation_radius: ${MOLA_ABS_MIN_SENSOR_RANGE|5.0}
 
   # If enabled, vehicle twist will be optimized during ICP
   # enabling better and more robust odometry in high dynamics motion without an IMU.
@@ -57,11 +57,11 @@ params:
     save_final_local_map: ${MOLA_SAVE_MM|""} # If not empty, saves the final local metric map to a ".mm" file
 
     # Idea: don't integrate scans with a high rotational speed since they are probably not correctly deskewed:
-    min_translation_between_keyframes: "${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_SENSOR_MAX_RANGE}" # [m]
+    min_translation_between_keyframes: "${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_OBSERVATION_RADIUS}" # [m]
     min_rotation_between_keyframes: "${MOLA_MIN_ROT_BETWEEN_MAP_UPDATES|(15 + sqrt(wx^2+wy^2+wz^2)*500 )}" # [deg]
 
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
-    max_distance_to_keep_keyframes: "${MOLA_LOCAL_MAP_MAX_SIZE|max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}" # [m]
+    max_distance_to_keep_keyframes: "${MOLA_LOCAL_MAP_MAX_SIZE|max(100.0, 1.50*ESTIMATED_OBSERVATION_RADIUS)}" # [m]
     check_for_removal_every_n: 100
     publish_map_updates_every_n: ${MOLA_PUBLISH_LOCAL_MAP_UPDATES_EVERY_N|40}
 
@@ -86,7 +86,7 @@ params:
 
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
 
-    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|(1.0e-2 + sqrt(wx^2+wy^2+wz^2)*1.0)*ESTIMATED_SENSOR_MAX_RANGE} # m
+    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|(1.0e-2 + sqrt(wx^2+wy^2+wz^2)*1.0)*ESTIMATED_OBSERVATION_RADIUS} # m
     min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|15 + sqrt(wx^2+wy^2+wz^2)*500} # deg
 
     generate_lazy_load_scan_files: ${MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD|false} # If enabled, a directory will be create alongside the .simplemap and pointclouds will be externally serialized there.
@@ -257,7 +257,7 @@ localmap_generator:
           max_search_keyframes: 3
           k_correspondences_for_cov: 20
         insertOpts:
-          remove_frames_farther_than: "${MOLA_LOCAL_MAP_MAX_SIZE|$f{max(100.0, 1.50*ESTIMATED_SENSOR_MAX_RANGE)}}" # [m]
+          remove_frames_farther_than: "${MOLA_LOCAL_MAP_MAX_SIZE|$f{max(100.0, 1.50*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
         likelihoodOpts: ~ # none required
         renderOpts:
           color.A: 0.25 # [0,1] Use this alpha value for points, RGB from colormap
@@ -344,8 +344,8 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: "decimated_unfiltered"
       output_layer_between: "decimated_skewed_for_map"
-      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}"
-      range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
+      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
+      range_max: 1.2*ESTIMATED_OBSERVATION_RADIUS
       metric_l_infinity: true
 
   - class_name: mp2p_icp_filters::FilterDecimateAdaptive
@@ -432,8 +432,8 @@ observations_filter_deskew_for_visualization:
     params:
       input_pointcloud_layer: "raw"
       output_layer_between: "raw_filtered"
-      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_SENSOR_MAX_RANGE)}"
-      range_max: 1.2*ESTIMATED_SENSOR_MAX_RANGE
+      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
+      range_max: 1.2*ESTIMATED_OBSERVATION_RADIUS
       metric_l_infinity: true
 
   - class_name: mp2p_icp_filters::FilterDeskew
