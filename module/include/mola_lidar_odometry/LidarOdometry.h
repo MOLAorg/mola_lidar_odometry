@@ -818,7 +818,16 @@ private:
     std::map<mrpt::Clock::time_point, std::shared_ptr<const mrpt::obs::CObservationGPS>> last_gnss_;
 
     // Visualization:
-    mrpt::opengl::CSetOfObjects::Ptr glVehicleFrame, glPathGrp;
+    // Cache only the *expensive*, read-only-after-load vehicle model
+    // children (typically CAssimpModel). Each update builds a fresh
+    // CSetOfObjects around them and hands it to MolaViz, so we never
+    // share a long-lived, mutable object pointer with the GUI thread.
+    // glVehicleCachedBuilt tracks whether loading has already happened.
+    std::vector<mrpt::opengl::CRenderizable::Ptr> glVehicleModels;
+    bool glVehicleModelsLoaded = false;
+    // Worker-private growing buffer for the estimated path. Never handed
+    // to the GUI thread directly: each update clones it into a fresh
+    // CSetOfObjects wrapper before dispatch.
     mrpt::opengl::CSetOfLines::Ptr glEstimatedPath;
     int mapUpdateCnt = std::numeric_limits<int>::max();
 
