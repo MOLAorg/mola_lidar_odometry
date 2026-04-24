@@ -115,7 +115,10 @@ void LidarOdometry::handleInitialLocalization()
 
         state_.local_map->clear();
         ASSERT_(state_.local_map->empty());
-        state_.reconstructed_simplemap.clear();
+        {
+          auto lckSM = mrpt::lockHelper(state_simplemap_mtx_);
+          state_.reconstructed_simplemap.clear();
+        }
 
         state_.initial_localization_done = true;
         state_.imu_initializer.reset();  // no longer needed
