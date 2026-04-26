@@ -1,5 +1,17 @@
 # Unit tests:
 
+# -----------------------------------------------------------------------
+# Standalone unit test for GravityMapAligner — no external datasets needed.
+# -----------------------------------------------------------------------
+ament_add_gtest(test_gravity_map_aligner test_gravity_map_aligner.cpp)
+target_link_libraries(test_gravity_map_aligner mola::mola_lidar_odometry)
+
+ament_add_gtest(test_trajectory_rebaker test_trajectory_rebaker.cpp)
+target_link_libraries(test_trajectory_rebaker mola::mola_lidar_odometry)
+
+# -----------------------------------------------------------------------
+# Data-dependent integration tests (require optional packages):
+# -----------------------------------------------------------------------
 find_package(mola_test_datasets)
 find_package(mola_metric_maps)
 find_package(mola_input_rosbag2)
