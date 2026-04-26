@@ -104,19 +104,21 @@ public:
   /**
    * @brief Compute the publish residual after a rebake.
    *
-   * When a rebake changes the pose of the most-recent KF (id `tail_kf_id`),
-   * the live per-scan pose needs a compensating transform so that the
-   * published pose shows no jump:
+   * Unconditionally returns the residual transform that, when LEFT-composed
+   * onto `tail_pose_after`, reproduces `tail_pose_before`:
    *
-   *   T_grav_publish_new = T_tail_old * T_tail_new.inverse()
+   *   residual + tail_pose_after == tail_pose_before
    *
-   * Contract: applying the residual to the post-rebake tail pose reproduces
-   * the pre-rebake tail pose, i.e. `residual + tail_after == tail_before`.
-   * The caller LEFT-composes this onto the live (post-rebake) pose between
+   * The caller left-composes this onto the live (post-rebake) pose between
    * rebakes (`pose_pub = residual + pose_stored`) so the publish stream is
    * continuous across the rebake event.
    *
-   * Returns identity if `tail_kf_id` is absent from either map.
+   * Callers are responsible for skipping the call when the tail keyframe is
+   * missing from the relevant maps; this function performs no such check.
+   *
+   * @param tail_pose_before  Tail KF pose before the rebake.
+   * @param tail_pose_after   Tail KF pose after the rebake.
+   * @returns                 The residual `tail_pose_before + (-tail_pose_after)`.
    */
   static mrpt::poses::CPose3D computePublishResidual(
     const mrpt::poses::CPose3D & tail_pose_before, const mrpt::poses::CPose3D & tail_pose_after);

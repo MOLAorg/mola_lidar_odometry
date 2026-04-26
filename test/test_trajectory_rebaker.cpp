@@ -136,7 +136,12 @@ TEST(TrajectoryRebaker, TwoKFs_relativeGeometryPreserved)
 //
 // The odom frame accumulates 10° of pitch drift linearly (0.1°/KF) so that
 // what should be a flat horizontal path appears to go uphill. R_grav[i] is
-// the ground-truth correction (undo the drift at that KF). After rebake:
+// constructed via GravityMapAligner::rotationFromGravity for each KF, so
+// R_grav[i] EXACTLY cancels T_odom[i].R per KF (perfect per-KF correction
+// scenario). The 5 cm Z tolerance is valid under that assumption; a
+// global/noisy r_grav scenario would need a looser tolerance and is not
+// covered here.
+// After rebake:
 //  - Per-KF pitch residual < 0.05°.
 //  - Z-position drift from true path < 5 cm per 100 m traversed.
 // ---------------------------------------------------------------------------

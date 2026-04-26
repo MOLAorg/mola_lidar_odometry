@@ -46,6 +46,10 @@ class GravityMapAligner
 public:
   using KeyFrameID = uint64_t;
 
+  /// Default numerical guard for axis-angle degeneracies in
+  /// rotationFromGravity / Params::axis_eps.
+  static constexpr double kDefaultAxisEps = 1e-9;
+
   struct Params
   {
     /// Don't produce any estimate below this pool size.
@@ -65,7 +69,7 @@ public:
     double expected_g_mps2 = 9.81;
 
     /// Numerical guard for axis-angle near-zero/180°.
-    double axis_eps = 1e-9;
+    double axis_eps = kDefaultAxisEps;
   };
 
   /// One averaged sample per KF.
@@ -83,8 +87,10 @@ public:
   void setParams(Params p) { params_ = std::move(p); }
 
   /// Register a KF and the accelerometer samples taken during its interval.
-  /// Computes and stores the time-averaged `a_body` and intra-KF std of |a|.
-  /// If `samples.a_b` is empty, the KF is NOT added to the pool.
+  /// Computes and stores, from the samples in `window`, the time-averaged
+  /// body-frame acceleration `a_body` and the intra-KF std of |a|.
+  /// If `window` contains no accelerometer samples (e.g., empty), the KF is
+  /// NOT added to the pool.
   void onNewKeyframe(KeyFrameID id, const mola::imu::LocalVelocityBuffer::SamplesByTime & window);
 
   /// Insert a pre-computed sample directly (useful for tests / rehydration).
@@ -124,7 +130,7 @@ public:
    *  Returns identity if `g_hat` is already aligned with +Z within axis_eps.
    */
   static mrpt::poses::CPose3D rotationFromGravity(
-    const mrpt::math::TVector3D & g_hat, double axis_eps = 1e-9);
+    const mrpt::math::TVector3D & g_hat, double axis_eps = kDefaultAxisEps);
 
   /** One-shot pool-wide correction: pitch+roll rotation sending the robust
    *  pool mean of `R_i · a_i` (in the `kf_poses` frame) to +Z.

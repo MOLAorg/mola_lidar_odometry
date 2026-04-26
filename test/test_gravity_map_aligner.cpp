@@ -43,16 +43,16 @@ CPose3D makePitch(double angle_rad)
   return {q, 0, 0, 0};
 }
 
-// Body-frame gravity when the robot is pitched by angle_rad in world frame.
-// World gravity = (0,0,-g). Body frame = world rotated by pitch.
-// a_body = R_body_world · (0,0,-g)  = R_world_body^T · (0,0,-g).
+// Body-frame proper acceleration (= -gravity, the value an accelerometer
+// measures) when the robot is pitched by angle_rad about +Y (nose up).
+// Accelerometer convention: with the robot upright, gravity is (0,0,-g) in
+// world, the accelerometer reads (0,0,+g) in body (pointing "up" through the
+// floor). Pitched by angle_rad:
+//   a_body.x = g * sin(pitch_rad)
+//   a_body.y = 0
+//   a_body.z = +g * cos(pitch_rad)
 TVector3D bodyGravity(double pitch_rad, double g = 9.81)
 {
-  // With pure pitch by angle_rad about Y (nose up):
-  //   a_body.x = g * sin(pitch_rad)
-  //   a_body.y = 0
-  //   a_body.z = -g * cos(pitch_rad)
-  // (proper acceleration = -gravity in body frame, pointing "up" through the floor)
   return {g * std::sin(pitch_rad), 0.0, g * std::cos(pitch_rad)};
 }
 
@@ -80,12 +80,7 @@ double maxGravityErrorDeg(
       continue;
     }
     const CPose3D corrected = R_corr + itp->second;  // R_corr left-multiplied
-    mrpt::math::TPoint3D ab_local(s.a_body.x, s.a_body.y, s.a_body.z);
-    mrpt::math::TPoint3D ab_world, orig_world;
-    corrected.composePoint(ab_local, ab_world);
-    corrected.composePoint(mrpt::math::TPoint3D(0, 0, 0), orig_world);
-    const TVector3D g_world{
-      ab_world.x - orig_world.x, ab_world.y - orig_world.y, ab_world.z - orig_world.z};
+    const TVector3D g_world = corrected.rotateVector(s.a_body);
     max_err = std::max(max_err, angleToPlusZ_deg(g_world));
   }
   return max_err;
@@ -185,6 +180,12 @@ TEST(GravityMapAligner, KnownPitchTilt_converges)
     << "Pitch correction should cancel the known tilt";
   EXPECT_NEAR(roll * 180.0 / M_PI, 0.0, 0.1);
   EXPECT_NEAR(yaw * 180.0 / M_PI, 0.0, 1e-8);
+
+  // Sanity: applying R_corr to each pooled accel should put it near +Z.
+  // This is a per-KF MAX (not a pool mean), so per-sample accel noise of
+  // ~0.04 m/s² translates to ~0.04/9.81 rad ≈ 0.23° per axis, and the max
+  // over 30 KFs can reasonably reach ~1°.
+  EXPECT_LT(maxGravityErrorDeg(poses, aligner, *corr), 1.0);
 }
 
 // ---------------------------------------------------------------------------
