@@ -78,7 +78,8 @@ void GravityMapAligner::onNewKeyframe(
     const double d = a.norm() - mean.norm();
     sum_var += d * d;
   }
-  const double stddev = (a_map.size() >= 2) ? std::sqrt(sum_var / n) : 0.0;
+  constexpr double std_floor = 0.01;  // ~1e-4 variance floor (m/s²)
+  const double stddev = std::max(std_floor, (a_map.size() >= 2) ? std::sqrt(sum_var / n) : 0.0);
 
   KFAccSample s;
   s.a_body = mean;
