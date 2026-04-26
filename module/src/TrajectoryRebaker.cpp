@@ -25,6 +25,17 @@ TrajectoryRebaker::Result TrajectoryRebaker::rebake(
     return result;
   }
 
+  // Make sure there's at least one KF >= anchor_id so the loop will enter the
+  // anchor branch; otherwise corrected_poses would silently be empty while
+  // result.anchor_id still claimed the requested id. Slide the anchor forward
+  // to the first available id in that case, and report it back to the caller.
+  auto anchor_it = odom_poses.lower_bound(anchor_id);
+  if (anchor_it == odom_poses.end()) {
+    return result;
+  }
+  anchor_id = anchor_it->first;
+  result.anchor_id = anchor_id;
+
   // Identity correction for KFs absent from r_grav.
   const mrpt::poses::CPose3D identity = mrpt::poses::CPose3D::Identity();
 
@@ -80,12 +91,7 @@ TrajectoryRebaker::Result TrajectoryRebaker::rebake(
       const mrpt::poses::CPose3D C = prev_new + (-prev_odom);  // R_new * R_odom^-1
 
       // Rotate the odom displacement into the corrected frame:
-      mrpt::math::TPoint3D dp_local(delta_odom.x, delta_odom.y, delta_odom.z);
-      mrpt::math::TPoint3D dp_world, origin_world;
-      C.composePoint(dp_local, dp_world);
-      C.composePoint(mrpt::math::TPoint3D(0, 0, 0), origin_world);
-      const mrpt::math::TVector3D delta_new{
-        dp_world.x - origin_world.x, dp_world.y - origin_world.y, dp_world.z - origin_world.z};
+      const mrpt::math::TVector3D delta_new = C.rotateVector(delta_odom);
 
       // New corrected rotation: R_grav_i * R_i_odom.
       mrpt::poses::CPose3D T_new = Rg + T_odom;
@@ -109,10 +115,9 @@ TrajectoryRebaker::Result TrajectoryRebaker::rebake(
   const std::map<KeyFrameID, mrpt::poses::CPose3D> & odom_poses,
   const std::map<KeyFrameID, mrpt::poses::CPose3D> & r_grav)
 {
-  if (odom_poses.empty()) {
-    return {};
-  }
-  return rebake(odom_poses, r_grav, odom_poses.begin()->first);
+  // Three-arg overload already handles the empty-input case.
+  const KeyFrameID anchor = odom_poses.empty() ? KeyFrameID{0} : odom_poses.begin()->first;
+  return rebake(odom_poses, r_grav, anchor);
 }
 
 mrpt::poses::CPose3D TrajectoryRebaker::computePublishResidual(
