@@ -31,8 +31,9 @@ find_package(mola_imu_preintegration REQUIRED)
 
 # -----------------------
 # define lib:
-set(LIB_SRCS 
+set(LIB_SRCS
   module/src/GravityMapAligner.cpp
+  module/src/TrajectoryRebaker.cpp
   module/src/LidarOdometry_Main.cpp
   module/src/LidarOdometry_Relocalization.cpp
   module/src/LidarOdometry_Parameters.cpp
@@ -48,9 +49,10 @@ set(LIB_SRCS
   module/src/register.cpp
 )
 
-set(LIB_PUBLIC_HDRS 
+set(LIB_PUBLIC_HDRS
   module/include/mola_lidar_odometry/LidarOdometry.h
   module/include/mola_lidar_odometry/GravityMapAligner.h
+  module/include/mola_lidar_odometry/TrajectoryRebaker.h
 )
 
 mola_add_library(
