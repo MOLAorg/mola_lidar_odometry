@@ -346,8 +346,12 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       }
     }
 
-    // Apply IMU gravity correction to ICP prior (pitch/roll):
-    if (params_.imu_gravity_correction.enabled) {
+    // Apply IMU gravity correction to ICP prior (pitch/roll). When the
+    // per-KF rebake mode is on, gravity information is expressed via
+    // stored KF poses instead, so the ICP-prior path is skipped.
+    if (
+      params_.imu_gravity_correction.enabled &&
+      !params_.imu_gravity_correction.enabled_map_realignment) {
       const auto gravityPR = state_.gravity_estimator.estimatedPitchRoll(
         std::min(params_.imu_gravity_correction.averaging_samples, 3u),
         params_.imu_gravity_correction.max_age_seconds);
@@ -741,6 +745,13 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     tle3.stop();
 
     state_.mark_local_map_as_updated();
+
+    // Online gravity rebake: feed the just-inserted KF into the
+    // per-KF accelerometer pool, and drop the IMU pool entries of any
+    // KFs evicted by the local map's distance cleanup. No-op unless
+    // the rebake mode is enabled and the active local map has a
+    // KeyframePointCloudMap layer.
+    onLocalMapKFInsertedForGravity(this_obs_tim);
 
   }  // end done add a new KF to local map
 

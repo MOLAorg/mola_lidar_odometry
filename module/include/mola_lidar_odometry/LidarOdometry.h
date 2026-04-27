@@ -758,9 +758,9 @@ private:
     /// the first rebake commits.
     mrpt::poses::CPose3D T_grav_publish;
 
-    /// Timestamp of the previous KF, used to slice LocalVelocityBuffer
-    /// per-KF when feeding `gravity_map_aligner`.
-    std::optional<mrpt::Clock::time_point> last_kf_ts;
+    /// Timestamp [seconds since UNIX epoch] of the previous KF, used to
+    /// slice LocalVelocityBuffer per-KF when feeding `gravity_map_aligner`.
+    std::optional<double> last_kf_ts_s;
 
     /// One-shot resolution of the local-map layer that holds the KF
     /// observations consumed/produced by the rebake. Set on first KF
@@ -1080,6 +1080,27 @@ private:
     const mrpt::obs::CSensoryFrame & sf, bool distance_enough_sm,
     const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & scan_ref_time,
     const mrpt::maps::CPointsMap::Ptr & deskewedCloud);
+
+  /** Online gravity rebake: per-KF accelerometer pool maintenance.
+   *
+   * Resolves the active KeyframePointCloudMap layer once (warn-once
+   * if absent), feeds the just-inserted KF's averaged accelerometer
+   * sample into `state_.gravity_map_aligner`, and drops any ids
+   * evicted from the KF map from the pool too. No-op if the
+   * `enabled_map_realignment` mode is off, or if the active local
+   * map has no KeyframePointCloudMap layer.
+   *
+   * Call after `state_.mark_local_map_as_updated()` so that
+   * `lastInsertedKeyFrameID()` already reflects the new KF.
+   */
+  void onLocalMapKFInsertedForGravity(const mrpt::Clock::time_point & this_obs_tim);
+
+  /** Lazy one-shot resolution of the KeyframePointCloudMap layer
+   *  consumed by the rebake. Returns the matched layer pointer, or
+   *  nullptr if none exists. Idempotent. Emits a single warning if
+   *  the feature was requested but no matching layer was found.
+   */
+  mola::KeyframePointCloudMap * resolveKfmLayerOnce();
 };
 
 namespace detail
