@@ -273,6 +273,12 @@ def generate_launch_description():
     start_mapping_enabled_env_var = SetEnvironmentVariable(
         name='MOLA_MAPPING_ENABLED', value=LaunchConfiguration('start_mapping_enabled'))
 
+    enable_online_gravity_realignment_arg = DeclareLaunchArgument(
+        "enable_online_gravity_realignment", default_value="False",
+        description="Enable the online per-KF gravity rebake (rotates stored KF poses at KF rate so the live TF stays gravity-aligned over long runs). When true, bypasses the legacy ICP-prior pitch/roll correction.")
+    enable_online_gravity_realignment_env_var = SetEnvironmentVariable(
+        name='MOLA_IMU_GRAVITY_MAP_REALIGN', value=LaunchConfiguration('enable_online_gravity_realignment'))
+
     start_active_arg = DeclareLaunchArgument(
         "start_active", default_value="True", description="Whether MOLA-LO should start active, that is, processing incoming sensor data (true), or ignoring them (false)")
     start_active_env_var = SetEnvironmentVariable(
@@ -620,6 +626,8 @@ def generate_launch_description():
         start_active_env_var,
         start_mapping_enabled_arg,
         start_mapping_enabled_env_var,
+        enable_online_gravity_realignment_arg,
+        enable_online_gravity_realignment_env_var,
         use_mola_gui_arg,
         use_mola_gui_env_var,
         use_rviz_arg,
