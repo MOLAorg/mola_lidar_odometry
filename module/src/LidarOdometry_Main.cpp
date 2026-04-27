@@ -584,7 +584,7 @@ void LidarOdometry::onInitializePersistentState()
   }
 }
 
-void LidarOdometry::doWriteDebugTracesFile(const mrpt::Clock::time_point & this_obs_tim)
+void LidarOdometry::doWriteDebugTracesFile(const mrpt::Clock::time_point & scan_ref_time)
 {
   if (!params_.debug_traces.save_to_file) {
     return;  // disabled
@@ -611,7 +611,7 @@ void LidarOdometry::doWriteDebugTracesFile(const mrpt::Clock::time_point & this_
   auto & of = debug_traces_of_.value();
 
   auto vars = state_.parameter_source.getVariableValues();
-  vars["timestamp"] = mrpt::Clock::toDouble(this_obs_tim);
+  vars["timestamp"] = mrpt::Clock::toDouble(scan_ref_time);
   vars["time_onLidar"] = profiler_.getLastTime("onLidar");
 
   if (firstLine) {
