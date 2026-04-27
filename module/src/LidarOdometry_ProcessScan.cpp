@@ -782,9 +782,12 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     }
 
     // Transform to global (map) frame:
-    // Publish a transformed cloud to avoid imperfect positioning in RViz / FoxGlove due to latency between /tf and scans:
+    // Publish a transformed cloud to avoid imperfect positioning in RViz / FoxGlove due to latency between /tf and scans.
+    // T_grav_publish keeps the cloud aligned with the published live pose
+    // across online-gravity rebake events (identity in the default mode).
+    const auto pose_pub_for_scan = state_.T_grav_publish + state_.last_lidar_pose.mean;
     auto tfCloud = mrpt::maps::CGenericPointsMap::Create();
-    tfCloud->insertAnotherMap(fullCloudForVizAndPublish.get(), state_.last_lidar_pose.mean);
+    tfCloud->insertAnotherMap(fullCloudForVizAndPublish.get(), pose_pub_for_scan);
     state_.last_deskewed_scan_for_publishing = tfCloud;
   }
 

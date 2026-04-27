@@ -53,12 +53,17 @@ void LidarOdometry::doPublishUpdatedLocalization(const mrpt::Clock::time_point &
 {
   const ProfilerEntry tle(profiler_, "advertiseUpdatedLocalization");
 
+  // Compose the publish-time gravity residual (identity unless the
+  // online gravity rebake just committed a new correction): keeps the
+  // published live pose continuous across rebake events.
+  const auto pose_pub = state_.T_grav_publish + state_.last_lidar_pose.mean;
+
   LocalizationUpdate lu;
   lu.method = "lidar_odometry";
   lu.reference_frame = params_.publish_reference_frame;
   lu.child_frame = params_.publish_vehicle_frame;
   lu.timestamp = scan_ref_time;
-  lu.pose = state_.last_lidar_pose.mean.asTPose();
+  lu.pose = pose_pub.asTPose();
   lu.cov = state_.last_lidar_pose.cov;
   lu.quality = state_.last_icp_quality;
 
