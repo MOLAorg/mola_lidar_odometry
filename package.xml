@@ -23,6 +23,8 @@
   <depend>mrpt_libtclap</depend>
   <depend>mrpt_libmaps</depend>
 
+  <depend>mola_metric_maps</depend>  <!-- temporary!? -->
+
   <!-- dataset input sources (all are actually optional) -->
   <depend>mola_input_kitti_dataset</depend>
   <depend>mola_input_kitti360_dataset</depend>

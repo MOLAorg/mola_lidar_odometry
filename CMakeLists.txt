@@ -29,6 +29,8 @@ find_package(mp2p_icp_filters REQUIRED)
 find_package(mola_pose_list REQUIRED)
 find_package(mola_imu_preintegration REQUIRED)
 
+find_package(mola_metric_maps REQUIRED)  # temporary !?
+
 # -----------------------
 # define lib:
 set(LIB_SRCS
@@ -65,12 +67,14 @@ mola_add_library(
     mola::mp2p_icp_filters
     mola::mola_pose_list
     mola::mola_imu_preintegration
+    mola::mola_metric_maps
 # PRIVATE_LINK_LIBRARIES
 #  mrpt::maps
   CMAKE_DEPENDENCIES
     mola_kernel
     mp2p_icp
     mp2p_icp_filters
+    mola_metric_maps
     mrpt-maps
 )
 

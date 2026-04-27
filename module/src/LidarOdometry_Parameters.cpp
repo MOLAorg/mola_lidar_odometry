@@ -258,6 +258,29 @@ void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cf
   YAML_LOAD_OPT(averaging_samples, uint32_t);
   YAML_LOAD_OPT(max_age_seconds, double);
 
+  YAML_LOAD_OPT(enabled_map_realignment, bool);
+  YAML_LOAD_OPT(min_keyframes, uint32_t);
+  YAML_LOAD_OPT(huber_threshold_mps2, double);
+  YAML_LOAD_OPT(max_kf_acc_std_mps2, double);
+  YAML_LOAD_OPT(window_half_width_kfs, uint32_t);
+  YAML_LOAD_OPT(rebake_window_kfs, uint32_t);
+  YAML_LOAD_OPT(min_pool_per_kf, uint32_t);
+
+  if (enabled_map_realignment) {
+    ASSERTMSG_(
+      min_keyframes >= 2, mrpt::format(
+                            "imu_gravity_correction.min_keyframes=%u must be >= 2",
+                            static_cast<unsigned>(min_keyframes)));
+    ASSERTMSG_(
+      huber_threshold_mps2 > 0,
+      mrpt::format(
+        "imu_gravity_correction.huber_threshold_mps2=%.4f must be > 0", huber_threshold_mps2));
+    ASSERTMSG_(
+      rebake_window_kfs >= 1, mrpt::format(
+                                "imu_gravity_correction.rebake_window_kfs=%u must be >= 1",
+                                static_cast<unsigned>(rebake_window_kfs)));
+  }
+
   if (enabled) {
     ASSERTMSG_(
       averaging_samples >= 1 && averaging_samples <= 200,

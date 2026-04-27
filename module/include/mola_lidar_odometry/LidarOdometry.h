@@ -36,6 +36,8 @@
 
 // Other packages:
 #include <mola_imu_preintegration/ImuInitialCalibrator.h>
+#include <mola_lidar_odometry/GravityMapAligner.h>
+#include <mola_metric_maps/KeyframePointCloudMap.h>
 #include <mola_pose_list/SearchablePoseList.h>
 
 // MP2P_ICP
@@ -517,6 +519,31 @@ public:
       /// Samples older than this are discarded. 0 = no age limit.
       double max_age_seconds = 2.0;
 
+      /// Per-KF rebake mode. When true, the legacy ICP-prior path above
+      /// is bypassed and gravity information is expressed by rotating
+      /// stored KF poses (local map + simplemap + trajectory) at KF rate.
+      bool enabled_map_realignment = false;
+
+      /// Don't rebake below this pool size.
+      uint32_t min_keyframes = 10;
+
+      /// Huber threshold on |R_i*a_i - g_hat|, in m/s^2.
+      double huber_threshold_mps2 = 0.5;
+
+      /// KFs with intra-interval accel std above this are heavily
+      /// down-weighted (reject highly dynamic motion). In m/s^2.
+      double max_kf_acc_std_mps2 = 1.5;
+
+      /// Per-KF gravity estimation window half-width P:
+      ///   Window(i) = [i-P, i+P].
+      uint32_t window_half_width_kfs = 5;
+
+      /// Incremental rebake window: last W KFs re-integrated per scan.
+      uint32_t rebake_window_kfs = 20;
+
+      /// Minimum window members in Window(i) to emit R_grav_i.
+      uint32_t min_pool_per_kf = 3;
+
       void initialize(const Yaml & c);
     };
 
@@ -722,6 +749,26 @@ private:
     };
 
     GravityEstimator gravity_estimator;
+
+    /// Per-KF accelerometer pool (for `enabled_map_realignment` mode).
+    mola::GravityMapAligner gravity_map_aligner;
+
+    /// Residual transform applied at publish time so the live publish
+    /// stream stays continuous across KF-rate rebakes. Identity until
+    /// the first rebake commits.
+    mrpt::poses::CPose3D T_grav_publish;
+
+    /// Timestamp of the previous KF, used to slice LocalVelocityBuffer
+    /// per-KF when feeding `gravity_map_aligner`.
+    std::optional<mrpt::Clock::time_point> last_kf_ts;
+
+    /// One-shot resolution of the local-map layer that holds the KF
+    /// observations consumed/produced by the rebake. Set on first KF
+    /// insertion and never changed afterwards.
+    bool kfm_layer_resolved = false;
+    /// Name of the resolved KeyframePointCloudMap layer, or empty if
+    /// the active local map has none (feature is disabled in that case).
+    std::string kfm_layer_name;
 
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 
