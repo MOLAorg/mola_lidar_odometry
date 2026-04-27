@@ -1101,6 +1101,19 @@ private:
    *  the feature was requested but no matching layer was found.
    */
   mola::KeyframePointCloudMap * resolveKfmLayerOnce();
+
+  /** Incremental per-KF gravity rebake on the trailing window of the
+   *  local map. Updates the local-map KF poses, the live
+   *  `state_.last_lidar_pose`, the publish residual `T_grav_publish`,
+   *  and the entry in `state_.estimated_trajectory` for the current
+   *  scan. Must be called after `onLocalMapKFInsertedForGravity()`.
+   *
+   *  No-op if the per-KF pool size is below `min_keyframes` or if the
+   *  per-KF correction estimator returned an empty result.
+   */
+  void runIncrementalRebake(
+    mola::KeyframePointCloudMap & kfm, mola::KeyframePointCloudMap::KeyFrameID new_kf_id,
+    const mrpt::Clock::time_point & this_obs_tim);
 };
 
 namespace detail
