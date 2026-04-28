@@ -274,6 +274,20 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
     * ``start_active`` (default ``True``):
       Whether MOLA-LO starts active (processing incoming sensor data) or idle.
 
+    * ``min_nearby_poses_occupied`` (default ``1``):
+      Minimum number of stored scans from a pose region before that region is considered
+      "occupied" in the **local map** distance checker and no new keyframe is inserted
+      there. The default of ``1`` reproduces the classic behavior. Increase to ``2`` or
+      more for non-repetitive-scan lidars (e.g. Livox) so that multiple scans are
+      accumulated from each location before moving on.
+      Maps to the env var ``MOLA_MIN_NEARBY_POSES_OCCUPIED`` and the pipeline YAML key
+      ``local_map_updates.min_nearby_poses_occupied``.
+
+    * ``simplemap_min_nearby_poses`` (default ``1``):
+      Same as ``min_nearby_poses_occupied`` but for the **simplemap** keyframe insertion.
+      Maps to the env var ``MOLA_SIMPLEMAP_MIN_NEARBY_POSES`` and the pipeline YAML key
+      ``simplemap.min_nearby_poses_occupied``.
+
     * ``start_mapping_enabled`` (default ``True``):
       Whether MOLA-LO starts with map update enabled, or in localization-only mode.
 
