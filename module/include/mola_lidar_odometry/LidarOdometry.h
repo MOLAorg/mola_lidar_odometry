@@ -998,13 +998,13 @@ private:
   void onExternalMapUpdate(const MapSourceBase::MapUpdate & mu);
   void onExternalLocalizationUpdate(const LocalizationSourceBase::LocalizationUpdate & lu);
 
-  void doPublishUpdatedLocalization(const mrpt::Clock::time_point & this_obs_tim);
+  void doPublishUpdatedLocalization(const mrpt::Clock::time_point & scan_ref_time);
 
-  void doPublishUpdatedLocalMap(const mrpt::Clock::time_point & this_obs_tim);
+  void doPublishUpdatedLocalMap(const mrpt::Clock::time_point & scan_ref_time);
 
-  void doPublishDeskewedScan(const mrpt::Clock::time_point & this_obs_tim);
+  void doPublishDeskewedScan(const mrpt::Clock::time_point & scan_ref_time);
 
-  void doWriteDebugTracesFile(const mrpt::Clock::time_point & this_obs_tim);
+  void doWriteDebugTracesFile(const mrpt::Clock::time_point & scan_ref_time);
   std::optional<std::ofstream> debug_traces_of_;
 
   void unloadPastSimplemapObservations(size_t maxSizeUnloadQueue) const;
@@ -1031,7 +1031,7 @@ private:
 
   void doUpdateSimpleMap(
     const mrpt::obs::CSensoryFrame & sf, bool distance_enough_sm,
-    const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & this_obs_tim,
+    const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & scan_ref_time,
     const mrpt::maps::CPointsMap::Ptr & deskewedCloud);
 };
 

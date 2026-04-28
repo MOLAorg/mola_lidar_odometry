@@ -49,7 +49,7 @@ template <typename T> struct has_map_metadata_field<T, std::void_t<decltype(T::m
 namespace mola
 {
 
-void LidarOdometry::doPublishUpdatedLocalization(const mrpt::Clock::time_point & this_obs_tim)
+void LidarOdometry::doPublishUpdatedLocalization(const mrpt::Clock::time_point & scan_ref_time)
 {
   const ProfilerEntry tle(profiler_, "advertiseUpdatedLocalization");
 
@@ -57,7 +57,7 @@ void LidarOdometry::doPublishUpdatedLocalization(const mrpt::Clock::time_point &
   lu.method = "lidar_odometry";
   lu.reference_frame = params_.publish_reference_frame;
   lu.child_frame = params_.publish_vehicle_frame;
-  lu.timestamp = this_obs_tim;
+  lu.timestamp = scan_ref_time;
   lu.pose = state_.last_lidar_pose.mean.asTPose();
   lu.cov = state_.last_lidar_pose.cov;
   lu.quality = state_.last_icp_quality;
@@ -65,7 +65,7 @@ void LidarOdometry::doPublishUpdatedLocalization(const mrpt::Clock::time_point &
   advertiseUpdatedLocalization(lu);
 }
 
-void LidarOdometry::doPublishUpdatedLocalMap(const mrpt::Clock::time_point & this_obs_tim)
+void LidarOdometry::doPublishUpdatedLocalMap(const mrpt::Clock::time_point & scan_ref_time)
 {
   // Publish geo-referenced data for the map, if applicable.
   publishMetricMapGeoreferencingData();
@@ -96,7 +96,7 @@ void LidarOdometry::doPublishUpdatedLocalMap(const mrpt::Clock::time_point & thi
   MapUpdate mu;
   mu.method = "lidar_odometry";
   mu.reference_frame = params_.publish_reference_frame;
-  mu.timestamp = this_obs_tim;
+  mu.timestamp = scan_ref_time;
 
   // publish all local map layers:
   // make map *copies* to make this multithread safe.
@@ -151,7 +151,7 @@ void LidarOdometry::doPublishUpdatedLocalMap(const mrpt::Clock::time_point & thi
   }
 }
 
-void LidarOdometry::doPublishDeskewedScan(const mrpt::Clock::time_point & this_obs_tim)
+void LidarOdometry::doPublishDeskewedScan(const mrpt::Clock::time_point & scan_ref_time)
 {
   if (!state_.last_deskewed_scan_for_publishing) {
     return;
@@ -172,7 +172,7 @@ void LidarOdometry::doPublishDeskewedScan(const mrpt::Clock::time_point & this_o
   MapUpdate mu;
   mu.method = "lidar_odometry";
   mu.reference_frame = params_.publish_reference_frame;
-  mu.timestamp = this_obs_tim;
+  mu.timestamp = scan_ref_time;
   mu.map_name = "deskewed_scan";
   mu.map = deskewedScan;
   mu.keep_last_one_only = false;  // Aggregate all scans
