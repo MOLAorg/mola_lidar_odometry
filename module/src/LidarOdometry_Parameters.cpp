@@ -106,6 +106,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
 
   YAML_LOAD_OPT(show_current_observation, bool);
   YAML_LOAD_OPT(show_last_deskewed_observations_decay, bool);
+  YAML_LOAD_OPT(show_localmap, bool);
   YAML_LOAD_OPT(observations_decay_seconds, double);
   YAML_LOAD_OPT(observations_initial_alpha, float);
   YAML_LOAD_OPT(current_observation_alpha, float);

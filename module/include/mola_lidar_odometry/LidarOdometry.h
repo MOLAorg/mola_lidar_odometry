@@ -59,7 +59,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
-#include <future>
 #include <limits>
 #include <map>
 #include <memory>

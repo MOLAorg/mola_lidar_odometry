@@ -130,8 +130,8 @@ params:
     map_update_decimation: 10
     show_trajectory: true
     trajectory_rgba: [0.1, 0.1, 0.1, 1.0]
-    show_current_observation: false # shows "live deskewed" LiDAR points
-    show_last_deskewed_observations_decay: true # shows "live deskewed" LiDAR points over time
+    show_current_observation: ${MOLA_GUI_SHOW_CURRENT_OBS|false} # shows "live deskewed" LiDAR points
+    show_last_deskewed_observations_decay: ${MOLA_GUI_SHOW_DESKEWED_DECAY|true} # shows "live deskewed" LiDAR points over time
     last_deskewed_observations_point_size: ${MOLA_GUI_LAST_CLOUDS_POINT_SIZE|1.0}
     last_deskewed_observations_colormap: ${MOLA_GUI_LAST_CLOUDS_COLORMAP|cmJET} # mrpt::img::TColormap
     last_deskewed_observations_color_by_field: ${MOLA_GUI_LAST_CLOUDS_COLOR_FIELD|intensity}
