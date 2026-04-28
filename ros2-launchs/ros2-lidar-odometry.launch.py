@@ -303,6 +303,19 @@ def generate_launch_description():
     start_mapping_enabled_env_var = SetEnvironmentVariable(
         name='MOLA_MAPPING_ENABLED', value=LaunchConfiguration('start_mapping_enabled'))
 
+    min_nearby_poses_occupied_arg = DeclareLaunchArgument(
+        "min_nearby_poses_occupied", default_value="1",
+        description="Minimum number of scans from a pose region before that region is considered 'occupied' in the local map. "
+                    "Increase to 2+ for non-repetitive-scan lidars (e.g. Livox) to collect more data per location.")
+    min_nearby_poses_occupied_env_var = SetEnvironmentVariable(
+        name='MOLA_MIN_NEARBY_POSES_OCCUPIED', value=LaunchConfiguration('min_nearby_poses_occupied'))
+
+    simplemap_min_nearby_poses_arg = DeclareLaunchArgument(
+        "simplemap_min_nearby_poses", default_value="1",
+        description="Same as min_nearby_poses_occupied but for the simplemap keyframe insertion.")
+    simplemap_min_nearby_poses_env_var = SetEnvironmentVariable(
+        name='MOLA_SIMPLEMAP_MIN_NEARBY_POSES', value=LaunchConfiguration('simplemap_min_nearby_poses'))
+
     start_active_arg = DeclareLaunchArgument(
         "start_active", default_value="True", description="Whether MOLA-LO should start active, that is, processing incoming sensor data (true), or ignoring them (false)")
     start_active_env_var = SetEnvironmentVariable(
@@ -658,6 +671,10 @@ def generate_launch_description():
         start_active_env_var,
         start_mapping_enabled_arg,
         start_mapping_enabled_env_var,
+        min_nearby_poses_occupied_arg,
+        min_nearby_poses_occupied_env_var,
+        simplemap_min_nearby_poses_arg,
+        simplemap_min_nearby_poses_env_var,
         use_mola_gui_arg,
         use_mola_gui_env_var,
         use_rviz_arg,

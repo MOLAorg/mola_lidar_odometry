@@ -224,6 +224,14 @@ public:
              */
       uint32_t check_for_removal_every_n = 100;
 
+      /** Minimum number of stored poses within the threshold distance
+             *  before a volume is considered "occupied" and no new keyframe
+             *  is inserted there. Default=1 gives the classic behavior.
+             *  Increase to 2+ for non-repetitive-scan lidars (e.g. Livox)
+             *  so multiple scans are taken from each location.
+             */
+      uint32_t min_nearby_poses_occupied = 1;
+
       /** Publish updated map via mola::MapSourceBase once every N frames
              */
       uint32_t publish_map_updates_every_n = 5;
@@ -416,6 +424,13 @@ public:
 
       /** If enabled, saved keyframes will contain an additional 'deskewed' observation with the motion-compensated cloud. */
       bool save_deskewed_scans = false;
+
+      /** Minimum number of stored poses within the threshold distance
+             *  before a volume is considered "occupied" and no new keyframe
+             *  is inserted there. Default=1 gives the classic behavior.
+             *  Increase to 2+ for non-repetitive-scan lidars (e.g. Livox).
+             */
+      uint32_t min_nearby_poses_occupied = 1;
 
       void initialize(const Yaml & c, Parameters & parent);
     };

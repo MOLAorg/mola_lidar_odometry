@@ -183,6 +183,11 @@ void LidarOdometry::Parameters::SimpleMapOptions::initialize(const Yaml & cfg, P
   YAML_LOAD_OPT(save_final_map_to_file, std::string);
   YAML_LOAD_OPT(add_non_keyframes_too, bool);
   YAML_LOAD_OPT(measure_from_last_kf_only, bool);
+  YAML_LOAD_OPT(min_nearby_poses_occupied, uint32_t);
+  ASSERTMSG_(
+    min_nearby_poses_occupied >= 1, mrpt::format(
+                                      "simplemap.min_nearby_poses_occupied=%u must be >= 1",
+                                      static_cast<unsigned>(min_nearby_poses_occupied)));
   YAML_LOAD_OPT(generate_lazy_load_scan_files, bool);
   YAML_LOAD_OPT(save_gnss_max_age, double);
   YAML_LOAD_OPT(save_deskewed_scans, bool);
@@ -204,6 +209,11 @@ void LidarOdometry::Parameters::MapUpdateOptions::initialize(const Yaml & cfg, P
   DECLARE_PARAMETER_IN_OPT(cfg, check_for_removal_every_n, parent);
   DECLARE_PARAMETER_IN_OPT(cfg, publish_map_updates_every_n, parent);
   YAML_LOAD_OPT(measure_from_last_kf_only, bool);
+  YAML_LOAD_OPT(min_nearby_poses_occupied, uint32_t);
+  ASSERTMSG_(
+    min_nearby_poses_occupied >= 1, mrpt::format(
+                                      "simplemap.min_nearby_poses_occupied=%u must be >= 1",
+                                      static_cast<unsigned>(min_nearby_poses_occupied)));
   YAML_LOAD_OPT(load_existing_local_map, std::string);
   YAML_LOAD_OPT(save_final_local_map, std::string);
 }
@@ -288,7 +298,7 @@ void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_value
   params_.simplemap.generate =
     names_values.getOrDefault("generate_simplemap", params_.simplemap.generate);
 
-  // Special triggering reset "variabe":
+  // Special triggering reset "variable":
   if (names_values.getOrDefault("reset_state", false)) {
     this->enqueue_request([this]() {
       MRPT_LOG_INFO("Received a reset() command via parameters update.");
