@@ -226,6 +226,36 @@ def generate_launch_description():
     imu_topic_name_env_var = SetEnvironmentVariable(
         name='MOLA_IMU_TOPIC', value=LaunchConfiguration('imu_topic_name'))
 
+    # ~~~~~~~~~~~~
+    # Subscription QoS overrides (per REP-2003 the defaults are best-effort
+    # with a depth of 50; raise depth and/or switch to reliable when the
+    # publisher is reliable and high-rate, e.g. a 640 Hz IMU consumed
+    # together with a heavy SLAM pipeline).
+    # ~~~~~~~~~~~~
+    imu_qos_reliability_arg = DeclareLaunchArgument(
+        "imu_qos_reliability", default_value="best_effort",
+        description="QoS reliability for the IMU subscription. Options: 'best_effort' (default) or 'reliable'. Set to 'reliable' to match a reliable high-rate publisher and avoid silent drops.")
+    imu_qos_reliability_env_var = SetEnvironmentVariable(
+        name='MOLA_IMU_QOS_RELIABILITY', value=LaunchConfiguration('imu_qos_reliability'))
+
+    imu_qos_depth_arg = DeclareLaunchArgument(
+        "imu_qos_depth", default_value="50",
+        description="QoS history depth for the IMU subscription. Default 50; raise (e.g. 200-1000) for high-rate IMUs under SLAM load.")
+    imu_qos_depth_env_var = SetEnvironmentVariable(
+        name='MOLA_IMU_QOS_DEPTH', value=LaunchConfiguration('imu_qos_depth'))
+
+    lidar_qos_reliability_arg = DeclareLaunchArgument(
+        "lidar_qos_reliability", default_value="best_effort",
+        description="QoS reliability for the LiDAR subscription. Options: 'best_effort' (default) or 'reliable'.")
+    lidar_qos_reliability_env_var = SetEnvironmentVariable(
+        name='MOLA_LIDAR_QOS_RELIABILITY', value=LaunchConfiguration('lidar_qos_reliability'))
+
+    lidar_qos_depth_arg = DeclareLaunchArgument(
+        "lidar_qos_depth", default_value="50",
+        description="QoS history depth for the LiDAR subscription. Default 50.")
+    lidar_qos_depth_env_var = SetEnvironmentVariable(
+        name='MOLA_LIDAR_QOS_DEPTH', value=LaunchConfiguration('lidar_qos_depth'))
+
     use_rviz = LaunchConfiguration('use_rviz')
     use_rviz_arg = DeclareLaunchArgument(
         "use_rviz", default_value="True", description="Whether to launch RViz2 with default lidar-odometry.rviz configuration")
@@ -577,6 +607,14 @@ def generate_launch_description():
         ignore_lidar_pose_from_tf_env_var,
         imu_topic_name_arg,
         imu_topic_name_env_var,
+        imu_qos_reliability_arg,
+        imu_qos_reliability_env_var,
+        imu_qos_depth_arg,
+        imu_qos_depth_env_var,
+        lidar_qos_reliability_arg,
+        lidar_qos_reliability_env_var,
+        lidar_qos_depth_arg,
+        lidar_qos_depth_env_var,
         initial_localization_method_arg,
         initial_localization_method_env_var,
         lidar_scan_validity_enable_env_var,

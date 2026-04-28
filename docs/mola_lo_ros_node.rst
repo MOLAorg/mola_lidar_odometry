@@ -181,6 +181,25 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
     * ``imu_topic_name`` (default ``imu``):
       Topic name to listen for ``Imu`` input (e.g. ``/imu``).
 
+    * ``imu_qos_reliability`` (default ``best_effort``):
+      QoS reliability of the IMU subscription. Options: ``best_effort`` or
+      ``reliable``. Defaults to ``best_effort`` per REP-2003. Set to ``reliable``
+      to match a reliable high-rate publisher (e.g. Ouster's 640 Hz IMU)
+      and avoid silent drops. The publisher must also be ``reliable`` for
+      end-to-end reliable delivery.
+
+    * ``imu_qos_depth`` (default ``50``):
+      QoS history depth of the IMU subscription. The default of 50 absorbs
+      moderate executor stalls; raise (e.g. 200-1000) for high-rate IMUs
+      consumed together with a heavy SLAM pipeline.
+
+    * ``lidar_qos_reliability`` (default ``best_effort``):
+      QoS reliability of the LiDAR subscription. Options: ``best_effort`` or
+      ``reliable``. See ``imu_qos_reliability`` for guidance.
+
+    * ``lidar_qos_depth`` (default ``50``):
+      QoS history depth of the LiDAR subscription.
+
     * ``initial_localization_method`` (default ``""``):
       Initial-localization method. Options: ``InitLocalization::FixedPose`` (start at
       identity or given pose), ``InitLocalization::FromStateEstimator`` (wait for
