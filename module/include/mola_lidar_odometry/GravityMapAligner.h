@@ -14,7 +14,6 @@
  * @file   GravityMapAligner.h
  * @brief  Per-KF accelerometer pool + robust gravity estimation (pitch/roll only)
  *
- * Design reference: TODOs/online-gravity-alignment.md §2.4 and §3.1.
  * This class is pure: it owns a per-KF pool of averaged body-frame
  * accelerations, and exposes robust primitives to estimate per-KF
  * pitch/roll corrections sending the local gravity estimate to +Z.

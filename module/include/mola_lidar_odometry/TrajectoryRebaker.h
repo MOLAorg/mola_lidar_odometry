@@ -14,7 +14,6 @@
  * @file   TrajectoryRebaker.h
  * @brief  Chain-integration trajectory rebake using per-KF gravity corrections
  *
- * Design reference: TODOs/online-gravity-alignment.md §2.4.2.
  *
  * Takes a map of original ("odom") KF poses and a map of per-KF
  * pitch/roll corrections (from GravityMapAligner) and produces a new
