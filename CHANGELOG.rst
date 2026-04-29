@@ -4,6 +4,212 @@ Changelog for package mola_lidar_odometry
 
 Forthcoming
 -----------
+* FIX: show_localmap was not loaded from YAML file; expose more pipeline env vars
+* Merge pull request `#70 <https://github.com/MOLAorg/mola_erathos_slam/issues/70>`_ from MOLAorg/feat/multiple-scans-per-volume
+  simple estimator params file: expose all hardcoded values as env vars
+* simple estimator params file: expose all hardcoded values as env vars
+* Merge pull request `#69 <https://github.com/MOLAorg/mola_erathos_slam/issues/69>`_ from MOLAorg/feat/multiple-scans-per-volume
+  feat: new option to include multiple scans per space volume
+* feat: new option to include multiple scans per space volume
+* feat: Add IMU & LiDAR configurable QoS (requires latest mola_bridge_ros2)
+* Merge pull request `#67 <https://github.com/MOLAorg/mola_erathos_slam/issues/67>`_ from Zeal-Robotics/fix/pose-timestamp-after-deskew
+  fix: stamp published pose with deskew reference time, not raw obs stamp
+* fix: stamp published pose with deskew reference time, not raw obs stamp
+  The ICP-derived pose corresponds to the vehicle at t=0 of the deskewed
+  cloud. With the default `FilterAdjustTimestamps: MiddleIsZero`, t=0 is
+  the *middle* of the scan, while `obs->timestamp` (taken from the LiDAR
+  driver header) is the *start* of the scan. The published
+  `LocalizationUpdate.timestamp` and the timestamp fed back into
+  `navstate_fuse->fuse_pose()` were both using `obs->timestamp`, so
+  downstream consumers (and the internal fuser) saw a pose tagged with
+  a time roughly half a scan period (~50 ms at 10 Hz) before the moment
+  the pose actually holds.
+  The absolute reference time is already tracked inside
+  `ParameterSource::localVelocityBuffer.get_reference_zero_time()`:
+  - `Generator` seeds it with `obs->timestamp`
+  - `FilterAdjustTimestamps` shifts it by the same offset it applies to
+  per-point timestamps
+  - `FilterAbsoluteTimestamp` already uses it as the absolute reference
+  for per-point timestamps
+  This commit reads it back after the observation pipeline runs and
+  threads it through every pose-time use site:
+  - ICP initial-guess query (`estimated_navstate`)
+  - ICP result fusion (`fuse_pose`)
+  - `estimated_trajectory` insertion
+  - `past_simplemaps_observations` keyframe key
+  - Published `LocalizationUpdate`, map, deskewed-scan, debug-trace
+  timestamps
+  Sensor-cadence uses (rate stats, drop-too-close logic, debug log
+  context, `last_obs_timestamp`, per-label staleness tracking) keep the
+  raw `obs->timestamp` since they are about *when the observation
+  arrived*, not *when the pose holds*.
+  If `FilterAdjustTimestamps` is not configured the buffer's reference
+  equals `obs->timestamp` and behavior is unchanged. There is a fallback
+  to `obs->timestamp` for safety if the buffer was never seeded.
+* Merge pull request `#66 <https://github.com/MOLAorg/mola_erathos_slam/issues/66>`_ from MOLAorg/better-grav-aligner-tests
+  review: address gravity-aligner / rebaker review comments
+* review: address gravity-aligner / rebaker review comments
+  - Fix stale Doxygen on onNewKeyframe (window param) and computePublishResidual
+  (drop tail_kf_id reference, document unconditional residual contract).
+  - TrajectoryRebaker::rebake: slide anchor forward to lower_bound when no KF
+  >= anchor_id exists, so corrected_poses and reported anchor_id stay
+  consistent.
+  - Remove redundant empty-input guard in two-arg rebake overload.
+  - Replace composePoint+subtraction delta computation with rotateVector in
+  TrajectoryRebaker and the test helper.
+  - Extract kDefaultAxisEps single source of truth used by Params and
+  rotationFromGravity.
+  - Fix sign in test bodyGravity comment (a_body.z = +g*cos), clarify
+  accelerometer convention.
+  - Wire maxGravityErrorDeg into KnownPitchTilt_converges as a sanity check.
+  - Clarify LinearDrift_recoversHorizontalPath comment that R_grav per-KF
+  exactly cancels T_odom.R (scenario justifying the 5cm Z tolerance).
+* Merge pull request `#65 <https://github.com/MOLAorg/mola_erathos_slam/issues/65>`_ from MOLAorg/feat/better-gravity-align
+  feat: add GravityMapAligner with per-KF IMU pool and robust gravity estimation
+* fix minimum accelerometer noise
+* feat: add TrajectoryRebaker for per-KF gravity-aware pose chain re-integration
+* feat: add GravityMapAligner with per-KF IMU pool and robust gravity estimation
+  New class GravityMapAligner stores one time-averaged body-frame
+  accelerometer sample per keyframe and provides:
+  - estimateGravityVector / estimatePerKFCorrection: IRLS/Huber-robust
+  weighted mean of R_i·a_body_i to estimate gravity direction in the
+  odom frame, with per-window support for the per-KF rebake path.
+  - rotationFromGravity: pitch/roll-only correction (zero yaw by
+  construction) that sends the estimated gravity vector to +Z.
+  - onNewKeyframe / onKeyframeDropped for pool lifecycle management.
+  Unit tests cover: nullopt below threshold, zero-tilt identity correction,
+  2° pitch convergence (<0.1°), Huber robustness with 20% outlier KFs,
+  pool eviction, yaw-free output, and per-KF windowed estimation.
+  Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+* Merge pull request `#64 <https://github.com/MOLAorg/mola_erathos_slam/issues/64>`_ from MOLAorg/fix/more-rational-use-mutexes
+  FIX: More rational use of mutexes and shared opengl objects
+* FIX: More rational use of mutexes and shared opengl objects
+* Merge pull request `#63 <https://github.com/MOLAorg/mola_erathos_slam/issues/63>`_ from MOLAorg/fix/deadlock-load-map
+  FIX: potential dead locks/long waits requesting relocalization
+* FIX: potential dead locks/long waits requesting relocalization
+* Merge pull request `#60 <https://github.com/MOLAorg/mola_erathos_slam/issues/60>`_ from Zeal-Robotics/fix/sensor-frame-max-range-and-filter-anchors
+  fix(mola_lidar_odometry): anchor ESTIMATED_SENSOR_MAX_RANGE and FilterByRange at the sensor
+* Rename pipeline *_sensor\_* names to *_observation_radius\_*, document base_link-anchored deadzone
+  The pipeline variables and YAML param keys historically called
+  *_SENSOR_MAX_RANGE / *_sensor_range\_* are actually the bounding-radius
+  of the latest observation cloud measured from base_link, not anything
+  sensor-anchored. This caused real-world confusion: users reading the
+  name expected sensor-frame semantics and were puzzled when the
+  canonical FilterByRange deadzone removed points around base_link
+  instead of around the sensor.
+  Rename to make the semantics self-documenting:
+  - Dynamic vars (parameter source):
+  ESTIMATED_SENSOR_MAX_RANGE     -> ESTIMATED_OBSERVATION_RADIUS
+  INSTANTANEOUS_SENSOR_MAX_RANGE -> INSTANTANEOUS_OBSERVATION_RADIUS
+  - YAML param keys:
+  max_sensor_range_filter_coefficient -> observation_radius_filter_coefficient
+  absolute_minimum_sensor_range       -> absolute_minimum_observation_radius
+  - Mirroring C++ symbol renames in state\_, params\_, and methods
+  (doInitializeEstimatedObservationRadius etc.). GUI label tweaked.
+  All legacy names remain working as deprecated aliases (dynamic vars are
+  double-published; YAML keys fall back via cfg.getOrDefault). A one-shot
+  warning is emitted at init when the loaded YAML still references any
+  legacy name; aliases can be removed in a future release.
+  The user-facing env var MOLA_ABS_MIN_SENSOR_RANGE is intentionally kept
+  unchanged: the YAML \${VAR|default} substitution is single-pass, so the
+  elegant chained-default pattern doesn't aliasing it cleanly, and a
+  setenv shim has caveats for callers that load pipelines outside of the
+  canonical entry points. The misnomer survives at the env-var name only;
+  docs already point to the renamed concept.
+  Also clarify in lidar3d-gicp.yaml that the L\u221E cube deadzone is
+  intentionally vehicle-anchored (centered at base_link, not at the
+  sensor) so it covers the vehicle body and a person standing next to the
+  robot regardless of where the sensor is mounted. Users who additionally
+  want a sensor-anchored cut can layer one on via observations_prefilter_file.
+  No behavioral change.
+* Merge branch 'Zeal-Robotics-perf/prewarm-icp-search-on-startup' into develop
+* perf(initialize): pre-warm ICP search structures for preloaded local maps
+  When the local map is loaded from disk via `load_existing_local_map` (the
+  multi-session SLAM / localization-only path), each layer that implements
+  `mp2p_icp::IcpPrepareCapable` defers building its ICP search structures
+  (per-keyframe global-frame cloud materialization, merged submap
+  construction, KD-tree build, ...) until the first call to
+  `mp2p_icp::ICP::align()`. For a non-trivial preloaded map this is
+  seconds of work that blocks the lidar worker on the very first scan,
+  backs the bag-feed up, and freezes the GUI.
+  Move that cost to startup by walking `state\_.local_map->layers` right
+  after `load_from_file` and calling `icp_get_prepared_as_global()` on
+  every IcpPrepareCapable layer, using the configured initial pose as the
+  reference point. The total amount of work is unchanged; it just happens
+  alongside `load_from_file` (where the user already expects a delay)
+  instead of during real-time playback.
+  If the actual first ICP estimate ends up far from the initial pose, the
+  selected sub-keyframe set may be rebuilt then, but the per-keyframe
+  point-cloud and cache data is already materialized so that rebuild is
+  cheap.
+* Merge pull request `#59 <https://github.com/MOLAorg/mola_erathos_slam/issues/59>`_ from Zeal-Robotics/feat/expose-transform-tolerance-env-vars
+  feat(launch): expose transform_tolerance and transform_publish_period
+* feat(launch): expose transform_tolerance and transform_publish_period
+  Plumbs the two new BridgeROS2 params through the standard
+  MOLA_ROS2\_* env-var convention so they can be overridden from
+  ros2 launch without editing YAML:
+  MOLA_ROS2_TRANSFORM_TOLERANCE       default 0.1
+  MOLA_ROS2_TRANSFORM_PUBLISH_PERIOD  default 0.05 (20 Hz; 0 disables)
+  Defaults match BridgeROS2 and the AMCL / slam_toolbox / RTAB-Map
+  convention, so consumers can lookupTransform(map, base_link, now())
+  without tf2 ExtrapolationException.
+* Add MOLA_DESKEW_IGNORE_ACCELEROMETER env var
+* consistent ros2 topic name var MOLA_ODOMETRY_TOPIC for both offline/online
+* Merge pull request `#58 <https://github.com/MOLAorg/mola_erathos_slam/issues/58>`_ from MOLAorg/feat/ros2-diagnostics
+  Implement new mola_kernel diagnostics API
+* clang format
+* diagnostics: use wall-clock reception time for input-data staleness check
+  last_obs_timestamp stores the sensor hardware timestamp which may not be
+  synchronized to system time (GPS-disciplined lidars, unsync'd clocks, etc.).
+  Introduce last_obs_reception_time (set via mrpt::Clock::now() when each scan
+  arrives) and use it for the Input Data stale/error age computation so the check
+  reflects actual data flow rather than sensor-vs-host clock drift.
+  Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+* docs/launch: alphabetical ordering for use\_* args; drop spurious tf remap from aggregator
+  - mola_lo_ros_node.rst: move use_diagnostic_aggregator before use_imu_for_lio
+  - launch.py: remove remappings=tf_remaps from diagnostic_aggregator node (it
+  only needs diagnostics topics, not tf)
+  Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+* diagnostics: fix ICP quality startup false-ERROR, timing period source, and overall scope
+  - ICP Quality: treat as STALE (not ERROR) until state\_.last_icp_timestamp is set
+  - Timing: derive sensorPeriod from observed scan interval (last_observed_scan_period_sec)
+  rather than params\_.min_time_between_scans throttle threshold
+  - Overall Status: iterate only over entries added by this provider (startIndex..end)
+  so unrelated providers' diagnostics do not influence the overall level
+  Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+* diagnostics: validate threshold ordering in Parameters::Diagnostics::initialize
+  Assert that warn < error for icp_quality, input_stale_sec, and dropped_ratio,
+  and that all values are in their valid ranges, so misconfiguration cannot
+  silently invert severities at runtime.
+  Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+* Add optional diagnostic_aggregator launch + sample config
+  Off by default (use_diagnostic_aggregator:=True to enable). Intended for
+  isolated bring-up/demos; in a larger stack a central aggregator should
+  group LidarOdometry statuses instead.
+  Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+* docs: add REP-107 diagnostics page for MOLA-LO
+  Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+* Implement new mola_kernel diagnostics API (exported to ROS2 via BridgeROS2)
+* ros2 launch: improved configuration validator
+* ros2 launch: Add missing mola_bridge_odometry_frame argument; fix broken behavior
+* Merge pull request `#57 <https://github.com/MOLAorg/mola_erathos_slam/issues/57>`_ from MOLAorg/feat/clarify-usage-modes
+  docs: clarify usage modes; cli: add /tf selection args
+* ros2 launch: safe guard against importing duplicated odometry
+* ros2 launch: add wheels odometry arguments; fix opaque function must come last
+* docs: clarify usage modes; cli: add /tf selection args
+* Auto-transition to active mode after state estimator convergence
+* GUI: Add message when lidar stream starts
+* Merge pull request `#55 <https://github.com/MOLAorg/mola_erathos_slam/issues/55>`_ from MOLAorg/feat/add-odom-frame-env-var
+  ros2 launch: export MOLA_TF_ESTIMATED_ODOMETRY
+* ros2 launch: export MOLA_TF_ESTIMATED_ODOMETRY from mola_lo_reference_frame for consistency
+* Merge pull request `#54 <https://github.com/MOLAorg/mola_erathos_slam/issues/54>`_ from MOLAorg/fix-missing-ros2-launch-base-link
+  BUGFIX: Changing base_link in ros2 launch didn't propagate to LO
+* BUGFIX: Changing base_link in ros2 launch didn't propagate to LO
+* Merge pull request `#45 <https://github.com/MOLAorg/mola_erathos_slam/issues/45>`_ from MOLAorg/fix/init-from-gps-imu
+  Support initialization from state estimator
+* Support initialization from state estimator
+* Contributors: Jose Luis Blanco-Claraco, Robin Van Cauwenbergh
+
 * Rename the family of *_sensor_* pipeline names that actually meant
   observation-from-``base_link`` to *_observation_radius_* /
   ``*_OBSERVATION_RADIUS`` to clarify semantics. The legacy names remain as
