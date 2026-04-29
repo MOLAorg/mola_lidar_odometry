@@ -68,6 +68,26 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
            publish_localization_following_rep105:=False
 
 
+   .. tab-item:: Rosbag playback
+
+      To replay a recorded bag with simulated time (required when playing ``.mcap`` or ``.db3`` bags):
+
+      .. code-block:: bash
+
+         # Terminal 1: launch MOLA-LO with sim time enabled:
+         ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
+            lidar_topic_name:=/ouster/points \
+            use_sim_time:=true
+
+         # Terminal 2: play the bag and publish the /clock topic:
+         ros2 bag play /path/to/your/bag --clock
+
+      .. note::
+
+         Both ``use_sim_time:=true`` **and** ``--clock`` are required together.
+         ``--clock`` makes the bag publish on ``/clock``; ``use_sim_time:=true``
+         makes all nodes subscribe to it instead of the wall clock.
+
    .. tab-item:: Robot with NS
 
       If your robot uses a ROS 2 namespace ``ROBOT_NS`` for all its sensor and tf topics, use:
@@ -101,6 +121,12 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
     You can also directly run MOLA-LO on a dataset instead of live ROS messages, which is normally more efficient.
     See MOLA-LO GUI apps for all the details.
+
+    To play a bag through the ROS 2 launch file with correct simulated time, use the
+    ``use_sim_time:=true`` argument together with ``ros2 bag play --clock``.
+    See the **Rosbag playback** tab above for the full example.
+    Note however than MOLA-LO GUI apps can directly read rosbags
+    without the need to replay them.
 
     .. code-block:: bash
 
@@ -314,6 +340,11 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
     * ``use_rviz`` (default ``True``):
       Whether to launch RViz2 with the default ``lidar-odometry.rviz`` configuration.
 
+    * ``use_sim_time`` (default ``false``):
+      If ``true``, all nodes use the ``/clock`` topic as their time source instead
+      of the system wall clock. Enable this when replaying a rosbag with
+      ``ros2 bag play --clock``.
+
     * ``use_state_estimator`` (default ``False``):
       If ``true``, uses ``StateEstimationSmoother`` (requires the optional
       ``mola_state_estimation_smoother`` package).
@@ -382,4 +413,3 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
     of :ref:`additional parameters and options <mola_3d_gicp_pipeline>` that you can explore.
 
     See also the docs for the :ref:`ROS 2 API <mola_ros2api>` and :ref:`this tutorial <tutorial-mola-lo-map-and-localize>` on how to save and load a map using ROS 2 MOLA-LO nodes.
-

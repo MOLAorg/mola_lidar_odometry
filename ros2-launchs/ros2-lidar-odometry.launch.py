@@ -542,6 +542,12 @@ def generate_launch_description():
         default_value='false',
         description='Whether to apply a namespace to the navigation stack')
 
+    use_sim_time = LaunchConfiguration('use_sim_time')
+    declare_use_sim_time_cmd = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='false',
+        description='Use simulation (bag) clock if true')
+
     # Map fully qualified names to relative ones so the node's namespace can be prepended.
     # In case of the transforms (tf), currently, there doesn't seem to be a better alternative
     # https://github.com/ros/geometry2/issues/32
@@ -572,6 +578,7 @@ def generate_launch_description():
             output='screen',
             remappings=tf_remaps,
             arguments=[mola_system_yaml_file],
+            parameters=[{'use_sim_time': use_sim_time}],
             on_exit=Shutdown()
         ),
 
@@ -581,6 +588,7 @@ def generate_launch_description():
             executable='rviz2',
             name='rviz2',
             remappings=tf_remaps,
+            parameters=[{'use_sim_time': use_sim_time}],
             arguments=[
                 '-d', [os.path.join(myDir, 'rviz2', 'lidar-odometry.rviz')]]
         ),
@@ -591,15 +599,19 @@ def generate_launch_description():
             package='diagnostic_aggregator',
             executable='aggregator_node',
             name='diagnostic_aggregator',
-            parameters=[os.path.join(
-                get_package_share_directory('mola_lidar_odometry'),
-                'config', 'diagnostics_aggregator.yaml')],
+            parameters=[
+                os.path.join(
+                    get_package_share_directory('mola_lidar_odometry'),
+                    'config', 'diagnostics_aggregator.yaml'),
+                {'use_sim_time': use_sim_time},
+            ],
         )
     ])
 
     return LaunchDescription([
         declare_namespace_cmd,
         declare_use_namespace_cmd,
+        declare_use_sim_time_cmd,
         enforce_planar_motion_arg,
         enforce_planar_motion_env_var,
         forward_ros_tf_odom_to_mola_arg,
