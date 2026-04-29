@@ -121,8 +121,12 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
 
   MCP_LOAD_OPT(cfg, current_observation_colormap);
   MCP_LOAD_OPT(cfg, current_observation_color_by_field);
+
   MCP_LOAD_OPT(cfg, last_deskewed_observations_colormap);
   MCP_LOAD_OPT(cfg, last_deskewed_observations_color_by_field);
+
+  MCP_LOAD_OPT(cfg, local_map_colormap);
+  MCP_LOAD_OPT(cfg, local_map_colormap_color_by_field);
 
   YAML_LOAD_OPT(gui_subwindow_starts_hidden, bool);
   YAML_LOAD_OPT(camera_follows_vehicle, bool);

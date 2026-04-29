@@ -263,49 +263,62 @@ public:
 
     struct Visualization
     {
+      float current_observation_alpha = 0.20f;
+
+      float background_color_gray_level = 0.3f;
+
+      float current_pose_corner_size = 1.5f;  //! [m]
+
+      // --- Ground grid ---
+      bool show_ground_grid = true;
+      float ground_grid_spacing = 5.0f;
+
+      // --- Trajectory ---
+      bool show_trajectory = true;
+      std::vector<float> trajectory_rgba = {0.1f, 0.1f, 0.1f, 1.0f};
+
+      // --- Current scan observation ---
+      bool show_current_observation = false;  // Show the incoming raw lidar scan observation
+      float current_observation_point_size = 3.0f;
+      mrpt::img::TColormap current_observation_colormap = mrpt::img::TColormap::cmJET;
+      /// Can be any pointcloud field name. Will change to "z" for simple XYZ clouds.
+      std::string current_observation_color_by_field = "intensity";
+
+      // --- Deskewed decaying scans ---
       /// Show a sliding window of decaying past observations to visualize a "dense local map"
       bool show_last_deskewed_observations_decay = true;
       double observations_decay_seconds = 5.0;
       float observations_initial_alpha = 0.10f;
-      float current_observation_alpha = 0.20f;
+      float last_deskewed_observations_point_size = 1.0f;
+      mrpt::img::TColormap last_deskewed_observations_colormap = mrpt::img::TColormap::cmJET;
+      /// Can be any pointcloud field name. Will change to "z" for simple XYZ clouds.
+      std::string last_deskewed_observations_color_by_field = "intensity";
 
-      /// Show just the latest observation
-      /// (redundant if `show_last_deskewed_observations_decay` is enabled)
-      bool show_current_observation = false;
-
+      // --- Local map ---
       /// Show the (decimated) underlying local map used to register observations
       /// to (less dense than `show_last_deskewed_observations_decay`).
       bool show_localmap = false;
       float local_map_point_size = 3.0f;
+      bool local_map_render_voxelmap_free_space = false;
+
+      mrpt::img::TColormap local_map_colormap = mrpt::img::TColormap::cmJET;
+      /// Can be any pointcloud field name. Will change to "z" for simple XYZ clouds.
+      std::string local_map_colormap_color_by_field = "intensity";
 
       /// If show_localmap==true, how many frames to wait to update the visualization of the
       /// map, which is a costly operation.
       int map_update_decimation = 10;
 
-      float background_color_gray_level = 0.3f;
-
-      bool show_trajectory = true;
-      std::vector<float> trajectory_rgba = {0.1f, 0.1f, 0.1f, 1.0f};
-      bool show_ground_grid = true;
-      float ground_grid_spacing = 5.0f;
-      float current_pose_corner_size = 1.5f;  //! [m]
-      float current_observation_point_size = 3.0f;
-      mrpt::img::TColormap current_observation_colormap = mrpt::img::TColormap::cmJET;
-      /// Can be any pointcloud field name. Will change to "z" for simple XYZ clouds.
-      std::string current_observation_color_by_field = "intensity";
-      float last_deskewed_observations_point_size = 1.0f;
-      mrpt::img::TColormap last_deskewed_observations_colormap = mrpt::img::TColormap::cmJET;
-      /// Can be any pointcloud field name. Will change to "z" for simple XYZ clouds.
-      std::string last_deskewed_observations_color_by_field = "intensity";
-      bool local_map_render_voxelmap_free_space = false;
       bool gui_subwindow_starts_hidden = false;
       bool show_console_messages = true;
+
+      // --- camera control ---
       bool camera_follows_vehicle = true;
       bool camera_rotates_with_vehicle = false;
       bool camera_orthographic = false;
 
       /** If not empty, an optional 3D model (.DAE, etc) to load for
-             * visualizing the robot/vehicle pose */
+       * visualizing the robot/vehicle pose */
       struct ModelPart
       {
         std::string file;

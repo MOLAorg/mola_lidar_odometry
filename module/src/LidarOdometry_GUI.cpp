@@ -26,6 +26,8 @@
 #include <mola_kernel/version.h>
 
 // MRPT:
+MRPT_TODO("Remove legacy GUI code path once mrpt_kernel>=2.6.0 is stable in all distros");
+
 #if !MOLA_VERSION_CHECK(2, 6, 0)
 #include <mrpt/gui/CDisplayWindowGUI.h>
 #endif
@@ -716,12 +718,13 @@ void LidarOdometry::updateVisualizationCurrentObservation(
       mm.layers["raw"] = rawLayer;
 
       mp2p_icp::render_params_t rp;
-      auto & cm = rp.points.allLayers.colorMode.emplace();
       rp.points.allLayers.force_alpha_channel = true;
-      cm.colorMap = curObsColormap;
-      cm.recolorizeByField = curObsColorField;
       rp.points.allLayers.pointSize = curObsPointSize;
       rp.points.allLayers.color.A = mrpt::f2u8(curObsAlpha);
+
+      auto & cm = rp.points.allLayers.colorMode.emplace();
+      cm.colorMap = curObsColormap;
+      cm.recolorizeByField = curObsColorField;
 
       auto glCurrentObs = mm.get_visualization(rp);
       glCurrentObs->setPose(currentPose);
@@ -777,6 +780,10 @@ void LidarOdometry::updateVisualizationLocalMap(std::vector<std::function<void()
 
     mp2p_icp::render_params_t rp;
     rp.points.allLayers.pointSize = params_.visualization.local_map_point_size;
+
+    auto & cm = rp.points.allLayers.colorMode.emplace();
+    cm.colorMap = params_.visualization.local_map_colormap;
+    cm.recolorizeByField = params_.visualization.local_map_colormap_color_by_field;
 
     rp.points.allLayers.render_voxelmaps_free_space =
       params_.visualization.local_map_render_voxelmap_free_space;
