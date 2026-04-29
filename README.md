@@ -61,14 +61,6 @@ The latest publication on MOLA is ([ArXiV](https://arxiv.org/abs/2407.20465)).
 }
 ```
 
-## Related projects
-
-[**FusionCore**](https://github.com/manankharwar/fusioncore): ROS 2 UKF that fuses MOLA's LiDAR odometry output with IMU and GPS into a globally-referenced state estimate. Useful for outdoor robots that need a GPS anchor over long distances. One config line:
-
-```yaml
-encoder2.topic: "/mola_lidar_odometry/odometry"
-```
-
 ## License
 Copyright (C) 2018-2026 Jose Luis Blanco <jlblanco@ual.es>, University of Almeria
 
