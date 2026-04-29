@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.1.0 (2026-04-29)
+------------------
 * FIX: show_localmap was not loaded from YAML file; expose more pipeline env vars
 * Merge pull request `#70 <https://github.com/MOLAorg/mola_erathos_slam/issues/70>`_ from MOLAorg/feat/multiple-scans-per-volume
   simple estimator params file: expose all hardcoded values as env vars
