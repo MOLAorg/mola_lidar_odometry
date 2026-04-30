@@ -761,6 +761,8 @@ void LidarOdometry::updateVisualizationCurrentObservation(
 
         viz->insert_point_cloud_with_decay(cloud, decaySeconds);
       }
+    } else if (!showDecay) {
+      viz->clear_all_point_clouds_with_decay();
     }
   });
 
