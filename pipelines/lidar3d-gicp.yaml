@@ -239,9 +239,9 @@ icp_settings_with_vel:
     # filters numerically stable.
     covariance:
       method: ${MOLA_ICP_COVARIANCE_METHOD|Censi3D}
-      defaultPointSigma: ${MOLA_ICP_COV_DEFAULT_POINT_SIGMA|0.02}    # [m]
-      floor_sigma_xyz: ${MOLA_ICP_COV_FLOOR_XYZ|0.01}                # [m]
-      floor_sigma_angles_deg: ${MOLA_ICP_COV_FLOOR_ANGLES_DEG|0.5}   # [deg]
+      defaultPointSigma: ${MOLA_ICP_COV_DEFAULT_POINT_SIGMA|0.01}    # [m]
+      floor_sigma_xyz: ${MOLA_ICP_COV_FLOOR_XYZ|0.001}               # [m]
+      floor_sigma_angles_deg: ${MOLA_ICP_COV_FLOOR_ANGLES_DEG|0.1}   # [deg]
 
   solvers:
     - class: mp2p_icp::Solver_GaussNewton
