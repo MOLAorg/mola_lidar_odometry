@@ -233,6 +233,16 @@ icp_settings_with_vel:
     debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
     decimationDebugFiles: ${MP2P_ICP_LOG_FILES_DECIMATION|10}
 
+    # Post-optimization SE(3) covariance estimation (see mp2p_icp::covariance).
+    # Censi3D is the realistic sandwich estimator for cov2cov pipelines;
+    # the per-axis floor absorbs unmodelled errors and keeps downstream
+    # filters numerically stable.
+    covariance:
+      method: ${MOLA_ICP_COVARIANCE_METHOD|Censi3D}
+      defaultPointSigma: ${MOLA_ICP_COV_DEFAULT_POINT_SIGMA|0.02}    # [m]
+      floor_sigma_xyz: ${MOLA_ICP_COV_FLOOR_XYZ|0.01}                # [m]
+      floor_sigma_angles_deg: ${MOLA_ICP_COV_FLOOR_ANGLES_DEG|0.5}   # [deg]
+
   solvers:
     - class: mp2p_icp::Solver_GaussNewton
       params:
