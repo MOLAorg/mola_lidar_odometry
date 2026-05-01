@@ -122,9 +122,11 @@ int main_odometry(const OdometryTestParams & p)
 
     const double err = mrpt::poses::Lie::SE<3>::log(mrpt::poses::CPose3D(gt - pose)).norm();
 
-    EXPECT_LT(err, 0.40) << "Estimated trajectory pose mismatch:\n"
-                         << " LO pose: " << pose << "\n"
-                         << " GT pose: " << gt << "\n";
+    std::cout << " LO pose: " << pose << "\n"
+              << " GT pose: " << gt << "\n"
+              << " error: " << err << "\n\n";
+
+    EXPECT_LT(err, 0.40);
   }
 
   return 0;

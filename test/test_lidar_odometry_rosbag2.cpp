@@ -140,9 +140,11 @@ int main_odometry(
 
     const double err = mrpt::poses::Lie::SE<3>::log(mrpt::poses::CPose3D(gt - pose)).norm();
 
-    EXPECT_LT(err, 0.1) << "Estimated trajectory pose mismatch:\n"
-                        << " LO pose: " << pose << "\n"
-                        << " GT pose: " << gt << "\n";
+    std::cout << " LO pose: " << pose << "\n"
+              << " GT pose: " << gt << "\n"
+              << " error: " << err << "\n\n";
+
+    EXPECT_LT(err, 0.1) << "Estimated trajectory pose mismatch\n";
   }
 
   return 0;
@@ -152,11 +154,11 @@ int main_odometry(
 
 TEST(RunDataset, FromRosbag2)
 {
-  const std::string yamlConfigFile = mrpt::get_env<std::string>("LO_PIPELINE_YAML");
-  const std::string yamlEstimatorFile = mrpt::get_env<std::string>("LO_STATE_ESTIM_YAML");
-  const std::string rosbag2File = mrpt::get_env<std::string>("LO_TEST_ROSBAG2");
-  const std::string lidarTopic = mrpt::get_env<std::string>("LO_TEST_LIDAR_TOPIC");
-  const std::string gtTrajectory = mrpt::get_env<std::string>("LO_TEST_GT_TUM");
+  const auto yamlConfigFile = mrpt::get_env<std::string>("LO_PIPELINE_YAML");
+  const auto yamlEstimatorFile = mrpt::get_env<std::string>("LO_STATE_ESTIM_YAML");
+  const auto rosbag2File = mrpt::get_env<std::string>("LO_TEST_ROSBAG2");
+  const auto lidarTopic = mrpt::get_env<std::string>("LO_TEST_LIDAR_TOPIC");
+  const auto gtTrajectory = mrpt::get_env<std::string>("LO_TEST_GT_TUM");
 
   main_odometry(yamlConfigFile, yamlEstimatorFile, rosbag2File, lidarTopic, gtTrajectory);
 }

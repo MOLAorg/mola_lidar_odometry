@@ -12,7 +12,6 @@
 
 /**
  * Unit tests for GravityMapAligner.
- * Tests §5.1 and §5.2 of TODOs/online-gravity-alignment.md.
  *
  * No external datasets needed — all synthetic.
  */
