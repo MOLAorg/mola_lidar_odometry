@@ -736,7 +736,7 @@ private:
         std::array<double, 3> acc = {0, 0, 0};
       };
 
-      mrpt::containers::circular_buffer<TimestampedAcc> acc_buffer{200};
+      mrpt::containers::circular_buffer<TimestampedAcc> acc_buffer{4096};
       mrpt::poses::CPose3D imu_sensor_pose;  ///< last known IMU extrinsics
       double imu_sensor_pose_timestamp = 0;  ///< timestamp of last sensor pose update
 
