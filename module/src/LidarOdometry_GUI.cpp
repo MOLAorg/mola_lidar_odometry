@@ -859,6 +859,10 @@ void LidarOdometry::updateVisualizationGravityVector(
   std::vector<std::function<void()>> & updateTasks)
 {
   if (!params_.visualization.show_gravity_align_vector) {
+    auto grp = mrpt::opengl::CSetOfObjects::Create();
+    updateTasks.emplace_back([visualizer = visualizer_, grp]() {
+      visualizer->update_3d_object("liodom/gravity_vector", grp);
+    });
     return;
   }
 
