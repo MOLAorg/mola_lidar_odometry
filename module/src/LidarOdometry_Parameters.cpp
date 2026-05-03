@@ -295,6 +295,40 @@ void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cf
   YAML_LOAD_OPT(averaging_samples, uint32_t);
   YAML_LOAD_OPT(max_age_seconds, double);
 
+  if (cfg.has("tilt_rebake")) {
+    auto & tr = tilt_rebake;
+    const auto trCfg = cfg["tilt_rebake"];
+    if (trCfg.has("enabled")) {
+      tr.enabled = trCfg["enabled"].as<bool>();
+    }
+    if (trCfg.has("trigger_deg")) {
+      tr.trigger_deg = trCfg["trigger_deg"].as<double>();
+    }
+    if (trCfg.has("min_interval_sec")) {
+      tr.min_interval_sec = trCfg["min_interval_sec"].as<double>();
+    }
+    if (trCfg.has("min_active_keyframes")) {
+      tr.min_active_keyframes = trCfg["min_active_keyframes"].as<uint32_t>();
+    }
+
+    if (tr.enabled) {
+      ASSERTMSG_(
+        tr.trigger_deg > 0.0,
+        mrpt::format(
+          "imu_gravity_correction.tilt_rebake.trigger_deg=%.4f must be > 0", tr.trigger_deg));
+      ASSERTMSG_(
+        tr.min_interval_sec >= 0.0,
+        mrpt::format(
+          "imu_gravity_correction.tilt_rebake.min_interval_sec=%.4f must be >= 0",
+          tr.min_interval_sec));
+      ASSERTMSG_(
+        tr.min_active_keyframes >= 1,
+        mrpt::format(
+          "imu_gravity_correction.tilt_rebake.min_active_keyframes=%u must be >= 1",
+          static_cast<unsigned>(tr.min_active_keyframes)));
+    }
+  }
+
   if (enabled) {
     ASSERTMSG_(
       averaging_samples >= 1 && averaging_samples <= 200,

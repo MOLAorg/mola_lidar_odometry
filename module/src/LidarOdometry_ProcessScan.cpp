@@ -22,6 +22,15 @@
 // This module:
 #include <mola_lidar_odometry/LidarOdometry.h>
 
+#if defined(__has_include)
+#if __has_include(<mola_metric_maps/KeyframePointCloudMap.h>)
+#include <mola_metric_maps/KeyframePointCloudMap.h>
+#endif
+#if __has_include(<mola_kernel/interfaces/KeyframeMapCapable.h>)
+#include <mola_kernel/interfaces/KeyframeMapCapable.h>
+#endif
+#endif
+
 // mp2p_icp:
 #include <mp2p_icp_filters/FilterDeskew.h>
 
@@ -828,6 +837,13 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     tle3.stop();
 
     state_.mark_local_map_as_updated();
+
+#if defined(MOLA_METRIC_MAPS_HAS_KFM_POSE_PLUMBING) && \
+  __has_include(<mola_kernel/interfaces/KeyframeMapCapable.h>)
+    if (params_.imu_gravity_correction.tilt_rebake.enabled) {
+      maybeApplyGravityTiltCorrection();
+    }
+#endif
 
   }  // end done add a new KF to local map
 

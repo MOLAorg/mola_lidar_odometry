@@ -33,6 +33,7 @@ find_package(mola_imu_preintegration REQUIRED)
 # define lib:
 set(LIB_SRCS
   module/src/GravityMapAligner.cpp
+  module/src/LidarOdometry_GravityRebake.cpp
   module/src/TrajectoryRebaker.cpp
   module/src/LidarOdometry_Main.cpp
   module/src/LidarOdometry_Relocalization.cpp

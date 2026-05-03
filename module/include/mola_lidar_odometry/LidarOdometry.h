@@ -552,7 +552,7 @@ public:
       bool enabled = true;
 
       /// Sigma [degrees] for the gravity-derived pitch/roll prior.
-      /// Lower values = more trust in IMU. Typical: 1–5 deg.
+      /// Lower values = more trust in IMU. Typical: 1-5 deg.
       double sigma_deg = 2.0;
 
       /// Number of recent accelerometer samples to average for gravity estimation.
@@ -561,6 +561,26 @@ public:
       /// Maximum age [seconds] for accelerometer samples used in averaging.
       /// Samples older than this are discarded. 0 = no age limit.
       double max_age_seconds = 2.0;
+
+      struct TiltRebake
+      {
+        /// If true, when the local map accumulates more pitch/roll tilt than
+        /// trigger_deg (measured against IMU gravity), rotate all active KFs
+        /// in the local map and the in-progress simplemap so the world z-axis
+        /// re-aligns with gravity. Pivot: oldest active KF. Publishing a
+        /// corrected pose will produce a discontinuous jump in pitch/roll.
+        bool enabled = false;
+
+        /// Tilt threshold in degrees that triggers a correction. [default 2.0]
+        double trigger_deg = 2.0;
+
+        /// Minimum wall-clock seconds between two consecutive corrections.
+        double min_interval_sec = 5.0;
+
+        /// Minimum number of active keyframes before the feature is allowed.
+        uint32_t min_active_keyframes = 5;
+      };
+      TiltRebake tilt_rebake;
 
       void initialize(const Yaml & c);
     };
@@ -783,6 +803,10 @@ private:
     };
 
     GravityEstimator gravity_estimator;
+
+    /// Throttling: last time a tilt correction was applied (steady_clock).
+    std::optional<mrpt::Clock::time_point> last_gravity_rebake_tim;
+    bool gravity_rebake_unsupported_warned = false;
 
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 
@@ -1101,6 +1125,13 @@ private:
     const mrpt::obs::CSensoryFrame & sf, bool distance_enough_sm,
     const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & scan_ref_time,
     const mrpt::maps::CPointsMap::Ptr & deskewedCloud);
+
+  /// Checks accumulated tilt of the local map vs. measured gravity and, if
+  /// excessive, rotates active KFs (and the in-progress simplemap) so the
+  /// local-map z-axis re-aligns with measured gravity.
+  /// Must be called from the lidar worker thread, with state_mtx_ held.
+  /// Returns true if a correction was applied.
+  bool maybeApplyGravityTiltCorrection();
 };
 
 namespace detail
