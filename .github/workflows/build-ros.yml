@@ -14,9 +14,9 @@ jobs:
       matrix:
         include:
           # Humble Hawksbill (May 2022 - May 2027)
-          - docker_image: ubuntu:jammy
-            ros_distribution: humble
-            use_ros_testing: false
+          #- docker_image: ubuntu:jammy
+          #  ros_distribution: humble
+          #  use_ros_testing: false
 
           - docker_image: ubuntu:jammy
             ros_distribution: humble
