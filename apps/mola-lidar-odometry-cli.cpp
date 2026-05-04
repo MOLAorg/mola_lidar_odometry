@@ -516,6 +516,14 @@ int main_odometry(Cli & cli)
     const auto seParamsFile = cli.arg_stateEstimatorParams.getValue();
     auto seParams = mrpt::containers::yaml::FromFile(seParamsFile);
     stateEstimator->initialize(mola::parse_yaml(seParams));
+  } else {
+    // Without an explicit YAML, the estimator runs with built-in C++ defaults
+    // which differ from the bundled state-estimator-params/*.yaml shipped with
+    // this package. Surface this so users don't silently get unintended values.
+    std::cerr << "[Warning] No --state-estimator-param-file given; '"
+              << stateEstimator->GetRuntimeClass()->className
+              << "' will use built-in C++ defaults rather than the bundled YAML "
+                 "(see <prefix>/share/mola_lidar_odometry/state-estimator-params/).\n";
   }
 
   // Make both modules discoverables to each other:
