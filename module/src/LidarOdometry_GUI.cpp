@@ -569,10 +569,6 @@ void LidarOdometry::updateVisualization(
     });
   }
 
-  // Local map:
-  // -----------------------------
-  updateVisualizationLocalMap(updateTasks);
-
   // ground grid:
   {
     auto glGroundGrid = mrpt::opengl::CSetOfObjects::Create();
@@ -615,6 +611,20 @@ void LidarOdometry::updateVisualization(
       mrpt::format("t=%.03f LiDAR data started to be received.", mrpt::Clock::nowDouble());
     visualizer_->output_console_message(s);
     MRPT_LOG_INFO(s);
+  }
+
+  updateVisualizationAlways();
+}
+
+void LidarOdometry::updateVisualizationAlways()
+{
+  // Local map: update whenever map content changed, independent of ICP quality.
+  {
+    std::vector<std::function<void()>> updateTasks;
+    updateVisualizationLocalMap(updateTasks);
+    for (const auto & ut : updateTasks) {
+      ut();
+    }
   }
 
   // Sub-window with custom UI

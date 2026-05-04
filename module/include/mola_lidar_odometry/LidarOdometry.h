@@ -1015,6 +1015,7 @@ private:
   void updateVisualizationPath(std::vector<std::function<void()>> & updateTasks);
   void updateVisualizationGravityVector(std::vector<std::function<void()>> & updateTasks);
   void updateVisualizationTextLabels();
+  void updateVisualizationAlways();
 
 #if MOLA_VERSION_CHECK(2, 6, 0)
   void internalBuildGUI();

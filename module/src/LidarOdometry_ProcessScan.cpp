@@ -830,8 +830,10 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     if (state_.last_icp_was_good) {
       updateVisualization(observationRawForViz, fullCloudForVizAndPublish);
     } else {
-      // Still update text labels (sensor rates, ICP quality) even on bad ICP:
-      updateVisualizationTextLabels();
+      // On bad ICP: still update the local map display, GUI panel, and text
+      // labels. Skipping the full updateVisualization() avoids 3D pose/path
+      // updates that would be based on an unreliable ICP result.
+      updateVisualizationAlways();
     }
   }
 }
