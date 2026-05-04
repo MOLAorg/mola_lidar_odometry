@@ -823,10 +823,15 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   doWriteDebugTracesFile(scan_ref_time);
 
   // Optional real-time GUI via MOLA VizInterface:
-  if (visualizer_ && state_.local_map && state_.last_icp_was_good) {
+  if (visualizer_ && state_.local_map) {
     const ProfilerEntry tle(profiler_, "onLidar.6.updateVisualization");
 
-    updateVisualization(observationRawForViz, fullCloudForVizAndPublish);
+    if (state_.last_icp_was_good) {
+      updateVisualization(observationRawForViz, fullCloudForVizAndPublish);
+    } else {
+      // Still update text labels (sensor rates, ICP quality) even on bad ICP:
+      updateVisualizationTextLabels();
+    }
   }
 }
 
