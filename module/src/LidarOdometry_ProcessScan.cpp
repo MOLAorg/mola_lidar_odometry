@@ -580,9 +580,10 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     state_.parameter_source.updateVariable("icp_quality", state_.last_icp_quality);
 
     // KISS-ICP adaptive threshold method:
-    if (params_.adaptive_threshold.enabled) {
-      // Run this even if "!icpIsGood":
-
+    // Only update on good ICP: a bad ICP may have converged to a local minimum
+    // near the initial guess, yielding an artificially small motion model error
+    // that would incorrectly shrink the search threshold.
+    if (params_.adaptive_threshold.enabled && icpIsGood) {
       const mrpt::poses::CPose3D motionModelError =
         out.found_pose_to_wrt_from.mean - mrpt::poses::CPose3D(in.init_guess_local_wrt_global);
 
