@@ -127,11 +127,12 @@ jobs:
           # Inject coverage instrumentation flags
           if [ "${{ matrix.coverage_run }}" = "true" ]; then
             echo "Enabling coverage instrumentation..."
-            EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS -DCMAKE_BUILD_TYPE=Debug \
-              -DCMAKE_CXX_FLAGS='--coverage -g -O0' \
-              -DCMAKE_C_FLAGS='--coverage -g -O0' \
-              -DCMAKE_EXE_LINKER_FLAGS='--coverage' \
-              -DCMAKE_SHARED_LINKER_FLAGS='--coverage'"
+            EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS \
+              -DCMAKE_BUILD_TYPE=Debug \
+              -DCMAKE_CXX_FLAGS=--coverage \
+              -DCMAKE_C_FLAGS=--coverage \
+              -DCMAKE_EXE_LINKER_FLAGS=--coverage \
+              -DCMAKE_SHARED_LINKER_FLAGS=--coverage"
           fi
 
           env
