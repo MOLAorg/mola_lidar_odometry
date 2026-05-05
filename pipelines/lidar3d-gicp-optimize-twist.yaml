@@ -77,6 +77,13 @@ params:
     icp_quality_controller_setpoint: 0.85
     kp: 2.0
     alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.99}
+    # Optional sustained-failure recovery: if enabled, sigma is grown
+    # multiplicatively after a streak of bad ICPs, capped at maximum_sigma,
+    # so the matcher window can re-open and ICP can recover. With the flag
+    # off (default) behavior is unchanged.
+    recover_on_sustained_failure: ${MOLA_ADAPT_THRESHOLD_RECOVER|false}
+    recover_after_n_bad: ${MOLA_ADAPT_THRESHOLD_RECOVER_AFTER_N_BAD|5}
+    recover_growth_factor: ${MOLA_ADAPT_THRESHOLD_RECOVER_GROWTH_FACTOR|1.5}
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.

@@ -346,6 +346,16 @@ public:
       double alpha = 0.99;
       double icp_quality_controller_setpoint = 0.85;
 
+      // Sustained-failure recovery (opt-in).
+      // KISS-ICP only updates sigma on good ICP, so a streak of bad ICPs
+      // freezes sigma at its last (typically small) value. With a small
+      // matcher window the system cannot recover from a perturbation that
+      // exceeds 2*sigma. When enabled, sigma is multiplicatively grown
+      // toward maximum_sigma after recover_after_n_bad consecutive failures.
+      bool recover_on_sustained_failure = false;
+      int recover_after_n_bad = 5;
+      double recover_growth_factor = 1.5;
+
       void initialize(const Yaml & c);
     };
     AdaptiveThreshold adaptive_threshold;
@@ -785,6 +795,10 @@ private:
 
     // KISS-ICP-like adaptive threshold method:
     double adapt_thres_sigma = 0;  // 0: initial
+
+    // Counter of consecutive bad ICPs; drives the optional sustained-failure
+    // recovery in AdaptiveThreshold.
+    int consecutive_bad_icps = 0;
 
     // Automatic estimation of the observation bounding-radius (measured from
     // base_link, not from the sensor — see ESTIMATED_OBSERVATION_RADIUS docs):
