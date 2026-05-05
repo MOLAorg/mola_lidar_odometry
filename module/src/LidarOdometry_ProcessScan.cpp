@@ -594,6 +594,40 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
                                      << " motionModelError=" << motionModelError.asString());
     }  // end adaptive threshold
 
+    // Sustained-failure recovery for the adaptive threshold (opt-in).
+    // The KISS-ICP rule above never updates sigma on a bad ICP, which is correct
+    // for isolated failures but creates a deadlock under sustained failure: with
+    // sigma frozen small, the matcher window stays tight and ICP cannot find
+    // enough correspondences to recover. When enabled, after a streak of bad
+    // ICPs we grow sigma multiplicatively (capped at maximum_sigma) to enlarge
+    // the correspondence search radius for the next attempt.
+    if (icpIsGood) {
+      state_.consecutive_bad_icps = 0;
+    } else {
+      state_.consecutive_bad_icps++;
+
+      if (
+        params_.adaptive_threshold.enabled &&
+        params_.adaptive_threshold.recover_on_sustained_failure &&
+        state_.consecutive_bad_icps >= params_.adaptive_threshold.recover_after_n_bad) {
+        if (state_.adapt_thres_sigma == 0) {
+          state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;
+        }
+        const double new_sigma = std::min(
+          state_.adapt_thres_sigma * params_.adaptive_threshold.recover_growth_factor,
+          params_.adaptive_threshold.maximum_sigma);
+        if (new_sigma > state_.adapt_thres_sigma) {
+          MRPT_LOG_THROTTLE_WARN_FMT(
+            2.0,
+            "Sustained ICP failure (n=%d, q=%.2f): widening adaptive threshold "
+            "sigma %.3f -> %.3f m to recover correspondences",
+            state_.consecutive_bad_icps, state_.last_icp_quality, state_.adapt_thres_sigma,
+            new_sigma);
+          state_.adapt_thres_sigma = new_sigma;
+        }
+      }
+    }
+
     // Create distance checker on first usage:
     if (!state_.distance_checker_local_map) {
       state_.distance_checker_local_map.emplace(

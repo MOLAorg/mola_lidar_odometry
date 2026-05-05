@@ -91,6 +91,18 @@ void LidarOdometry::Parameters::AdaptiveThreshold::initialize(const Yaml & cfg)
   YAML_LOAD_REQ(alpha, double);
   YAML_LOAD_OPT(maximum_sigma, double);
   YAML_LOAD_OPT(icp_quality_controller_setpoint, double);
+
+  YAML_LOAD_OPT(recover_on_sustained_failure, bool);
+  YAML_LOAD_OPT(recover_after_n_bad, int);
+  YAML_LOAD_OPT(recover_growth_factor, double);
+
+  ASSERTMSG_(
+    recover_after_n_bad >= 1,
+    mrpt::format("adaptive_threshold: recover_after_n_bad (%d) must be >= 1", recover_after_n_bad));
+  ASSERTMSG_(
+    recover_growth_factor > 1.0,
+    mrpt::format(
+      "adaptive_threshold: recover_growth_factor (%.3f) must be > 1.0", recover_growth_factor));
 }
 
 void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
