@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# For usage instructions, see: https://docs.mola-slam.org/latest/
+#
+# Run MOLA LiDAR odometry with an Ouster sensor via mola_input_ouster (no ROS required).
+#
+# Usage — pick one input mode:
+#
+#   Live sensor:
+#     OUSTER_HOSTNAME=os-122xxxxxxxxx.local  $0 [mola-cli flags]
+#
+#   PCAP replay:
+#     OUSTER_PCAP=/path/to/capture.pcap \
+#     OUSTER_META=/path/to/metadata.json \
+#       $0 [mola-cli flags]
+#
+#   OSF replay:
+#     OUSTER_OSF=/path/to/recording.osf \
+#       $0 [mola-cli flags]
+#
+# Common optional variables:
+#   MOLA_LIDAR_NAME   Sensor label (default: lidar)
+#   MOLA_IMU_NAME     IMU label (default: imu)
+#   MOLA_TIME_WARP    Replay speed multiplier (default: 1.0) [PCAP/OSF]
+#   OUSTER_LIDAR_MODE Resolution/rate (default: MODE_1024x10) [live]
+#   SENSOR_POSE_{X,Y,Z,YAW,PITCH,ROLL}  Mounting pose on vehicle (default: 0)
+#   PIPELINE_YAML     Override LIDAR odometry pipeline YAML
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../mola-cli-launchs/
+if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
+  MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
+fi
+
+if [ -z "$OUSTER_HOSTNAME" ] && [ -z "$OUSTER_PCAP" ] && [ -z "$OUSTER_OSF" ]; then
+    echo "Error: no input source specified."
+    echo ""
+    echo "Set one of:"
+    echo "  OUSTER_HOSTNAME=<hostname>   for a live sensor"
+    echo "  OUSTER_PCAP=<file> OUSTER_META=<json>  for PCAP replay"
+    echo "  OUSTER_OSF=<file>            for OSF replay"
+    exit 1
+fi
+
+MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
+  mola-cli \
+    $MOLA_LAUNCHS_DIR/lidar_odometry_from_ouster.yaml \
+    "$@"
