@@ -624,6 +624,11 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
             state_.consecutive_bad_icps, state_.last_icp_quality, state_.adapt_thres_sigma,
             new_sigma);
           state_.adapt_thres_sigma = new_sigma;
+          // Reset counter so the KISS-ICP EMA has N bad frames of breathing
+          // room before the next growth event; without this, every subsequent
+          // bad ICP would immediately re-trigger recovery and sigma would lock
+          // at maximum_sigma indefinitely.
+          state_.consecutive_bad_icps = 0;
         }
       }
     }
