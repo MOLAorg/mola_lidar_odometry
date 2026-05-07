@@ -10,7 +10,7 @@ modules:
   # MolaViz
   # =====================
   - name: viz
-    type: mola::MolaViz
+    type: ${MOLA_GUI_MODULE|mola::MolaViz} # Options: mola::MolaViz | mola::MolaVizImGui
     enabled: ${MOLA_WITH_GUI|true}
     verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
     params: ~ # none

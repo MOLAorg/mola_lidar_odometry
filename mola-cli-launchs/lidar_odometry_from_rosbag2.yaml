@@ -9,7 +9,7 @@ modules:
   # MolaViz
   # =====================
   - name: viz
-    type: mola::MolaViz
+    type: ${MOLA_GUI_MODULE|mola::MolaViz} # Options: mola::MolaViz | mola::MolaVizImGui
     verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
     params: ~ # none
 
@@ -57,7 +57,6 @@ modules:
       - raw_sensor_label: "${MOLA_LIDAR_NAME|lidar}"
         decimation: 1
         win_pos: 5 5 400 400
-
       #- raw_sensor_label: '/ouster/range_image'
       #  decimation: 1
       #  win_pos: 5 420 400 400

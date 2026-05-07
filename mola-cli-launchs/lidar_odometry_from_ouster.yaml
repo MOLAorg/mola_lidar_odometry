@@ -40,7 +40,7 @@ modules:
   # MolaViz
   # =====================
   - name: viz
-    type: mola::MolaViz
+    type: ${MOLA_GUI_MODULE|mola::MolaViz} # Options: mola::MolaViz | mola::MolaVizImGui
     enabled: ${MOLA_WITH_GUI|true}
     verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
     params: ~ # none
@@ -89,7 +89,6 @@ modules:
       # Factory-calibrated lidar↔sensor and imu↔sensor intrinsic transforms are
       # composed automatically with this mounting pose.
       sensor_mounting_pose: "${SENSOR_POSE_X|0} ${SENSOR_POSE_Y|0} ${SENSOR_POSE_Z|0} ${SENSOR_POSE_YAW|0} ${SENSOR_POSE_PITCH|0} ${SENSOR_POSE_ROLL|0}"
-
       # Optional: manually override individual sensor poses, bypassing intrinsic composition.
       # lidar_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}"
       # imu_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}"
