@@ -194,7 +194,8 @@ params:
 # re-localization method to use at start up:
 initial_localization:
   method: "${MOLA_LO_INITIAL_LOCALIZATION_METHOD|InitLocalization::FixedPose}"
-  fixed_initial_pose:  # [x(m), y(m), z(m), yaw(deg), pitch(deg), roll(deg)]
+  # Format: x(m) y(m) z(m) yaw(deg) pitch(deg) roll(deg)
+  fixed_initial_pose:
     ["${MOLA_INITIAL_X|0.0}", "${MOLA_INITIAL_Y|0.0}", "${MOLA_INITIAL_Z|0.0}", "${MOLA_INITIAL_YAW|0.0}", "${MOLA_INITIAL_PITCH|0.0}", "${MOLA_INITIAL_ROLL|0.0}"]
   imu_initial_calibration_sample_count: "${MOLA_LO_INITIAL_IMU_SAMPLES|400}"
   imu_initial_calibration_max_age: 5.0
