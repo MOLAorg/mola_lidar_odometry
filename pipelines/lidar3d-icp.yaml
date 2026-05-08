@@ -167,14 +167,7 @@ params:
 initial_localization:
   method: "${MOLA_LO_INITIAL_LOCALIZATION_METHOD|InitLocalization::FixedPose}"
   fixed_initial_pose:
-    [
-      "${MOLA_INITIAL_X|0.0}",
-      "${MOLA_INITIAL_Y|0.0}",
-      "${MOLA_INITIAL_Z|0.0}",
-      "${MOLA_INITIAL_YAW|0.0}",
-      "${MOLA_INITIAL_PITCH|0.0}",
-      "${MOLA_INITIAL_ROLL|0.0}",
-    ]
+    ["${MOLA_INITIAL_X|0.0}", "${MOLA_INITIAL_Y|0.0}", "${MOLA_INITIAL_Z|0.0}", "${MOLA_INITIAL_YAW|0.0}", "${MOLA_INITIAL_PITCH|0.0}", "${MOLA_INITIAL_ROLL|0.0}"]
 
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
 # ICP settings can be included from an external YAML file if desired, or defined
@@ -225,11 +218,7 @@ icp_settings_with_vel:
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         pointLayerMatches:
-          - {
-              global: "${MOLA_LOCALMAP_LAYER_NAME|localmap}",
-              local: "decimated_for_icp",
-              weight: 1.0,
-            }
+          - { global: "${MOLA_LOCALMAP_LAYER_NAME|localmap}", local: "decimated_for_icp", weight: 1.0 }
 
   quality:
     - class: mp2p_icp::QualityEvaluator_PairedRatio
@@ -339,18 +328,8 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: "decimated_for_map_by_range"
       outside_pointcloud_layer: "decimated_for_map_skewed"
-      bounding_box_min:
-        [
-          -0.20*INSTANTANEOUS_OBSERVATION_RADIUS,
-          -0.20*INSTANTANEOUS_OBSERVATION_RADIUS,
-          0.01*INSTANTANEOUS_OBSERVATION_RADIUS,
-        ]
-      bounding_box_max:
-        [
-          0.20*INSTANTANEOUS_OBSERVATION_RADIUS,
-          0.20*INSTANTANEOUS_OBSERVATION_RADIUS,
-          0.10*INSTANTANEOUS_OBSERVATION_RADIUS,
-        ]
+      bounding_box_min: [-0.20*INSTANTANEOUS_OBSERVATION_RADIUS, -0.20*INSTANTANEOUS_OBSERVATION_RADIUS, 0.01*INSTANTANEOUS_OBSERVATION_RADIUS]
+      bounding_box_max: [0.20*INSTANTANEOUS_OBSERVATION_RADIUS, 0.20*INSTANTANEOUS_OBSERVATION_RADIUS, 0.10*INSTANTANEOUS_OBSERVATION_RADIUS]
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
@@ -399,14 +378,7 @@ observations_filter_final_pass:
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove:
-        [
-          "raw",
-          "decimated_for_map_skewed",
-          "decimated_for_icp_skewed",
-          "decimated_for_map_by_range",
-          "decimated_for_map_raw",
-        ]
+      pointcloud_layer_to_remove: ["raw", "decimated_for_map_skewed", "decimated_for_icp_skewed", "decimated_for_map_by_range", "decimated_for_map_raw"]
 
 # To populate the local map, one or more observation layers are merged
 # into the local map via this pipeline:
@@ -416,8 +388,7 @@ insert_observation_into_local_map:
       input_pointcloud_layer: "decimated_for_map"
       target_layer: "${MOLA_LOCALMAP_LAYER_NAME|localmap}"
       input_layer_in_local_coordinates: true
-      robot_pose:
-        [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
+      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
 
 # Pipeline starting from raw observations (passed through "Generator"), to be
 # sent out for visualization of the sliding-window of recent clouds as a dense local map

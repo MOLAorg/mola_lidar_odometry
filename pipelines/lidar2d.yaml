@@ -259,5 +259,4 @@ insert_observation_into_local_map:
       input_pointcloud_layer: "decimated"
       target_layer: "localmap"
       input_layer_in_local_coordinates: true
-      robot_pose:
-        [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
+      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
