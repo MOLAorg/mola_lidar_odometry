@@ -920,7 +920,9 @@ private:
     1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_disk"};
 
   /** Runs colorization tasks for clouds to be shown in the gui */
-  mrpt::WorkerThreadsPool worker_viz_{2, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_viz"};
+  // Single thread: POLICY_DROP_OLD skips stale frames while 1 thread ensures
+  // serial ordering so a newer clear cannot be overwritten by an older frame's lambda.
+  mrpt::WorkerThreadsPool worker_viz_{1, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_viz"};
 
   MethodState state_;
   const MethodState & state() const { return state_; }

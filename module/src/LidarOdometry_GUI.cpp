@@ -715,12 +715,18 @@ void LidarOdometry::updateVisualizationCurrentObservation(
   const bool showDecay = params_.visualization.show_last_deskewed_observations_decay;
 
   if (!hasRaw || (!showCurrent && !showDecay)) {
-    // None enabled, clean up directly:
-    if (showCurrent) {
-      auto empty = mrpt::opengl::CSetOfObjects::Create();
-      visualizer_->update_3d_object("liodom/cur_obs", empty);
-    }
-    doRemoveCloudsWithDecay();
+    // Route the clear through the worker thread so it is ordered after any
+    // previously enqueued frame lambdas and cannot be overwritten by them.
+    auto viz = visualizer_;
+    worker_viz_.enqueue([=]() {
+      if (showCurrent) {
+        auto empty = mrpt::opengl::CSetOfObjects::Create();
+        viz->update_3d_object("liodom/cur_obs", empty);
+      }
+      if (viz) {
+        viz->clear_all_point_clouds_with_decay();
+      }
+    });
     return;
   }
 
