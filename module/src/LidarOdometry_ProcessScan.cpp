@@ -130,6 +130,13 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     return;  // not all required LiDARs yet.
   }
 
+  // Cache sensor poses (in vehicle frame) for GUI visualization:
+  for (const auto & o : sf) {
+    mrpt::poses::CPose3D sp;
+    o->getSensorPose(sp);
+    state_.last_lidar_sensor_poses[o->sensorLabel] = sp;
+  }
+
   // Refresh dyn. variables used in the mp2p_icp pipelines:
   updatePipelineDynamicVariables(this_obs_tim);
 

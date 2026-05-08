@@ -126,6 +126,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(ground_grid_spacing, float);
   YAML_LOAD_OPT(show_console_messages, bool);
   YAML_LOAD_OPT(current_pose_corner_size, float);
+  YAML_LOAD_OPT(sensor_poses_corner_size, float);
   YAML_LOAD_OPT(local_map_point_size, float);
   YAML_LOAD_OPT(current_observation_point_size, float);
   YAML_LOAD_OPT(last_deskewed_observations_point_size, float);

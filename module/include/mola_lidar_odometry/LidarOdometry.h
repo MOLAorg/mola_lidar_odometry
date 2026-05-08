@@ -268,6 +268,7 @@ public:
       float background_color_gray_level = 0.3f;
 
       float current_pose_corner_size = 1.5f;  //! [m]
+      float sensor_poses_corner_size = 0.5f;  //! [m], 0 to disable
 
       // --- Ground grid ---
       bool show_ground_grid = true;
@@ -764,6 +765,7 @@ private:
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 
     std::map<std::string, mrpt::Clock::time_point> last_obs_tim_by_label;
+    std::map<std::string, mrpt::poses::CPose3D> last_lidar_sensor_poses;  //!< sensor pose per label
     bool last_icp_was_good = true;
     double last_icp_quality = .0;
     std::size_t last_icp_iterations = 0;

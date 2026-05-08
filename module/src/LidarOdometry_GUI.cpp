@@ -219,6 +219,14 @@ void LidarOdometry::internalBuildGUI()
           [this, checked]() { params_.visualization.show_gravity_align_vector = checked; });
       }});
 
+    tab.widgets.emplace_back(CheckBox{
+      "Show sensor poses", (params_.visualization.sensor_poses_corner_size > 0),
+      [this](bool checked) {
+        this->enqueue_request([this, checked]() {
+          params_.visualization.sensor_poses_corner_size = checked ? 0.5f : 0.0f;
+        });
+      }});
+
     desc.tabs.emplace_back(std::move(tab));
   }
 
@@ -439,6 +447,14 @@ void LidarOdometry::internalBuildGUI_Legacy()
       [this, checked]() { params_.visualization.show_console_messages = checked; });
   });
 
+  auto * cbShowSensorPoses = tab3->add<nanogui::CheckBox>("Show sensor poses");
+  cbShowSensorPoses->setChecked(params_.visualization.sensor_poses_corner_size > 0);
+  cbShowSensorPoses->setCallback([&](bool checked) {
+    this->enqueue_request([this, checked]() {
+      params_.visualization.sensor_poses_corner_size = checked ? 0.5f : 0.0f;
+    });
+  });
+
   // Background 3D scene: change background color
   visualizer_->execute_custom_code_on_background_scene([this](mrpt::opengl::Scene & scene) {
     const auto f = params_.visualization.background_color_gray_level;
@@ -527,6 +543,13 @@ void LidarOdometry::updateVisualization(
   auto glVehicle = mrpt::opengl::CSetOfObjects::Create();
   if (const auto l = params_.visualization.current_pose_corner_size; l > 0) {
     glVehicle->insert(mrpt::opengl::stock_objects::CornerXYZ(l));
+  }
+  if (const auto l = params_.visualization.sensor_poses_corner_size; l > 0) {
+    for (const auto & [label, sp] : state_.last_lidar_sensor_poses) {
+      auto sensorCorner = mrpt::opengl::stock_objects::CornerXYZSimple(l);
+      sensorCorner->setPose(sp);
+      glVehicle->insert(sensorCorner);
+    }
   }
   for (const auto & m : state_.glVehicleModels) {
     glVehicle->insert(m);
