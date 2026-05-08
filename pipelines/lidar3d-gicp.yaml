@@ -87,7 +87,7 @@ params:
     maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|0.50} # [m]
     icp_quality_controller_setpoint: 0.85
     kp: 2.0
-    alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.99}
+    alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.90}
     # Optional sustained-failure recovery: if enabled, sigma is grown
     # multiplicatively after a streak of bad ICPs, capped at maximum_sigma,
     # so the matcher window can re-open and ICP can recover. With the flag
