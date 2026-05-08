@@ -82,7 +82,7 @@ params:
   # Adaptive threshold, as in the KISS-ICP paper:
   adaptive_threshold:
     enabled: true
-    initial_sigma: 0.50 # [m]
+    initial_sigma: ${MOLA_SIGMA_INITIAL|0.50} # [m]
     min_motion: ${MOLA_SIGMA_MIN_MOTION|0.04} # [m]
     maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|0.50} # [m]
     icp_quality_controller_setpoint: 0.85
