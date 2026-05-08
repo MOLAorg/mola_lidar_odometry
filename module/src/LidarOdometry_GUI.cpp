@@ -719,10 +719,11 @@ void LidarOdometry::updateVisualizationCurrentObservation(
     // previously enqueued frame lambdas and cannot be overwritten by them.
     auto viz = visualizer_;
     worker_viz_.enqueue([=]() {
-      if (showCurrent) {
-        auto empty = mrpt::opengl::CSetOfObjects::Create();
-        viz->update_3d_object("liodom/cur_obs", empty);
-      }
+      // Always clear cur_obs: we reach here precisely when showCurrent is
+      // false or there is no raw layer, so any previously displayed cloud
+      // must be removed.
+      auto empty = mrpt::opengl::CSetOfObjects::Create();
+      viz->update_3d_object("liodom/cur_obs", empty);
       if (viz) {
         viz->clear_all_point_clouds_with_decay();
       }
