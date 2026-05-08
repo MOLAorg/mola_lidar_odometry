@@ -267,7 +267,9 @@ void LidarOdometry::Parameters::InitialLocalizationOptions::initialize(const Yam
     auto & p = fixed_initial_pose;
     const auto seq = cfg["fixed_initial_pose"].asSequenceRange();
     for (size_t i = 0; i < 6; i++) {
-      p[i] = seq.at(i).as<double>();
+      const double v = seq.at(i).as<double>();
+      // x, y, z are in meters; yaw, pitch, roll (indices 3-5) are in degrees in the YAML.
+      p[i] = (i < 3) ? v : mrpt::DEG2RAD(v);
     }
   }
 }
