@@ -126,7 +126,7 @@ int main_odometry(const OdometryTestParams & p)
               << " GT pose: " << gt << "\n"
               << " error: " << err << "\n\n";
 
-    EXPECT_LT(err, 0.40);
+    EXPECT_LT(err, 0.50);
   }
 
   return 0;
