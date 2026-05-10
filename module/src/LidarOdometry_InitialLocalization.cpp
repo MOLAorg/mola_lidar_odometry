@@ -192,8 +192,8 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
       "Timeout (%.1f s) waiting for state estimator to converge. "
       "Check GNSS/IMU sensors.",
       il.from_state_estimator_timeout);
-    // Could fall back to another method or throw an error
-    THROW_EXCEPTION("State estimator convergence timeout");
+    state_.waiting_for_state_estimator_since.reset();
+    return;
   }
 
   // Check if state estimator has converged
