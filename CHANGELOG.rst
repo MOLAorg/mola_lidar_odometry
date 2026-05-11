@@ -2,6 +2,93 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* fix: don't exit upon state estimator lack of convergence
+* Merge pull request `#79 <https://github.com/MOLAorg/mola_lidar_odometry/issues/79>`_ from MOLAorg/simplify-ci
+  CI: simplify clang-format helpers and use ros: docker image for jazzy stable
+* CI: simplify clang-format helpers and use ros: docker image for jazzy stable
+  - Replace the old formatter.sh with a new version supporting --check mode
+  - Simplify check-clang-format.yml to just apt-install clang-format-14 and run the script
+  - Use ros:jazzy pre-built image for jazzy stable CI build (faster, no setup-ros needed)
+* Update error threshold in lidar odometry test
+* fix: do not wipe out a loaded map if first scan is bad
+* fix: viz must clear current obs when unchecked live
+* fix: safer thread viz with just one thread
+* chore: set default for adaptive threshold 'alpha' low-pass filter 0.99 to 0.90 for adapting faster to changes
+* feat: show sensor pose corners in MolaViz
+* chore: fix comment formatting (seems to trigger a libfyaml/mola_yaml parser bug)
+* fix: initial pose from yaml files expected yaw/pitch/roll in degrees
+* Expose initial sigma as env var too
+* chore: expose viz module as env var (prepare for testing imgui)
+* CI: sensible job names
+* Merge pull request `#78 <https://github.com/MOLAorg/mola_lidar_odometry/issues/78>`_ from MOLAorg/bump-cmake-version
+  bump min req cmake version to 3.22
+* bump min req cmake version to 3.22
+* FIX: regression in last adaptive sigma PR
+* chore: add minimal agents.md
+* Merge pull request `#76 <https://github.com/MOLAorg/mola_lidar_odometry/issues/76>`_ from Zeal-Robotics/feat/sustained-failure-recovery
+  feat: optional adaptive-threshold recovery on sustained ICP failure
+* feat: optional adaptive-threshold recovery on sustained ICP failure
+  The KISS-ICP adaptive threshold only updates sigma on a good ICP, which
+  is correct for isolated bad scans but creates a deadlock under sustained
+  failure: once sigma is frozen at a small value, the matcher window
+  (2*sigma) is too tight to find correspondences, ICP stays bad, sigma
+  stays frozen, and the system cannot recover without an external
+  relocalize.
+  Add three opt-in fields to AdaptiveThreshold:
+  recover_on_sustained_failure (default false)
+  recover_after_n_bad          (default 5)
+  recover_growth_factor        (default 1.5)
+  After N consecutive bad ICPs, sigma is grown multiplicatively (capped at
+  maximum_sigma) so the next attempt has a wider correspondence search
+  radius. The counter resets on any good ICP, at which point the standard
+  KISS-ICP rule resumes and re-tightens sigma. With the flag off, behavior
+  is identical to before.
+  The four bundled pipeline YAMLs (lidar3d-gicp, -gicp-optimize-twist,
+  -icp, -ndt) gain matching ${MOLA_ADAPT_THRESHOLD_RECOVER*|default} hooks
+  so the feature can be toggled via env vars without forking the YAML.
+* Fix CI escaping
+* fix: CI code coverage flags
+* feat: Add new mola-lo-gui-ouster script
+* Update build-ros.yml to disable known regression in current stable Humble
+  Comment out the configuration for non-testing ROS build.
+* Merge pull request `#75 <https://github.com/MOLAorg/mola_lidar_odometry/issues/75>`_ from Zeal-Robotics/fix/cli-warn-no-state-estimator-yaml
+  fix(cli): warn when no --state-estimator-param-file is provided
+* fix(cli): warn when no --state-estimator-param-file is provided
+  When `mola-lidar-odometry-cli` is invoked without
+  `--state-estimator-param-file`, the state estimator is constructed but
+  `initialize()` is never called, so it silently runs with the built-in
+  C++ defaults. These differ from the bundled
+  `state-estimator-params/*.yaml` shipped with this package and used by
+  the corresponding `mola-cli-launchs/*.yaml` files, which makes the CLI
+  and the GUI launcher behave noticeably differently for the same
+  estimator.
+  Add an `else` branch that prints a clear warning naming the active
+  estimator class and pointing at the bundled YAMLs, so users know to
+  pass `--state-estimator-param-file` (or accept the C++ defaults
+  deliberately). No behaviour change otherwise.
+* fix: GUI update staled in some conditions
+* fix: don't reduce adaptive threshold on bad ICPs
+* fix: UI text labels never updated if ICP was bad
+* fix: clearing gravity vector
+* IMU buffer for gravity alignment: increase max circular buffer size
+* Merge pull request `#62 <https://github.com/MOLAorg/mola_lidar_odometry/issues/62>`_ from MOLAorg/wip/draw-gravity-align-as-arrow
+  Draw arrow from IMU gravity alignment
+* CI: Fix for new ROS rolling
+* feat: Optional visualization of IMU gravity alignment vector
+* tests: show error levels even if test pass
+* gicp: lower covariance floors
+* fix: decaying clouds were not cleared if unchecked UI box
+* icp pipeline yaml: add new covariance selection method params
+* feat: ros2 launch file new "use-sim-time:=true" argument
+* feat: Localmap is now also rendered using 'intensity' or whatever color channel
+* docs: clear README
+* Merge pull request `#72 <https://github.com/MOLAorg/mola_lidar_odometry/issues/72>`_ from manankharwar/patch-1
+  docs: add FusionCore to Related projects
+* Update README.md
+* Contributors: Jose Luis Blanco-Claraco, Robin Van Cauwenbergh
+
 2.1.0 (2026-04-29)
 ------------------
 * FIX: show_localmap was not loaded from YAML file; expose more pipeline env vars
