@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.0 (2026-05-11)
+------------------
 * fix: don't exit upon state estimator lack of convergence
 * Merge pull request `#79 <https://github.com/MOLAorg/mola_lidar_odometry/issues/79>`_ from MOLAorg/simplify-ci
   CI: simplify clang-format helpers and use ros: docker image for jazzy stable
