@@ -954,6 +954,7 @@ mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
     }
 
     // now, keep all of them within the time window:
+    size_t lidar_obs_in_sf = 0;  // count only the lidar obs added here
     for (const auto & [label, o] : state_.sync_obs) {
       const auto dt = std::abs(mrpt::system::timeDifference(o->timestamp, obs->timestamp));
       if (dt > params_.multiple_lidars.max_time_offset) {
@@ -967,11 +968,21 @@ mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
         "[MULTI_LIDAR_SYNC] Sensor '%s': dt=%.04f s -> included in sensory frame", label.c_str(),
         dt);
       sf += std::const_pointer_cast<mrpt::obs::CObservation>(o);  // include this observation
+      lidar_obs_in_sf++;
     }
     // and clear for the next iter:
     state_.sync_obs.clear();
 
     ASSERT_(!sf.empty());
+
+    if (lidar_obs_in_sf < params_.multiple_lidars.lidar_count) {
+      MRPT_LOG_THROTTLE_WARN_FMT(
+        2.0,
+        "[MULTI_LIDAR_SYNC] Only %zu/%u LiDAR sensors passed the time window filter "
+        "(max_time_offset=%.04f s). Some LiDAR scans are being dropped from the sensory frame.",
+        lidar_obs_in_sf, params_.multiple_lidars.lidar_count,
+        params_.multiple_lidars.max_time_offset);
+    }
 
     // [MULTI_LIDAR_SYNC] Summary: report grouped sensors and flag any missing ones:
     if (isLoggingLevelVisible(mrpt::system::LVL_DEBUG)) {
@@ -983,15 +994,15 @@ mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
         }
         grouped_labels += sfObs->sensorLabel;
       }
-      if (sf.size() < params_.multiple_lidars.lidar_count) {
+      if (lidar_obs_in_sf < params_.multiple_lidars.lidar_count) {
         MRPT_LOG_DEBUG_FMT(
-          "[MULTI_LIDAR_SYNC] WARNING: only %zu/%u sensors in sensory frame (some outside "
+          "[MULTI_LIDAR_SYNC] WARNING: only %zu/%u LiDAR sensors in sensory frame (some outside "
           "time window). Included: [%s]",
-          sf.size(), params_.multiple_lidars.lidar_count, grouped_labels.c_str());
+          lidar_obs_in_sf, params_.multiple_lidars.lidar_count, grouped_labels.c_str());
       } else {
         MRPT_LOG_DEBUG_FMT(
-          "[MULTI_LIDAR_SYNC] All %zu/%u sensors grouped successfully. Included: [%s]", sf.size(),
-          params_.multiple_lidars.lidar_count, grouped_labels.c_str());
+          "[MULTI_LIDAR_SYNC] All %zu/%u LiDAR sensors grouped successfully. Included: [%s]",
+          lidar_obs_in_sf, params_.multiple_lidars.lidar_count, grouped_labels.c_str());
       }
     }
   } else {
