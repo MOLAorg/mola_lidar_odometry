@@ -928,25 +928,72 @@ mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
   if (params_.multiple_lidars.lidar_count > 1) {
     // Synchronize 2+ lidars:
     state_.sync_obs[obs->sensorLabel] = obs;
+
+    // [MULTI_LIDAR_SYNC] Log arrival of each sensor and current sync buffer state:
+    if (isLoggingLevelVisible(mrpt::system::LVL_DEBUG)) {
+      std::string present_sensors;
+      for (const auto & [lbl, o] : state_.sync_obs) {
+        if (!present_sensors.empty()) {
+          present_sensors += ", ";
+        }
+        present_sensors += lbl;
+        present_sensors += mrpt::format("(t=%.04f)", mrpt::Clock::toDouble(o->timestamp));
+      }
+      MRPT_LOG_DEBUG_FMT(
+        "[MULTI_LIDAR_SYNC] Trigger sensor='%s' t=%.06f. Buffer %zu/%u: [%s]",
+        obs->sensorLabel.c_str(), mrpt::Clock::toDouble(obs->timestamp), state_.sync_obs.size(),
+        params_.multiple_lidars.lidar_count, present_sensors.c_str());
+    }
+
     if (state_.sync_obs.size() < params_.multiple_lidars.lidar_count) {
-      MRPT_LOG_THROTTLE_DEBUG(5.0, "Skipping ICP since still waiting for all of multiple LIDARs");
+      MRPT_LOG_DEBUG_FMT(
+        "[MULTI_LIDAR_SYNC] Waiting: have %zu/%u sensors. Still missing %zu sensor(s).",
+        state_.sync_obs.size(), params_.multiple_lidars.lidar_count,
+        params_.multiple_lidars.lidar_count - state_.sync_obs.size());
       return {};
     }
+
     // now, keep all of them within the time window:
     for (const auto & [label, o] : state_.sync_obs) {
       const auto dt = std::abs(mrpt::system::timeDifference(o->timestamp, obs->timestamp));
       if (dt > params_.multiple_lidars.max_time_offset) {
+        MRPT_LOG_DEBUG_FMT(
+          "[MULTI_LIDAR_SYNC] Sensor '%s': dt=%.04f s > max_time_offset=%.04f s -> DROPPED",
+          label.c_str(), dt, params_.multiple_lidars.max_time_offset);
         continue;
       }
 
+      MRPT_LOG_DEBUG_FMT(
+        "[MULTI_LIDAR_SYNC] Sensor '%s': dt=%.04f s -> included in sensory frame", label.c_str(),
+        dt);
       sf += std::const_pointer_cast<mrpt::obs::CObservation>(o);  // include this observation
     }
     // and clear for the next iter:
     state_.sync_obs.clear();
 
     ASSERT_(!sf.empty());
-    MRPT_LOG_DEBUG_STREAM(
-      "multiple_lidars: " << sf.size() << " valid observations have been synchronized.");
+
+    // [MULTI_LIDAR_SYNC] Summary: report grouped sensors and flag any missing ones:
+    if (isLoggingLevelVisible(mrpt::system::LVL_DEBUG)) {
+      std::string grouped_labels;
+      for (size_t i = 0; i < sf.size(); i++) {
+        const auto sfObs = sf.getObservationByIndex(i);
+        if (!grouped_labels.empty()) {
+          grouped_labels += ", ";
+        }
+        grouped_labels += sfObs->sensorLabel;
+      }
+      if (sf.size() < params_.multiple_lidars.lidar_count) {
+        MRPT_LOG_DEBUG_FMT(
+          "[MULTI_LIDAR_SYNC] WARNING: only %zu/%u sensors in sensory frame (some outside "
+          "time window). Included: [%s]",
+          sf.size(), params_.multiple_lidars.lidar_count, grouped_labels.c_str());
+      } else {
+        MRPT_LOG_DEBUG_FMT(
+          "[MULTI_LIDAR_SYNC] All %zu/%u sensors grouped successfully. Included: [%s]", sf.size(),
+          params_.multiple_lidars.lidar_count, grouped_labels.c_str());
+      }
+    }
   } else {
     // Single LIDAR:
     sf.insert(std::const_pointer_cast<mrpt::obs::CObservation>(obs));
