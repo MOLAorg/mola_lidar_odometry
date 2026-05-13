@@ -26,3 +26,5 @@ We use colcon, the ROS2 build tool, and mola_common with utility cmake helpers.
 - Don't declare more than one variable in the same line: "int a,b;" => "int a;\n int b;"
 - Don't use en, em dash "—", use any alternative notation.
 - Use American spelling.
+- Use anonymous namespaces instead of static.
+
