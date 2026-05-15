@@ -23,6 +23,7 @@
 #include <mola_lidar_odometry/LidarOdometry.h>
 
 // MOLA:
+#include <mola_kernel/interfaces/VizInterface.h>
 #include <mola_kernel/version.h>
 
 // MRPT:
@@ -41,6 +42,174 @@
 namespace mola
 {
 
+mola::gui::Tab LidarOdometry::buildTabStatus()
+{
+  using namespace mola::gui;
+
+  Tab tab;
+  tab.title = "Status";
+  tab.widgets.emplace_back(Label{gui_.lbIcpQuality});
+  tab.widgets.emplace_back(Label{gui_.lbSensorRates});
+  tab.widgets.emplace_back(Label{gui_.lbSensorRange});
+  tab.widgets.emplace_back(Label{gui_.lbSpeed});
+  tab.widgets.emplace_back(Label{gui_.lbTime});
+  tab.widgets.emplace_back(Label{gui_.lbLidarQueue});
+  tab.widgets.emplace_back(Label{gui_.lbMapStats});
+  return tab;
+}
+
+mola::gui::Tab LidarOdometry::buildTabControl()
+{
+  using namespace mola::gui;
+
+  Tab tab;
+  tab.title = "Control";
+
+  tab.widgets.emplace_back(CheckBox{"Active", isActive(), [this](bool checked) {
+                                      this->enqueue_request([this, checked]() {
+                                        auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+                                        state_.active = checked;
+                                      });
+                                    }});
+
+  tab.widgets.emplace_back(CheckBox{
+    "Mapping enabled", params_.local_map_updates.enabled, [this](bool checked) {
+      this->enqueue_request([this, checked]() { params_.local_map_updates.enabled = checked; });
+    }});
+
+  {
+    Label lbl;
+    lbl.text =
+      std::make_shared<LiveString>("Traject./map are saved at exit or when button clicked");
+    lbl.font_size = 14;
+    tab.widgets.emplace_back(std::move(lbl));
+  }
+
+  {
+    Row row;
+    row.widgets.emplace_back(
+      CheckBox{"Save trajectory", params_.estimated_trajectory.save_to_file, [this](bool checked) {
+                 this->enqueue_request(
+                   [this, checked]() { params_.estimated_trajectory.save_to_file = checked; });
+               }});
+    row.widgets.emplace_back(TextBox{
+      "", params_.estimated_trajectory.output_file, 13, [this](std::string f) {  // NOLINT
+        this->enqueue_request([this, f]() { params_.estimated_trajectory.output_file = f; });
+        return true;
+      }});
+    tab.widgets.emplace_back(std::move(row));
+  }
+
+  {
+    Row row;
+    row.widgets.emplace_back(
+      CheckBox{"Generate simplemap", params_.simplemap.generate, [this](bool checked) {
+                 this->enqueue_request([this, checked]() { params_.simplemap.generate = checked; });
+               }});
+    row.widgets.emplace_back(TextBox{
+      "", params_.simplemap.save_final_map_to_file, 13, [this](std::string f) {  // NOLINT
+        this->enqueue_request([this, f]() { params_.simplemap.save_final_map_to_file = f; });
+        return true;
+      }});
+    tab.widgets.emplace_back(std::move(row));
+  }
+
+  {
+    Row row;
+    row.widgets.emplace_back(Button{
+      "Save trajectory now", 0, "", 14, [this]() { this->saveEstimatedTrajectoryToFile(); }});
+    row.widgets.emplace_back(
+      Button{"Save map now", 0, "", 14, [this]() { this->saveReconstructedMapToFile(); }});
+    tab.widgets.emplace_back(std::move(row));
+  }
+
+  {
+    Row row;
+    row.widgets.emplace_back(
+      Button{"Reset", 0, "", 0, [this]() { this->enqueue_request([this]() { this->reset(); }); }});
+    row.widgets.emplace_back(Button{"Quit", 0, "", 0, [this]() { this->requestShutdown(); }});
+    tab.widgets.emplace_back(std::move(row));
+  }
+
+  return tab;
+}
+
+mola::gui::Tab LidarOdometry::buildTabView()
+{
+  using namespace mola::gui;
+
+  Tab tab;
+  tab.title = "View";
+
+  tab.widgets.emplace_back(CheckBox{
+    "Orthographic camera", params_.visualization.camera_orthographic, [this](bool checked) {
+      this->enqueue_request([this, checked]() {
+        params_.visualization.camera_orthographic = checked;
+        visualizer_->update_viewport_camera_orthographic(checked);
+      });
+    }});
+
+  tab.widgets.emplace_back(CheckBox{
+    "Show trajectory", params_.visualization.show_trajectory, [this](bool checked) {
+      this->enqueue_request([this, checked]() { params_.visualization.show_trajectory = checked; });
+    }});
+
+  tab.widgets.emplace_back(CheckBox{
+    "Show raw observation", params_.visualization.show_current_observation, [this](bool checked) {
+      this->enqueue_request(
+        [this, checked]() { params_.visualization.show_current_observation = checked; });
+    }});
+
+  tab.widgets.emplace_back(CheckBox{
+    "Show dense local map (decaying)", params_.visualization.show_last_deskewed_observations_decay,
+    [this](bool checked) {
+      this->enqueue_request([this, checked]() {
+        params_.visualization.show_last_deskewed_observations_decay = checked;
+      });
+    }});
+
+  tab.widgets.emplace_back(CheckBox{
+    "Show local map", params_.visualization.show_localmap, [this](bool checked) {
+      this->enqueue_request([this, checked]() { params_.visualization.show_localmap = checked; });
+    }});
+
+  tab.widgets.emplace_back(CheckBox{
+    "Camera follows vehicle", params_.visualization.camera_follows_vehicle, [this](bool checked) {
+      this->enqueue_request(
+        [this, checked]() { params_.visualization.camera_follows_vehicle = checked; });
+    }});
+
+  tab.widgets.emplace_back(CheckBox{
+    "Camera rotates with vehicle", params_.visualization.camera_rotates_with_vehicle,
+    [this](bool checked) {
+      this->enqueue_request(
+        [this, checked]() { params_.visualization.camera_rotates_with_vehicle = checked; });
+    }});
+
+  tab.widgets.emplace_back(CheckBox{
+    "Show log messages", params_.visualization.show_console_messages, [this](bool checked) {
+      this->enqueue_request(
+        [this, checked]() { params_.visualization.show_console_messages = checked; });
+    }});
+
+  tab.widgets.emplace_back(CheckBox{
+    "Show gravity-alignment vector", params_.visualization.show_gravity_align_vector,
+    [this](bool checked) {
+      this->enqueue_request(
+        [this, checked]() { params_.visualization.show_gravity_align_vector = checked; });
+    }});
+
+  tab.widgets.emplace_back(CheckBox{
+    "Show sensor poses", (params_.visualization.sensor_poses_corner_size > 0),
+    [this](bool checked) {
+      this->enqueue_request([this, checked]() {
+        params_.visualization.sensor_poses_corner_size = checked ? 0.5f : 0.0f;
+      });
+    }});
+
+  return tab;
+}
+
 void LidarOdometry::internalBuildGUI()
 {
   using namespace mola::gui;
@@ -53,175 +222,6 @@ void LidarOdometry::internalBuildGUI()
   gui_.lbSpeed = std::make_shared<LiveString>(" ");
   gui_.lbLidarQueue = std::make_shared<LiveString>(" ");
   gui_.lbMapStats = std::make_shared<LiveString>(" ");
-
-  WindowDescription desc;
-  desc.title = "mola_lidar_odometry";
-  desc.position = {5, 700};
-  desc.size = {340, 0};
-  desc.starts_hidden = params_.visualization.gui_subwindow_starts_hidden;
-
-  // ------- Tab 1: Status -------
-  {
-    Tab tab;
-    tab.title = "Status";
-    tab.widgets.emplace_back(Label{gui_.lbIcpQuality});
-    tab.widgets.emplace_back(Label{gui_.lbSensorRates});
-    tab.widgets.emplace_back(Label{gui_.lbSensorRange});
-    tab.widgets.emplace_back(Label{gui_.lbSpeed});
-    tab.widgets.emplace_back(Label{gui_.lbTime});
-    tab.widgets.emplace_back(Label{gui_.lbLidarQueue});
-    tab.widgets.emplace_back(Label{gui_.lbMapStats});
-    desc.tabs.emplace_back(std::move(tab));
-  }
-
-  // ------- Tab 2: Control -------
-  {
-    Tab tab;
-    tab.title = "Control";
-
-    tab.widgets.emplace_back(CheckBox{"Active", isActive(), [this](bool checked) {
-                                        this->enqueue_request([this, checked]() {
-                                          auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
-                                          state_.active = checked;
-                                        });
-                                      }});
-
-    tab.widgets.emplace_back(CheckBox{
-      "Mapping enabled", params_.local_map_updates.enabled, [this](bool checked) {
-        this->enqueue_request([this, checked]() { params_.local_map_updates.enabled = checked; });
-      }});
-
-    {
-      Label lbl;
-      lbl.text =
-        std::make_shared<LiveString>("Traject./map are saved at exit or when button clicked");
-      lbl.font_size = 14;
-      tab.widgets.emplace_back(std::move(lbl));
-    }
-
-    {
-      Row row;
-      row.widgets.emplace_back(CheckBox{
-        "Save trajectory", params_.estimated_trajectory.save_to_file, [this](bool checked) {
-          this->enqueue_request(
-            [this, checked]() { params_.estimated_trajectory.save_to_file = checked; });
-        }});
-      row.widgets.emplace_back(TextBox{
-        "", params_.estimated_trajectory.output_file, 13, [this](std::string f) {  // NOLINT
-          this->enqueue_request([this, f]() { params_.estimated_trajectory.output_file = f; });
-          return true;
-        }});
-      tab.widgets.emplace_back(std::move(row));
-    }
-
-    {
-      Row row;
-      row.widgets.emplace_back(CheckBox{
-        "Generate simplemap", params_.simplemap.generate, [this](bool checked) {
-          this->enqueue_request([this, checked]() { params_.simplemap.generate = checked; });
-        }});
-      row.widgets.emplace_back(TextBox{
-        "", params_.simplemap.save_final_map_to_file, 13, [this](std::string f) {  // NOLINT
-          this->enqueue_request([this, f]() { params_.simplemap.save_final_map_to_file = f; });
-          return true;
-        }});
-      tab.widgets.emplace_back(std::move(row));
-    }
-
-    {
-      Row row;
-      row.widgets.emplace_back(Button{
-        "Save trajectory now", 0, "", 14, [this]() { this->saveEstimatedTrajectoryToFile(); }});
-      row.widgets.emplace_back(
-        Button{"Save map now", 0, "", 14, [this]() { this->saveReconstructedMapToFile(); }});
-      tab.widgets.emplace_back(std::move(row));
-    }
-
-    {
-      Row row;
-      row.widgets.emplace_back(Button{
-        "Reset", 0, "", 0, [this]() { this->enqueue_request([this]() { this->reset(); }); }});
-      row.widgets.emplace_back(Button{"Quit", 0, "", 0, [this]() { this->requestShutdown(); }});
-      tab.widgets.emplace_back(std::move(row));
-    }
-
-    desc.tabs.emplace_back(std::move(tab));
-  }
-
-  // ------- Tab 3: View -------
-  {
-    Tab tab;
-    tab.title = "View";
-
-    tab.widgets.emplace_back(CheckBox{
-      "Orthographic camera", params_.visualization.camera_orthographic, [this](bool checked) {
-        this->enqueue_request([this, checked]() {
-          params_.visualization.camera_orthographic = checked;
-          visualizer_->update_viewport_camera_orthographic(checked);
-        });
-      }});
-
-    tab.widgets.emplace_back(
-      CheckBox{"Show trajectory", params_.visualization.show_trajectory, [this](bool checked) {
-                 this->enqueue_request(
-                   [this, checked]() { params_.visualization.show_trajectory = checked; });
-               }});
-
-    tab.widgets.emplace_back(CheckBox{
-      "Show raw observation", params_.visualization.show_current_observation, [this](bool checked) {
-        this->enqueue_request(
-          [this, checked]() { params_.visualization.show_current_observation = checked; });
-      }});
-
-    tab.widgets.emplace_back(CheckBox{
-      "Show dense local map (decaying)",
-      params_.visualization.show_last_deskewed_observations_decay, [this](bool checked) {
-        this->enqueue_request([this, checked]() {
-          params_.visualization.show_last_deskewed_observations_decay = checked;
-        });
-      }});
-
-    tab.widgets.emplace_back(CheckBox{
-      "Show local map", params_.visualization.show_localmap, [this](bool checked) {
-        this->enqueue_request([this, checked]() { params_.visualization.show_localmap = checked; });
-      }});
-
-    tab.widgets.emplace_back(CheckBox{
-      "Camera follows vehicle", params_.visualization.camera_follows_vehicle, [this](bool checked) {
-        this->enqueue_request(
-          [this, checked]() { params_.visualization.camera_follows_vehicle = checked; });
-      }});
-
-    tab.widgets.emplace_back(CheckBox{
-      "Camera rotates with vehicle", params_.visualization.camera_rotates_with_vehicle,
-      [this](bool checked) {
-        this->enqueue_request(
-          [this, checked]() { params_.visualization.camera_rotates_with_vehicle = checked; });
-      }});
-
-    tab.widgets.emplace_back(CheckBox{
-      "Show log messages", params_.visualization.show_console_messages, [this](bool checked) {
-        this->enqueue_request(
-          [this, checked]() { params_.visualization.show_console_messages = checked; });
-      }});
-
-    tab.widgets.emplace_back(CheckBox{
-      "Show gravity-alignment vector", params_.visualization.show_gravity_align_vector,
-      [this](bool checked) {
-        this->enqueue_request(
-          [this, checked]() { params_.visualization.show_gravity_align_vector = checked; });
-      }});
-
-    tab.widgets.emplace_back(CheckBox{
-      "Show sensor poses", (params_.visualization.sensor_poses_corner_size > 0),
-      [this](bool checked) {
-        this->enqueue_request([this, checked]() {
-          params_.visualization.sensor_poses_corner_size = checked ? 0.5f : 0.0f;
-        });
-      }});
-
-    desc.tabs.emplace_back(std::move(tab));
-  }
 
   // Background 3D scene: change background color (backend-agnostic)
   visualizer_->execute_custom_code_on_background_scene([this](mrpt::opengl::Scene & scene) {
@@ -248,8 +248,43 @@ void LidarOdometry::internalBuildGUI()
         " |"s + std::string(loggerName) + "]"s + std::string(msg));
     });
 
-  // Create the sub-window and block until the GUI thread has processed it:
-  visualizer_->create_subwindow_from_description(desc).get();
+  const bool hidden = params_.visualization.gui_subwindow_starts_hidden;
+
+  if (visualizer_->gui_backend() == VizInterface::BACKEND_IMGUI) {
+    // ImGui: 3 separate windows stacked vertically so all are visible at once.
+    // The docking system persists layout across runs via imgui.ini.
+    struct WinDef
+    {
+      std::string title;
+      Tab (LidarOdometry::*build)();
+      std::array<int, 2> pos;
+    };
+    const std::array<WinDef, 3> defs = {{
+      {"LiDAR Odom: Status", &LidarOdometry::buildTabStatus, {5, 5}},
+      {"LiDAR Odom: Control", &LidarOdometry::buildTabControl, {5, 200}},
+      {"LiDAR Odom: View", &LidarOdometry::buildTabView, {5, 430}},
+    }};
+    for (const auto & d : defs) {
+      WindowDescription desc;
+      desc.title = d.title;
+      desc.position = d.pos;
+      desc.size = {340, 0};
+      desc.starts_hidden = hidden;
+      desc.tabs.emplace_back((this->*d.build)());
+      visualizer_->create_subwindow_from_description(desc).get();
+    }
+  } else {
+    // nanogui (and any future backend): single window with 3 tabs.
+    WindowDescription desc;
+    desc.title = "mola_lidar_odometry";
+    desc.position = {5, 700};
+    desc.size = {340, 0};
+    desc.starts_hidden = hidden;
+    desc.tabs.emplace_back(buildTabStatus());
+    desc.tabs.emplace_back(buildTabControl());
+    desc.tabs.emplace_back(buildTabView());
+    visualizer_->create_subwindow_from_description(desc).get();
+  }
 }
 
 void LidarOdometry::doRemoveCloudsWithDecay()
@@ -475,7 +510,7 @@ void LidarOdometry::updateVisualizationCurrentObservation(
     // Route the clear through the worker thread so it is ordered after any
     // previously enqueued frame lambdas and cannot be overwritten by them.
     auto viz = visualizer_;
-    worker_viz_.enqueue([=]() {
+    (void)worker_viz_.enqueue([=]() {
       // Always clear cur_obs: we reach here precisely when showCurrent is
       // false or there is no raw layer, so any previously displayed cloud
       // must be removed.

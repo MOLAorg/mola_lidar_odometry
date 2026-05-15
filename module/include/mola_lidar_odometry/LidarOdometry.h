@@ -1013,6 +1013,9 @@ private:
   void updateVisualizationAlways();
 
   void internalBuildGUI();
+  mola::gui::Tab buildTabStatus();
+  mola::gui::Tab buildTabControl();
+  mola::gui::Tab buildTabView();
 
   void doRemoveCloudsWithDecay();
 
