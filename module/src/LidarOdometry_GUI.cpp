@@ -26,11 +26,6 @@
 #include <mola_kernel/version.h>
 
 // MRPT:
-MRPT_TODO("Remove legacy GUI code path once mrpt_kernel>=2.6.0 is stable in all distros");
-
-#if !MOLA_VERSION_CHECK(2, 6, 0)
-#include <mrpt/gui/CDisplayWindowGUI.h>
-#endif
 #include <mrpt/maps/CGenericPointsMap.h>
 #include <mrpt/obs/customizable_obs_viz.h>
 #include <mrpt/opengl/CArrow.h>
@@ -45,8 +40,6 @@ MRPT_TODO("Remove legacy GUI code path once mrpt_kernel>=2.6.0 is stable in all 
 
 namespace mola
 {
-
-#if MOLA_VERSION_CHECK(2, 6, 0)
 
 void LidarOdometry::internalBuildGUI()
 {
@@ -259,230 +252,6 @@ void LidarOdometry::internalBuildGUI()
   visualizer_->create_subwindow_from_description(desc).get();
 }
 
-#else  // !MOLA_VERSION_CHECK(2, 6, 0): legacy nanogui path
-
-void LidarOdometry::internalBuildGUI_Legacy()
-{
-  ASSERT_(gui_.ui);
-
-  gui_.ui->requestFocus();
-  gui_.ui->setVisible(!params_.visualization.gui_subwindow_starts_hidden);
-  gui_.ui->setPosition({5, 700});
-
-  gui_.ui->setLayout(
-    new nanogui::BoxLayout(nanogui::Orientation::Vertical, nanogui::Alignment::Fill, 5, 2));
-  gui_.ui->setFixedWidth(340);
-
-  auto * tabWidget = gui_.ui->add<nanogui::TabWidget>();
-
-  auto * tab1 = tabWidget->createTab("Status");
-  tab1->setLayout(new nanogui::GroupLayout());
-
-  auto * tab2 = tabWidget->createTab("Control");
-  tab2->setLayout(new nanogui::GroupLayout());
-
-  auto * tab3 = tabWidget->createTab("View");
-  tab3->setLayout(new nanogui::GroupLayout());
-
-  tabWidget->setActiveTab(0);
-
-  // tab 1: status
-  gui_.lbIcpQuality = tab1->add<nanogui::Label>(" ");
-  gui_.lbSensorRates = tab1->add<nanogui::Label>(" ");
-  gui_.lbSensorRange = tab1->add<nanogui::Label>(" ");
-  gui_.lbSpeed = tab1->add<nanogui::Label>(" ");
-  gui_.lbTime = tab1->add<nanogui::Label>(" ");
-  gui_.lbLidarQueue = tab1->add<nanogui::Label>(" ");
-  gui_.lbMapStats = tab1->add<nanogui::Label>(" ");
-
-  // tab 2: control
-  gui_.cbActive = tab2->add<nanogui::CheckBox>("Active");
-  gui_.cbActive->setChecked(isActive());
-  gui_.cbActive->setCallback([&](bool checked) {
-    this->enqueue_request([this, checked]() {
-      auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
-      state_.active = checked;
-    });
-  });
-
-  gui_.cbMapping = tab2->add<nanogui::CheckBox>("Mapping enabled");
-  gui_.cbMapping->setChecked(params_.local_map_updates.enabled);
-  gui_.cbMapping->setCallback([&](bool checked) {
-    this->enqueue_request([this, checked]() { params_.local_map_updates.enabled = checked; });
-  });
-
-  {
-    auto * lbMsg =
-      tab2->add<nanogui::Label>("Traject./map are saved at exit or when button clicked");
-    lbMsg->setFontSize(14);
-  }
-
-  {
-    auto * panel = tab2->add<nanogui::Widget>();
-    panel->setLayout(
-      new nanogui::BoxLayout(nanogui::Orientation::Horizontal, nanogui::Alignment::Maximum, 1, 1));
-
-    auto * cbSaveTrajectory = panel->add<nanogui::CheckBox>("Save trajectory");
-    cbSaveTrajectory->setChecked(params_.estimated_trajectory.save_to_file);
-    cbSaveTrajectory->setCallback([this](bool checked) {
-      this->enqueue_request(
-        [this, checked]() { params_.estimated_trajectory.save_to_file = checked; });
-    });
-
-    auto * edTrajOutFile = panel->add<nanogui::TextBox>();
-    edTrajOutFile->setFontSize(13);
-    edTrajOutFile->setEditable(true);
-    edTrajOutFile->setAlignment(nanogui::TextBox::Alignment::Left);
-    edTrajOutFile->setValue(params_.estimated_trajectory.output_file);
-    edTrajOutFile->setCallback([this](const std::string & f) {
-      this->enqueue_request([this, f]() { params_.estimated_trajectory.output_file = f; });
-      return true;
-    });
-  }
-
-  {
-    auto * panel = tab2->add<nanogui::Widget>();
-    panel->setLayout(
-      new nanogui::BoxLayout(nanogui::Orientation::Horizontal, nanogui::Alignment::Maximum, 1, 1));
-
-    gui_.cbSaveSimplemap = panel->add<nanogui::CheckBox>("Generate simplemap");
-    gui_.cbSaveSimplemap->setChecked(params_.simplemap.generate);
-    gui_.cbSaveSimplemap->setCallback([this](bool checked) {
-      this->enqueue_request([this, checked]() { params_.simplemap.generate = checked; });
-    });
-
-    auto * edMapOutFile = panel->add<nanogui::TextBox>();
-    edMapOutFile->setFontSize(13);
-    edMapOutFile->setEditable(true);
-    edMapOutFile->setAlignment(nanogui::TextBox::Alignment::Left);
-    edMapOutFile->setValue(params_.simplemap.save_final_map_to_file);
-    edMapOutFile->setCallback([this](const std::string & f) {
-      this->enqueue_request([this, f]() { params_.simplemap.save_final_map_to_file = f; });
-      return true;
-    });
-  }
-
-  {
-    auto * panel = tab2->add<nanogui::Widget>();
-    panel->setLayout(
-      new nanogui::BoxLayout(nanogui::Orientation::Horizontal, nanogui::Alignment::Maximum, 1, 1));
-
-    auto * btnSaveTrajectory = panel->add<nanogui::Button>("Save trajectory now", ENTYPO_ICON_SAVE);
-    btnSaveTrajectory->setFontSize(14);
-
-    btnSaveTrajectory->setCallback([this]() { this->saveEstimatedTrajectoryToFile(); });
-
-    auto * btnSaveMap = panel->add<nanogui::Button>("Save map now", ENTYPO_ICON_SAVE);
-    btnSaveMap->setFontSize(14);
-
-    btnSaveMap->setCallback([this]() { this->saveReconstructedMapToFile(); });
-  }
-
-  {
-    auto * panel = tab2->add<nanogui::Widget>();
-    panel->setLayout(
-      new nanogui::BoxLayout(nanogui::Orientation::Horizontal, nanogui::Alignment::Maximum, 1, 1));
-
-    auto * btnReset = panel->add<nanogui::Button>("Reset", ENTYPO_ICON_CCW);
-    btnReset->setCallback([&]() { this->enqueue_request([this]() { this->reset(); }); });
-
-    auto * btnQuit = panel->add<nanogui::Button>("Quit", ENTYPO_ICON_ARROW_LEFT);
-    btnQuit->setCallback([&]() { this->requestShutdown(); });
-  }
-
-  // tab 3: view
-  auto * cbOrthoCam = tab3->add<nanogui::CheckBox>("Orthographic camera");
-  cbOrthoCam->setChecked(params_.visualization.camera_orthographic);
-  cbOrthoCam->setCallback([&](bool checked) {
-    this->enqueue_request([this, checked]() {
-      params_.visualization.camera_orthographic = checked;
-      visualizer_->update_viewport_camera_orthographic(checked);
-    });
-  });
-
-  auto * cbShowTrajectory = tab3->add<nanogui::CheckBox>("Show trajectory");
-  cbShowTrajectory->setChecked(params_.visualization.show_trajectory);
-  cbShowTrajectory->setCallback([&](bool checked) {
-    this->enqueue_request([this, checked]() { params_.visualization.show_trajectory = checked; });
-  });
-
-  auto * cbShowObs = tab3->add<nanogui::CheckBox>("Show raw observation");
-  cbShowObs->setChecked(params_.visualization.show_current_observation);
-  cbShowObs->setCallback([&](bool checked) {
-    this->enqueue_request(
-      [this, checked]() { params_.visualization.show_current_observation = checked; });
-  });
-
-  auto * cbShowDLM = tab3->add<nanogui::CheckBox>("Show dense local map (decaying)");
-  cbShowDLM->setChecked(params_.visualization.show_last_deskewed_observations_decay);
-  cbShowDLM->setCallback([&](bool checked) {
-    this->enqueue_request(
-      [this, checked]() { params_.visualization.show_last_deskewed_observations_decay = checked; });
-  });
-
-  auto * cbShowSLM = tab3->add<nanogui::CheckBox>("Show local map");
-  cbShowSLM->setChecked(params_.visualization.show_localmap);
-  cbShowSLM->setCallback([&](bool checked) {
-    this->enqueue_request([this, checked]() { params_.visualization.show_localmap = checked; });
-  });
-
-  auto * cbFollowVeh = tab3->add<nanogui::CheckBox>("Camera follows vehicle");
-  cbFollowVeh->setChecked(params_.visualization.camera_follows_vehicle);
-  cbFollowVeh->setCallback([&](bool checked) {
-    this->enqueue_request(
-      [this, checked]() { params_.visualization.camera_follows_vehicle = checked; });
-  });
-
-  auto * cbRotateVeh = tab3->add<nanogui::CheckBox>("Camera rotates with vehicle");
-  cbRotateVeh->setChecked(params_.visualization.camera_rotates_with_vehicle);
-  cbRotateVeh->setCallback([&](bool checked) {
-    this->enqueue_request(
-      [this, checked]() { params_.visualization.camera_rotates_with_vehicle = checked; });
-  });
-
-  auto * cbShowMsgs = tab3->add<nanogui::CheckBox>("Show log messages");
-  cbShowMsgs->setChecked(params_.visualization.show_console_messages);
-  cbShowMsgs->setCallback([&](bool checked) {
-    this->enqueue_request(
-      [this, checked]() { params_.visualization.show_console_messages = checked; });
-  });
-
-  auto * cbShowSensorPoses = tab3->add<nanogui::CheckBox>("Show sensor poses");
-  cbShowSensorPoses->setChecked(params_.visualization.sensor_poses_corner_size > 0);
-  cbShowSensorPoses->setCallback([&](bool checked) {
-    this->enqueue_request([this, checked]() {
-      params_.visualization.sensor_poses_corner_size = checked ? 0.5f : 0.0f;
-    });
-  });
-
-  // Background 3D scene: change background color
-  visualizer_->execute_custom_code_on_background_scene([this](mrpt::opengl::Scene & scene) {
-    const auto f = params_.visualization.background_color_gray_level;
-    scene.getViewport()->setCustomBackgroundColor({f, f, f});
-  });
-
-  this->mrpt::system::COutputLogger::logRegisterCallback(
-    [&](
-      std::string_view msg, const mrpt::system::VerbosityLevel level, std::string_view loggerName,
-      const mrpt::Clock::time_point timestamp) {
-      using namespace std::string_literals;
-
-      if (!params_.visualization.show_console_messages) {
-        return;
-      }
-
-      if (level < this->getMinLoggingLevel()) {
-        return;
-      }
-
-      visualizer_->output_console_message(
-        "["s + mrpt::system::timeLocalToString(timestamp) + "|"s + mrpt::typemeta::enum2str(level) +
-        " |"s + std::string(loggerName) + "]"s + std::string(msg));
-    });
-}
-
-#endif  // MOLA_VERSION_CHECK(2, 6, 0)
-
 void LidarOdometry::doRemoveCloudsWithDecay()
 {
   // Remove possible old 3D objects if the user disabled visualization on the fly:
@@ -653,22 +422,10 @@ void LidarOdometry::updateVisualizationAlways()
   // Sub-window with custom UI
   // -------------------------------------
   auto lckGuiMtx = mrpt::lockHelper(state_gui_mtx_);
-#if MOLA_VERSION_CHECK(2, 6, 0)
   if (!gui_.gui_created) {
     internalBuildGUI();
     gui_.gui_created = true;
   }
-#else
-  if (gui_.ui == nullptr) {
-    auto fut = visualizer_->create_subwindow("mola_lidar_odometry");
-    gui_.ui = fut.get();
-
-    // wait until this code is executed in the UI thread:
-    auto fut2 = visualizer_->enqueue_custom_nanogui_code([this]() { internalBuildGUI_Legacy(); });
-
-    fut2.get();
-  }
-#endif
 
   // Update indicators:
   updateVisualizationTextLabels();
@@ -937,7 +694,6 @@ void LidarOdometry::updateVisualizationTextLabels()
 {
   const ProfilerEntry tle3(profiler_, "updateVisualization.update_gui");
 
-#if MOLA_VERSION_CHECK(2, 6, 0)
   if (!gui_.lbIcpQuality) {
     return;  // GUI not yet created
   }
@@ -985,55 +741,6 @@ void LidarOdometry::updateVisualizationTextLabels()
   } else {
     gui_.lbSpeed->set("Speed: (Not available)");
   }
-
-#else  // legacy nanogui path
-
-  gui_.lbIcpQuality->setCaption(mrpt::format(
-    "ICP quality: %.01f%% | Thresh: %.02f | Iters: %zu", 100.0 * state_.last_icp_quality,
-    state_.adapt_thres_sigma, state_.last_icp_iterations));
-
-  {
-    const auto [rate_lidar, rate_imu, rate_gnss] = state_.get_sensor_rates();
-    gui_.lbSensorRates->setCaption(mrpt::format(
-      "LiDAR=%6.02f Hz | IMU=%6.02f Hz | GNSS=%5.02f Hz", rate_lidar, rate_imu, rate_gnss));
-  }
-
-  if (state_.estimated_observation_radius) {
-    gui_.lbSensorRange->setCaption(mrpt::format(
-      "Est. obs. radius: %.02f m (inst: %.02f m)", *state_.estimated_observation_radius,
-      state_.instantaneous_observation_radius ? *state_.instantaneous_observation_radius : .0));
-  } else {
-    gui_.lbSensorRange->setCaption("Est. obs. radius: (Not available)");
-  }
-
-  {
-    const double dtAvr = profiler_.getMeanTime("onLidar");
-    gui_.lbTime->setCaption(mrpt::format(
-      "Process time: %6.02f ms (%6.02f Hz)", 1e3 * dtAvr, dtAvr > 0 ? 1.0 / dtAvr : .0));
-  }
-
-  {
-    const double averageLidarQueue = profiler_.getMeanTime("onNewObservation.lidar_queue_length");
-
-    gui_.lbLidarQueue->setCaption(mrpt::format(
-      "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
-  }
-  gui_.lbMapStats->setCaption(mrpt::format(
-    "Keyframes: Localmap=%zu, simplemap=%zu", state_.distance_checker_local_map->size(),
-    state_.distance_checker_simplemap->size()));
-
-  if (state_.last_motion_model_output) {
-    const auto & tw = state_.last_motion_model_output->twist;
-    const double speed = mrpt::math::TVector3D(tw.vx, tw.vy, tw.vz).norm();
-
-    gui_.lbSpeed->setCaption(mrpt::format(
-      "Speed: %.02f m/s | %.02f km/h | %.02f mph", speed, speed * 3600.0 / 1000.0,
-      speed / 0.44704));
-  } else {
-    gui_.lbSpeed->setCaption("Speed: (Not available)");
-  }
-
-#endif  // MOLA_VERSION_CHECK(2, 6, 0)
 }
 
 }  // namespace mola
