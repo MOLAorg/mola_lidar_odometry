@@ -56,6 +56,7 @@
 
 // STD:
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
@@ -302,7 +303,7 @@ public:
       int map_update_decimation = 10;
 
       bool gui_subwindow_starts_hidden = false;
-      bool show_console_messages = true;
+      std::atomic<bool> show_console_messages{true};
 
       // --- camera control ---
       bool camera_follows_vehicle = true;

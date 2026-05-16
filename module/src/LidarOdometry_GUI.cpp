@@ -199,13 +199,15 @@ mola::gui::Tab LidarOdometry::buildTabView()
         [this, checked]() { params_.visualization.show_gravity_align_vector = checked; });
     }});
 
-  tab.widgets.emplace_back(CheckBox{
-    "Show sensor poses", (params_.visualization.sensor_poses_corner_size > 0),
-    [this](bool checked) {
-      this->enqueue_request([this, checked]() {
-        params_.visualization.sensor_poses_corner_size = checked ? 0.5f : 0.0f;
-      });
-    }});
+  const float sensorPosesSize = params_.visualization.sensor_poses_corner_size > 0.0f
+                                  ? params_.visualization.sensor_poses_corner_size
+                                  : 0.5f;
+  tab.widgets.emplace_back(
+    CheckBox{"Show sensor poses", sensorPosesSize > 0.0f, [this, sensorPosesSize](bool checked) {
+               this->enqueue_request([this, checked, sensorPosesSize]() {
+                 params_.visualization.sensor_poses_corner_size = checked ? sensorPosesSize : 0.0f;
+               });
+             }});
 
   return tab;
 }
