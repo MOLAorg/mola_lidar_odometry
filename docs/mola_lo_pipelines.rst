@@ -244,7 +244,7 @@ Configuring pipelines via environment variables
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 All the following environment variables can be set with ``export VAR=VALUE`` before
-invoking any of the MOLA-LO programs (cli,gui, or ROS node), or directly as prefixes
+invoking any of the MOLA-LO programs (cli, gui, or ROS node), or directly as prefixes
 to the invocation line, e.g. ``VAR1=VALUE1 VAR2=VALUE2 mola-xxx``.
 
 Unless said otherwise, all variables are valid for all the pipelines described above.
@@ -252,7 +252,7 @@ Unless said otherwise, all variables are valid for all the pipelines described a
 .. note::
 
    If using MOLA-LO via mola-cli (which includes the GUI applications or the ROS 2 interface),
-   there are additional environment variables to tune each particular 
+   there are additional environment variables to tune each particular
    `mola-cli launch file <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_.
    Those variables are documented :ref:`here <mola-gui-apps-common-env-vars>`.
 
@@ -270,7 +270,7 @@ Sensor inputs: LiDAR
 
 - ``MOLA_LIDAR_NAME`` (Default: ``['lidar', '/ouster/points']``): A **sensor label** (maybe including a regular expression) of what
   observations are to be treated as input LiDAR point clouds. For most dataset sources, the default ``lidar`` is enough.
-  For ROS bags or live ROS 2 as sources, the default behavior is assigning **sensor labels** exactly the same than 
+  For ROS bags or live ROS 2 as sources, the default behavior is assigning **sensor labels** exactly the same than
   incoming **ROS topic names**, so **set this to your ROS 2 topic name for the LiDAR**, but in principle both are different things.
   Read carefully the contents of the `mola-cli launch files <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_
   and the comments therein to understand the differences.
@@ -284,8 +284,8 @@ Sensor inputs: LiDAR
 - ``MOLA_ABS_MIN_SENSOR_RANGE`` (Default: ``5.0`` [m]): Absolute minimum for the otherwise
   automatically detected observation radius (see ``ESTIMATED_OBSERVATION_RADIUS``).
 
-- ``MOLA_MINIMUM_RANGE_FILTER`` (Default: 3% of the estimated observation radius). Minimum range
-  (L∞ cube around ``base_link``) for 3D points used by ICP; intended to cut out points coming from
+- ``MOLA_MINIMUM_RANGE_FILTER`` (Default: 3% of the estimated observation radius): Minimum range
+  (L-infinity cube around ``base_link``) for 3D points used by ICP; intended to cut out points coming from
   the robot/vehicle body itself or a person standing right next to it.
 
 Sensor inputs: IMU (optional)
@@ -300,15 +300,12 @@ Sensor inputs: IMU (optional)
 - ``MOLA_IMU_NAME`` (Default: ``imu``): **Sensor label** (or regex) of the observations with IMU data, if it exists.
   This is used to estimate the vehicle's pose and velocity, and to deskew point clouds.
   For most dataset sources, the default ``imu`` is enough.
-  For ROS bags or live ROS 2 as sources, the default behavior is assigning **sensor labels** exactly the same than 
+  For ROS bags or live ROS 2 as sources, the default behavior is assigning **sensor labels** exactly the same than
   incoming **ROS topic names**, so **set this to your ROS 2 topic name for the IMU**, but in principle both are different things.
   Read carefully the contents of the `mola-cli launch files <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_
   and the comments therein to understand the differences.
 
-- ``MOLA_DESKEW_METHOD`` (Default: ``MotionCompensationMethod::Linear``): **IMPORTANT**: If you do not change this from its default,
-  the IMU data will not be used for deskewing. To fully achieve the best accuracy, set this variable to ``MotionCompensationMethod::IMU``.
-
-- ``MOLA_DESKEW_IGNORE_ACCELEROMETER`` (Default: ``false``): Enable if a noisy IMU sensor causes shaky motion in the estimation, 
+- ``MOLA_DESKEW_IGNORE_ACCELEROMETER`` (Default: ``false``): Enable if a noisy IMU sensor causes shaky motion in the estimation,
   but you still want to use gyroscope for precise deskewing in LIO.
 
 
@@ -331,12 +328,12 @@ extrinsics, and derives pitch and roll from the gravity direction.
 
 - ``MOLA_IMU_GRAVITY_CORRECTION`` (Default: ``true``): Set to ``false`` to disable
   accelerometer-based pitch/roll correction of the ICP prior. Safe to leave
-  enabled even without an IMU — when no IMU data is present the correction is
+  enabled even without an IMU: when no IMU data is present the correction is
   silently skipped.
 
 - ``MOLA_IMU_GRAVITY_SIGMA_DEG`` (Default: ``2.0`` [deg]): Standard deviation of the
   gravity-derived pitch/roll prior. Lower values give more trust to the IMU.
-  Typical range: 1–5 deg.
+  Typical range: 1-5 deg.
 
 - ``MOLA_IMU_GRAVITY_AVG_SAMPLES`` (Default: ``20``): Number of recent accelerometer
   samples to average for the gravity estimate. The correction activates as soon as
@@ -364,106 +361,315 @@ Sensor inputs: GPS (GNSS) (optional)
    or the corresponding :ref:`ROS2 launch arguments <mola_lo_ros_launch_arguments>`.
 
 
-- ``MOLA_GNSS_TOPIC`` (Default: ``/gps``): For ROS 2 live node or rosbags, the **topic name** to be treated as
-  GNSS data. Used only for storage in simple-maps for post-processing (geo-referencing, etc.).
+- ``MOLA_GPS_NAME`` (Default: ``gps``): **Sensor label** (or regex) of GNSS observations inside the pipeline.
+  Used only for storage in simple-maps for post-processing (geo-referencing, etc.).
+
+  .. note::
+
+     For ROS 2 live or rosbag sources, the ROS topic name that the bridge subscribes to is controlled separately
+     by ``MOLA_GNSS_TOPIC`` (see :ref:`mola_lo_ros_mola-cli-env-vars`). These are two different variables:
+     ``MOLA_GPS_NAME`` is the internal sensor label; ``MOLA_GNSS_TOPIC`` is the ROS topic.
 
 
 Scan de-skew options
 ^^^^^^^^^^^^^^^^^^^^^^
 
-- ``MOLA_IGNORE_NO_POINT_STAMPS`` (Default: ``true``): If enabled (default), input point clouds without per-point timestamps
-  will be just processed without doing any de-skew on them. If this variable is set to ``false``, an exception will be triggered
-  in such event, which can be used as a fail-safe check against missing stamps, important in high velocity scenarios.
+- ``MOLA_DESKEW_METHOD`` (Default: ``MotionCompensationMethod::Linear``): Selects the scan de-skew (motion compensation) method.
 
-- ``MOLA_DESKEW_METHOD`` (Default: ``MotionCompensationMethod::Linear``): Selects the scan de-skew (motion compensation) method. Set to ``MotionCompensationMethod::IMU`` to use IMU data for deskewing when an IMU stream is available.
+  .. note::
+
+     **IMPORTANT**: If you do not change this from its default, IMU data will not be used for deskewing.
+     To fully achieve the best accuracy when an IMU is available, set this to ``MotionCompensationMethod::IMU``.
+
+- ``MOLA_IGNORE_NO_POINT_STAMPS`` (Default: ``true``): If enabled (default), input point clouds without per-point timestamps
+  will be processed without doing any de-skew. If set to ``false``, an exception is triggered in that event,
+  which can be used as a fail-safe check against missing stamps, important in high-velocity scenarios.
+
+- ``MOLA_SCAN_POINT_STAMPS_ADJUST_METHOD`` (Default: ``TimestampAdjustMethod::MiddleIsZero``): Method for adjusting
+  per-point timestamps so that the scan mid-point is at time zero. Affects how twist is applied during deskewing.
+
 
 General options
 ^^^^^^^^^^^^^^^^^^^^^^
 
-- ``MOLA_OPTIMIZE_TWIST`` (Default: ``true`` in LO, ``false`` in LIO): Whether to enable the optimization of vehicle twist (linear+angular velocity vectors)
-  within the ICP loop. Useful for high-dynamics. Requires incoming point clouds with timestamps.
+- ``MOLA_OPTIMIZE_TWIST`` (Default: ``true`` for most pipelines, hardcoded ``false`` in the GICP pipeline):
+  Whether to optimize vehicle twist (linear and angular velocity vectors) within the ICP loop.
+  Useful for high-dynamics scenarios. Requires incoming point clouds with per-point timestamps.
+  In the GICP pipeline the early-deskew pass takes priority; use ``lidar3d-gicp-optimize-twist.yaml``
+  to re-enable it.
 
-- ``MOLA_MAPPING_ENABLED`` (Default: ``true``): Whether to update the local map. Might be temporarily disabled if so desired, 
-  or permanently disabled if using MOLA-LO for localization from a prebuilt map.
+- ``MOLA_MAPPING_ENABLED`` (Default: ``true``): Whether to update the local map. Can be temporarily disabled,
+  or permanently disabled when using MOLA-LO for localization from a prebuilt map.
 
-- ``MOLA_LOAD_MM`` (Default: none): An optional path to a metric map (``*.mm``) file with a prebuilt metric map. Useful for
-  multisession mapping or localization-only mode.
+- ``MOLA_LOAD_MM`` (Default: none): Path to a metric map (``*.mm``) file with a prebuilt metric map to load at startup.
+  Useful for multisession mapping or localization-only mode.
 
-- ``MOLA_MINIMUM_ICP_QUALITY`` (Default: ``0.50``): Minimum quality (from the ``mpcp_icp`` quality evaluators), in the range [0,1], to
-  consider an ICP optimization to be valid.
+- ``MOLA_SAVE_MM`` (Default: none): If set to a non-empty path, the final local metric map is saved to a ``*.mm`` file
+  at the end of the session.
 
-- ``MOLA_SIGMA_MIN_MOTION`` (Default: ``0.04`` [m]): Absolute minimum adaptive "sigma" threshold (refer to the paper).
+- ``MOLA_MINIMUM_ICP_QUALITY`` (Default: ``0.50``): Minimum quality (from ``mp2p_icp`` quality evaluators), in the
+  range [0, 1], to consider an ICP optimization valid.
+
+- ``MOLA_WRITE_DEBUG_ICP_LOG_IF_QUALITY_UNDER`` (Default: none): If set to a value in [0, 1], ``.icplog`` debug files
+  are saved whenever ICP quality drops below that threshold, independently of ``MP2P_ICP_GENERATE_DEBUG_FILES``.
+  Useful for targeted debugging of bad frames without enabling full logging.
+
+- ``MOLA_START_ACTIVE`` (Default: ``true``): If set to ``false``, the odometry pipeline will ignore incoming observations
+  until active is set to ``true`` (e.g. via the GUI).
+
+- ``MOLA_PROFILER`` (Default: ``true``): Enable pipeline and ICP step-level timing profiler. Disable to reduce overhead
+  in production deployments.
+
+- ``MOLA_LO_PUBLISH_REF_FRAME`` (Default: ``odom``): Reference frame name used when publishing pose updates.
+
+- ``MOLA_LO_PUBLISH_VEHICLE_FRAME`` (Default: ``base_link``): Vehicle frame name used when publishing pose updates.
+
+- ``MOLA_LO_PUBLISH_DESKEWED_SCANS`` (Default: ``false``): If enabled, deskewed scans are published as ROS 2 messages,
+  mostly for visualization. May slow down the system.
 
 
-- ``MOLA_ADAPT_THRESHOLD_ALPHA`` (Default: ``0.99``): Alpha parameter of the IIR low-pass filter for adaptive threshold 
-  proportional controller (refer to the paper).
+Adaptive threshold
+^^^^^^^^^^^^^^^^^^^^^^
 
-- ``MOLA_START_ACTIVE`` (default: ``true``): If set to ``false``, the odometry pipeline will ignore incoming observations
-  until active is set to true (e.g. via the GUI).
+The adaptive threshold controls the ICP matching window (sigma), following the approach of KISS-ICP.
+
+- ``MOLA_SIGMA_INITIAL`` (Default: ``0.50`` [m]): Initial sigma value at startup.
+
+- ``MOLA_SIGMA_MIN_MOTION`` (Default: ``0.04`` [m]): Absolute minimum for sigma.
+
+- ``MOLA_SIGMA_MAX_MOTION`` (Default: ``0.50`` [m]; GICP and ICP pipelines): Upper cap for sigma.
+  Named ``MOLA_SIGMA_MAX`` in the NDT pipeline with a default of ``0.5`` [m].
+
+- ``MOLA_ADAPT_THRESHOLD_ALPHA`` (Default: ``0.90``): Alpha parameter of the IIR low-pass filter for the adaptive
+  threshold proportional controller (refer to the paper).
+
+- ``MOLA_ADAPT_THRESHOLD_RECOVER`` (Default: ``false``): If enabled, sigma is grown multiplicatively after a streak
+  of bad ICP results, up to ``MOLA_SIGMA_MAX_MOTION``, allowing the matcher window to re-open and ICP to recover
+  from sustained failure.
+
+- ``MOLA_ADAPT_THRESHOLD_RECOVER_AFTER_N_BAD`` (Default: ``5``): Number of consecutive bad ICP results before
+  recovery growth kicks in, when ``MOLA_ADAPT_THRESHOLD_RECOVER`` is enabled.
+
+- ``MOLA_ADAPT_THRESHOLD_RECOVER_GROWTH_FACTOR`` (Default: ``1.5``): Multiplicative growth factor applied to sigma
+  per bad frame during recovery.
 
 
 Local map update
 ^^^^^^^^^^^^^^^^^^^^^^
 
-- ``MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES`` (Default: a heuristic formula, see YAML file): Minimum distance in meters between updates to
-  the local map.
+- ``MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES`` (Default: heuristic formula, see YAML file): Minimum distance in meters between
+  updates to the local map.
 
-- ``MOLA_MIN_ROT_BETWEEN_MAP_UPDATES`` (In degrees. Default: a heuristic formula, see YAML file): Minimum angle in degrees between updates to
-  the local map.
+- ``MOLA_MIN_ROT_BETWEEN_MAP_UPDATES`` (In degrees. Default: heuristic formula, see YAML file): Minimum angle in degrees
+  between updates to the local map.
 
-- ``MOLA_LOCAL_MAP_MAX_SIZE`` (In meters; default: heuristic formula, see YAML file): Parts of the local metric map farther away then this 
-  distance, measured from the current robot pose, will be removed. This is to both, save memory usage, and to avoid inconsistencies 
-  before closing loops (which shall be processed outside of the LO module).
+- ``MOLA_LOCAL_MAP_MAX_SIZE`` (In meters; default: heuristic formula, see YAML file): Parts of the local metric map farther
+  away than this distance, measured from the current robot pose, will be removed. This saves memory and avoids
+  inconsistencies before loop-closure (which is handled outside of the LO module).
 
 - ``MOLA_LOCAL_VOXELMAP_RESOLUTION`` (In meters; default: heuristic formula, see YAML file): Size of voxels for the local map.
+  **Not used in the GICP pipeline**, which uses a keyframe-based map instead.
+
+- ``MOLA_MIN_NEARBY_POSES_OCCUPIED`` (Default: ``1``): Minimum number of nearby local-map poses that must be occupied
+  before a new keyframe is accepted into the map.
+
+- ``MOLA_PUBLISH_LOCAL_MAP_UPDATES_EVERY_N`` (Default: ``40`` in GICP, ``5`` in NDT): Publish local map visualization
+  updates every N ICP iterations.
+
+
+Observation filter pipeline
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- ``MOLA_LO_OBS_PREFILTER_PIPELINE_FILE`` (Default: none): Path to an optional user-defined ``mp2p_icp`` pipeline YAML
+  file applied to raw observations before any built-in filtering. Use this to inject custom filters (e.g. a ring-based
+  ground filter or a sector masking filter) without modifying the main pipeline file.
+
+- ``MOLA_CLOUD_DECIMATION_VOXEL_SIZE`` (Default: ``0.15`` [m] for map, ``0.10`` [m] for ICP; GICP pipeline only):
+  Minimum voxel size for adaptive decimation of point clouds. The GICP pipeline uses two separate decimation stages;
+  this sets the floor voxel size for both. See also ``MOLA_DECIMATED_POINTS_MAP`` and ``MOLA_DECIMATED_POINTS_ICP``.
+
+- ``MOLA_DECIMATED_POINTS_MAP`` (Default: ``10000``; GICP pipeline only): Target point count for the cloud inserted
+  into the local map after adaptive decimation.
+
+- ``MOLA_DECIMATED_POINTS_ICP`` (Default: ``3000``; GICP pipeline only): Target point count for the cloud used in
+  ICP matching after adaptive decimation.
+
+
+ICP settings
+^^^^^^^^^^^^^^^^^^^^^^
+
+- ``MOLA_MAX_ICP_ITERATIONS`` (Default: ``25``): Maximum number of ICP iterations per scan.
+
+- ``MOLA_LOCALMAP_LAYER_NAME`` (Default: ``localmap``; GICP and ICP pipelines): Name of the metric map layer used
+  as the local map for ICP matching and map insertion.
+
+- ``MOLA_LO_ROBUST_KERNEL`` (Default: ``RobustKernel::GemanMcClure``): Robust kernel type used in the ICP
+  Gauss-Newton solver.
+
+- ``MOLA_LO_ROBUST_KERNEL_PARAM`` (Default: ``6.0``): Parameter for the robust kernel (scale; in normalized
+  covariance units for the GICP pipeline).
+
+- ``MOLA_ICP_COVARIANCE_METHOD`` (Default: ``Censi3D``; GICP pipeline only): Post-optimization SE(3) covariance
+  estimation method. ``Censi3D`` is the sandwich estimator suited for cov-to-cov pipelines.
+
+- ``MOLA_ICP_COV_DEFAULT_POINT_SIGMA`` (Default: ``0.01`` [m]; GICP pipeline only): Per-point sigma used in
+  covariance estimation.
+
+- ``MOLA_ICP_COV_FLOOR_XYZ`` (Default: ``0.001`` [m]; GICP pipeline only): Floor on the XYZ diagonal of the output
+  covariance, to keep downstream filters numerically stable.
+
+- ``MOLA_ICP_COV_FLOOR_ANGLES_DEG`` (Default: ``0.1`` [deg]; GICP pipeline only): Floor on the angular diagonal
+  of the output covariance.
+
+
+GICP local map parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following variables tune the ``mola::KeyframePointCloudMap`` used as local map in the GICP pipeline.
+They have no effect on the ICP or NDT pipelines.
+
+- ``MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES`` (Default: ``3``): Maximum number of keyframes searched for correspondences
+  per ICP step.
+
+- ``MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV`` (Default: ``20``): Number of nearest neighbors used to estimate
+  per-point covariance in the local map.
+
+- ``MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER`` (Default: ``true``): Enable filtering of candidate keyframes by
+  view direction, to avoid matching from very different angles.
+
+- ``MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG`` (Default: ``120`` [deg]): Maximum angular difference allowed
+  between the current view direction and a candidate keyframe to be considered for matching.
+
+- ``MOLA_LOCALMAP_DIVERSE_KEYFRAMES`` (Default: ``1``): Number of diverse keyframes to force into the candidate set
+  regardless of proximity. Must be less than ``MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES``.
+
+- ``MOLA_LOCALMAP_VIZ_MAX_POINTS_PER_KF`` (Default: ``10000``): Maximum points rendered per keyframe in the GUI.
+
+- ``MOLA_LOCALMAP_VIZ_MAX_POINTS_OVERALL`` (Default: ``500000``): Maximum total points rendered for the local map
+  in the GUI (e.g. to avoid FoxGlove WebSocket overflow).
 
 
 Simple-map generation
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``MOLA_GENERATE_SIMPLEMAP`` (Default: ``false``): If enabled, a simple-map will be saved at the end of the mapping session.
-  This can then be used as input to any of the ``mp2p_icp`` applications.
+- ``MOLA_GENERATE_SIMPLEMAP`` (Default: ``false``): If enabled, a simple-map will be saved at the end of the mapping
+  session. This can then be used as input to any of the ``mp2p_icp`` applications.
 
-- ``MOLA_SIMPLEMAP_OUTPUT`` (Default: ``final_map.simplemap``): Can be used to change the output file name for maps.
+- ``MOLA_LOAD_SM`` (Default: none): If set, loads an existing simple-map file at startup and continues appending
+  keyframes to it.
 
-- ``MOLA_SIMPLEMAP_MIN_XYZ`` (in meters), ``MOLA_SIMPLEMAP_MIN_ROT`` (in degrees): Minimum distance between simple-map keyframes.
-  Useful to control the density of generated simple-maps. Defaults are heuristic formulas.
+- ``MOLA_SIMPLEMAP_OUTPUT`` (Default: ``final_map.simplemap``): Output file name for simple-maps.
 
-- ``MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD`` (Default: ``false``): If enabled, generated simple-map files will be much smaller since
-  all heavy observations will be stored in external files, making much faster to process those maps afterwards.
+- ``MOLA_SIMPLEMAP_MIN_XYZ`` (in meters), ``MOLA_SIMPLEMAP_MIN_ROT`` (in degrees): Minimum distance between
+  simple-map keyframes. Useful to control the density of generated simple-maps. Defaults are heuristic formulas.
 
-- ``MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES`` (Default: ``false``): If enabled, all LiDAR observations will generate a KeyFrame in the
-  simple-map, but without real raw sensory data if the keyframe does not fulfill the minimum distance criteria above.
-  Useful to generate, in post-processing, the full reconstruction of the vehicle trajectory without missing any timestep.
+- ``MOLA_SIMPLEMAP_MIN_NEARBY_POSES`` (Default: ``1``): Minimum number of nearby poses occupied before a new
+  keyframe is accepted into the simple-map.
+
+- ``MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD`` (Default: ``false``): If enabled, generated simple-map files will be much
+  smaller since all heavy observations will be stored in external files, making those maps faster to process later.
+
+- ``MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES`` (Default: ``false``): If enabled, all LiDAR observations will generate a
+  KeyFrame in the simple-map, but without raw sensory data if the keyframe does not fulfill the minimum distance
+  criteria. Useful to generate, in post-processing, the full vehicle trajectory without missing any timestep.
+
+- ``MOLA_SAVE_DESKEWED_SCANS`` (Default: ``false``): If enabled, deskewed (motion-compensated) scans are stored
+  into simple-map keyframes instead of raw scans. Useful when post-processing requires already-compensated clouds.
+
 
 Trajectory files generation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``MOLA_SAVE_TRAJECTORY`` (Default: ``false``): If enabled, a TUM file will be saved at the end with the full vehicle trajectory.
+- ``MOLA_SAVE_TRAJECTORY`` (Default: ``false``): If enabled, a TUM file will be saved at the end with the full
+  vehicle trajectory.
 
-- ``MOLA_TUM_TRAJECTORY_OUTPUT`` (Default: ``estimated_trajectory.tum``): Can be used to change the output file name.
+- ``MOLA_TUM_TRAJECTORY_OUTPUT`` (Default: ``estimated_trajectory.tum``): Output file name for the TUM trajectory.
+
+
+Observation validity filter
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- ``MOLA_ENABLE_OBS_VALIDITY_FILTER`` (Default: ``false``): Enables a pre-filter that discards incoming scans that
+  appear incomplete, e.g. due to faulty network connections or missing UDP packets.
+
+- ``MOLA_OBS_VALIDITY_MIN_POINTS`` (Default: ``1000``): Minimum number of points a scan must contain to be accepted
+  when ``MOLA_ENABLE_OBS_VALIDITY_FILTER`` is enabled.
+
+
+Initial localization
+^^^^^^^^^^^^^^^^^^^^^^
+
+- ``MOLA_LO_INITIAL_LOCALIZATION_METHOD`` (Default: ``InitLocalization::FixedPose``): Strategy used to determine the
+  initial pose at startup. Options:
+
+  - ``InitLocalization::FixedPose``: Use a fixed pose defined by ``MOLA_INITIAL_*`` below.
+  - ``InitLocalization::IMUCalibration``: Collect IMU samples to determine initial orientation.
+  - ``InitLocalization::FromStateEstimator``: Wait for an external state estimator to converge.
+
+- ``MOLA_INITIAL_X``, ``MOLA_INITIAL_Y``, ``MOLA_INITIAL_Z`` (Default: ``0.0`` [m]): Initial position when using
+  ``InitLocalization::FixedPose``.
+
+- ``MOLA_INITIAL_YAW``, ``MOLA_INITIAL_PITCH``, ``MOLA_INITIAL_ROLL`` (Default: ``0.0`` [deg]): Initial orientation
+  when using ``InitLocalization::FixedPose``.
+
+- ``MOLA_LO_INITIAL_IMU_SAMPLES`` (Default: ``400``): Number of IMU samples to collect for initial orientation
+  calibration when using ``InitLocalization::IMUCalibration``.
+
+- ``MOLA_LO_INITIAL_IMU_USE_ORIENTATION`` (Default: ``true``): Whether to use the IMU orientation quaternion (if
+  provided by the driver) directly, instead of computing orientation from accelerometer readings.
+
+- ``MOLA_LO_INIT_SE_MAX_POS_SIGMA`` (Default: ``0.5`` [m]): Maximum position uncertainty accepted from the state
+  estimator for ``InitLocalization::FromStateEstimator`` to be considered converged.
+
+- ``MOLA_LO_INIT_SE_MAX_ORI_SIGMA`` (Default: ``3.0`` [deg]): Maximum orientation uncertainty accepted from the
+  state estimator for ``InitLocalization::FromStateEstimator``.
+
+- ``MOLA_LO_INIT_SE_TIMEOUT`` (Default: ``60.0`` [s]): Timeout for ``InitLocalization::FromStateEstimator``.
+  If the state estimator does not converge within this time, initialization falls back to ``FixedPose``.
+
 
 Visualization
 ^^^^^^^^^^^^^^^^^^^
 
 .. note::
-These settings only have effects if launched via :ref:`MOLA-LO GUI applications <mola_lo_apps>`.
 
-- ``MOLA_VEHICLE_MODEL_FILE`` (Default: none): If provided, this is path to any 3D model file loadable via Assimp (e.g. Collada files ``*.dae``)
+   These settings only have effect if launched via :ref:`MOLA-LO GUI applications <mola_lo_apps>`.
+
+- ``MOLA_VEHICLE_MODEL_FILE`` (Default: none): Path to a 3D model file loadable via Assimp (e.g. Collada ``*.dae``)
   with a representation of the vehicle/robot to show in the GUI.
 
-- ``MOLA_VEHICLE_MODEL_X``, ``MOLA_VEHICLE_MODEL_Y``, ``MOLA_VEHICLE_MODEL_Z``, ``MOLA_VEHICLE_MODEL_YAW``, ``MOLA_VEHICLE_MODEL_PITCH``,
-  ``MOLA_VEHICLE_MODEL_ROLL`` (default: 0): Define a transformation to apply to the 3D asset, if defined in ``MOLA_VEHICLE_MODEL_FILE``.
-  Translations are in meters, rotations in degrees.
+- ``MOLA_VEHICLE_MODEL_X``, ``MOLA_VEHICLE_MODEL_Y``, ``MOLA_VEHICLE_MODEL_Z``, ``MOLA_VEHICLE_MODEL_YAW``,
+  ``MOLA_VEHICLE_MODEL_PITCH``, ``MOLA_VEHICLE_MODEL_ROLL`` (Default: ``0``): Transformation applied to the 3D asset
+  defined in ``MOLA_VEHICLE_MODEL_FILE``. Translations are in meters, rotations in degrees.
+
+.. dropdown:: Additional GUI visualization variables
+   :icon: eye
+
+   - ``MOLA_GUI_SHOW_CURRENT_OBS`` (Default: ``false``): Show live deskewed LiDAR points for the current frame.
+   - ``MOLA_GUI_SHOW_DESKEWED_DECAY`` (Default: ``true``): Show deskewed LiDAR points from recent frames, fading over time.
+   - ``MOLA_GUI_LAST_CLOUDS_POINT_SIZE`` (Default: ``1.0``): Point size for the recent deskewed cloud visualization.
+   - ``MOLA_GUI_LAST_CLOUDS_COLORMAP`` (Default: ``cmJET``): Colormap for recent deskewed clouds (``mrpt::img::TColormap`` name).
+   - ``MOLA_GUI_LAST_CLOUDS_COLOR_FIELD`` (Default: ``intensity``): Point field used for colormap (e.g. ``x``, ``y``, ``z``, ``ring``, ``intensity``).
+   - ``MOLA_GUI_CLOUDS_DECAY_SECS`` (Default: ``10.0`` [s]): Fade-out duration for the deskewed cloud decay visualization.
+   - ``MOLA_GUI_CURRENT_CLOUD_POINT_SIZE`` (Default: ``2.0``): Point size for the current-frame cloud.
+   - ``MOLA_GUI_CURRENT_CLOUD_COLORMAP`` (Default: ``cmHOT``): Colormap for the current-frame cloud.
+   - ``MOLA_GUI_CURRENT_CLOUD_COLOR_FIELD`` (Default: ``intensity``): Point field used to colorize the current-frame cloud.
+   - ``MOLA_GUI_SHOW_ESTIMATED_GRAVITY_VECTOR`` (Default: ``false``): Overlay the estimated gravity direction vector in the 3D view.
+   - ``MOLA_GUI_BACKGROUND_GRAY_LEVEL`` (Default: ``0.3``): Background brightness for the 3D view (0=black, 1=white).
+   - ``MOLA_GUI_SHOW_LOCAL_MAP`` (Default: ``true``): Whether to render the local map in the GUI.
+   - ``MOLA_GUI_SHOW_GROUND_GRID`` (Default: ``true``): Whether to show the ground reference grid in the GUI.
+   - ``MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE`` (Default: ``intensity``; GICP pipeline only): Point field used to
+     colorize the local map in the GUI (e.g. ``x``, ``y``, ``z``, ``ring``, ``intensity``).
 
 
 Motion model
 ^^^^^^^^^^^^^^^^^^^^^^
 A constant velocity motion model is used by default, provided by the ``mola_state_estimation_simple`` module.
 
-- ``MOLA_MAX_TIME_TO_USE_VELOCITY_MODEL`` (Default: 0.75 s): Maximum time between LiDAR frames to use the velocity model. Larger delays will cause using the latest vehicle pose as initial guess.
-- ``MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC`` (Default: 1.0 m/s²): Linear acceleration standard deviation.
-- ``MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC`` (Default: 10.0 rad/s²): Angular acceleration standard deviation.
+- ``MOLA_MAX_TIME_TO_USE_VELOCITY_MODEL`` (Default: ``0.75`` [s]): Maximum time between LiDAR frames to use the
+  velocity model. Larger delays will cause the latest vehicle pose to be used as the initial guess instead.
+- ``MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC`` (Default: ``1.0`` [m/s^2]): Linear acceleration standard deviation.
+- ``MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC`` (Default: ``10.0`` [rad/s^2]): Angular acceleration standard deviation.
 
 
 .. _pipeline_icp_log_files:
@@ -472,22 +678,22 @@ ICP log files
 ^^^^^^^^^^^^^^^^^^^^^^
 
 - ``MP2P_ICP_GENERATE_DEBUG_FILES`` (Default: ``false``): If enabled, ``mp2p_icp::ICP`` log files will be saved
-  into a subdirectory ``icp-logs`` under the current directory. Those logs can be analyzed 
+  into a subdirectory ``icp-logs`` under the current directory. Those logs can be analyzed
   with the GUI tool: :ref:`icp-log-viewer <app_icp-log-viewer>`.
 
 .. note::
 
    Enabling ICP log files is the most powerful tool to **debug mapping or localization** issues or to understand what
-   is going on under the hook. However, **it introduces a significant cost** in both, CPU running time, and disk space.
+   is going on under the hood. However, **it introduces a significant cost** in both CPU running time and disk space.
 
 
 If ``MP2P_ICP_GENERATE_DEBUG_FILES`` is not enabled, the rest of parameters that follow have no effect:
 
 - ``MP2P_ICP_LOG_FILES_DECIMATION`` (Default: ``10``): How many ICP runs to drop before saving one to disk.
-- ``MP2P_ICP_LOG_FILES_SAVE_DETAILS`` (Default: ``false``): If enabled, results, and pairings of **intermediate** 
-  optimization steps are also stored in the ICP logs. Great to learn how ICP actually works, but will increase the log file sizes.
-- ``MP2P_ICP_LOG_FILES_SAVE_DETAILS_DECIMATION`` (Default: ``3``): If ``MP2P_ICP_LOG_FILES_SAVE_DETAILS`` is enabled, how many ICP
-  internal iterations to drop for each saved one.
+- ``MP2P_ICP_LOG_FILES_SAVE_DETAILS`` (Default: ``false``): If enabled, results and pairings of **intermediate**
+  optimization steps are also stored in the ICP logs. Great to learn how ICP actually works, but increases log file sizes.
+- ``MP2P_ICP_LOG_FILES_SAVE_DETAILS_DECIMATION`` (Default: ``3``): If ``MP2P_ICP_LOG_FILES_SAVE_DETAILS`` is enabled,
+  how many ICP internal iterations to drop for each saved one.
 
 
 Trace debug files
