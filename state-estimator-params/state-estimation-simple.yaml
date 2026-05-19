@@ -17,6 +17,12 @@ params:
 
   sigma_imu_angular_velocity: ${MOLA_NAVSTATE_SIGMA_IMU_ANG_VEL|0.05} # [rad/s]
 
+  # Velocity Kalman filter: if true, each fuse_*() measurement is fused via a
+  # per-component scalar Kalman filter instead of being written directly.
+  # Process noise reuses sigma_random_walk_acceleration_linear/angular.
+  # Set to true when IMU or ICP produce noisy velocity readings.
+  velocity_filter_enabled: ${MOLA_NAVSTATE_VELOCITY_FILTER|false}
+
   # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
   initial_twist: [ "${MOLA_INITIAL_VX|0.0}", 0.0, 0.0, 0.0, 0.0, 0.0 ]
 
