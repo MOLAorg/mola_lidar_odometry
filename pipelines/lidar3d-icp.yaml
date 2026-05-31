@@ -124,6 +124,11 @@ params:
 
     background_color_gray_level: "${MOLA_GUI_BACKGROUND_GRAY_LEVEL|0.3}"
 
+    # Enable or disable each of the three GUI panels:
+    show_tab_status: ${MOLA_GUI_SHOW_TAB_STATUS|true}
+    show_tab_control: ${MOLA_GUI_SHOW_TAB_CONTROL|true}
+    show_tab_view: ${MOLA_GUI_SHOW_TAB_VIEW|true}
+
     show_localmap: ${MOLA_GUI_SHOW_LOCAL_MAP|true}
     local_map_point_size: 1
 

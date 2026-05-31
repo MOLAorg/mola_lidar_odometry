@@ -142,6 +142,9 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   MCP_LOAD_OPT(cfg, local_map_colormap_color_by_field);
 
   YAML_LOAD_OPT(gui_subwindow_starts_hidden, bool);
+  YAML_LOAD_OPT(show_tab_status, bool);
+  YAML_LOAD_OPT(show_tab_control, bool);
+  YAML_LOAD_OPT(show_tab_view, bool);
   YAML_LOAD_OPT(camera_follows_vehicle, bool);
   YAML_LOAD_OPT(camera_rotates_with_vehicle, bool);
   YAML_LOAD_OPT(camera_orthographic, bool);

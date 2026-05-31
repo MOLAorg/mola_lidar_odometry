@@ -305,6 +305,11 @@ public:
       bool gui_subwindow_starts_hidden = false;
       std::atomic<bool> show_console_messages{true};
 
+      // --- Tab visibility ---
+      bool show_tab_status = true;
+      bool show_tab_control = true;
+      bool show_tab_view = true;
+
       // --- camera control ---
       bool camera_follows_vehicle = true;
       bool camera_rotates_with_vehicle = false;

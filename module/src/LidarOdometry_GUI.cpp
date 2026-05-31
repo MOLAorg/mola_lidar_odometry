@@ -266,7 +266,16 @@ void LidarOdometry::internalBuildGUI()
       {"LiDAR Odom: Control", &LidarOdometry::buildTabControl, {5, 200}},
       {"LiDAR Odom: View", &LidarOdometry::buildTabView, {5, 430}},
     }};
-    for (const auto & d : defs) {
+    const std::array<bool, 3> tabEnabled = {{
+      params_.visualization.show_tab_status,
+      params_.visualization.show_tab_control,
+      params_.visualization.show_tab_view,
+    }};
+    for (size_t i = 0; i < defs.size(); i++) {
+      if (!tabEnabled[i]) {
+        continue;
+      }
+      const auto & d = defs[i];
       WindowDescription desc;
       desc.title = d.title;
       desc.position = d.pos;
@@ -282,9 +291,15 @@ void LidarOdometry::internalBuildGUI()
     desc.position = {5, 700};
     desc.size = {340, 0};
     desc.starts_hidden = hidden;
-    desc.tabs.emplace_back(buildTabStatus());
-    desc.tabs.emplace_back(buildTabControl());
-    desc.tabs.emplace_back(buildTabView());
+    if (params_.visualization.show_tab_status) {
+      desc.tabs.emplace_back(buildTabStatus());
+    }
+    if (params_.visualization.show_tab_control) {
+      desc.tabs.emplace_back(buildTabControl());
+    }
+    if (params_.visualization.show_tab_view) {
+      desc.tabs.emplace_back(buildTabView());
+    }
     visualizer_->create_subwindow_from_description(desc).get();
   }
 }
