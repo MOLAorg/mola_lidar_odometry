@@ -1,12 +1,24 @@
 # Based on GTSAM file (by @ProfFan)
 name: CI Build colcon
 
-on: [ push ]
+on:
+  push:
+    branches: [ "develop" ]
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+
+# Minimal GITHUB_TOKEN permissions (principle of least privilege)
+permissions:
+  contents: read
 
 jobs:
-  build_docker:
+  # -----------------------------------------------------------------------
+  # Job 1: GitHub-hosted runners (x86_64). Runs for all pushes and PRs,
+  # including PRs from forks.
+  # -----------------------------------------------------------------------
+  build_github_hosted:
     # On Linux, iterates on all ROS 2 distributions.
-    name: ${{ matrix.name }}
+    name: "x86_64 / ${{ matrix.name }}"
     runs-on: ubuntu-latest
     env:
       DEBIAN_FRONTEND: noninteractive
@@ -184,3 +196,76 @@ jobs:
           files: ./coverage_filtered.info
           slug: MOLAorg/mola_lidar_odometry
           flags: colcon,rolling,gcc
+
+  # -----------------------------------------------------------------------
+  # Job 2: Self-hosted runner (arm64). Only runs for pushes or PRs from
+  # the same repository — never for fork PRs — to protect the runner from
+  # untrusted code.
+  # -----------------------------------------------------------------------
+  build_self_hosted:
+    name: "arm64 / ${{ matrix.name }}"
+    if: >
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [ self-hosted, linux, arm64 ]
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      http_proxy: http://host.docker.internal:3142 # apt-cacher-ng
+      https_proxy: http://host.docker.internal:3142 # apt-cacher-ng handles HTTPS too via CONNECT
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Humble Hawksbill (May 2022 - May 2027)
+          - name: humble stable
+            docker_image: ubuntu:jammy
+            ros_distribution: humble
+            use_ros_testing: false
+
+          - name: humble testing
+            docker_image: ubuntu:jammy
+            ros_distribution: humble
+            use_ros_testing: true
+
+          # Jazzy (2024 - 2029)
+          - name: jazzy stable
+            docker_image: ubuntu:noble
+            ros_distribution: jazzy
+            use_ros_testing: false
+
+          - name: jazzy testing
+            docker_image: ubuntu:noble
+            ros_distribution: jazzy
+            use_ros_testing: true
+
+    container:
+      image: ${{ matrix.docker_image }}
+      options: --add-host=host.docker.internal:host-gateway # for apt-cacher-ng
+
+    steps:
+      - name: Install Git
+        run: apt-get update && apt-get install -y git
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false # safer
+
+      - name: setup ROS environment
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: ${{ matrix.ros_distribution }}
+          use-ros2-testing: ${{ matrix.use_ros_testing }}
+
+      - name: Install rosdep dependencies
+        run: |
+          . /opt/ros/*/setup.sh
+          for i in 1 2 3; do rosdep update && break || { echo "rosdep update failed (attempt $i/3), retrying..."; sleep 10; }; done
+          rosdep install --from-paths . --ignore-src -r -y
+
+      - name: Build with colcon
+        run: |
+          . /opt/ros/*/setup.sh
+          MAKEFLAGS="-j2" colcon build --symlink-install --parallel-workers 2 --event-handlers console_direct+
