@@ -210,8 +210,6 @@ jobs:
     runs-on: [ self-hosted, Linux, ARM64 ]
     env:
       DEBIAN_FRONTEND: noninteractive
-      http_proxy: http://host.docker.internal:3142 # apt-cacher-ng
-      https_proxy: http://host.docker.internal:3142 # apt-cacher-ng handles HTTPS too via CONNECT
 
     strategy:
       fail-fast: false
@@ -244,6 +242,15 @@ jobs:
       options: --add-host=host.docker.internal:host-gateway # for apt-cacher-ng
 
     steps:
+      # Scope the apt-cacher-ng proxy to apt only. A global http_proxy/https_proxy
+      # also routed non-apt downloads (e.g. ament_xmllint fetching
+      # package_format3.xsd from download.ros.org) through the package cache,
+      # which it cannot serve, breaking the xmllint test.
+      - name: Configure apt proxy (apt-cacher-ng)
+        run: |
+          printf 'Acquire::http::Proxy "http://host.docker.internal:3142";\n' > /etc/apt/apt.conf.d/01proxy
+          printf 'Acquire::https::Proxy "http://host.docker.internal:3142";\n' >> /etc/apt/apt.conf.d/01proxy
+
       - name: Install Git
         run: apt-get update && apt-get install -y git
 
