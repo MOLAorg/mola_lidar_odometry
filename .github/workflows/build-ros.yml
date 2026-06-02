@@ -269,3 +269,13 @@ jobs:
         run: |
           . /opt/ros/*/setup.sh
           MAKEFLAGS="-j2" colcon build --symlink-install --parallel-workers 2 --event-handlers console_direct+
+
+      - name: Install mola-test-datasets
+        run: |
+          apt-get install -y ros-${{ matrix.ros_distribution }}-mola-test-datasets
+
+      - name: Run unit tests
+        run: |
+          . /opt/ros/*/setup.sh
+          colcon test --event-handlers console_direct+
+          colcon test-result --verbose
