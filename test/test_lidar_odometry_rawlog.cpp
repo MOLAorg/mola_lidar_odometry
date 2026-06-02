@@ -61,6 +61,8 @@ int main_odometry(const OdometryTestParams & p)
   liodom->params_.simplemap.generate = false;
   liodom->params_.estimated_trajectory.output_file.clear();
 
+  liodom->profiler_.enable();
+
   liodom->params_.lidar_sensor_labels.assign(1, std::regex("lidar"));
 
   // Initialize estimator (default settings):
