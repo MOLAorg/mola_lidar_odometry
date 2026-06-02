@@ -88,10 +88,15 @@ jobs:
           apt-get -y install git curl gnupg2 ca-certificates
           git clone https://$TOKEN@github.com/$GITHUB_REPOSITORY.git --recursive "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          # On pull_request events GITHUB_SHA is the auto-generated merge commit,
-          # which is not present in a plain branch clone. Fetch GITHUB_REF so that
-          # both push (refs/heads/...) and PR (refs/pull/N/merge) events work.
-          git fetch origin "$GITHUB_REF"
+          # Check out the exact commit the event points at. On push, GITHUB_SHA
+          # is immutable (GITHUB_REF would track the branch tip, which may have
+          # advanced). On pull_request, GITHUB_SHA is the auto-generated merge
+          # commit (not fetchable by SHA), so fetch GITHUB_REF (refs/pull/N/merge).
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            git fetch origin "$GITHUB_REF"
+          else
+            git fetch origin "$GITHUB_SHA"
+          fi
           git checkout FETCH_HEAD
           git submodule update --init --recursive
 
