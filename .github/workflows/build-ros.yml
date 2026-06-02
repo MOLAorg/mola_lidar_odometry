@@ -88,7 +88,11 @@ jobs:
           apt-get -y install git curl gnupg2 ca-certificates
           git clone https://$TOKEN@github.com/$GITHUB_REPOSITORY.git --recursive "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git checkout $GITHUB_SHA
+          # On pull_request events GITHUB_SHA is the auto-generated merge commit,
+          # which is not present in a plain branch clone. Fetch GITHUB_REF so that
+          # both push (refs/heads/...) and PR (refs/pull/N/merge) events work.
+          git fetch origin "$GITHUB_REF"
+          git checkout FETCH_HEAD
           git submodule update --init --recursive
 
       # Pre-built ros:* images have ROS base but need colcon/rosdep tooling.
