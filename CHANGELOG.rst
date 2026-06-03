@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.1 (2026-06-04)
+------------------
 * simple state estimator: MOLA_NAVSTATE_VELOCITY_FILTER is now true by default
 * ci: fix Jazzy Jalisco EOL date in CI workflow comment (May 2024 - May 2029)
 * ci: scope arm64 apt-cacher-ng proxy to apt only (fix xmllint test) (`#82 <https://github.com/MOLAorg/mola_erathos_slam/issues/82>`_)
