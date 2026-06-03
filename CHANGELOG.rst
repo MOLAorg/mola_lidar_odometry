@@ -2,6 +2,30 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* simple state estimator: MOLA_NAVSTATE_VELOCITY_FILTER is now true by default
+* ci: fix Jazzy Jalisco EOL date in CI workflow comment (May 2024 - May 2029)
+* ci: scope arm64 apt-cacher-ng proxy to apt only (fix xmllint test) (`#82 <https://github.com/MOLAorg/mola_erathos_slam/issues/82>`_)
+* chore: add profiler to unit tests
+* ci: add tests run in self-hosted
+* fix self-runner label
+* CI: add self hosted runner jobs too
+* feat: selective disabling each of the imgui tabs
+* gicp yaml: expose more viz params and the new velocity filter param
+* docs: sync pipeline variables from actual yaml
+* Merge pull request `#81 <https://github.com/MOLAorg/mola_erathos_slam/issues/81>`_ from MOLAorg/clean-gui-code
+  GUI: clear dead code and reorganize ImGui tabs
+* fix: multithread issues
+* gui: split in 3 tabs when in imgui mode
+* chore: remove dead code for mola<2.6.0 compatibility
+* Merge pull request `#80 <https://github.com/MOLAorg/mola_erathos_slam/issues/80>`_ from MOLAorg/more-robust-multi-sensor
+  More robust multi sensor
+* fix: gracefully handle missing scans in multi-lidar settings
+* chore: add warning if dropped lidar scans in multi-sensor mode
+* chore: add debug-level traces for multi-lidar settings
+* Contributors: Jose Luis Blanco-Claraco
+
 2.2.0 (2026-05-11)
 ------------------
 * fix: don't exit upon state estimator lack of convergence
