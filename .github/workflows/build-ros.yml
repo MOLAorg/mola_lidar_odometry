@@ -88,7 +88,16 @@ jobs:
           apt-get -y install git curl gnupg2 ca-certificates
           git clone https://$TOKEN@github.com/$GITHUB_REPOSITORY.git --recursive "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git checkout $GITHUB_SHA
+          # Check out the exact commit the event points at. On push, GITHUB_SHA
+          # is immutable (GITHUB_REF would track the branch tip, which may have
+          # advanced). On pull_request, GITHUB_SHA is the auto-generated merge
+          # commit (not fetchable by SHA), so fetch GITHUB_REF (refs/pull/N/merge).
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            git fetch origin "$GITHUB_REF"
+          else
+            git fetch origin "$GITHUB_SHA"
+          fi
+          git checkout FETCH_HEAD
           git submodule update --init --recursive
 
       # Pre-built ros:* images have ROS base but need colcon/rosdep tooling.
@@ -210,8 +219,6 @@ jobs:
     runs-on: [ self-hosted, Linux, ARM64 ]
     env:
       DEBIAN_FRONTEND: noninteractive
-      http_proxy: http://host.docker.internal:3142 # apt-cacher-ng
-      https_proxy: http://host.docker.internal:3142 # apt-cacher-ng handles HTTPS too via CONNECT
 
     strategy:
       fail-fast: false
@@ -244,6 +251,15 @@ jobs:
       options: --add-host=host.docker.internal:host-gateway # for apt-cacher-ng
 
     steps:
+      # Scope the apt-cacher-ng proxy to apt only. A global http_proxy/https_proxy
+      # also routed non-apt downloads (e.g. ament_xmllint fetching
+      # package_format3.xsd from download.ros.org) through the package cache,
+      # which it cannot serve, breaking the xmllint test.
+      - name: Configure apt proxy (apt-cacher-ng)
+        run: |
+          printf 'Acquire::http::Proxy "http://host.docker.internal:3142";\n' > /etc/apt/apt.conf.d/01proxy
+          printf 'Acquire::https::Proxy "http://host.docker.internal:3142";\n' >> /etc/apt/apt.conf.d/01proxy
+
       - name: Install Git
         run: apt-get update && apt-get install -y git
 
