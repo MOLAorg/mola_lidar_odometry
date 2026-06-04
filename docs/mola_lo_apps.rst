@@ -41,7 +41,7 @@ programs, except ``mola-lidar-odometry-cli`` which is explicitly design not to h
 The labeled parts in the GUI are:
 
 1. The **main space** of the "main" GUI window: used to render the latest 3D local map, together with the incoming raw scan,
-   the 3D vehicle model (if provided), etc. Use the `same mouse and keyboard shortcuts <https://docs.mrpt.org/reference/latest/tutorial-3d-navigation-cheatsheet.html>`_
+   the 3D vehicle model (if provided), etc. Use the `same mouse and keyboard shortcuts <https://docs.mrpt.org/reference/stable/tutorial-3d-navigation-cheatsheet.html>`_
    than in any MRPT 3D window to rotate the view, pan and zoom, etc. The rest of small windows floating in this large windows are
    dubbed **"subwindows"**.
 2. **Dataset source UI**: All dataset sources (offline datasets, rawlog, rosbag2, etc.) offer a common API that can be operated
@@ -296,7 +296,7 @@ and used to generate metric maps using :ref:`sm2mm <app_sm2mm>`.
 
     We recommend using `evo <https://github.com/MichaelGrupp/evo>`_ to visualize
     and compare the output TUM trajectories. You can also use
-    `mrpt::poses::CPose3DInterpolator <https://docs.mrpt.org/reference/latest/class_mrpt_poses_CPose3DInterpolator.html>`_
+    `mrpt::poses::CPose3DInterpolator <https://docs.mrpt.org/reference/stable/class_mrpt_poses_CPose3DInterpolator.html>`_
     to load and parse TUM files in C++, or its Python wrapped version within ``pymrpt``.
 
 

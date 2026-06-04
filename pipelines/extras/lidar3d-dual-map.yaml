@@ -143,7 +143,7 @@ localmap_generator:
       # metric_map_definition_ini_file: '${CURRENT_YAML_FILE_PATH}/localmap_definition_voxelmap.ini'
 
       metric_map_definition:
-        # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/latest/group_mrpt_maps_grp.html
+        # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/stable/group_mrpt_maps_grp.html
         class: mola::HashedVoxelPointCloud
         plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
@@ -167,7 +167,7 @@ localmap_generator:
       process_class_names_regex: "" # NONE: don't process observations in the generator.
       #process_sensor_labels_regex: '.*'
       metric_map_definition:
-        # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/latest/group_mrpt_maps_grp.html
+        # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/stable/group_mrpt_maps_grp.html
         class: mola::HashedVoxelPointCloud
         plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
