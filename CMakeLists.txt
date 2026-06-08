@@ -192,6 +192,7 @@ install(
     scripts/mola-lo-gui-mulran
     scripts/mola-lo-gui-rawlog
     scripts/mola-lo-gui-rosbag2
+    scripts/mola-lo-gui-rosbag1
     scripts/mola-lo-gui-ouster
   DESTINATION
     bin

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# For usage instructions, see: https://docs.mola-slam.org/latest/
+
+if [ "$#" -eq 0 ]; then
+    echo "Error: A ROS 1 bag file (.bag) is required."
+    echo "Usage: $0 /path/to/dataset.bag"
+    echo ""
+    echo "Common environment variables:"
+    echo "  MOLA_LIDAR_TOPIC       LiDAR topic name (default: '/ouster/points')"
+    echo "  MOLA_IMU_TOPIC         IMU topic name (default: '/imu')"
+    echo "  MOLA_GNSS_TOPIC        GNSS NavSatFix topic name (default: '/gps')"
+    echo "  MOLA_ODOMETRY_TOPIC    Wheels 2D odometry (optional)"
+    echo "  MOLA_TF_BASE_LINK      Robot base /tf frame id (default: 'base_link')"
+    exit 1
+fi
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../mola-cli-launchs/
+if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
+  MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
+fi
+
+FILE=$1
+shift 1
+
+MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
+MOLA_INPUT_ROSBAG1="$FILE" \
+  mola-cli \
+    "$MOLA_LAUNCHS_DIR/lidar_odometry_from_rosbag1.yaml" \
+    "$@"
