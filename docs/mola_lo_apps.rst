@@ -57,6 +57,49 @@ The labeled parts in the GUI are:
 
 |
 
+.. _mola_lo_gui_visualizer_selection:
+
+Choosing a visualizer module
+---------------------------------
+MOLA provides two alternative visualizer modules, both allowing MRPT's OpenGL rendering,
+that can be used with all GUI applications:
+
+- **MolaViz** (``mola_viz``): The default visualizer, based on nanogui.
+  Mature and well-tested.
+- **MolaVizImGui** (``mola_viz_imgui``): A newer visualizer built on Dear ImGui.
+  Under active development and expected to become the default in a future release.
+
+.. list-table::
+   :widths: 50 50
+   :header-rows: 1
+
+   * - MolaViz (default)
+     - MolaVizImGui
+   * - .. image:: https://mrpt.github.io/imgs/screenshot_molaviz.png
+          :alt: MolaViz GUI screenshot
+          :width: 100%
+     - .. image:: https://mrpt.github.io/imgs/screenshot_molaviz_imgui.png
+          :alt: MolaVizImGui GUI screenshot
+          :width: 100%
+
+To switch between them, set the ``MOLA_GUI_MODULE`` environment variable before launching
+any of the GUI applications:
+
+.. code-block:: bash
+
+   # Explicitly select MolaViz (nanogui-based):
+   MOLA_GUI_MODULE=mola::MolaViz mola-lo-gui-rosbag2 /path/to/your/dataset.mcap
+
+   # Select the alternative MolaVizImGui (Dear ImGui-based):
+   MOLA_GUI_MODULE=mola::MolaVizImGui mola-lo-gui-rosbag2 /path/to/your/dataset.mcap
+
+.. note::
+
+   ``MolaViz`` is the current default. ``MolaVizImGui`` is under active development
+   and may become the default in a future release once it reaches full feature parity.
+
+|
+
 .. _mola_lo_gui_rosbag2:
 
 1.1. mola-lo-gui-rosbag2
