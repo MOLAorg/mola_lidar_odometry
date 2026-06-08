@@ -588,23 +588,19 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       "twistCorrectionCount", static_cast<double>(twistCorrectionCount));
     state_.parameter_source.updateVariable("icp_quality", state_.last_icp_quality);
 
-    // KISS-ICP adaptive threshold method:
+    // Adaptive threshold method:
     // Only update on good ICP: a bad ICP may have converged to a local minimum
     // near the initial guess, yielding an artificially small motion model error
     // that would incorrectly shrink the search threshold.
     if (params_.adaptive_threshold.enabled && icpIsGood) {
-      const mrpt::poses::CPose3D motionModelError =
-        out.found_pose_to_wrt_from.mean - mrpt::poses::CPose3D(in.init_guess_local_wrt_global);
+      doUpdateAdaptiveThreshold();
 
-      doUpdateAdaptiveThreshold(motionModelError);
+      MRPT_LOG_DEBUG_STREAM("Adaptive threshold: sigma=" << state_.adapt_thres_sigma);
 
-      MRPT_LOG_DEBUG_STREAM(
-        "Adaptive threshold: sigma=" << state_.adapt_thres_sigma
-                                     << " motionModelError=" << motionModelError.asString());
     }  // end adaptive threshold
 
     // Sustained-failure recovery for the adaptive threshold (opt-in).
-    // The KISS-ICP rule above never updates sigma on a bad ICP, which is correct
+    // The rule above never updates sigma on a bad ICP, which is correct
     // for isolated failures but creates a deadlock under sustained failure: with
     // sigma frozen small, the matcher window stays tight and ICP cannot find
     // enough correspondences to recover. When enabled, after a streak of bad

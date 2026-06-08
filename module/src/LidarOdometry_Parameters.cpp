@@ -91,6 +91,7 @@ void LidarOdometry::Parameters::AdaptiveThreshold::initialize(const Yaml & cfg)
   YAML_LOAD_REQ(alpha, double);
   YAML_LOAD_OPT(maximum_sigma, double);
   YAML_LOAD_OPT(icp_quality_controller_setpoint, double);
+  YAML_LOAD_OPT(max_sigma_step, double);
 
   YAML_LOAD_OPT(recover_on_sustained_failure, bool);
   YAML_LOAD_OPT(recover_after_n_bad, int);
