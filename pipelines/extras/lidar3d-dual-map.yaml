@@ -22,11 +22,23 @@ params:
   # Minimum ICP quality to insert it into the map:
   min_icp_goodness: 0.25
 
-  # Adaptive threshold, as in the KISS-ICP paper:
+  # Adaptive threshold:
   adaptive_threshold:
     enabled: true
-    initial_sigma: 2.0
-    min_motion: 0.10
+    initial_sigma: ${MOLA_SIGMA_INITIAL|0.50} # [m]
+    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.04} # [m]
+    maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|0.50} # [m]
+    max_sigma_step: ${MOLA_SIGMA_MAX_STEP|0.05} # [m]
+    icp_quality_controller_setpoint: ${MOLA_SIGMA_CONTROLLER_QUALITY_SETPOINT|0.85}
+    kp: ${MOLA_SIGMA_CONTROLLER_GAIN|2.0}
+    alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.90}
+    # Optional sustained-failure recovery: if enabled, sigma is grown
+    # multiplicatively after a streak of bad ICPs, capped at maximum_sigma,
+    # so the matcher window can re-open and ICP can recover. With the flag
+    # off (default) behavior is unchanged.
+    recover_on_sustained_failure: ${MOLA_ADAPT_THRESHOLD_RECOVER|false}
+    recover_after_n_bad: ${MOLA_ADAPT_THRESHOLD_RECOVER_AFTER_N_BAD|5}
+    recover_growth_factor: ${MOLA_ADAPT_THRESHOLD_RECOVER_GROWTH_FACTOR|1.5}
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
@@ -115,11 +127,7 @@ icp_settings_with_vel:
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         pointLayerMatches:
-          - {
-              global: "localmap_far",
-              local: "decimated_for_icp_near",
-              weight: 1.0,
-            }
+          - { global: "localmap_far", local: "decimated_for_icp_near", weight: 1.0 }
 
   quality:
     - class: mp2p_icp::QualityEvaluator_PairedRatio
@@ -237,32 +245,16 @@ observations_filter_1st_pass:
     params:
       input_pointcloud_layer: "range_filtered"
       outside_pointcloud_layer: "filtered"
-      bounding_box_min:
-        [
-          -0.30*ESTIMATED_OBSERVATION_RADIUS,
-          -0.30*ESTIMATED_OBSERVATION_RADIUS,
-          0.05*ESTIMATED_OBSERVATION_RADIUS,
-        ]
-      bounding_box_max:
-        [
-          0.30*ESTIMATED_OBSERVATION_RADIUS,
-          0.30*ESTIMATED_OBSERVATION_RADIUS,
-          0.40*ESTIMATED_OBSERVATION_RADIUS,
-        ]
+      bounding_box_min: [-0.30*ESTIMATED_OBSERVATION_RADIUS, -0.30*ESTIMATED_OBSERVATION_RADIUS, 0.05*ESTIMATED_OBSERVATION_RADIUS]
+      bounding_box_max: [0.30*ESTIMATED_OBSERVATION_RADIUS, 0.30*ESTIMATED_OBSERVATION_RADIUS, 0.40*ESTIMATED_OBSERVATION_RADIUS]
 
   - class_name: mp2p_icp_filters::FilterBoundingBox
     params:
       input_pointcloud_layer: "filtered"
       inside_pointcloud_layer: "near"
       outside_pointcloud_layer: "far"
-      bounding_box_min:
-        [
-          -0.30*ESTIMATED_OBSERVATION_RADIUS,
-          -0.30*ESTIMATED_OBSERVATION_RADIUS,
-          -1000.0,
-        ]
-      bounding_box_max:
-        [0.30*ESTIMATED_OBSERVATION_RADIUS, 0.30*ESTIMATED_OBSERVATION_RADIUS, -1.0]
+      bounding_box_min: [-0.30*ESTIMATED_OBSERVATION_RADIUS, -0.30*ESTIMATED_OBSERVATION_RADIUS, -1000.0]
+      bounding_box_max: [0.30*ESTIMATED_OBSERVATION_RADIUS, 0.30*ESTIMATED_OBSERVATION_RADIUS, -1.0]
 
   - class_name: mp2p_icp_filters::FilterDecimateVoxels
     params:
@@ -295,8 +287,7 @@ observations_filter_1st_pass:
   # Remove layers to save memory and log file storage
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove:
-        ["raw", "deskewed", "range_filtered", "filtered", "far", "near"]
+      pointcloud_layer_to_remove: ["raw", "deskewed", "range_filtered", "filtered", "far", "near"]
 
 # To populate the local map, one or more observation layers are merged
 # into the local map via this pipeline:
@@ -306,13 +297,11 @@ insert_observation_into_local_map:
       input_pointcloud_layer: "decimated_for_map"
       target_layer: "localmap"
       input_layer_in_local_coordinates: true
-      robot_pose:
-        [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
+      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
 
   - class_name: mp2p_icp_filters::FilterMerge
     params:
       input_pointcloud_layer: "decimated_for_map_far"
       target_layer: "localmap_far"
       input_layer_in_local_coordinates: true
-      robot_pose:
-        [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
+      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]

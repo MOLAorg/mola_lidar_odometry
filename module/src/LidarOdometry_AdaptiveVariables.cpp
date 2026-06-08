@@ -136,58 +136,39 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
   state_.parameter_source.realize();
 }
 
-// KISS-ICP adaptive threshold method (MIT License; code adapted to MRPT)
-namespace
-{
-double computeModelError(const mrpt::poses::CPose3D & model_deviation, double max_range)
-{
-  const double theta = mrpt::poses::Lie::SO<3>::log(model_deviation.getRotationMatrix()).norm();
-  const double delta_rot = 2.0 * max_range * std::sin(theta / 2.0);
-  const double delta_trans = model_deviation.translation().norm();
-  return delta_trans + delta_rot;
-}
-}  // namespace
-
-void LidarOdometry::doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastMotionModelError)
+void LidarOdometry::doUpdateAdaptiveThreshold()
 {
   if (!state_.estimated_observation_radius.has_value()) {
     return;
   }
 
-  const double max_range = state_.estimated_observation_radius.value();
-
-  const double ALPHA = params_.adaptive_threshold.alpha;
-
-  const double model_error = computeModelError(lastMotionModelError, max_range);
-  double rot_error = 0;
-  if (state_.last_motion_model_output) {
-    const auto & tw = state_.last_motion_model_output->twist;
-    rot_error = 0.01 * mrpt::math::TVector3D(tw.wx, tw.wy, tw.wz).norm() * max_range;
-  }
-
-  // proportional controller constant
-  const double KP = params_.adaptive_threshold.kp;
-  ASSERT_(KP > 1.0);
-
-  const double new_sigma =
-    (model_error + rot_error) *
-    mrpt::saturate_val(
-      KP * (params_.adaptive_threshold.icp_quality_controller_setpoint - state_.last_icp_quality),
-      0.1, KP);
-
-  if (state_.adapt_thres_sigma == 0) {  // initial
+  // Initialization guard FIRST
+  if (state_.adapt_thres_sigma == 0) {
     state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;
   }
 
-  state_.adapt_thres_sigma = (ALPHA * state_.adapt_thres_sigma) + ((1.0 - ALPHA) * new_sigma);
+  const double ALPHA = params_.adaptive_threshold.alpha;
+  const double KP = params_.adaptive_threshold.kp;
+  ASSERT_(KP > 0.0);  // any positive gain is valid
 
+  // Additive P-controller: positive error → increase sigma
+  const double error =
+    params_.adaptive_threshold.icp_quality_controller_setpoint - state_.last_icp_quality;
+  const double delta = std::clamp(
+    KP * error, -params_.adaptive_threshold.max_sigma_step,
+    params_.adaptive_threshold.max_sigma_step);
+  const double new_sigma = state_.adapt_thres_sigma + delta;
+
+  // EMA smoothing
+  state_.adapt_thres_sigma = ALPHA * state_.adapt_thres_sigma + (1.0 - ALPHA) * new_sigma;
+
+  // Hard bounds last
   mrpt::saturate(
     state_.adapt_thres_sigma, params_.adaptive_threshold.min_motion,
     params_.adaptive_threshold.maximum_sigma);
 
   MRPT_LOG_DEBUG_FMT(
-    "model_error: %f  new_sigma: %f ICP q=%f sigma=%f", model_error, new_sigma,
-    state_.last_icp_quality, state_.adapt_thres_sigma);
+    "delta: %+.4f ICP q=%.3f sigma=%.4f", delta, state_.last_icp_quality, state_.adapt_thres_sigma);
 }
 
 void LidarOdometry::doInitializeEstimatedObservationRadius(const mrpt::obs::CObservation & o)

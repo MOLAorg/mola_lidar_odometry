@@ -333,19 +333,20 @@ public:
     };
     Visualization visualization;
 
-    // KISS-ICP adaptive threshold method:
+    // Adaptive threshold method based purely on ICP quality
     struct AdaptiveThreshold
     {
       bool enabled = true;
-      double initial_sigma = 0.5;
-      double maximum_sigma = 3.0;
-      double min_motion = 0.10;
+      double initial_sigma = 0.5;    // Units: [m]
+      double maximum_sigma = 3.0;    // Units: [m]
+      double min_motion = 0.10;      // Units: [m]
+      double max_sigma_step = 0.05;  // Units: [m]
       double kp = 5.0;
       double alpha = 0.99;
-      double icp_quality_controller_setpoint = 0.85;
+      double icp_quality_controller_setpoint = 0.85;  // Range: [0,1]
 
       // Sustained-failure recovery (opt-in).
-      // KISS-ICP only updates sigma on good ICP, so a streak of bad ICPs
+      // Updates sigma on good ICP, so a streak of bad ICPs
       // freezes sigma at its last (typically small) value. With a small
       // matcher window the system cannot recover from a perturbation that
       // exceeds 2*sigma. When enabled, sigma is multiplicatively grown
@@ -991,8 +992,8 @@ private:
   void onGPS(const CObservation::ConstPtr & o);
   void onGPSImpl(const CObservation::ConstPtr & o);
 
-  // KISS-ICP adaptive threshold method:
-  void doUpdateAdaptiveThreshold(const mrpt::poses::CPose3D & lastMotionModelError);
+  // Adaptive threshold method:
+  void doUpdateAdaptiveThreshold();
 
   void doInitializeEstimatedObservationRadius(const mrpt::obs::CObservation & o);
   void doUpdateEstimatedObservationRadius(const mp2p_icp::metric_map_t & m);

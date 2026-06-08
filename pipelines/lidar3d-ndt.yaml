@@ -62,13 +62,15 @@ params:
   # Minimum ICP quality to insert it into the map:
   min_icp_goodness: ${MOLA_MINIMUM_ICP_QUALITY|0.25}
 
-  # Adaptive threshold, as in the KISS-ICP paper:
+  # Adaptive threshold:
   adaptive_threshold:
     enabled: true
-    initial_sigma: 2.0 # [m]
-    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10} # [m]
-    maximum_sigma: ${MOLA_SIGMA_MAX|0.5} # [m]
-    kp: 2.0
+    initial_sigma: ${MOLA_SIGMA_INITIAL|0.50} # [m]
+    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.04} # [m]
+    maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|0.50} # [m]
+    max_sigma_step: ${MOLA_SIGMA_MAX_STEP|0.05} # [m]
+    icp_quality_controller_setpoint: ${MOLA_SIGMA_CONTROLLER_QUALITY_SETPOINT|0.85}
+    kp: ${MOLA_SIGMA_CONTROLLER_GAIN|2.0}
     alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.90}
     # Optional sustained-failure recovery: if enabled, sigma is grown
     # multiplicatively after a streak of bad ICPs, capped at maximum_sigma,

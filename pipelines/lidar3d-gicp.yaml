@@ -79,14 +79,15 @@ params:
   # Useful to debug mapping issues. If empty, only the env var MP2P_ICP_GENERATE_DEBUG_FILES and the icp.params setting will define when to save logs.
   write_debug_icp_log_if_quality_under: ${MOLA_WRITE_DEBUG_ICP_LOG_IF_QUALITY_UNDER|""}
 
-  # Adaptive threshold, as in the KISS-ICP paper:
+  # Adaptive threshold:
   adaptive_threshold:
     enabled: true
     initial_sigma: ${MOLA_SIGMA_INITIAL|0.50} # [m]
     min_motion: ${MOLA_SIGMA_MIN_MOTION|0.04} # [m]
     maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|0.50} # [m]
-    icp_quality_controller_setpoint: 0.85
-    kp: 2.0
+    max_sigma_step: ${MOLA_SIGMA_MAX_STEP|0.05} # [m]
+    icp_quality_controller_setpoint: ${MOLA_SIGMA_CONTROLLER_QUALITY_SETPOINT|0.85}
+    kp: ${MOLA_SIGMA_CONTROLLER_GAIN|2.0}
     alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.90}
     # Optional sustained-failure recovery: if enabled, sigma is grown
     # multiplicatively after a streak of bad ICPs, capped at maximum_sigma,
