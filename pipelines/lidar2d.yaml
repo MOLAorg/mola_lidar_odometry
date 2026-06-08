@@ -52,13 +52,23 @@ params:
   # Minimum ICP quality to insert it into the map:
   min_icp_goodness: 0.25
 
-  # Adaptive threshold, as in the KISS-ICP paper:
+  # Adaptive threshold:
   adaptive_threshold:
     enabled: true
-    initial_sigma: 0.20
-    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.10}
-    kp: 2.0
-    alpha: 0.99
+    initial_sigma: ${MOLA_SIGMA_INITIAL|0.50} # [m]
+    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.04} # [m]
+    maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|0.50} # [m]
+    max_sigma_step: ${MOLA_SIGMA_MAX_STEP|0.05} # [m]
+    icp_quality_controller_setpoint: ${MOLA_SIGMA_CONTROLLER_QUALITY_SETPOINT|0.85}
+    kp: ${MOLA_SIGMA_CONTROLLER_GAIN|2.0}
+    alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.90}
+    # Optional sustained-failure recovery: if enabled, sigma is grown
+    # multiplicatively after a streak of bad ICPs, capped at maximum_sigma,
+    # so the matcher window can re-open and ICP can recover. With the flag
+    # off (default) behavior is unchanged.
+    recover_on_sustained_failure: ${MOLA_ADAPT_THRESHOLD_RECOVER|false}
+    recover_after_n_bad: ${MOLA_ADAPT_THRESHOLD_RECOVER_AFTER_N_BAD|5}
+    recover_growth_factor: ${MOLA_ADAPT_THRESHOLD_RECOVER_GROWTH_FACTOR|1.5}
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
