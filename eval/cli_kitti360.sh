@@ -4,6 +4,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 # Default pipeline YAML file:
 PIPELINE_YAML="${PIPELINE_YAML:-$SCRIPT_DIR/../pipelines/lidar3d-default.yaml}"
+STATE_ESTIMATOR_YAML="${MOLA_SE_YAML:-$SCRIPT_DIR/../state-estimator-params/state-estimation-simple.yaml}"
 
 DEFAULT_SEQS_TO_RUN="test_0 test_1 test_2 test_3 00 03 04 05 06 07 09 10"
 # Removed 02: See: https://github.com/autonomousvision/kitti360Scripts/issues/92
@@ -29,6 +30,7 @@ parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD=true \
   mola-lidar-odometry-cli \
     -c $PIPELINE_YAML\
+    --state-estimator-param-file $STATE_ESTIMATOR_YAML \
     --input-kitti360-seq {} \
     --output-tum-path results/kitti360_{}_mola.tum $@ \
 ::: $SEQS_TO_RUN

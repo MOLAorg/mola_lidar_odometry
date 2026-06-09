@@ -353,6 +353,7 @@ Process a ROS 2 bag
 
         mola-lidar-odometry-cli \
           -c $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-default.yaml \
+          --state-estimator-param-file $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/state-estimator-params/state-estimation-simple.yaml \
           --input-rosbag2 /PATH/TO/YOUR/rosbag.mcap \
           --lidar-sensor-label /ouster/points \
           --output-tum-path trajectory.tum \
@@ -417,6 +418,7 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
 
         mola-lidar-odometry-cli \
           -c $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-default.yaml \
+          --state-estimator-param-file $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/state-estimator-params/state-estimation-simple.yaml \
           --input-kitti-seq 00 \
           --output-tum-path kitti-00.tum
 

@@ -10,6 +10,7 @@ PIPELINE_YAML="${PIPELINE_YAML:-src/mola_lidar_odometry/pipelines/lidar3d-defaul
 # What sequences to test:
 DEFAULT_SEQUENCES="KAIST01 KAIST02 KAIST03 DCC01 DCC02 DCC03 Riverside01 Riverside02 Riverside03 Sejong01 Sejong02 Sejong03"
 SEQUENCES="${SEQUENCES:-${DEFAULT_SEQUENCES}}"
+STATE_ESTIMATOR_YAML="${MOLA_SE_YAML:-$SCRIPT_DIR/../state-estimator-params/state-estimation-simple.yaml}"
 
 echo "Sequences to run: $SEQUENCES"
 NUM_THREADS="${NUM_THREADS:-3}"
@@ -35,6 +36,7 @@ parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD=true \
   mola-lidar-odometry-cli \
     -c $PIPELINE_YAML\
+    --state-estimator-param-file $STATE_ESTIMATOR_YAML \
     --input-mulran-seq {} \
     --output-tum-path results/mulran_{}_mola${PIPELINE_PREFIX}.tum \
 ::: $SEQUENCES
