@@ -218,6 +218,20 @@ LidarOdometry::lastEstimatedState() const
   return {{pose, tw}};
 }
 
+double LidarOdometry::lastIcpQuality() const
+{
+  {
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+    if (!state_.initialized || state_.fatal_error) {
+      return 0;
+    }
+  }
+
+  auto lck = mrpt::lockHelper(state_mtx_);
+
+  return state_.last_icp_quality;
+}
+
 void LidarOdometry::saveEstimatedTrajectoryToFile() const
 {
   if (params_.estimated_trajectory.output_file.empty()) {

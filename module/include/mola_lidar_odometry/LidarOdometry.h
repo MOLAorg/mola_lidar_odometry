@@ -601,6 +601,9 @@ public:
   std::optional<std::tuple<mrpt::poses::CPose3DPDFGaussian, mrpt::math::TTwist3D>>
   lastEstimatedState() const;
 
+  /** Returns the ICP quality (range: [0,1]) of the last registered scan. Only valid if lastEstimatedState() returns non-empty. */
+  double lastIcpQuality() const;
+
   /** Returns a copy of the estimated simplemap.
      * Multi-thread safe to call.
      */

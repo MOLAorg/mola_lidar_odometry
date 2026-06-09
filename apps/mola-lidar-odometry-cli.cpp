@@ -742,10 +742,11 @@ int main_odometry(Cli & cli)
 
       std::cout << mrpt::system::progress(pc, 30)
                 << mrpt::format(
-                     " %6zu/%6zu (%.02f%%) ETA=%s/T=%s | Pose=%s\n", i, N, 100 * pc,
+                     " %6zu/%6zu (%.02f%%) ETA=%s/T=%s | Pose=%s | q=%.01f%%\n", i, N, 100 * pc,
                      mrpt::system::formatTimeInterval(ETA).c_str(),
                      mrpt::system::formatTimeInterval(totalTime).c_str(),
-                     lastPose.has_value() ? lastPose->asString().c_str() : "(None)");
+                     lastPose.has_value() ? lastPose->asString().c_str() : "(None)",
+                     100.0 * liodom->lastIcpQuality());
       std::cout.flush();
     }
 
