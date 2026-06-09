@@ -79,6 +79,9 @@
 #include <iostream>
 #include <string>
 
+namespace
+{
+
 struct Cli
 {
   // Declare supported cli switches ===========
@@ -271,8 +274,6 @@ struct Cli
 
 };  // end struct "Cli"
 
-namespace
-{
 #if defined(HAVE_MOLA_INPUT_RAWLOG)
 std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rawlog(
   const std::string & rawlogFile, const mrpt::system::VerbosityLevel logLevel)
@@ -280,13 +281,15 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rawlog(
   auto o = std::make_shared<mola::RawlogDataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      mrpt::format(
+        R""""(
     params:
       rawlog_filename: '%s'
       read_all_first: true
 )"""",
-    rawlogFile.c_str())));
+        rawlogFile.c_str())));
 
   o->initialize(cfg);
 
@@ -301,8 +304,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
   auto o = std::make_shared<mola::MulranDataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      mrpt::format(
+        R""""(
     params:
       base_dir: ${MULRAN_BASE_DIR}
       sequence: '%s'
@@ -310,7 +315,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
       publish_lidar: true
       publish_ground_truth: true
 )"""",
-    mulranSequence.c_str())));
+        mulranSequence.c_str())));
 
   o->initialize(cfg);
 
@@ -330,8 +335,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
   auto o = std::make_shared<mola::Rosbag2Dataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      mrpt::format(
+        R""""(
     params:
       rosbag_filename: '%s'
       base_link_frame_id: '%s'
@@ -355,9 +362,9 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
 )"""",
-    rosbag2file.c_str(), cli.arg_baseLinkName.getValue().c_str(),
-    cli.arg_tfTopic.getValue().c_str(), cli.arg_tfStaticTopic.getValue().c_str(),
-    cli.arg_lidarLabel.getValue().c_str(), cli.arg_imuLabel.getValue().c_str())));
+        rosbag2file.c_str(), cli.arg_baseLinkName.getValue().c_str(),
+        cli.arg_tfTopic.getValue().c_str(), cli.arg_tfStaticTopic.getValue().c_str(),
+        cli.arg_lidarLabel.getValue().c_str(), cli.arg_imuLabel.getValue().c_str())));
 
   o->initialize(cfg);
 
@@ -372,8 +379,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
   auto o = std::make_shared<mola::KittiOdometryDataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      mrpt::format(
+        R""""(
     params:
       base_dir: ${KITTI_BASE_DIR}
       sequence: '%s'
@@ -384,7 +393,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
       publish_image_1: false
       publish_ground_truth: true
 )"""",
-    kittiSeqNumber.c_str())));
+        kittiSeqNumber.c_str())));
 
   o->initialize(cfg);
 
@@ -403,8 +412,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti360(
   auto o = std::make_shared<mola::Kitti360Dataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      mrpt::format(
+        R""""(
     params:
       base_dir: ${KITTI360_DATASET}
       sequence: '%s'
@@ -416,7 +427,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti360(
       publish_image_3: false
       publish_ground_truth: true
 )"""",
-    kittiSeqNumber.c_str())));
+        kittiSeqNumber.c_str())));
 
   o->initialize(cfg);
 
@@ -431,8 +442,9 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_paris_luco(
   auto o = std::make_shared<mola::ParisLucoDataset>();
   o->setMinLoggingLevel(logLevel);
 
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(
-    R""""(
+  const auto cfg = mola::Yaml::FromText(
+    mola::parse_yaml(
+      R""""(
     params:
       base_dir: ${PARIS_LUCO_BASE_DIR}
       sequence: '00'  # There is only one sequence in this dataset
@@ -452,14 +464,12 @@ void mola_signal_handler(int s)
 {
   std::cerr << "Caught signal " << s << ". Shutting down..."
             << "\n";
-  exit(0);
+  exit(0);  // NOLINT
 }
 
 void mola_install_signal_handler()
 {
-  struct sigaction sigIntHandler
-  {
-  };
+  struct sigaction sigIntHandler{};
 
   sigIntHandler.sa_handler = &mola_signal_handler;
   sigemptyset(&sigIntHandler.sa_mask);
@@ -468,6 +478,7 @@ void mola_install_signal_handler()
   sigaction(SIGINT, &sigIntHandler, nullptr);
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 int main_odometry(Cli & cli)
 {
   // Declare main LO module:
@@ -766,7 +777,8 @@ int main_odometry(Cli & cli)
 
   if (cli.arg_outPath.isSet()) {
     const auto fil = cli.arg_outPath.getValue();
-    std::cout << "\nSaving estimated path in TUM format to: " << fil << std::endl;
+    std::cout << "\nSaving estimated path in TUM format to: " << fil
+              << std::endl;  // NOLINT(performance-avoid-endl)
 
     const mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory = liodom->estimatedTrajectory();
 
@@ -779,14 +791,15 @@ int main_odometry(Cli & cli)
     auto sm = liodom->reconstructedMap();
 
     std::cout << "\nSaving reconstructed map with " << sm.size() << " keyframes to: " << fil
-              << std::endl;
+              << std::endl;  // NOLINT(performance-avoid-endl)
 
     sm.saveToFile(fil);
   }
 
   if (outTwist) {
     const auto fil = cli.arg_outTwist.getValue();
-    std::cout << "\nSaving estimated twist to: " << fil << std::endl;
+    std::cout << "\nSaving estimated twist to: " << fil
+              << std::endl;  // NOLINT(performance-avoid-endl)
     outTwist->saveToTextFile(fil);
   }
 
@@ -800,7 +813,9 @@ int main(int argc, char ** argv)
     Cli cli;
 
     // Parse arguments:
-    if (!cli.cmd.parse(argc, argv)) return 1;  // should exit.
+    if (!cli.cmd.parse(argc, argv)) {
+      return 1;  // should exit.
+    }
 
     // Load plugins:
     if (cli.arg_plugins.isSet()) {
@@ -808,7 +823,7 @@ int main(int argc, char ** argv)
       const auto plugins = cli.arg_plugins.getValue();
       std::cout << "Loading plugin(s): " << plugins << "\n";
       if (!mrpt::system::loadPluginModules(plugins, errMsg)) {
-        std::cerr << errMsg << std::endl;
+        std::cerr << errMsg << std::endl;  // NOLINT(performance-avoid-endl)
         return 1;
       }
     }
