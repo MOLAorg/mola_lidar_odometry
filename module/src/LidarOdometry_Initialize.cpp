@@ -398,7 +398,10 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   if (!params_.local_map_updates.load_existing_local_map.empty()) {
     const bool loadOk =
       state_.local_map->load_from_file(params_.local_map_updates.load_existing_local_map);
-    ASSERT_(loadOk);
+    ASSERTMSG_(
+      loadOk, mrpt::format(
+                "Error loading local map: '%s'",
+                params_.local_map_updates.load_existing_local_map.c_str()));
 
     state_.mark_local_map_as_updated(true);
     state_.mark_local_map_georef_as_updated();
@@ -438,7 +441,10 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   if (!params_.simplemap.load_existing_simple_map.empty()) {
     const bool loadOk =
       state_.reconstructed_simplemap.loadFromFile(params_.simplemap.load_existing_simple_map);
-    ASSERT_(loadOk);
+    ASSERTMSG_(
+      loadOk,
+      mrpt::format(
+        "Error loading simple map: '%s'", params_.simplemap.load_existing_simple_map.c_str()));
   }
 
   // Attach to the state estimation module, which since MOLA-LO v0.5.0,
