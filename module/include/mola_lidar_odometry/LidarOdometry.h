@@ -116,6 +116,7 @@ public:
   void initialize_frontend(const Yaml & cfg) override;
   void spinOnce() override;
   void onNewObservation(const CObservation::ConstPtr & o) override;
+  void onQuit() override;
 
   /** Re-initializes the odometry system. It effectively calls initialize()
      *  once again with the same parameters that were used the first time.
@@ -583,6 +584,19 @@ public:
   Parameters params_;
 
   bool isBusy() const;
+
+  /** Drains the worker thread pools and saves the simplemap/trajectory/local
+   *  map to disk, if so configured. Idempotent: safe to call from onQuit()
+   *  and then again from the destructor.
+   *
+   *  Must run to completion (and thus stop calling back into other modules,
+   *  e.g. via VizInterface or BridgeROS2's TF broadcaster) before any other
+   *  module of the running MOLA system is destroyed. onQuit() is invoked by
+   *  MolaLauncherApp for that exact purpose, before any module destructor
+   *  runs.
+   */
+  void shutdownCleanup();
+  std::atomic_bool shutdown_cleanup_done_{false};
 
   bool isActive() const;
   void setActive(bool active);

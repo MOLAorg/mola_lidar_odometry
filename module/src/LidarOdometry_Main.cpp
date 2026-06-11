@@ -74,11 +74,33 @@ IMPLEMENTS_MRPT_OBJECT(LidarOdometry, FrontEndBase, mola)
 
 LidarOdometry::LidarOdometry() = default;
 
-LidarOdometry::~LidarOdometry()
+LidarOdometry::~LidarOdometry() { shutdownCleanup(); }
+
+void LidarOdometry::onQuit() { shutdownCleanup(); }
+
+// Drains the worker thread pools and saves outputs to disk. Called from
+// onQuit() (while all other MOLA modules are still alive) and again from the
+// destructor (idempotent, no-op the second time) for callers that do not go
+// through MolaLauncherApp.
+//
+// onQuit() is invoked by MolaLauncherApp::executor_thread() for every module,
+// before any module is destroyed (see ExecutableBase::onQuit() docs). This
+// matters because worker_lidar_/worker_others_/worker_viz_ may have an
+// in-flight task (e.g. onLidar()) that calls back into other modules, e.g.
+// BridgeROS2's TF broadcaster via VizInterface/LocalizationSourceBase. If
+// that task is still running when another module's destructor runs (which
+// previously only happened from ~LidarOdometry(), after other modules may
+// have already been destroyed), it can use-after-free that module's
+// resources.
+void LidarOdometry::shutdownCleanup()
 {
   using namespace std::chrono_literals;
 
-  try  // a dtor should never throw
+  if (shutdown_cleanup_done_.exchange(true)) {
+    return;
+  }
+
+  try  // must never throw
   {
     {
       auto lck = mrpt::lockHelper(is_busy_mtx_);
@@ -87,7 +109,7 @@ LidarOdometry::~LidarOdometry()
 
     while (isBusy()) {
       MRPT_LOG_THROTTLE_WARN(
-        2.0, "Destructor: waiting for remaining tasks on the worker threads...");
+        2.0, "shutdownCleanup(): waiting for remaining tasks on the worker threads...");
       std::this_thread::sleep_for(100ms);
     }
     worker_lidar_.clear();
@@ -108,13 +130,13 @@ LidarOdometry::~LidarOdometry()
     // This must come after save map calls above:
     while (worker_disk_io_.pendingTasks() > 0) {
       MRPT_LOG_THROTTLE_WARN(
-        2.0, "Destructor: waiting for pending tasks on the lazy-load write thread...");
+        2.0, "shutdownCleanup(): waiting for pending tasks on the lazy-load write thread...");
       std::this_thread::sleep_for(100ms);
     }
     worker_disk_io_.clear();
 
   } catch (const std::exception & e) {
-    std::cerr << "[~LidarOdometry] Exception: " << e.what();
+    std::cerr << "[LidarOdometry::shutdownCleanup] Exception: " << e.what();
   }
 }
 
