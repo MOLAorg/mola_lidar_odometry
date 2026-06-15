@@ -674,6 +674,11 @@ void LidarOdometry::updateVisualizationLocalMap(std::vector<std::function<void()
     updateTasks.emplace_back([visualizer = visualizer_, glMap]() {
       visualizer->update_3d_object("liodom/localmap", glMap);
     });
+
+    // Force an immediate redraw the next time the local map is shown again,
+    // since it may not change on its own (e.g. localization-only mode):
+    state_.local_map_needs_viz_update = true;
+    state_.mapUpdateCnt = std::numeric_limits<int>::max();
   }
 }
 
