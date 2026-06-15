@@ -152,7 +152,20 @@ void LidarOdometry::spinOnce()
   // Executed here since
   // otherwise the GUI would never show up if inactive, or if the LIDAR
   // observations are misconfigured and are not been fed in.
-  if (visualizer_ && ((state_.local_map && state_.local_map->empty()) || !isActive())) {
+  // Note the explicit "!gui_.gui_created" check: in localization mode
+  // (start_active=true, start_mapping_enabled=false) a prior map is loaded, so
+  // the local map is not empty and the module is active. Without this check
+  // neither of the other two conditions would hold and the GUI (3D scene and
+  // UI controls, both built lazily on the first updateVisualization() call)
+  // would never show up until the first LiDAR scan arrives.
+  bool guiCreated = false;
+  {
+    auto lckGuiMtx = mrpt::lockHelper(state_gui_mtx_);
+    guiCreated = gui_.gui_created;
+  }
+  if (
+    visualizer_ &&
+    ((state_.local_map && state_.local_map->empty()) || !isActive() || !guiCreated)) {
     if (mrpt::Clock::nowDouble() - gui_.timestampLastUpdateUI > 1.0) {
       updateVisualization({}, {});
     }
