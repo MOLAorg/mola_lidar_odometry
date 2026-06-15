@@ -199,11 +199,10 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
   // Check if state estimator has converged
   mrpt::poses::CPose3DPDFGaussian estimatedPose;
 
-  // Snapshot georef state under lock to avoid data race with
-  // onExternalMapUpdate which writes state_.external_georef concurrently.
+  // Note: state_mtx_ is already held by the caller (processLidarScan), which
+  // also serializes us against onExternalMapUpdate (writes
+  // state_.external_georef from another thread under the same mutex).
   {
-    auto lckState = mrpt::lockHelper(state_mtx_);
-
     const bool hasGeoRef =
       state_.local_map->georeferencing.has_value() || state_.external_georef.has_value();
 

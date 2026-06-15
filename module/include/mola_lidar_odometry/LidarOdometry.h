@@ -970,7 +970,7 @@ private:
   bool destructor_called_ = false;
   mutable std::mutex is_busy_mtx_;
   mutable std::mutex state_flags_mtx_;
-  mutable std::recursive_mutex state_mtx_;
+  mutable std::mutex state_mtx_;
   mutable std::mutex state_trajectory_mtx_;
   mutable std::recursive_mutex state_simplemap_mtx_;
   mutable std::mutex state_gui_mtx_;
@@ -1071,6 +1071,8 @@ private:
     const mrpt::poses::CPose3DPDFGaussian & initPose, bool resetStateEstimator);
 
   bool isPipelineUsingIMU() const;
+  /// Same as isPipelineUsingIMU(), but assumes state_mtx_ is already held by the caller.
+  bool isPipelineUsingIMU_locked() const;
   void sendLidarScanToProcessQueue(const CObservation::ConstPtr & o);
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
