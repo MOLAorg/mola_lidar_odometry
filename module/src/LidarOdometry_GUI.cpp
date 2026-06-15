@@ -443,10 +443,19 @@ void LidarOdometry::updateVisualization(
     ut();
   }
 
-  // Show a warning if no lidar input is being received:
-  if (state_.local_map->empty()) {
-    const auto s = mrpt::format(
-      "t=%.03f *WARNING* No input LiDAR observations received yet!", mrpt::Clock::nowDouble());
+  // Show a warning if no lidar input is being received yet.
+  // Note: in localization mode, state_.local_map is already non-empty at
+  // startup (loaded from a prebuilt map file), so it cannot be used to tell
+  // whether real lidar scans have been processed. Use recent_lidar_stamps_
+  // instead, which is only populated once a lidar observation is processed.
+  if (state_.recent_lidar_stamps.empty()) {
+    const auto s =
+      state_.local_map->empty()
+        ? mrpt::format(
+            "t=%.03f *WARNING* No input LiDAR observations received yet!", mrpt::Clock::nowDouble())
+        : mrpt::format(
+            "t=%.03f Prebuilt map loaded. Waiting for input LiDAR observations...",
+            mrpt::Clock::nowDouble());
     visualizer_->output_console_message(s);
     gui_.was_waiting_for_lidar_data = true;
   } else if (gui_.was_waiting_for_lidar_data) {
