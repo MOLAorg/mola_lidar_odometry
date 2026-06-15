@@ -41,7 +41,11 @@ namespace mola
 bool LidarOdometry::isPipelineUsingIMU() const
 {
   auto lckState = mrpt::lockHelper(state_mtx_);
+  return isPipelineUsingIMU_locked();
+}
 
+bool LidarOdometry::isPipelineUsingIMU_locked() const
+{
   if (state_.isPipelinesUsingIMU.has_value()) {
     return *state_.isPipelinesUsingIMU;
   }
@@ -162,7 +166,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
   // Use early deskew?
   const bool use_early_deskew =
-    !state_.pc_deskew.empty() && (!params_.optimize_twist || isPipelineUsingIMU());
+    !state_.pc_deskew.empty() && (!params_.optimize_twist || isPipelineUsingIMU_locked());
 
   if (use_early_deskew) {
     ProfilerEntry tle1(profiler_, "onLidar.1.deskew_early");

@@ -181,9 +181,13 @@ void LidarOdometry::reset()
 {
   ASSERTMSG_(!lastInitConfig_.empty(), "initialize() must be called first.");
 
-  auto lck = mrpt::lockHelper(state_mtx_);
-
-  state_ = MethodState();
+  // Reset the state under the lock, then re-initialize without holding it:
+  // initialize() (via initialize_frontend()) takes state_mtx_ itself, and
+  // state_mtx_ is a plain (non-recursive) mutex.
+  {
+    auto lck = mrpt::lockHelper(state_mtx_);
+    state_ = MethodState();
+  }
   initialize(lastInitConfig_);
 }
 
