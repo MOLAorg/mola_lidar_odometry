@@ -42,6 +42,7 @@ params:
   local_map_updates:
     enabled: "${MOLA_MAPPING_ENABLED|true}"
     load_existing_local_map: ${MOLA_LOAD_MM|""}
+    load_map_after_gui_init: ${MOLA_LO_LOAD_MAP_AFTER_GUI|false}
     min_translation_between_keyframes: "${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|0.02*ESTIMATED_OBSERVATION_RADIUS}" # [m]
     min_rotation_between_keyframes: 15.0 # [deg]
     # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled

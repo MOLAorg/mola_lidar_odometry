@@ -239,6 +239,8 @@ void LidarOdometry::Parameters::MapUpdateOptions::initialize(const Yaml & cfg, P
                                       static_cast<unsigned>(min_nearby_poses_occupied)));
   YAML_LOAD_OPT(load_existing_local_map, std::string);
   YAML_LOAD_OPT(save_final_local_map, std::string);
+
+  YAML_LOAD_OPT(load_map_after_gui_init, bool);
 }
 
 void LidarOdometry::Parameters::TrajectoryOutputOptions::initialize(const Yaml & cfg)

@@ -171,6 +171,12 @@ void LidarOdometry::spinOnce()
     }
   }
 
+  // If map loading was deferred (load_map_after_gui_init=true), run it now,
+  // after the GUI has had a chance to render at least once:
+  if (pending_preload_map_ && guiCreated) {
+    doPreloadLocalMap();
+  }
+
   // If SLAM/Localization is disabled, refresh the current map
   // here if needed, since it won't be published until observations arrive.
   {

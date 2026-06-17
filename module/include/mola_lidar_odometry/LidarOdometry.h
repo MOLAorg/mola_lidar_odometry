@@ -238,6 +238,13 @@ public:
       /** If not empty, saves the final local metric map to a ".mm" file */
       std::string save_final_local_map;
 
+      /** If true, map loading from file is deferred until after the GUI is
+             * first rendered, so the GUI appears before the (potentially long)
+             * file I/O. Can also be enabled via the env var
+             * MOLA_LO_LOAD_MAP_AFTER_GUI=1.
+             */
+      bool load_map_after_gui_init = false;
+
       void initialize(const Yaml & c, Parameters & parent);
     };
 
@@ -1078,6 +1085,17 @@ private:
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
 
   void onInitializePersistentState();
+
+  /** Loads the local map (and optional simplemap) from the paths stored in
+   *  params_.local_map_updates.load_existing_local_map and
+   *  params_.simplemap.load_existing_simple_map.
+   *  Safe to call from initialize_frontend() (startup) or from spinOnce()
+   *  (deferred). Acquires its own locks internally.
+   */
+  void doPreloadLocalMap();
+
+  /// True when map loading has been deferred to spinOnce() via load_map_after_gui_init.
+  bool pending_preload_map_ = false;
 
   void doUpdateSimpleMap(
     const mrpt::obs::CSensoryFrame & sf, bool distance_enough_sm,
