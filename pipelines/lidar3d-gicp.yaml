@@ -304,6 +304,8 @@ localmap_generator:
         creationOpts:
           max_search_keyframes: ${MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES|3}
           k_correspondences_for_cov: ${MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV|20}
+          min_correspondences_for_cov: ${MOLA_LOCALMAP_MIN_CORRESPONDENCES_FOR_COV|5}
+          max_distance_for_cov: ${MOLA_LOCALMAP_MAX_DISTANCE_FOR_COV|2.0}
           use_view_direction_filter: ${MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER|true}
           max_view_angle_deg: ${MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG|120}
           rotation_distance_weight: 2.0
