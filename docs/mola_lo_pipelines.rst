@@ -509,6 +509,13 @@ ICP settings
 - ``MOLA_LO_ROBUST_KERNEL_PARAM`` (Default: ``6.0``): Parameter for the robust kernel (scale; in normalized
   covariance units for the GICP pipeline).
 
+- ``MOLA_LO_ROBUST_KERNEL_PRIOR_REF_BLEND`` (Default: ``0.0``): Blend factor in [0, 1] for the residual
+  reference used by the robust kernel in the Gauss-Newton solver. ``0.0`` (default) keeps the classic
+  behavior, where each factor is judged only by how much it diverges from the current linearization point.
+  With values ``>0`` the kernel residual is blended toward the value predicted at the prior mean pose
+  (e.g. the motion model / IMU prior), so correspondences inconsistent with the prior are down-weighted even
+  when the current iterate is already corrupted. Has no effect when no prior is supplied to ICP.
+
 - ``MOLA_ICP_COVARIANCE_METHOD`` (Default: ``Censi3D``; GICP pipeline only): Post-optimization SE(3) covariance
   estimation method. ``Censi3D`` is the sandwich estimator suited for cov-to-cov pipelines.
 

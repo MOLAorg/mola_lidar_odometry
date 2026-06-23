@@ -17,11 +17,11 @@ the registered pose back with `fuse_pose()`.
 
 When paired with `mola_state_estimation_smoother` configured with
 `async_backend: true`, that per-scan `estimated_navstate()` call does NOT trigger
-the smoother's heavy batch solve on the LiDAR thread; it returns a fast prediction
+the smoother's iSAM2 window solve on the LiDAR thread; it returns a fast prediction
 from the smoother's lightweight predictor (re-anchored on the last completed
-backend solve), while the batch solve runs concurrently in the smoother's own
+backend solve), while the window solve runs concurrently in the smoother's own
 thread. This bounds per-scan latency for real-time use. With the default
-`async_backend: false`, `estimated_navstate()` runs the batch solve synchronously
+`async_backend: false`, `estimated_navstate()` runs the window solve synchronously
 (deterministic, but heavier per call) - see `mola_state_estimation`'s docs.
 
 ## Building
