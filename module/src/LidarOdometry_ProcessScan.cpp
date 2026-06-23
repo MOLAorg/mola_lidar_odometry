@@ -838,8 +838,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
     state_.mark_local_map_as_updated();
 
-#if defined(MOLA_METRIC_MAPS_HAS_KFM_POSE_PLUMBING) && \
-  __has_include(<mola_kernel/interfaces/KeyframeMapCapable.h>)
+#if __has_include(<mola_kernel/interfaces/KeyframeMapCapable.h>)
     if (params_.imu_gravity_correction.tilt_rebake.enabled) {
       maybeApplyGravityTiltCorrection();
     }

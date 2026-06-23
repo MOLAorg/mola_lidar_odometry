@@ -42,10 +42,10 @@
 
 using namespace mola;
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 bool LidarOdometry::maybeApplyGravityTiltCorrection()
 {
-#if defined(MOLA_METRIC_MAPS_HAS_KFM_POSE_PLUMBING) && defined(__has_include) && \
-  __has_include(<mola_kernel/interfaces/KeyframeMapCapable.h>)
+#if defined(__has_include) && __has_include(<mola_kernel/interfaces/KeyframeMapCapable.h>)
 
   const auto & p = params_.imu_gravity_correction.tilt_rebake;
 
@@ -84,6 +84,7 @@ bool LidarOdometry::maybeApplyGravityTiltCorrection()
   // --- Compute tilt angle of world z-axis relative to gravity ---
   const double g_world_z_clamped = std::max(-1.0, std::min(1.0, g_world.z));
   const double tilt_rad = std::acos(g_world_z_clamped);
+  MRPT_LOG_DEBUG_FMT("Tilt rebake, estimated tilt angle=%.02lf deg", mrpt::RAD2DEG(tilt_rad));
   if (mrpt::RAD2DEG(tilt_rad) < p.trigger_deg) {
     return false;
   }
