@@ -8,6 +8,22 @@ This repository provides a LiDAR-Inertial Odometry (LIO) frontend for the MOLA f
 
 Official Docs: https://docs.mola-slam.org/latest/
 
+## State estimator integration
+
+Per LiDAR scan, `LidarOdometry` queries the configured `mola::NavStateFilter`
+for a motion prior via `state_.navstate_fuse->estimated_navstate(scan_ref_time,
+publish_reference_frame)` (`module/src/LidarOdometry_ProcessScan.cpp`), then feeds
+the registered pose back with `fuse_pose()`.
+
+When paired with `mola_state_estimation_smoother` configured with
+`async_backend: true`, that per-scan `estimated_navstate()` call does NOT trigger
+the smoother's heavy batch solve on the LiDAR thread; it returns a fast prediction
+from the smoother's lightweight predictor (re-anchored on the last completed
+backend solve), while the batch solve runs concurrently in the smoother's own
+thread. This bounds per-scan latency for real-time use. With the default
+`async_backend: false`, `estimated_navstate()` runs the batch solve synchronously
+(deterministic, but heavier per call) - see `mola_state_estimation`'s docs.
+
 ## Building
 
 We use colcon, the ROS2 build tool, and mola_common with utility cmake helpers.
