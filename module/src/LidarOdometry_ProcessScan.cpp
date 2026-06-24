@@ -26,6 +26,7 @@
 #include <mp2p_icp_filters/FilterDeskew.h>
 
 // MRPT:
+#include <mrpt/core/get_env.h>
 #include <mrpt/maps/CGenericPointsMap.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservationComment.h>
@@ -495,14 +496,27 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     auto icp_params = in.icp_params;
     size_t remainingIcpIters = icp_params.maxIterations;
 
-#if MP2P_ICP_VERSION >= 0x020501
-    if (params_.write_debug_icp_log_if_quality_under.has_value()) {
-      icp_params.functor_should_generate_debug_file =
-        [this](const mp2p_icp::LogRecord & log) -> bool {
-        return log.icpResult.quality < params_.write_debug_icp_log_if_quality_under.value();
-      };
-    }
-#endif
+    // Debug helper: dump ICP logs to file if quality is under a threshold, or if the timestamp is within a range:
+    icp_params.functor_should_generate_debug_file =
+      [this](const mp2p_icp::LogRecord & log) -> bool {
+      // Debug helper: dump icp logs for from-to timestamps only:
+      thread_local auto MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP =
+        mrpt::get_env<double>("MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP", 0);
+      thread_local auto MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP =
+        mrpt::get_env<double>("MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP", 0);
+
+      const bool cond_1 =
+        params_.write_debug_icp_log_if_quality_under.has_value() &&
+        log.icpResult.quality < params_.write_debug_icp_log_if_quality_under.value();
+
+      const bool cond_2 =
+        (MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP > 0 && state_.last_icp_timestamp.has_value() &&
+         mrpt::Clock::toDouble(*state_.last_icp_timestamp) >=
+           MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP &&
+         mrpt::Clock::toDouble(*state_.last_icp_timestamp) <= MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP);
+
+      return cond_1 || cond_2;
+    };
 
     do {
       icp_params.maxIterations = remainingIcpIters;
@@ -959,6 +973,7 @@ mp2p_icp::metric_map_t::Ptr LidarOdometry::observationFromRawSensor(
   return observation;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
   const mrpt::obs::CObservation::ConstPtr & obs)
 {
