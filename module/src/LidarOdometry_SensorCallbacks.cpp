@@ -471,6 +471,21 @@ void LidarOdometry::MethodState::GravityEstimator::add(
     return;
   }
 
+  // Also reject readings taken while the vehicle is rotating: a quasi-static
+  // |acc|≈g does not guarantee the *direction* of the specific-force vector
+  // is unbiased (e.g. during turns or fast attitude changes), so gate on
+  // angular rate too, if available:
+  if (imu.has(mrpt::obs::IMU_WX) && imu.has(mrpt::obs::IMU_WY) && imu.has(mrpt::obs::IMU_WZ)) {
+    const double wx = imu.get(mrpt::obs::IMU_WX);
+    const double wy = imu.get(mrpt::obs::IMU_WY);
+    const double wz = imu.get(mrpt::obs::IMU_WZ);
+    const double w_norm = std::sqrt(wx * wx + wy * wy + wz * wz);
+    constexpr double max_angular_rate_for_quasi_static = mrpt::DEG2RAD(5.0);
+    if (w_norm > max_angular_rate_for_quasi_static) {
+      return;
+    }
+  }
+
   const double stamp = mrpt::Clock::toDouble(imu.timestamp);
 
   // Trim buffer to the desired averaging window:

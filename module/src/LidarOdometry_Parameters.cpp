@@ -297,10 +297,10 @@ void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cf
 
   if (enabled) {
     ASSERTMSG_(
-      averaging_samples >= 1 && averaging_samples <= 200,
+      averaging_samples >= 1 && averaging_samples < IMU_BUFFER_SIZE,
       mrpt::format(
-        "imu_gravity_correction.averaging_samples=%u is out of valid range [1, 200]",
-        static_cast<unsigned>(averaging_samples)));
+        "imu_gravity_correction.averaging_samples=%u is out of valid range [1, %zu]",
+        static_cast<unsigned>(averaging_samples), IMU_BUFFER_SIZE));
 
     ASSERTMSG_(
       sigma_deg > 0, mrpt::format("imu_gravity_correction.sigma_deg=%.4f must be > 0", sigma_deg));
