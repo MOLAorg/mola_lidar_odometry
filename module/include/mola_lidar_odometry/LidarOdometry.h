@@ -784,6 +784,15 @@ private:
 
     GravityEstimator gravity_estimator;
 
+    /// Gravity-derived (pitch, roll), in radians, captured at the time the first
+    /// keyframe (map origin) was created. The IMU gravity estimator reports
+    /// *absolute* tilt with respect to true vertical, while the map/global frame
+    /// may itself not be exactly level (e.g. `fixed_initial_pose` has nonzero
+    /// pitch/roll, or the vehicle was on a slope at start-up). This calibration
+    /// offset is required to correctly re-express later absolute IMU tilt
+    /// readings relative to the (possibly non-level) map frame.
+    std::optional<std::pair<double, double>> gravity_calib_pitch_roll;
+
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 
     std::map<std::string, mrpt::Clock::time_point> last_obs_tim_by_label;

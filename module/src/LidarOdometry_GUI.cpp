@@ -732,7 +732,7 @@ void LidarOdometry::updateVisualizationGravityVector(
   const ProfilerEntry tle2(profiler_, "updateVisualization.update_gravity");
 
   const auto gravityPR = state_.gravity_estimator.estimatedPitchRoll(
-    std::min(params_.imu_gravity_correction.averaging_samples, 3u),
+    params_.imu_gravity_correction.averaging_samples,
     params_.imu_gravity_correction.max_age_seconds);
 
   if (!gravityPR.has_value()) {
