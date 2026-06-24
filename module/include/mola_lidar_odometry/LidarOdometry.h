@@ -99,6 +99,9 @@ class LidarOdometry : public mola::FrontEndBase,
 {
   DEFINE_MRPT_OBJECT(LidarOdometry, mola)
 
+private:
+  constexpr static std::size_t IMU_BUFFER_SIZE = 4096;
+
 public:
   LidarOdometry();
   ~LidarOdometry() override;
@@ -769,7 +772,7 @@ private:
         std::array<double, 3> acc = {0, 0, 0};
       };
 
-      mrpt::containers::circular_buffer<TimestampedAcc> acc_buffer{4096};
+      mrpt::containers::circular_buffer<TimestampedAcc> acc_buffer{IMU_BUFFER_SIZE};
       mrpt::poses::CPose3D imu_sensor_pose;  ///< last known IMU extrinsics
       double imu_sensor_pose_timestamp = 0;  ///< timestamp of last sensor pose update
 
