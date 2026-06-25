@@ -1,0 +1,110 @@
+# -----------------------------------------------------------------------------
+#                        SLAM system definition for MOLA
+# This file defines:
+# LiDAR odometry from the BotanicGarden dataset, read directly from its
+# ROS 1 ".bag" file via mola::Rosbag1Dataset (no ROS 1 install required).
+#
+# Dataset: BotanicGarden (https://github.com/robot-pesg/BotanicGarden)
+# Sensor inventory of the "LIO" bag (confirmed with rosbag1-info):
+#   /imu/data         sensor_msgs/Imu        Xsens MTi-680G, ~400 Hz (base_link)
+#   /velodyne_points  sensor_msgs/PointCloud2 Velodyne VLP-16, ~10 Hz
+#   /odom             nav_msgs/Odometry      wheel odometry, ~200 Hz
+#   /livox/imu        sensor_msgs/Imu        BMI088 (Livox built-in), ~200 Hz (unused)
+#   /livox/lidar      livox_ros_driver/CustomMsg  Livox AVIA, ~10 Hz (unused)
+# NO GNSS topic in this bag: Xsens D-GNSS/INS hardware is not published.
+#
+# Extrinsics: all fixed_sensor_pose values are taken from
+#   BotanicGarden/calib/extrinsics/calib_chain.yaml
+# with the Xsens IMU (/imu/data) as base_link (T_xsens_* convention).
+# There is no /tf or /tf_static in the bag, so use_fixed_sensor_pose is
+# mandatory for the LiDAR.
+#
+# Usage:
+#   export BOTANICGARDEN_LIO_BAG=$HOME/datasets/botanic/1018_00_LIO.bag
+#   mola-cli $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/mola-cli-launchs/lidar_odometry_from_botanicgarden.yaml
+#
+# Optional overrides:
+#   BOTANICGARDEN_GT_BAG=$HOME/datasets/botanic/gt_1018_00_qnew.bag
+#     -- also replays /gt_poses (not consumed by LidarOdometry; ground-truth
+#        reference only)
+#   MOLA_WITH_GUI=false        -- headless mode
+#   MOLA_TIME_WARP=1.0         -- playback speed factor
+#   MOLA_QUIT_ON_DATASET_END=true  -- exit when bag ends
+# -----------------------------------------------------------------------------
+
+modules:
+  # =====================
+  # MolaViz / MolaVizImGui
+  # =====================
+  - name: viz
+    type: ${MOLA_GUI_MODULE|mola::MolaVizImGui}
+    enabled: ${MOLA_WITH_GUI|true}
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
+    params:
+      imgui_app_name: lo_botanicgarden
+
+  # =====================
+  # Rosbag1Dataset (BotanicGarden)
+  # =====================
+  - name: dataset_input
+    type: mola::Rosbag1Dataset
+    verbosity_level: "${MOLA_VERBOSITY_ROSBAG1|INFO}"
+    execution_rate: 50 # Hz
+    quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|true}
+
+    gui_preview_sensors:
+      - raw_sensor_label: lidar
+        decimation: 1
+        enabled: ${MOLA_WITH_GUI|true}
+        win_pos: 5 5 400 400
+
+    params:
+      rosbag_filename:
+        - ${BOTANICGARDEN_LIO_BAG}
+        - ${BOTANICGARDEN_GT_BAG|}
+
+      base_link_frame_id: xsens
+      time_warp_scale: ${MOLA_TIME_WARP|1.0}
+      start_paused: ${MOLA_DATASET_START_PAUSED|false}
+
+      ground_truth_topic: /gt_poses
+
+      sensors:
+        - topic: /imu/data   # Xsens MTi-680G, ~400 Hz: this IS base_link
+          type: CObservationIMU
+          sensorLabel: imu
+          fixed_sensor_pose: "0 0 0 0 0 0"
+          use_fixed_sensor_pose: true
+
+        - topic: /velodyne_points   # Velodyne VLP-16, ~10 Hz
+          type: CObservationPointCloud
+          sensorLabel: lidar
+          fixed_sensor_pose: "0.0584868 0.0084042 0.1689155 -1.448155 0.097462 0.444791" # T_xsens_vlp16
+          use_fixed_sensor_pose: true
+
+        - topic: /odom   # Wheel odometry, ~200 Hz
+          type: CObservationOdometry
+          sensorLabel: odom_wheels
+
+        - topic: /gt_poses   # Ground truth (only if BOTANICGARDEN_GT_BAG is set)
+          type: CObservationRobotPose
+          sensorLabel: ground_truth
+          is_optional: true
+
+  # =====================
+  # LidarOdometry
+  # =====================
+  - name: lidar_odom
+    type: mola::LidarOdometry
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_LO|INFO}"
+    raw_data_source: "dataset_input"
+    params: "${MOLA_ODOMETRY_PIPELINE_YAML|../pipelines/lidar3d-default.yaml}"
+
+  # =====================
+  # State Estimation
+  # =====================
+  - name: state_estimation
+    type: "${MOLA_STATE_ESTIMATOR|mola::state_estimation_simple::StateEstimationSimple}"
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_STATE_ESTIMATOR|INFO}"
+    raw_data_source: "dataset_input"
+    params: "${MOLA_STATE_ESTIMATOR_YAML|../state-estimator-params/state-estimation-simple.yaml}"
