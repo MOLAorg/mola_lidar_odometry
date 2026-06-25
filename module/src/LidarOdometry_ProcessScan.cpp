@@ -248,6 +248,16 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   bool updateSimpleMap = false;
   bool distance_enough_sm = false;
 
+#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
+  // Whether this scan's keyframe will be pushed to a central-map backend
+  // (e.g. mola_mapper_3d), at the same sparsity as the self-written simplemap
+  // but independently of whether params_.simplemap.generate is set:
+  bool pushToSharedKeyframeMapNow = false;
+  // Built inside the lock, invoked after releasing state_mtx_ (see below):
+  std::optional<mola::SharedKeyframeMap::KeyframeInsertRequest> pendingKfReq;
+  std::shared_ptr<mola::SharedKeyframeMap> pendingKfSink;
+#endif
+
   // First time we cannot do ICP since we need at least two pointclouds:
   ASSERT_(state_.local_map);
 
@@ -284,6 +294,9 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     updateLocalMap = true;
     updateSimpleMap = true;     // update SimpleMap too
     distance_enough_sm = true;  // and treat this one as a KeyFrame with SF
+#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
+    pushToSharedKeyframeMapNow = static_cast<bool>(state_.shared_keyframe_map_sink);
+#endif
 
     // Update trajectory too:
     {
@@ -309,6 +322,20 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     initPose.cov.setDiagonal(1e-12);
 
     state_.navstate_fuse->fuse_pose(scan_ref_time, initPose, params_.publish_reference_frame);
+
+    // Seed last_lidar_pose and distance_checker_simplemap with the origin so
+    // the next scan's distance check starts from here rather than from "empty"
+    // (an empty checker reports isFirstPoseInSMChecker=true for every pose,
+    // which would spuriously fire a second keyframe on the very next scan):
+    state_.last_lidar_pose = initPose;
+    if (!state_.distance_checker_simplemap) {
+      state_.distance_checker_simplemap.emplace(params_.simplemap.measure_from_last_kf_only);
+    }
+    {
+      mrpt::poses::CPose3D sensorPoseInVehicle;
+      obs->getSensorPose(sensorPoseInVehicle);
+      state_.distance_checker_simplemap->insert(state_.last_lidar_pose.mean + sensorPoseInVehicle);
+    }
   } else {
     // Register point clouds using ICP:
     // ------------------------------------
@@ -799,7 +826,23 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
        );
     // clang-format on
 
-    if (updateSimpleMap && distance_enough_sm) {
+#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
+    pushToSharedKeyframeMapNow =
+      static_cast<bool>(state_.shared_keyframe_map_sink) && icpIsGood && distance_enough_sm;
+#endif
+
+    if (
+      (updateSimpleMap
+#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
+       || pushToSharedKeyframeMapNow
+#endif
+       ) &&
+      distance_enough_sm) {
+      // Advance the keyframe-sparsity reference point even when
+      // simplemap.generate is disabled, as long as something (the sink)
+      // still needs the distance_enough_sm criterion to actually behave as
+      // "sparse" instead of always firing (an empty checker reports every
+      // pose as "far enough"):
       state_.distance_checker_simplemap->insert(lidarPoseInWorld);
     }
 
@@ -887,6 +930,21 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       sf, distance_enough_sm, observation, scan_ref_time, fullCloudForVizAndPublish);
   }
 
+#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
+  // Build the keyframe request while holding state_mtx_; the actual sink call
+  // is deferred to after all state accesses so state_mtx_ can be released first:
+  if (pushToSharedKeyframeMapNow) {
+    mola::SharedKeyframeMap::KeyframeInsertRequest req;
+    req.timestamp = scan_ref_time;
+    req.source_frame_id = params_.publish_reference_frame + "_kf";
+    req.pose_in_source = state_.last_lidar_pose;
+    req.observations = sf;
+    req.quality = std::clamp(state_.last_icp_quality, 0.0, 1.0);
+    pendingKfReq = std::move(req);
+    pendingKfSink = state_.shared_keyframe_map_sink;
+  }
+#endif
+
   // In any case, publish the vehicle pose, no matter if it's a keyframe or not,
   // if ICP quality was good enough:
   if (state_.last_icp_was_good) {
@@ -937,6 +995,25 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       updateVisualizationAlways();
     }
   }
+
+#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
+  // All state_ accesses are done; release state_mtx_ before invoking the sink
+  // so it no longer blocks other state-mutex users during IPC/slow operations:
+  if (pendingKfReq) {
+    lckState.unlock();
+    try {
+      pendingKfSink->requestInsertKeyframe(*pendingKfReq);
+    } catch (const std::exception & e) {
+      MRPT_LOG_WARN_STREAM(
+        "pushKeyframeToSharedKeyframeMap failed at t="
+        << mrpt::system::dateTimeToString(pendingKfReq->timestamp) << ": " << e.what());
+    } catch (...) {
+      MRPT_LOG_WARN_STREAM(
+        "pushKeyframeToSharedKeyframeMap failed at t="
+        << mrpt::system::dateTimeToString(pendingKfReq->timestamp) << " (unknown exception)");
+    }
+  }
+#endif
 }
 
 mp2p_icp::metric_map_t::Ptr LidarOdometry::observationFromRawSensor(
@@ -1215,5 +1292,30 @@ void LidarOdometry::doUpdateSimpleMap(
   constexpr size_t MAX_SIZE_UNLOAD_QUEUE = 100;
   unloadPastSimplemapObservations(MAX_SIZE_UNLOAD_QUEUE);
 }
+
+#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
+void LidarOdometry::pushKeyframeToSharedKeyframeMap(
+  const mrpt::obs::CSensoryFrame & sf, const mrpt::Clock::time_point & scan_ref_time)
+{
+  mola::SharedKeyframeMap::KeyframeInsertRequest req;
+  req.timestamp = scan_ref_time;
+  // A DEDICATED source_frame_id, distinct from params_.publish_reference_frame:
+  // that one is shared by the dense, every-good-ICP-scan fuse_pose() calls
+  // above (for short-term prediction), which tie every such scan absolutely
+  // to F(publish_reference_frame). Reusing the same frame here would let the
+  // sink's anchor-once tie collide with that dense, already-present tie on
+  // the very same (relocalization-seeded) first keyframe, which produced a
+  // gtsam::IndeterminantLinearSystemException at startup in practice.
+  req.source_frame_id = params_.publish_reference_frame + "_kf";
+  // state_.last_lidar_pose is this instance's own odometry estimate (in its
+  // own, possibly drift-prone frame), exactly as written to the self-built
+  // simplemap above: the sink chains it via *relative* motion, not absolute.
+  req.pose_in_source = state_.last_lidar_pose;
+  req.observations = sf;
+  req.quality = std::clamp(state_.last_icp_quality, 0.0, 1.0);
+
+  state_.shared_keyframe_map_sink->requestInsertKeyframe(req);
+}
+#endif
 
 }  // namespace mola

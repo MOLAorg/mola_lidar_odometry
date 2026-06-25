@@ -424,6 +424,19 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     MRPT_LOG_DEBUG("Attached to the state estimation module");
   }
 
+#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
+  // Optional: a central-map backend (e.g. mola_mapper_3d) accepting
+  // keyframe-insertion requests. Unlike navstate_fuse, this is NOT required:
+  // most systems still write their own local .simplemap only.
+  {
+    auto sinks = findService<mola::SharedKeyframeMap>();
+    if (!sinks.empty()) {
+      state_.shared_keyframe_map_sink = std::dynamic_pointer_cast<SharedKeyframeMap>(sinks[0]);
+      MRPT_LOG_DEBUG("Detected a SharedKeyframeMap sink: will push central-map keyframes to it.");
+    }
+  }
+#endif
+
   // If using FromStateEstimator initialization, also subscribe to map updates
   // from the state estimator to receive geo-referencing information:
   if (params_.initial_localization.method == InitLocalization::FromStateEstimator) {

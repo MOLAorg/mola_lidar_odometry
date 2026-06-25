@@ -24,6 +24,37 @@ thread. This bounds per-scan latency for real-time use. With the default
 `async_backend: false`, `estimated_navstate()` runs the window solve synchronously
 (deterministic, but heavier per call) - see `mola_state_estimation`'s docs.
 
+## SharedKeyframeMap sink (central-map keyframe push, e.g. mola_mapper_3d)
+
+Separately from the dense `navstate_fuse` querying above, `LidarOdometry`
+optionally detects a `mola::SharedKeyframeMap` sink at init
+(`findService<mola::SharedKeyframeMap>()` in `LidarOdometry_Initialize.cpp`,
+guarded by `#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)` /
+`__has_include(<mola_kernel/interfaces/SharedKeyframeMap.h>)` so this still
+builds against an older `mola_kernel`). Unlike `navstate_fuse`, this is
+OPTIONAL: most systems still write their own local `.simplemap` only and
+never have a sink.
+
+When present, `pushKeyframeToSharedKeyframeMap()`
+(`LidarOdometry_ProcessScan.cpp`) pushes a SPARSE keyframe at the exact same
+`distance_enough_sm` criterion as the self-written simplemap, but
+INDEPENDENTLY of whether `params_.simplemap.generate` is set (the underlying
+distance-checker's `insert()` is now driven by `pushToSharedKeyframeMapNow`
+too, not just `updateSimpleMap` -- this was a real bug, see below). It uses
+`source_frame_id = params_.publish_reference_frame + "_kf"`, a DEDICATED name
+distinct from `publish_reference_frame` (the frame the dense, every-scan
+`fuse_pose()` calls above use): reusing the same name lets the sink's
+anchor-once tie collide with the dense path's tie on the same
+(relocalization-seeded) keyframe, which threw
+`gtsam::IndeterminantLinearSystemException` at startup in real testing
+against KITTI through `mola_mapper_3d`'s
+`mola-cli-launchs/lidar_odometry_mapper3d_from_kitti.yaml`. See that
+package's agents.md ("Real end-to-end validation lessons") for the full list
+of bugs this integration surfaced, several of which were in `mola_mapper_3d`,
+not here -- but two structural changes live in this file:
+`pushKeyframeToSharedKeyframeMap()`'s dedicated frame name, and the
+distance-checker `insert()` gating fix mentioned above.
+
 ## Building
 
 We use colcon, the ROS2 build tool, and mola_common with utility cmake helpers.
