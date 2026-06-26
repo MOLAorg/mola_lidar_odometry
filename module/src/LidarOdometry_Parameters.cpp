@@ -150,6 +150,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(camera_rotates_with_vehicle, bool);
   YAML_LOAD_OPT(camera_orthographic, bool);
   YAML_LOAD_OPT(show_gravity_align_vector, bool);
+  YAML_LOAD_OPT(render_in_movable_frame, bool);
 
   initializeModelPart(cfg);
 }
