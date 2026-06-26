@@ -331,6 +331,16 @@ public:
       bool camera_orthographic = false;
       bool show_gravity_align_vector = false;
 
+      /// If true (and a movable-frame-capable visualizer is present), all 3D
+      /// objects are drawn as children of a movable scene frame node named
+      /// `publish_reference_frame` instead of the viewport root. A central
+      /// backend such as mola_mapper_3d then repositions that frame as it
+      /// estimates `T_map_to_{odom}`, so this odometry's dense clouds / local
+      /// map stay correctly placed in {map} without being re-rendered. When no
+      /// such backend is present the frame stays at the identity pose, so the
+      /// behavior is identical to drawing at the root (standalone runs).
+      bool render_in_movable_frame = true;
+
       /** If not empty, an optional 3D model (.DAE, etc) to load for
        * visualizing the robot/vehicle pose */
       struct ModelPart
@@ -1072,6 +1082,11 @@ private:
   mola::gui::Tab buildTabView();
 
   void doRemoveCloudsWithDecay();
+
+  /// Movable scene-frame name to draw 3D objects under (see
+  /// Visualization::render_in_movable_frame). Empty => draw at the viewport
+  /// root (standalone / older mola_kernel).
+  [[nodiscard]] std::string vizParentFrame() const;
 
   void onExternalMapUpdate(const MapSourceBase::MapUpdate & mu);
   void onExternalLocalizationUpdate(const LocalizationSourceBase::LocalizationUpdate & lu);

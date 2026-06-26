@@ -330,7 +330,32 @@ void doRecolorize(
   mrpt::obs::recolorize3Dpc(cloud, org_cloud, rp);
 };
 
+// Upserts a 3D object, optionally as a child of a movable scene frame node
+// (parentFrame). Falls back to a root insert when built against an older
+// mola_kernel that lacks the movable-frame API.
+void vizUpsert3D(
+  const mola::VizInterface::Ptr & viz, const std::string & name,
+  const mrpt::opengl::CSetOfObjects::Ptr & obj, const std::string & parentFrame)
+{
+#if defined(MOLA_KERNEL_VIZ_HAS_MOVABLE_FRAMES)
+  viz->update_3d_object(name, obj, "main", "main", parentFrame);
+#else
+  (void)parentFrame;
+  viz->update_3d_object(name, obj);
+#endif
+}
+
 }  // namespace
+
+std::string LidarOdometry::vizParentFrame() const
+{
+#if defined(MOLA_KERNEL_VIZ_HAS_MOVABLE_FRAMES)
+  if (params_.visualization.render_in_movable_frame) {
+    return params_.publish_reference_frame;
+  }
+#endif
+  return {};
+}
 
 void LidarOdometry::updateVisualization(
   const mp2p_icp::metric_map_t & currentObservation,
@@ -343,6 +368,9 @@ void LidarOdometry::updateVisualization(
   // In this point, we are called by the LIDAR worker thread, so it's safe
   // to read the state without mutexes.
   ASSERT_(visualizer_);
+
+  // Movable scene-frame to draw under (empty = viewport root):
+  const std::string vizFrame = vizParentFrame();
 
   // So they can be called at once at the end to minimize "flicker":
   std::vector<std::function<void()>> updateTasks;
@@ -376,8 +404,8 @@ void LidarOdometry::updateVisualization(
     glVehicle->insert(m);
   }
   glVehicle->setPose(state_.last_lidar_pose.mean);
-  updateTasks.emplace_back([visualizer = visualizer_, glVehicle]() {
-    visualizer->update_3d_object("liodom/vehicle", glVehicle);
+  updateTasks.emplace_back([visualizer = visualizer_, glVehicle, vizFrame]() {
+    vizUpsert3D(visualizer, "liodom/vehicle", glVehicle, vizFrame);
   });
 
   // Update current observation
@@ -433,8 +461,8 @@ void LidarOdometry::updateVisualization(
 
       glGroundGrid->insert(glGrid);
     }
-    updateTasks.emplace_back([visualizer = visualizer_, glGroundGrid]() {
-      visualizer->update_3d_object("liodom/groundgrid", glGroundGrid);
+    updateTasks.emplace_back([visualizer = visualizer_, glGroundGrid, vizFrame]() {
+      vizUpsert3D(visualizer, "liodom/groundgrid", glGroundGrid, vizFrame);
     });
   }
 
@@ -532,6 +560,8 @@ void LidarOdometry::updateVisualizationCurrentObservation(
   const bool showCurrent = params_.visualization.show_current_observation;
   const bool showDecay = params_.visualization.show_last_deskewed_observations_decay;
 
+  const std::string vizFrame = vizParentFrame();
+
   if (!hasRaw || (!showCurrent && !showDecay)) {
     // Route the clear through the worker thread so it is ordered after any
     // previously enqueued frame lambdas and cannot be overwritten by them.
@@ -540,9 +570,9 @@ void LidarOdometry::updateVisualizationCurrentObservation(
       // Always clear cur_obs: we reach here precisely when showCurrent is
       // false or there is no raw layer, so any previously displayed cloud
       // must be removed.
-      auto empty = mrpt::opengl::CSetOfObjects::Create();
-      viz->update_3d_object("liodom/cur_obs", empty);
       if (viz) {
+        auto empty = mrpt::opengl::CSetOfObjects::Create();
+        vizUpsert3D(viz, "liodom/cur_obs", empty, vizFrame);
         viz->clear_all_point_clouds_with_decay();
       }
     });
@@ -604,10 +634,10 @@ void LidarOdometry::updateVisualizationCurrentObservation(
         doRecolorize(curObsColormap, curObsColorField, orgCloud.get(), cloud);
       }
 
-      viz->update_3d_object("liodom/cur_obs", glCurrentObs);
+      vizUpsert3D(viz, "liodom/cur_obs", glCurrentObs, vizFrame);
     } else {
       auto empty = mrpt::opengl::CSetOfObjects::Create();
-      viz->update_3d_object("liodom/cur_obs", empty);
+      vizUpsert3D(viz, "liodom/cur_obs", empty, vizFrame);
     }
 
     // --- Decaying deskewed clouds ---
@@ -641,6 +671,7 @@ void LidarOdometry::updateVisualizationCurrentObservation(
 
 void LidarOdometry::updateVisualizationLocalMap(std::vector<std::function<void()>> & updateTasks)
 {
+  const std::string vizFrame = vizParentFrame();
   if (
     params_.visualization.show_localmap && state_.local_map &&
     ((state_.mapUpdateCnt++ > params_.visualization.map_update_decimation) &&
@@ -663,16 +694,16 @@ void LidarOdometry::updateVisualizationLocalMap(std::vector<std::function<void()
     // local map:
     auto glMap = state_.local_map->get_visualization(rp);
 
-    updateTasks.emplace_back([visualizer = visualizer_, glMap]() {
-      visualizer->update_3d_object("liodom/localmap", glMap);
+    updateTasks.emplace_back([visualizer = visualizer_, glMap, vizFrame]() {
+      vizUpsert3D(visualizer, "liodom/localmap", glMap, vizFrame);
     });
   }
 
   // Clear the local map if the user clicks on "hide it" at runtime:
   if (!params_.visualization.show_localmap) {
     auto glMap = mrpt::opengl::CSetOfObjects::Create();
-    updateTasks.emplace_back([visualizer = visualizer_, glMap]() {
-      visualizer->update_3d_object("liodom/localmap", glMap);
+    updateTasks.emplace_back([visualizer = visualizer_, glMap, vizFrame]() {
+      vizUpsert3D(visualizer, "liodom/localmap", glMap, vizFrame);
     });
 
     // Force an immediate redraw the next time the local map is shown again,
@@ -712,8 +743,8 @@ void LidarOdometry::updateVisualizationPath(std::vector<std::function<void()>> &
     auto pathGrp = mrpt::opengl::CSetOfObjects::Create();
     pathGrp->insert(mrpt::opengl::CSetOfLines::Create(*state_.glEstimatedPath));
 
-    updateTasks.emplace_back([visualizer = visualizer_, pathGrp]() {
-      visualizer->update_3d_object("liodom/path", pathGrp);
+    updateTasks.emplace_back([visualizer = visualizer_, pathGrp, vizFrame = vizParentFrame()]() {
+      vizUpsert3D(visualizer, "liodom/path", pathGrp, vizFrame);
     });
   }
 }
@@ -721,10 +752,11 @@ void LidarOdometry::updateVisualizationPath(std::vector<std::function<void()>> &
 void LidarOdometry::updateVisualizationGravityVector(
   std::vector<std::function<void()>> & updateTasks)
 {
+  const std::string vizFrame = vizParentFrame();
   if (!params_.visualization.show_gravity_align_vector) {
     auto grp = mrpt::opengl::CSetOfObjects::Create();
-    updateTasks.emplace_back([visualizer = visualizer_, grp]() {
-      visualizer->update_3d_object("liodom/gravity_vector", grp);
+    updateTasks.emplace_back([visualizer = visualizer_, grp, vizFrame]() {
+      vizUpsert3D(visualizer, "liodom/gravity_vector", grp, vizFrame);
     });
     return;
   }
@@ -751,8 +783,8 @@ void LidarOdometry::updateVisualizationGravityVector(
   grp->setPose(arrowPose);
   grp->insert(glArrow);
 
-  updateTasks.emplace_back([visualizer = visualizer_, grp]() {
-    visualizer->update_3d_object("liodom/gravity_vector", grp);
+  updateTasks.emplace_back([visualizer = visualizer_, grp, vizFrame]() {
+    vizUpsert3D(visualizer, "liodom/gravity_vector", grp, vizFrame);
   });
 }
 
