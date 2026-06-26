@@ -32,6 +32,10 @@
 #include <mola_kernel/interfaces/MapSourceBase.h>
 #include <mola_kernel/interfaces/NavStateFilter.h>
 #include <mola_kernel/interfaces/Relocalization.h>
+#if __has_include(<mola_kernel/interfaces/SharedKeyframeMap.h>)
+#include <mola_kernel/interfaces/SharedKeyframeMap.h>
+#define MOLA_HAS_SHARED_KEYFRAME_MAP_SINK 1
+#endif
 #include <mola_kernel/version.h>
 
 // Other packages:
@@ -824,6 +828,13 @@ private:
     // navstate_fuse to merge pose estimates, IMU, odom, estimate twist.
     std::shared_ptr<mola::NavStateFilter> navstate_fuse;
 
+#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
+    // Central-map backend (e.g. mola_mapper_3d) accepting keyframe-insertion
+    // requests, if any is present in the running MOLA system. Detected the
+    // same way as navstate_fuse, but optional: nullptr if none is found.
+    std::shared_ptr<mola::SharedKeyframeMap> shared_keyframe_map_sink;
+#endif
+
     std::optional<NavState> last_motion_model_output;
 
     /// The source of "dynamic variables" in ICP pipelines:
@@ -1113,6 +1124,16 @@ private:
     const mrpt::obs::CSensoryFrame & sf, bool distance_enough_sm,
     const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & scan_ref_time,
     const mrpt::maps::CPointsMap::Ptr & deskewedCloud);
+
+#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
+  /// Pushes one keyframe to state_.shared_keyframe_map_sink, using
+  /// state_.last_lidar_pose as the pose in this instance's own odometry frame
+  /// (params_.publish_reference_frame). Only called when a sink is present
+  /// and the keyframe-sparsity criterion (distance_enough_sm) fired, mirroring
+  /// the self-written simplemap's keyframing.
+  void pushKeyframeToSharedKeyframeMap(
+    const mrpt::obs::CSensoryFrame & sf, const mrpt::Clock::time_point & scan_ref_time);
+#endif
 };
 
 namespace detail
