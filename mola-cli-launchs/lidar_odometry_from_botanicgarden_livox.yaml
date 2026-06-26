@@ -1,36 +1,53 @@
 # -----------------------------------------------------------------------------
 #                        SLAM system definition for MOLA
 # This file defines:
-# LiDAR odometry from the BotanicGarden dataset, read directly from its
-# ROS 1 ".bag" file via mola::Rosbag1Dataset (no ROS 1 install required).
+# LiDAR odometry from the BotanicGarden dataset using the Livox AVIA sensor
+# (/livox/lidar, livox_ros_driver/CustomMsg), read directly from its ROS 1
+# ".bag" file via mola::Rosbag1Dataset (no ROS 1 install required).
 #
 # Dataset: BotanicGarden (https://github.com/robot-pesg/BotanicGarden)
 # Sensor inventory of the "LIO" bag (confirmed with rosbag1-info):
 #   /imu/data         sensor_msgs/Imu        Xsens MTi-680G, ~400 Hz (base_link)
-#   /velodyne_points  sensor_msgs/PointCloud2 Velodyne VLP-16, ~10 Hz
+#   /livox/lidar      livox_ros_driver/CustomMsg  Livox AVIA, ~10 Hz  <-- PRIMARY
+#   /livox/imu        sensor_msgs/Imu        BMI088 (Livox built-in), ~200 Hz
 #   /odom             nav_msgs/Odometry      wheel odometry, ~200 Hz
-#   /livox/imu        sensor_msgs/Imu        BMI088 (Livox built-in), ~200 Hz (unused)
-#   /livox/lidar      livox_ros_driver/CustomMsg  Livox AVIA, ~10 Hz (unused)
+#   /velodyne_points  sensor_msgs/PointCloud2 Velodyne VLP-16, ~10 Hz (unused)
 # NO GNSS topic in this bag: Xsens D-GNSS/INS hardware is not published.
 #
-# Extrinsics: all fixed_sensor_pose values are taken from
+# livox_ros_driver/CustomMsg is natively supported by mola_input_rosbag1:
+# offset_time -> per-point timestamp, reflectivity -> intensity, line -> ring.
+#
+# Extrinsics: all fixed_sensor_pose values taken from
 #   BotanicGarden/calib/extrinsics/calib_chain.yaml
 # with the Xsens IMU (/imu/data) as base_link (T_xsens_* convention).
+#   /livox/lidar : T_xsens_vlp16 * T_vlp16_livox  (cross-LiDAR chain)
+#   /livox/imu   : T_xsens_gray0 * inv(T_bmi088_gray0)  (via camera chain;
+#                   no direct bmi088<->xsens calibration is provided)
 # There is no /tf or /tf_static in the bag, so use_fixed_sensor_pose is
-# mandatory for the LiDAR.
+# mandatory for all sensors.
 #
 # Usage:
 #   export BOTANICGARDEN_LIO_BAG=$HOME/datasets/botanic/1018_00_LIO.bag
 #   MOLA_DESKEW_METHOD=MotionCompensationMethod::IMU \
 #   MOLA_IGNORE_NO_POINT_STAMPS=false \
-#   mola-cli $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/mola-cli-launchs/lidar_odometry_from_botanicgarden.yaml
+#   MOLA_MIN_NEARBY_POSES_OCCUPIED=2 \
+#   MOLA_SIMPLEMAP_MIN_NEARBY_POSES=2 \
+#   MOLA_MIN_ROT_BETWEEN_MAP_UPDATES=10 \
+#   MOLA_SIMPLEMAP_MIN_ROT=10 \
+#   mola-cli $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/mola-cli-launchs/lidar_odometry_from_botanicgarden_livox.yaml
 #
 # MOLA_DESKEW_METHOD=MotionCompensationMethod::IMU enables true LIO deskewing:
 #   the default (Linear) only uses the state-estimator's twist, not raw IMU
 #   gyroscope readings. IMU-based deskewing is better for high-speed motion.
-# MOLA_IGNORE_NO_POINT_STAMPS=false is a fail-safe: the VLP-16 publishes
-#   per-point timestamps, so this should never trigger; if it does, it means
-#   the timestamps are missing and deskewing would silently be skipped.
+# MOLA_IGNORE_NO_POINT_STAMPS=false: Livox AVIA per-point timestamps come from
+#   offset_time via mola_input_rosbag1's CustomMsg converter; this flag ensures
+#   deskewing is not silently skipped if they are accidentally missing.
+# MOLA_MIN_NEARBY_POSES_OCCUPIED=2 / MOLA_SIMPLEMAP_MIN_NEARBY_POSES=2:
+#   The Livox AVIA uses a non-repetitive (solid-state) scan pattern: a single
+#   frame does NOT cover the full FOV uniformly. Setting this to 2+ ensures that
+#   at least 2 scans are stored from each location before moving on, so the
+#   local map and simplemap are built from denser, more complete coverage.
+#   For spinning lidars (e.g. VLP-16) the default of 1 is correct.
 #
 # Optional overrides:
 #   BOTANICGARDEN_GT_BAG=$HOME/datasets/botanic/gt_1018_00_qnew.bag
@@ -50,7 +67,7 @@ modules:
     enabled: ${MOLA_WITH_GUI|true}
     verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
     params:
-      imgui_app_name: lo_botanicgarden
+      imgui_app_name: lo_botanicgarden_livox
 
   # =====================
   # Rosbag1Dataset (BotanicGarden)
@@ -85,10 +102,16 @@ modules:
           fixed_sensor_pose: "0 0 0 0 0 0"
           use_fixed_sensor_pose: true
 
-        - topic: /velodyne_points   # Velodyne VLP-16, ~10 Hz
+        - topic: /livox/lidar   # Livox AVIA (livox_ros_driver/CustomMsg), ~10 Hz
           type: CObservationPointCloud
           sensorLabel: lidar
-          fixed_sensor_pose: "0.0584868 0.0084042 0.1689155 -1.448155 0.097462 0.444791" # T_xsens_vlp16
+          fixed_sensor_pose: "0.1369218 0.0011730 -0.0076735 -0.235134 -0.506113 -0.294598" # T_xsens_vlp16 * T_vlp16_livox
+          use_fixed_sensor_pose: true
+
+        - topic: /livox/imu   # BMI088 (Livox built-in), ~200 Hz
+          type: CObservationIMU
+          sensorLabel: imu_livox
+          fixed_sensor_pose: "0.0850406 -0.0366670 0.0273713 -0.222559 0.317378 0.494650" # T_xsens_gray0 * inv(T_bmi088_gray0)
           use_fixed_sensor_pose: true
 
         - topic: /odom   # Wheel odometry, ~200 Hz

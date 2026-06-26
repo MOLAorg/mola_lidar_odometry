@@ -55,6 +55,36 @@ not here -- but two structural changes live in this file:
 `pushKeyframeToSharedKeyframeMap()`'s dedicated frame name, and the
 distance-checker `insert()` gating fix mentioned above.
 
+## Non-repetitive (solid-state) LiDARs (e.g. Livox AVIA)
+
+Spinning LiDARs (Velodyne, Ouster, ...) cover their full FOV every rotation, so
+a single scan gives complete coverage and the default keyframe insertion
+criterion (insert once per distance threshold, `min_nearby_poses_occupied=1`) is
+correct.
+
+Solid-state / non-repetitive LiDARs such as the **Livox AVIA** do NOT complete a
+full-FOV sweep in one frame: the scan pattern is pseudo-random and accumulates
+over multiple frames. Two consequences for pipeline tuning:
+
+1. **`MOLA_MIN_NEARBY_POSES_OCCUPIED=2`** (and `MOLA_SIMPLEMAP_MIN_NEARBY_POSES=2`):
+   raise this from the default 1 so that at least 2 scans are accumulated before
+   the robot moves on, giving the local map and simplemap denser, more uniform
+   coverage per location. Set in `local_map_updates.min_nearby_poses_occupied`
+   and `simplemap.min_nearby_poses_occupied` in the pipeline YAML (both env-var
+   gated). See `LidarOdometry.h:225` for the docstring.
+
+2. **`MOLA_DESKEW_METHOD=MotionCompensationMethod::IMU`**: always set this for
+   LIO with any LiDAR that has per-point timestamps (Livox via `offset_time`,
+   VLP-16 natively). The default `Linear` only uses the state-estimator twist;
+   `IMU` uses raw gyroscope readings for finer-grained deskewing.
+
+3. **`MOLA_IGNORE_NO_POINT_STAMPS=false`**: fail loudly if per-point timestamps
+   are absent, rather than silently skipping deskewing (the default `true`).
+   Use this when the sensor is known to always provide per-point timestamps.
+
+See `mola-cli-launchs/lidar_odometry_from_botanicgarden_livox.yaml` for a
+complete example with all three env vars set.
+
 ## Building
 
 We use colcon, the ROS2 build tool, and mola_common with utility cmake helpers.

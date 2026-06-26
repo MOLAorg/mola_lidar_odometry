@@ -469,6 +469,17 @@ Local map update
 - ``MOLA_MIN_NEARBY_POSES_OCCUPIED`` (Default: ``1``): Minimum number of nearby local-map poses that must be occupied
   before a new keyframe is accepted into the map.
 
+  .. note::
+
+     **Non-repetitive / solid-state LiDARs (e.g. Livox AVIA)**: a single scan does not cover the full
+     field of view uniformly. Set this to ``2`` or higher so that multiple frames are accumulated from
+     each location before the robot moves on, producing denser local-map coverage.
+     For spinning LiDARs (Velodyne, Ouster, ...) the default of ``1`` is correct.
+
+- ``MOLA_SIMPLEMAP_MIN_NEARBY_POSES`` (Default: ``1``): Same criterion, applied to the simplemap keyframe
+  insertion instead of the local map.
+  Set to ``2+`` for non-repetitive LiDARs for the same reason as ``MOLA_MIN_NEARBY_POSES_OCCUPIED`` above.
+
 - ``MOLA_PUBLISH_LOCAL_MAP_UPDATES_EVERY_N`` (Default: ``40`` in GICP, ``5`` in NDT): Publish local map visualization
   updates every N ICP iterations.
 
