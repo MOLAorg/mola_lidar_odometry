@@ -424,8 +424,15 @@ void LidarOdometry::updateVisualization(
   // ---------------------------
   if (params_.visualization.camera_follows_vehicle) {
     const auto t = state_.last_lidar_pose.mean.translation();
+#if defined(MOLA_KERNEL_VIZ_HAS_MOVABLE_FRAMES)
+    const std::string lookAtFrame = vizParentFrame();
+    updateTasks.emplace_back([visualizer = visualizer_, t, lookAtFrame]() {
+      visualizer->update_viewport_look_at(t, "main", "main", lookAtFrame);
+    });
+#else
     updateTasks.emplace_back(
       [visualizer = visualizer_, t]() { visualizer->update_viewport_look_at(t); });
+#endif
   }
 
   if (params_.visualization.camera_rotates_with_vehicle) {
@@ -659,7 +666,11 @@ void LidarOdometry::updateVisualizationCurrentObservation(
         cloud->setPose(currentPose);
         doRecolorize(decayColormap, decayColorField, deskewed.get(), cloud);
 
+#if defined(MOLA_KERNEL_VIZ_HAS_MOVABLE_FRAMES)
+        viz->insert_point_cloud_with_decay(cloud, decaySeconds, "main", "main", vizFrame);
+#else
         viz->insert_point_cloud_with_decay(cloud, decaySeconds);
+#endif
       }
     } else if (!showDecay) {
       viz->clear_all_point_clouds_with_decay();
