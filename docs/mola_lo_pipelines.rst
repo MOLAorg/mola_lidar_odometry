@@ -617,7 +617,7 @@ Initial localization
   initial pose at startup. Options:
 
   - ``InitLocalization::FixedPose``: Use a fixed pose defined by ``MOLA_INITIAL_*`` below.
-  - ``InitLocalization::IMUCalibration``: Collect IMU samples to determine initial orientation.
+  - ``InitLocalization::PitchAndRollFromIMU``: Collect IMU samples to determine initial orientation.
   - ``InitLocalization::FromStateEstimator``: Wait for an external state estimator to converge.
 
 - ``MOLA_INITIAL_X``, ``MOLA_INITIAL_Y``, ``MOLA_INITIAL_Z`` (Default: ``0.0`` [m]): Initial position when using
@@ -627,7 +627,7 @@ Initial localization
   when using ``InitLocalization::FixedPose``.
 
 - ``MOLA_LO_INITIAL_IMU_SAMPLES`` (Default: ``400``): Number of IMU samples to collect for initial orientation
-  calibration when using ``InitLocalization::IMUCalibration``.
+  calibration when using ``InitLocalization::PitchAndRollFromIMU``.
 
 - ``MOLA_LO_INITIAL_IMU_USE_ORIENTATION`` (Default: ``true``): Whether to use the IMU orientation quaternion (if
   provided by the driver) directly, instead of computing orientation from accelerometer readings.
