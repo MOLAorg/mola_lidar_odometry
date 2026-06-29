@@ -726,38 +726,44 @@ void LidarOdometry::updateVisualizationLocalMap(std::vector<std::function<void()
 
 void LidarOdometry::updateVisualizationPath(std::vector<std::function<void()>> & updateTasks)
 {
-  if (params_.visualization.show_trajectory) {
-    const ProfilerEntry tle2(profiler_, "updateVisualization.update_traject");
-
-    if (!state_.glEstimatedPath) {
-      state_.glEstimatedPath = mrpt::opengl::CSetOfLines::Create();
-      const auto & rgba = params_.visualization.trajectory_rgba;
-      state_.glEstimatedPath->setColor(rgba.at(0), rgba.at(1), rgba.at(2), rgba.at(3));
-    }
-    // Update path viz:
-    for (size_t i = state_.glEstimatedPath->size(); i < state_.estimated_trajectory.size(); i++) {
-      auto it = state_.estimated_trajectory.begin();
-      std::advance(it, i);
-
-      const auto t = it->second.translation();
-
-      if (state_.glEstimatedPath->empty()) {
-        state_.glEstimatedPath->appendLine(t, t);
-      } else {
-        state_.glEstimatedPath->appendLineStrip(t);
-      }
-    }
-    // Hand a *fresh* wrapper containing a deep clone of the lines to the
-    // GUI thread, so the worker-private glEstimatedPath buffer can keep
-    // growing on subsequent ticks without racing with MolaViz's deep
-    // read on the GUI thread.
-    auto pathGrp = mrpt::opengl::CSetOfObjects::Create();
-    pathGrp->insert(mrpt::opengl::CSetOfLines::Create(*state_.glEstimatedPath));
-
-    updateTasks.emplace_back([visualizer = visualizer_, pathGrp, vizFrame = vizParentFrame()]() {
-      vizUpsert3D(visualizer, "liodom/path", pathGrp, vizFrame);
+  if (!params_.visualization.show_trajectory) {
+    auto empty = mrpt::opengl::CSetOfObjects::Create();
+    updateTasks.emplace_back([visualizer = visualizer_, empty, vizFrame = vizParentFrame()]() {
+      vizUpsert3D(visualizer, "liodom/path", empty, vizFrame);
     });
+    return;
   }
+
+  const ProfilerEntry tle2(profiler_, "updateVisualization.update_traject");
+
+  if (!state_.glEstimatedPath) {
+    state_.glEstimatedPath = mrpt::opengl::CSetOfLines::Create();
+    const auto & rgba = params_.visualization.trajectory_rgba;
+    state_.glEstimatedPath->setColor(rgba.at(0), rgba.at(1), rgba.at(2), rgba.at(3));
+  }
+  // Update path viz:
+  for (size_t i = state_.glEstimatedPath->size(); i < state_.estimated_trajectory.size(); i++) {
+    auto it = state_.estimated_trajectory.begin();
+    std::advance(it, i);
+
+    const auto t = it->second.translation();
+
+    if (state_.glEstimatedPath->empty()) {
+      state_.glEstimatedPath->appendLine(t, t);
+    } else {
+      state_.glEstimatedPath->appendLineStrip(t);
+    }
+  }
+  // Hand a *fresh* wrapper containing a deep clone of the lines to the
+  // GUI thread, so the worker-private glEstimatedPath buffer can keep
+  // growing on subsequent ticks without racing with MolaViz's deep
+  // read on the GUI thread.
+  auto pathGrp = mrpt::opengl::CSetOfObjects::Create();
+  pathGrp->insert(mrpt::opengl::CSetOfLines::Create(*state_.glEstimatedPath));
+
+  updateTasks.emplace_back([visualizer = visualizer_, pathGrp, vizFrame = vizParentFrame()]() {
+    vizUpsert3D(visualizer, "liodom/path", pathGrp, vizFrame);
+  });
 }
 
 void LidarOdometry::updateVisualizationGravityVector(
