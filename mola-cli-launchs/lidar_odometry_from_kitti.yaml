@@ -9,9 +9,10 @@ modules:
   # MolaViz
   # =====================
   - name: viz
-    type: ${MOLA_GUI_MODULE|mola::MolaViz} # Options: mola::MolaViz | mola::MolaVizImGui
+    type: ${MOLA_GUI_MODULE|mola::MolaVizImGui}
     verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
-    params: ~ # none
+    params:
+      imgui_app_name: lidar_odometry_from_kitti
 
   # Offline or online sensory data sources =====================
   # =====================

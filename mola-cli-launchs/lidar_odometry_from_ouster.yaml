@@ -40,10 +40,11 @@ modules:
   # MolaViz
   # =====================
   - name: viz
-    type: ${MOLA_GUI_MODULE|mola::MolaViz} # Options: mola::MolaViz | mola::MolaVizImGui
+    type: ${MOLA_GUI_MODULE|mola::MolaVizImGui}
     enabled: ${MOLA_WITH_GUI|true}
     verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
-    params: ~ # none
+    params:
+      imgui_app_name: lidar_odometry_from_ouster
 
   # =====================
   # Ouster Direct Input
