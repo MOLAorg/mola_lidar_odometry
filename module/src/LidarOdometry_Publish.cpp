@@ -209,6 +209,19 @@ void LidarOdometry::publishMetricMapGeoreferencingData()
 
   state_.local_map_georef_needs_publish = false;
 
+  // Hand the map geo-reference to the state estimator so it can convert GNSS
+  // fixes into map-frame constraints. This is a no-op for estimators that do
+  // not support GNSS/geo-referencing (default NavStateFilter implementation).
+  // Note: the map stores an mp2p_icp georef; copy it into the mola_kernel type.
+  if (state_.navstate_fuse) {
+    mola::Georeferencing georef;
+    georef.geo_coord = g.geo_coord;
+    georef.T_enu_to_map = g.T_enu_to_map;
+#if defined(MOLA_KERNEL_NAVSTATE_FILTER_HAS_GEO_REFERENCE)
+    state_.navstate_fuse->set_geo_reference(georef);
+#endif
+  }
+
   // This will publish geo-ref data via mola_kernel API as mrpt_nav_interfaces::msg::GeoreferencingMetadata
 
   MRPT_LOG_DEBUG_STREAM(
