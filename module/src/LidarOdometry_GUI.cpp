@@ -347,6 +347,36 @@ void vizUpsert3D(
 
 }  // namespace
 
+void LidarOdometry::setDeskewedColoring(
+  mrpt::img::TColormap colormap, const std::string & colorByField)
+{
+  enqueue_request([this, colormap, colorByField]() {
+    params_.visualization.current_observation_colormap = colormap;
+    params_.visualization.current_observation_color_by_field = colorByField;
+    params_.visualization.last_deskewed_observations_colormap = colormap;
+    params_.visualization.last_deskewed_observations_color_by_field = colorByField;
+  });
+}
+
+void LidarOdometry::setLocalMapColoring(
+  mrpt::img::TColormap colormap, const std::string & colorByField)
+{
+  enqueue_request([this, colormap, colorByField]() {
+    params_.visualization.local_map_colormap = colormap;
+    params_.visualization.local_map_colormap_color_by_field = colorByField;
+  });
+}
+
+void LidarOdometry::setTrajectoryVisualization(bool show, const std::vector<float> & rgba)
+{
+  enqueue_request([this, show, rgba]() {
+    params_.visualization.show_trajectory = show;
+    if (rgba.size() == 4) {
+      params_.visualization.trajectory_rgba = rgba;
+    }
+  });
+}
+
 std::string LidarOdometry::vizParentFrame() const
 {
 #if defined(MOLA_KERNEL_VIZ_HAS_MOVABLE_FRAMES)

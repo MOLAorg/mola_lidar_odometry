@@ -661,6 +661,29 @@ public:
 
   /** @} */
 
+  /** @name Runtime visualization coloring overrides
+     *  All setters are thread-safe: the change is applied on the internal
+     *  LidarOdometry worker thread via enqueue_request(), so they may be
+     *  called from any thread (e.g. a host GUI) at any time.
+     *{ */
+
+  /** Sets the colormap and color-by-field used to render the live deskewed
+     *  scan streams (the incoming current observation and the decaying
+     *  "dense local map" of past observations). Pass cmNONE as \a colormap to
+     *  keep the point cloud's own RGB colors (no recoloring). */
+  void setDeskewedColoring(mrpt::img::TColormap colormap, const std::string & colorByField);
+
+  /** Sets the colormap and color-by-field used to render the local map cloud
+     *  (e.g. cmGRAYSCALE for a grayscale global map). */
+  void setLocalMapColoring(mrpt::img::TColormap colormap, const std::string & colorByField);
+
+  /** Sets estimated-trajectory line visibility and, if \a rgba has size 4,
+     *  its RGBA color (each component in [0,1]). Lets a host own the
+     *  trajectory appearance instead of toggling the scene object externally. */
+  void setTrajectoryVisualization(bool show, const std::vector<float> & rgba);
+
+  /** @} */
+
   /** @name Virtual interface of Relocalization
      *{ */
 
