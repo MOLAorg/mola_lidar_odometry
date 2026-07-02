@@ -29,5 +29,25 @@ params:
   # If enabled, the estimator will enforce z, pitch, and roll to be always 0:
   enforce_planar_motion: ${MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION|false}
 
+  # --- GNSS (GPS/RTK) absolute-position fusion ---
+  # When enabled AND a geo-reference is available (loaded from the .mm map, or set
+  # via set_geo_reference()), low-uncertainty GNSS fixes (e.g. RTK-fixed) nudge the
+  # pose anchor toward the absolute map-frame position to arrest slow drift, without
+  # collapsing the ICP prior below what the motion model needs for the next step.
+  # Master switch; default false keeps the legacy "GNSS ignored" behavior:
+  gnss_enabled: ${MOLA_NAVSTATE_GNSS_ENABLED|false}
+
+  # Reject fixes whose reported horizontal sigma exceeds this [m] (RTK gate):
+  gnss_max_horizontal_sigma: ${MOLA_NAVSTATE_GNSS_MAX_HORIZ_SIGMA|0.20}
+  # Floor on the horizontal measurement sigma actually used [m], so a 2 cm RTK fix
+  # does not over-constrain the prior:
+  gnss_min_sigma_floor_xy: ${MOLA_NAVSTATE_GNSS_MIN_SIGMA_XY|0.10}
+  # Same floor for the vertical component [m] (used only if gnss_fuse_z):
+  gnss_min_sigma_floor_z: ${MOLA_NAVSTATE_GNSS_MIN_SIGMA_Z|0.30}
+
+  # If true, also correct Z. Default false: vehicle-frame vertical is poorly
+  # observed and GNSS altitude is noisier:
+  gnss_fuse_z: ${MOLA_NAVSTATE_GNSS_FUSE_Z|false}
+
   # regex for IMU sensor labels (ROS topics) to accept as IMU readings:
   do_process_imu_labels: ${MOLA_NAVSTATE_IMU_SENSOR_NAME|.*}
