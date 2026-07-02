@@ -313,6 +313,12 @@ localmap_generator:
           max_view_angle_deg: ${MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG|120}
           rotation_distance_weight: 2.0
           num_diverse_keyframes: ${MOLA_LOCALMAP_DIVERSE_KEYFRAMES|1} # Must be < max_search_keyframes
+          # If true, cov-to-cov ICP matching (Matcher_Cov2Cov) queries each active
+          # keyframe's own cached KD-tree + covariances directly, instead of building
+          # a merged submap from the active KF set. Faster (skips the merge/KD-tree
+          # rebuild) at the cost of a slightly less accurate covariance estimate
+          # (computed only from neighbors within the same source keyframe).
+          approximate_cov: ${MOLA_LOCALMAP_APPROXIMATE_COV|false}
         insertOpts:
           remove_frames_farther_than: "${MOLA_LOCAL_MAP_MAX_SIZE|$f{max(100.0, 1.50*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
         likelihoodOpts: ~ # none required
