@@ -64,10 +64,8 @@ Choosing a visualizer module
 MOLA provides two alternative visualizer modules, both allowing MRPT's OpenGL rendering,
 that can be used with all GUI applications:
 
-- **MolaViz** (``mola_viz``): The default visualizer, based on nanogui.
-  Mature and well-tested.
-- **MolaVizImGui** (``mola_viz_imgui``): A newer visualizer built on Dear ImGui.
-  Under active development and expected to become the default in a future release.
+- **MolaVizImGui** (``mola_viz_imgui``): The most recent and modern visualizer built on Dear ImGui (default).
+- **MolaViz** (``mola_viz``): An older visualizer, based on nanogui.
 
 .. list-table::
    :widths: 50 50
@@ -75,11 +73,11 @@ that can be used with all GUI applications:
 
    * - MolaViz (default)
      - MolaVizImGui
-   * - .. image:: https://mrpt.github.io/imgs/screenshot_molaviz.png
-          :alt: MolaViz GUI screenshot
-          :width: 100%
-     - .. image:: https://mrpt.github.io/imgs/screenshot_molaviz_imgui.png
+   * - .. image:: https://mrpt.github.io/imgs/screenshot_molaviz_imgui.png
           :alt: MolaVizImGui GUI screenshot
+          :width: 100%
+     - .. image:: https://mrpt.github.io/imgs/screenshot_molaviz.png
+          :alt: MolaViz GUI screenshot
           :width: 100%
 
 To switch between them, set the ``MOLA_GUI_MODULE`` environment variable before launching

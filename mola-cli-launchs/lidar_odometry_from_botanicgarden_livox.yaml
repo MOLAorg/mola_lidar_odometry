@@ -96,29 +96,29 @@ modules:
       ground_truth_topic: /gt_poses
 
       sensors:
-        - topic: /imu/data   # Xsens MTi-680G, ~400 Hz: this IS base_link
+        - topic: /imu/data # Xsens MTi-680G, ~400 Hz: this IS base_link
           type: CObservationIMU
           sensorLabel: imu
           fixed_sensor_pose: "0 0 0 0 0 0"
           use_fixed_sensor_pose: true
 
-        - topic: /livox/lidar   # Livox AVIA (livox_ros_driver/CustomMsg), ~10 Hz
+        - topic: /livox/lidar # Livox AVIA (livox_ros_driver/CustomMsg), ~10 Hz
           type: CObservationPointCloud
           sensorLabel: lidar
           fixed_sensor_pose: "0.1369218 0.0011730 -0.0076735 -0.235134 -0.506113 -0.294598" # T_xsens_vlp16 * T_vlp16_livox
           use_fixed_sensor_pose: true
 
-        - topic: /livox/imu   # BMI088 (Livox built-in), ~200 Hz
+        - topic: /livox/imu # BMI088 (Livox built-in), ~200 Hz
           type: CObservationIMU
           sensorLabel: imu_livox
           fixed_sensor_pose: "0.0850406 -0.0366670 0.0273713 -0.222559 0.317378 0.494650" # T_xsens_gray0 * inv(T_bmi088_gray0)
           use_fixed_sensor_pose: true
 
-        - topic: /odom   # Wheel odometry, ~200 Hz
+        - topic: /odom # Wheel odometry, ~200 Hz
           type: CObservationOdometry
           sensorLabel: odom_wheels
 
-        - topic: /gt_poses   # Ground truth (only if BOTANICGARDEN_GT_BAG is set)
+        - topic: /gt_poses # Ground truth (only if BOTANICGARDEN_GT_BAG is set)
           type: CObservationRobotPose
           sensorLabel: ground_truth
           is_optional: true
