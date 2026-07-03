@@ -955,7 +955,17 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   if (pushToSharedKeyframeMapNow) {
     mola::SharedKeyframeMap::KeyframeInsertRequest req;
     req.timestamp = scan_ref_time;
+    // A DEDICATED source_frame_id, distinct from params_.publish_reference_frame:
+    // that one is shared by the dense, every-good-ICP-scan fuse_pose() calls (for
+    // short-term prediction), which tie every such scan absolutely to
+    // F(publish_reference_frame). Reusing the same frame here would let the sink's
+    // anchor-once tie collide with that dense, already-present tie on the very
+    // same (relocalization-seeded) first keyframe, which produced a
+    // gtsam::IndeterminantLinearSystemException at startup in practice.
     req.source_frame_id = params_.publish_reference_frame + "_kf";
+    // state_.last_lidar_pose is this instance's own odometry estimate (in its
+    // own, possibly drift-prone frame), exactly as written to the self-built
+    // simplemap: the sink chains it via *relative* motion, not absolute.
     req.pose_in_source = state_.last_lidar_pose;
     // Enrich the shared keyframe with the same "metadata" comment (bbox + the
     // local velocity buffer) the self-built simplemap carries, so downstream
@@ -1028,11 +1038,11 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       pendingKfSink->requestInsertKeyframe(*pendingKfReq);
     } catch (const std::exception & e) {
       MRPT_LOG_WARN_STREAM(
-        "pushKeyframeToSharedKeyframeMap failed at t="
+        "shared keyframe map push failed at t="
         << mrpt::system::dateTimeToString(pendingKfReq->timestamp) << ": " << e.what());
     } catch (...) {
       MRPT_LOG_WARN_STREAM(
-        "pushKeyframeToSharedKeyframeMap failed at t="
+        "shared keyframe map push failed at t="
         << mrpt::system::dateTimeToString(pendingKfReq->timestamp) << " (unknown exception)");
     }
   }
@@ -1324,30 +1334,5 @@ void LidarOdometry::doUpdateSimpleMap(
   constexpr size_t MAX_SIZE_UNLOAD_QUEUE = 100;
   unloadPastSimplemapObservations(MAX_SIZE_UNLOAD_QUEUE);
 }
-
-#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
-void LidarOdometry::pushKeyframeToSharedKeyframeMap(
-  const mrpt::obs::CSensoryFrame & sf, const mrpt::Clock::time_point & scan_ref_time)
-{
-  mola::SharedKeyframeMap::KeyframeInsertRequest req;
-  req.timestamp = scan_ref_time;
-  // A DEDICATED source_frame_id, distinct from params_.publish_reference_frame:
-  // that one is shared by the dense, every-good-ICP-scan fuse_pose() calls
-  // above (for short-term prediction), which tie every such scan absolutely
-  // to F(publish_reference_frame). Reusing the same frame here would let the
-  // sink's anchor-once tie collide with that dense, already-present tie on
-  // the very same (relocalization-seeded) first keyframe, which produced a
-  // gtsam::IndeterminantLinearSystemException at startup in practice.
-  req.source_frame_id = params_.publish_reference_frame + "_kf";
-  // state_.last_lidar_pose is this instance's own odometry estimate (in its
-  // own, possibly drift-prone frame), exactly as written to the self-built
-  // simplemap above: the sink chains it via *relative* motion, not absolute.
-  req.pose_in_source = state_.last_lidar_pose;
-  req.observations = sf;
-  req.quality = std::clamp(state_.last_icp_quality, 0.0, 1.0);
-
-  state_.shared_keyframe_map_sink->requestInsertKeyframe(req);
-}
-#endif
 
 }  // namespace mola

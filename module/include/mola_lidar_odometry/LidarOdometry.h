@@ -1179,16 +1179,6 @@ private:
   void appendKeyframeMetadataObs(
     mrpt::obs::CSensoryFrame & keyframe_obs, const mrpt::Clock::time_point & scan_ref_time,
     const mp2p_icp::metric_map_t & observation);
-
-#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
-  /// Pushes one keyframe to state_.shared_keyframe_map_sink, using
-  /// state_.last_lidar_pose as the pose in this instance's own odometry frame
-  /// (params_.publish_reference_frame). Only called when a sink is present
-  /// and the keyframe-sparsity criterion (distance_enough_sm) fired, mirroring
-  /// the self-written simplemap's keyframing.
-  void pushKeyframeToSharedKeyframeMap(
-    const mrpt::obs::CSensoryFrame & sf, const mrpt::Clock::time_point & scan_ref_time);
-#endif
 };
 
 namespace detail
