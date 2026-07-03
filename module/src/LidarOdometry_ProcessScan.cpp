@@ -478,6 +478,9 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     // Run ICP
     // -----------------------------------------------------
     ProfilerEntry tle_icp(profiler_, "onLidar.3.run_icp");
+#ifdef MOLA_KERNEL_VIZ_HAS_METRICS
+    const double icp_t0 = mrpt::Clock::nowDouble();
+#endif
 
     mrpt::math::TPose3D current_solution = in.init_guess_local_wrt_global;
     size_t twistCorrectionCount = 0;
@@ -607,6 +610,22 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     out.found_pose_to_wrt_from = icp_result.optimal_tf;
     out.goodness = icp_result.quality;
     out.icp_iterations = icp_result.nIterations;
+
+#ifdef MOLA_KERNEL_VIZ_HAS_METRICS
+    // Stream ICP metrics to the visualizer's live plot windows, if any
+    // (mola_viz_imgui "Plots" menu; no-op on the nanogui backend / when
+    // nobody is plotting). Registered lazily since visualizer_ may not be
+    // available on the very first calls. Guarded by the feature macro so
+    // this module still builds against an older mola_kernel.
+    if (visualizer_) {
+      if (!metric_icp_time_ms_) {
+        metric_icp_time_ms_ = visualizer_->register_metric("lidar_odom/icp_time_ms", "ms");
+        metric_icp_goodness_ = visualizer_->register_metric("lidar_odom/icp_goodness", "%");
+      }
+      metric_icp_time_ms_->push(1000.0 * (mrpt::Clock::nowDouble() - icp_t0));
+      metric_icp_goodness_->push(100.0 * out.goodness);
+    }
+#endif
 
     MRPT_LOG_DEBUG_FMT(
       "ICP (kind=%u): goodness=%.02f%% iters=%u pose=%s "

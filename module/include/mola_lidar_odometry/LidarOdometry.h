@@ -1006,6 +1006,15 @@ private:
   const MethodState & state() const { return state_; }
   MethodState stateCopy() const { return state_; }
 
+#ifdef MOLA_KERNEL_VIZ_HAS_METRICS
+  /** Metric plot channels (mola_viz_imgui "Plots" menu); lazily registered
+   *  from the first onLidarImpl() call, once visualizer_ is available.
+   *  Guarded by the feature macro so this module still builds against an
+   *  older mola_kernel that predates register_metric()/push_metric(). */
+  MetricChannel::Ptr metric_icp_time_ms_;
+  MetricChannel::Ptr metric_icp_goodness_;
+#endif
+
   // Accessing this struct in gui_ requires acquiring state_gui_mtx_
   struct StateUI
   {
