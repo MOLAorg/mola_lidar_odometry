@@ -957,7 +957,11 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     req.timestamp = scan_ref_time;
     req.source_frame_id = params_.publish_reference_frame + "_kf";
     req.pose_in_source = state_.last_lidar_pose;
+    // Enrich the shared keyframe with the same "metadata" comment (bbox + the
+    // local velocity buffer) the self-built simplemap carries, so downstream
+    // consumers can deskew the raw scan with the per-keyframe velocity window:
     req.observations = sf;
+    appendKeyframeMetadataObs(req.observations, scan_ref_time, *observation);
     req.quality = std::clamp(state_.last_icp_quality, 0.0, 1.0);
     pendingKfReq = std::move(req);
     pendingKfSink = state_.shared_keyframe_map_sink;
@@ -1198,6 +1202,42 @@ mrpt::obs::CSensoryFrame LidarOdometry::collectRawObservations(
   return sf;
 }
 
+void LidarOdometry::appendKeyframeMetadataObs(
+  mrpt::obs::CSensoryFrame & keyframe_obs, const mrpt::Clock::time_point & scan_ref_time,
+  const mp2p_icp::metric_map_t & observation)
+{
+  using namespace std::string_literals;
+
+  auto metadataObs = mrpt::obs::CObservationComment::Create();
+  metadataObs->timestamp = scan_ref_time;
+  metadataObs->sensorLabel = "metadata";
+
+  mrpt::containers::yaml kf_metadata = mrpt::containers::yaml::Map();
+  std::optional<mrpt::math::TBoundingBoxf> bbox;
+  for (const auto & [layerName, layerMap] : observation.layers) {
+    if (bbox) {
+      bbox = bbox->unionWith(layerMap->boundingBox());
+    } else {
+      bbox = layerMap->boundingBox();
+    }
+  }
+  if (bbox) {
+    kf_metadata["frame_bbox_min"] = "'"s + bbox->min.asString() + "'"s;
+    kf_metadata["frame_bbox_max"] = "'"s + bbox->max.asString() + "'"s;
+  }
+
+  // Store local velocity buffer in the KF metadata so it is possible to deskew
+  // the scan later on with precision.
+  kf_metadata["local_velocity_buffer"] = state_.parameter_source.localVelocityBuffer.toYAML();
+
+  // convert yaml to string:
+  std::stringstream ss;
+  ss << kf_metadata;
+  metadataObs->text = ss.str();
+
+  keyframe_obs.insert(metadataObs);
+}
+
 void LidarOdometry::doUpdateSimpleMap(
   const mrpt::obs::CSensoryFrame & sf, const bool distance_enough_sm,
   const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::Clock::time_point & scan_ref_time,
@@ -1253,35 +1293,8 @@ void LidarOdometry::doUpdateSimpleMap(
     ASSERT_(params_.simplemap.add_non_keyframes_too);
   }
 
-  // Add metadata ("comment") observation:
-  auto metadataObs = mrpt::obs::CObservationComment::Create();
-  metadataObs->timestamp = scan_ref_time;
-  metadataObs->sensorLabel = "metadata";
-
-  mrpt::containers::yaml kf_metadata = mrpt::containers::yaml::Map();
-  std::optional<mrpt::math::TBoundingBoxf> bbox;
-  for (const auto & [layerName, layerMap] : observation->layers) {
-    if (bbox) {
-      bbox = bbox->unionWith(layerMap->boundingBox());
-    } else {
-      bbox = layerMap->boundingBox();
-    }
-  }
-  if (bbox) {
-    kf_metadata["frame_bbox_min"] = "'"s + bbox->min.asString() + "'"s;
-    kf_metadata["frame_bbox_max"] = "'"s + bbox->max.asString() + "'"s;
-  }
-
-  // Store local velocity buffer in the KF metadata so it is possible to deskew the scan later on with precision
-  kf_metadata["local_velocity_buffer"] = state_.parameter_source.localVelocityBuffer.toYAML();
-
-  // convert yaml to string:
-  std::stringstream ss;
-  ss << kf_metadata;
-  metadataObs->text = ss.str();
-
-  // insert it:
-  *keyframe_obs += metadataObs;
+  // Add metadata ("comment") observation with bbox + velocity buffer:
+  appendKeyframeMetadataObs(*keyframe_obs, scan_ref_time, *observation);
 
   // Add keyframe to simple map:
   MRPT_LOG_DEBUG_STREAM("New SimpleMap KeyFrame. SF=" << keyframe_obs->size() << " observations.");
