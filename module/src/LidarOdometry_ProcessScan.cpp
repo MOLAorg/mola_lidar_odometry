@@ -698,6 +698,20 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
     }  // end adaptive threshold
 
+    {
+      thread_local auto MOLA_LO_DEBUG_ICP_QUALITY =
+        mrpt::get_env<bool>("MOLA_LO_DEBUG_ICP_QUALITY", false);
+      if (MOLA_LO_DEBUG_ICP_QUALITY) {
+        printf(
+          "[LidarOdometry] pathStep=%zu timestamp=%s goodness=%.3f minRequired=%.3f "
+          "iters=%u termReason=%s isGood=%d adapt_thres_sigma=%.4f consecutive_bad=%d\n",
+          state_.estimated_trajectory.size(), mrpt::system::dateTimeToString(this_obs_tim).c_str(),
+          out.goodness, params_.min_icp_goodness, out.icp_iterations,
+          mrpt::typemeta::enum2str(icp_result.terminationReason).c_str(), icpIsGood ? 1 : 0,
+          state_.adapt_thres_sigma, state_.consecutive_bad_icps);
+      }
+    }
+
     // Sustained-failure recovery for the adaptive threshold (opt-in).
     // The rule above never updates sigma on a bad ICP, which is correct
     // for isolated failures but creates a deadlock under sustained failure: with
