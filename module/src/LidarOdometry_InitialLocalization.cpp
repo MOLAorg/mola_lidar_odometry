@@ -99,9 +99,9 @@ void LidarOdometry::handleInitialLocalization()
 
         MRPT_LOG_INFO_STREAM("IMU automatic calibration done: " << imu_calib_opt->asString());
 
-        // Set as the initial pose:
-        il.fixed_initial_pose =
-          mrpt::math::TPose3D(0, 0, 0, 0, imu_calib_opt->pitch, imu_calib_opt->roll);
+        // Overwrite pitch & roll from the IMU, keeping the configured x/y/z/yaw prior:
+        il.fixed_initial_pose.pitch = imu_calib_opt->pitch;
+        il.fixed_initial_pose.roll = imu_calib_opt->roll;
 
         MRPT_LOG_INFO_STREAM(
           "Initial re-localization done from IMU pitch/roll with pose: "
