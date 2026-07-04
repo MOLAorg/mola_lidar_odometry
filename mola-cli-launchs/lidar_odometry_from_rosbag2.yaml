@@ -104,6 +104,13 @@ modules:
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
+          # If true, use the bag's own recv/storage time for this sensor's
+          # observations instead of the ROS message header stamp. Workaround
+          # for drivers that stamp with a monotonic/uptime clock instead of
+          # wall-clock epoch time (seen with some IMU drivers), which
+          # otherwise trips the "mis-timestamped sensors" time reference
+          # reset. Default false.
+          use_bag_recv_time_as_timestamp: ${MOLA_IMU_USE_BAG_RECV_TIME|false}
 
         # 2D wheel odometry (disabled by default)
         - topic: ${MOLA_ODOMETRY_TOPIC|''}
