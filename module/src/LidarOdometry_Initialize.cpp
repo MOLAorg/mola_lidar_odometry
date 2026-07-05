@@ -543,6 +543,7 @@ void LidarOdometry::doPreloadLocalMap()
     MRPT_LOG_INFO("Simple map loaded successfully.");
   }
 
+  state_.map_has_been_loaded = true;
   pending_preload_map_ = false;
 }
 

@@ -888,12 +888,11 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   }  // end: yes, we can do ICP
 
   // If this was a bad ICP, and we just started with an empty map, re-start again.
-  // Do NOT restart if a starting map was loaded: that would wipe the loaded map.
+  // Do NOT restart if a starting map was loaded (from start-up config, or via
+  // a runtime map_load() service call): that would wipe the loaded map.
   if (
     !state_.last_icp_was_good && state_.estimated_trajectory.size() == 1 &&
-    params_.local_map_updates.enabled &&
-    params_.local_map_updates.load_existing_local_map.empty() &&
-    params_.simplemap.load_existing_simple_map.empty()) {
+    params_.local_map_updates.enabled && !state_.map_has_been_loaded) {
     // Re-start the local map:
     state_.local_map->clear();
     state_.estimated_trajectory.clear();

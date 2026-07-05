@@ -894,6 +894,14 @@ private:
     mp2p_icp::metric_map_t::Ptr local_map = mp2p_icp::metric_map_t::Create();
     mp2p_icp_filters::FilterPipeline obs2map_merge;
 
+    /// Set to true whenever a preexisting map is loaded into local_map /
+    /// reconstructed_simplemap, either at start-up (doPreloadLocalMap()) or
+    /// via a runtime map_load() service call. Used to avoid discarding an
+    /// inherited map (multisession/multi-robot mapping) on later events that
+    /// would otherwise assume a brand new, empty map (e.g. IMU-based initial
+    /// re-localization).
+    bool map_has_been_loaded = false;
+
     // fallback only for when not using IMU and optimize_twist is enabled:
     mp2p_icp_filters::FilterPipeline obsDeskewForViz;
 

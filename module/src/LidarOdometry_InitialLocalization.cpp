@@ -113,12 +113,18 @@ void LidarOdometry::handleInitialLocalization()
         handleInitialLocalizationDoInitFromPose(initPose, true);
         doRemoveCloudsWithDecay();
 
-        state_.local_map->clear();
-        state_.gravity_calib_pitch_roll.reset();  // new map origin: recapture at next first KF
-        ASSERT_(state_.local_map->empty());
-        {
-          auto lckSM = mrpt::lockHelper(state_simplemap_mtx_);
-          state_.reconstructed_simplemap.clear();
+        // Only wipe the local map / simplemap if no preexisting map is
+        // loaded (from start-up config, or via a runtime map_load() service
+        // call): otherwise this would discard a map inherited from a
+        // previous mapping session (multisession/multi-robot mapping).
+        if (!state_.map_has_been_loaded) {
+          state_.local_map->clear();
+          state_.gravity_calib_pitch_roll.reset();  // new map origin: recapture at next first KF
+          ASSERT_(state_.local_map->empty());
+          {
+            auto lckSM = mrpt::lockHelper(state_simplemap_mtx_);
+            state_.reconstructed_simplemap.clear();
+          }
         }
 
         state_.initial_localization_done = true;

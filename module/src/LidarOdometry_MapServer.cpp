@@ -107,6 +107,8 @@ MapServer::ReturnStatus LidarOdometry::map_load_impl(const std::string & path)
     } catch (const std::exception &) {
       // It's ok if we cannot load the map.
     }
+
+    state_.map_has_been_loaded = mmLoadOk;
   }
 
   // The reconstructed simplemap is protected by state_simplemap_mtx_, not
