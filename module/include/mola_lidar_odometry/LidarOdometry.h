@@ -586,6 +586,13 @@ public:
 
     bool start_active = true;
 
+    /** Under overload, incoming scans are processed with a "drop stale, keep
+     *  freshest" policy: the single worker thread always advances to the newest
+     *  ready scan, dropping older ones, so latency stays near one processing
+     *  period regardless of this value. This parameter only bounds the auxiliary
+     *  wait list used while a scan waits for its IMU data (IMU de-skew pipelines):
+     *  if IMU delivery lags, no more than this many scans are kept waiting before
+     *  the oldest are dropped. */
     uint32_t max_lidar_queue_before_drop = 15;
 
     uint32_t gnss_queue_max_size = 100;
@@ -997,6 +1004,18 @@ private:
   std::multimap<double /*timestamp*/, CObservation::ConstPtr> worker_lidar_wait_for_imu_list_;
   std::mutex worker_lidar_wait_for_imu_list_mtx_;
 
+  /** Single-slot holder for the freshest LiDAR scan that is ready to be
+   *  processed but is waiting because the worker thread is still busy with a
+   *  previous scan. Under sustained overload (scans arriving faster than they
+   *  can be processed), a newer ready scan overwrites -- and thus drops -- an
+   *  older one still sitting here, so the worker always resumes on the freshest
+   *  available scan. This keeps end-to-end latency close to a single processing
+   *  period instead of a deep FIFO backlog. Both fields are guarded by the
+   *  mutex below (which is always taken *before* is_busy_mtx_, never after). */
+  CObservation::ConstPtr worker_lidar_pending_fresh_scan_;
+  bool worker_lidar_busy_ = false;
+  std::mutex worker_lidar_pending_fresh_scan_mtx_;
+
   /** The worker thread pool with 1 thread for processing incoming observations*/
   mrpt::WorkerThreadsPool worker_others_{
     1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_imu"};
@@ -1160,6 +1179,14 @@ private:
   /// Same as isPipelineUsingIMU(), but assumes state_mtx_ is already held by the caller.
   bool isPipelineUsingIMU_locked() const;
   void sendLidarScanToProcessQueue(const CObservation::ConstPtr & o);
+
+  /** Hands a LiDAR scan that is ready for processing (i.e. already has the IMU
+   *  data it needs for de-skew, when applicable) to the single worker thread,
+   *  implementing the "drop stale, keep freshest" policy: if the worker is idle
+   *  the scan is dispatched immediately; if it is busy, the scan is stored in
+   *  the single pending slot, dropping any older scan that was waiting there.
+   *  Safe to call from any thread. */
+  void submitReadyLidarScanToWorker(const CObservation::ConstPtr & o);
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
 
