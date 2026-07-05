@@ -108,6 +108,15 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   // Handle initial localization options:
   if (!state_.initial_localization_done) {
     handleInitialLocalization();
+
+    // Methods that need to converge first (e.g. waiting for IMU samples to
+    // calibrate pitch/roll, or for the state estimator to converge) leave
+    // initial_localization_done as false until then. Do not process this
+    // scan (in particular, do not run ICP nor insert it into the map) until
+    // we actually have a valid initial pose.
+    if (!state_.initial_localization_done) {
+      return;
+    }
   }
 
   if (state_.last_obs_tim_by_label.count(obs->sensorLabel) != 0) {
