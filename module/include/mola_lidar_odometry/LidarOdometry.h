@@ -787,9 +787,14 @@ private:
     // ------ ^^^ end of these flags are protected ^^^^      ---------
 
     // ------ these vars are protected by is_busy_mtx_  ---------
+    // worker_tasks_lidar is 1 while onLidar() is actively executing a scan, 0
+    // otherwise (queued-but-not-yet-running scans are tracked separately, by
+    // worker_lidar_.pendingTasks()).
     int worker_tasks_lidar = 0;
     int worker_tasks_others = 0;
+    // ------ ^^^ end of these flags are protected ^^^^      ---------
 
+    // ------ these vars are protected by drop_stats_mtx_  ---------
     static constexpr std::size_t DROP_STATS_WINDOW_LENGTH = 128;
     std::array<bool, DROP_STATS_WINDOW_LENGTH> drop_frames_stats_good =
       create_array<DROP_STATS_WINDOW_LENGTH>(true);
@@ -997,24 +1002,17 @@ private:
 
   };  // end of MethodState
 
-  /** The worker thread pool with 1 thread for processing incoming observations*/
+  /** The worker thread pool with 1 thread for processing incoming observations.
+   *  Uses POLICY_DROP_OLD: when a new scan is enqueued while one is already
+   *  waiting (the worker thread being busy with a previous one), the pool
+   *  itself discards the older, not-yet-started scan, so the worker always
+   *  resumes on the freshest available one instead of grinding through a deep
+   *  backlog ("drop stale, keep freshest"). Running tasks are never aborted. */
   mrpt::WorkerThreadsPool worker_lidar_{
-    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_lidar"};
+    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_lidar"};
 
   std::multimap<double /*timestamp*/, CObservation::ConstPtr> worker_lidar_wait_for_imu_list_;
   std::mutex worker_lidar_wait_for_imu_list_mtx_;
-
-  /** Single-slot holder for the freshest LiDAR scan that is ready to be
-   *  processed but is waiting because the worker thread is still busy with a
-   *  previous scan. Under sustained overload (scans arriving faster than they
-   *  can be processed), a newer ready scan overwrites -- and thus drops -- an
-   *  older one still sitting here, so the worker always resumes on the freshest
-   *  available scan. This keeps end-to-end latency close to a single processing
-   *  period instead of a deep FIFO backlog. Both fields are guarded by the
-   *  mutex below (which is always taken *before* is_busy_mtx_, never after). */
-  CObservation::ConstPtr worker_lidar_pending_fresh_scan_;
-  bool worker_lidar_busy_ = false;
-  std::mutex worker_lidar_pending_fresh_scan_mtx_;
 
   /** The worker thread pool with 1 thread for processing incoming observations*/
   mrpt::WorkerThreadsPool worker_others_{
@@ -1069,6 +1067,8 @@ private:
 
   bool destructor_called_ = false;
   mutable std::mutex is_busy_mtx_;
+  /// Guards MethodState::drop_frames_stats_* (see addDropStats()/getDropStats()).
+  mutable std::mutex drop_stats_mtx_;
   mutable std::mutex state_flags_mtx_;
   mutable std::mutex state_mtx_;
   mutable std::mutex state_trajectory_mtx_;
@@ -1091,7 +1091,7 @@ private:
   MapServer::ReturnStatus map_load_impl(const std::string & path);
   MapServer::ReturnStatus map_save_impl(const std::string & path);
 
-  /// Locks is_busy_mtx_ internally to update the drop-stats window.
+  /// Locks drop_stats_mtx_ internally to update the drop-stats window.
   void addDropStats(bool frame_is_dropped);
 
   /// Returns the ratio [0,1] of lidar frames dropped due to slow processing in the last few seconds.
@@ -1100,7 +1100,11 @@ private:
   // Process requests_(), at the spinOnce() rate.
   void processPendingUserRequests();
 
-  void onLidar(const CObservation::ConstPtr & o);
+  /// `readyTimestamp` is when the scan became ready for processing (used to
+  /// report the "delay_onNewObs_to_process" queueing-delay metric); it cannot
+  /// be measured via profiler_.enter()/leave() here since worker_lidar_'s
+  /// POLICY_DROP_OLD may discard a queued scan before it ever runs onLidar().
+  void onLidar(const CObservation::ConstPtr & o, double readyTimestamp);
   void processLidarScan(const CObservation::ConstPtr & obs);
 
   void onIMU(const CObservation::ConstPtr & o);
@@ -1181,12 +1185,15 @@ private:
   void sendLidarScanToProcessQueue(const CObservation::ConstPtr & o);
 
   /** Hands a LiDAR scan that is ready for processing (i.e. already has the IMU
-   *  data it needs for de-skew, when applicable) to the single worker thread,
-   *  implementing the "drop stale, keep freshest" policy: if the worker is idle
-   *  the scan is dispatched immediately; if it is busy, the scan is stored in
-   *  the single pending slot, dropping any older scan that was waiting there.
-   *  Safe to call from any thread. */
+   *  data it needs for de-skew, when applicable) to the single worker thread.
+   *  worker_lidar_'s POLICY_DROP_OLD implements the "drop stale, keep freshest"
+   *  policy itself: if the worker is idle the scan starts right away; if it is
+   *  busy, this call replaces any older not-yet-started scan still queued
+   *  behind it. This method only adds the drop-stats bookkeeping the pool
+   *  itself doesn't provide. Safe to call from any thread. */
   void submitReadyLidarScanToWorker(const CObservation::ConstPtr & o);
+  /// Number of LiDAR scans currently running or queued on worker_lidar_ (0, 1, or 2).
+  int pendingLidarScanCount() const;
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
 
