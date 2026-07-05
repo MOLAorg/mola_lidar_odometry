@@ -76,6 +76,33 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 {
   using namespace std::string_literals;
 
+#ifdef MOLA_KERNEL_VIZ_HAS_METRICS
+  // Reports the total per-scan "onLidar" cost (all nested profiler sections
+  // included) as a live metric. Declared before tle_global so it destructs
+  // right after it, once profiler_ has just recorded the finished "onLidar"
+  // entry for this scan.
+  struct OnLidarTimeMetricReporter
+  {
+    OnLidarTimeMetricReporter(const OnLidarTimeMetricReporter &) = delete;
+    OnLidarTimeMetricReporter & operator=(const OnLidarTimeMetricReporter &) = delete;
+    OnLidarTimeMetricReporter(OnLidarTimeMetricReporter &&) = delete;
+    OnLidarTimeMetricReporter & operator=(OnLidarTimeMetricReporter &&) = delete;
+
+    ~OnLidarTimeMetricReporter()
+    {
+      if (!self->visualizer_) {
+        return;
+      }
+      if (!self->metric_onlidar_time_ms_) {
+        self->metric_onlidar_time_ms_ =
+          self->visualizer_->register_metric("lidar_odom/onLidar_time_ms", "ms");
+      }
+      self->metric_onlidar_time_ms_->push(1000.0 * self->profiler_.getLastTime("onLidar"));
+    }
+    LidarOdometry * self;
+  } onLidarTimeMetricReporter{this};
+#endif
+
   const ProfilerEntry tle_global(profiler_, "onLidar");
 
   // Check if we need to process any pending async request:
