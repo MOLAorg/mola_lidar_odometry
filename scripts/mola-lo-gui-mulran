@@ -20,6 +20,7 @@ shift 1
 
 MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
 MULRAN_SEQ=$SEQ \
+MOLA_DESKEW_METHOD="${MOLA_DESKEW_METHOD:-MotionCompensationMethod::IMU}" \
   mola-cli \
     $MOLA_LAUNCHS_DIR/lidar_odometry_from_mulran.yaml \
     $@

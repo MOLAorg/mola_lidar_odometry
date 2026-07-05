@@ -586,6 +586,13 @@ public:
 
     bool start_active = true;
 
+    /** Under overload, incoming scans are processed with a "drop stale, keep
+     *  freshest" policy: the single worker thread always advances to the newest
+     *  ready scan, dropping older ones, so latency stays near one processing
+     *  period regardless of this value. This parameter only bounds the auxiliary
+     *  wait list used while a scan waits for its IMU data (IMU de-skew pipelines):
+     *  if IMU delivery lags, no more than this many scans are kept waiting before
+     *  the oldest are dropped. */
     uint32_t max_lidar_queue_before_drop = 15;
 
     uint32_t gnss_queue_max_size = 100;
@@ -780,9 +787,14 @@ private:
     // ------ ^^^ end of these flags are protected ^^^^      ---------
 
     // ------ these vars are protected by is_busy_mtx_  ---------
+    // worker_tasks_lidar is 1 while onLidar() is actively executing a scan, 0
+    // otherwise (queued-but-not-yet-running scans are tracked separately, by
+    // worker_lidar_.pendingTasks()).
     int worker_tasks_lidar = 0;
     int worker_tasks_others = 0;
+    // ------ ^^^ end of these flags are protected ^^^^      ---------
 
+    // ------ these vars are protected by drop_stats_mtx_  ---------
     static constexpr std::size_t DROP_STATS_WINDOW_LENGTH = 128;
     std::array<bool, DROP_STATS_WINDOW_LENGTH> drop_frames_stats_good =
       create_array<DROP_STATS_WINDOW_LENGTH>(true);
@@ -990,12 +1002,39 @@ private:
 
   };  // end of MethodState
 
-  /** The worker thread pool with 1 thread for processing incoming observations*/
+  /** The worker thread pool with 1 thread for processing incoming observations.
+   *  Uses POLICY_DROP_OLD: when a new scan is enqueued while one is already
+   *  waiting (the worker thread being busy with a previous one), the pool
+   *  itself discards the older, not-yet-started scan, so the worker always
+   *  resumes on the freshest available one instead of grinding through a deep
+   *  backlog ("drop stale, keep freshest"). Running tasks are never aborted. */
   mrpt::WorkerThreadsPool worker_lidar_{
-    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_lidar"};
+    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_lidar"};
 
   std::multimap<double /*timestamp*/, CObservation::ConstPtr> worker_lidar_wait_for_imu_list_;
   std::mutex worker_lidar_wait_for_imu_list_mtx_;
+
+  /// Timestamp (seconds, sensor clock) up to which IMU data has actually been
+  /// *fed* into the de-skew LocalVelocityBuffer (updated at the end of the IMU
+  /// feeding in onIMUImpl). A waiting scan may only be released to the worker
+  /// once this passes its own timestamp by one scan period, i.e. once the IMU
+  /// covering the scan's whole span is available for de-skew. Kept as an atomic
+  /// so the wait-list can be drained (see releaseReadyLidarScansToWorker) from
+  /// the sensor-input thread too, without waiting for the (FIFO, possibly
+  /// backed-up) IMU worker to run its own drain -- decoupling scan release from
+  /// IMU-processing latency.
+  std::atomic<double> latest_fed_imu_time_{0};
+
+  /// Cached estimate of the LiDAR scan period [s], read lock-free by
+  /// releaseReadyLidarScansToWorker(). Estimated from consecutive scan *arrival*
+  /// (sensor) timestamps rather than the processed-scan rate: under heavy
+  /// dropping the processed rate collapses, which would otherwise inflate this
+  /// period and make scans wait for far more IMU than they actually need,
+  /// needlessly deepening the wait list.
+  std::atomic<double> lidar_scan_period_{0.1};
+  /// Sensor timestamp [s] of the previous LiDAR scan seen at input, for the
+  /// arrival-based period estimate above. Guarded by the wait-list mutex.
+  double last_lidar_arrival_stamp_ = 0;
 
   /** The worker thread pool with 1 thread for processing incoming observations*/
   mrpt::WorkerThreadsPool worker_others_{
@@ -1050,6 +1089,8 @@ private:
 
   bool destructor_called_ = false;
   mutable std::mutex is_busy_mtx_;
+  /// Guards MethodState::drop_frames_stats_* (see addDropStats()/getDropStats()).
+  mutable std::mutex drop_stats_mtx_;
   mutable std::mutex state_flags_mtx_;
   mutable std::mutex state_mtx_;
   mutable std::mutex state_trajectory_mtx_;
@@ -1072,7 +1113,7 @@ private:
   MapServer::ReturnStatus map_load_impl(const std::string & path);
   MapServer::ReturnStatus map_save_impl(const std::string & path);
 
-  /// Must be called from a scope with state_flags_mtx_ already acquired!
+  /// Locks drop_stats_mtx_ internally to update the drop-stats window.
   void addDropStats(bool frame_is_dropped);
 
   /// Returns the ratio [0,1] of lidar frames dropped due to slow processing in the last few seconds.
@@ -1081,7 +1122,11 @@ private:
   // Process requests_(), at the spinOnce() rate.
   void processPendingUserRequests();
 
-  void onLidar(const CObservation::ConstPtr & o);
+  /// `readyTimestamp` is when the scan became ready for processing (used to
+  /// report the "delay_onNewObs_to_process" queueing-delay metric); it cannot
+  /// be measured via profiler_.enter()/leave() here since worker_lidar_'s
+  /// POLICY_DROP_OLD may discard a queued scan before it ever runs onLidar().
+  void onLidar(const CObservation::ConstPtr & o, double readyTimestamp);
   void processLidarScan(const CObservation::ConstPtr & obs);
 
   void onIMU(const CObservation::ConstPtr & o);
@@ -1160,6 +1205,27 @@ private:
   /// Same as isPipelineUsingIMU(), but assumes state_mtx_ is already held by the caller.
   bool isPipelineUsingIMU_locked() const;
   void sendLidarScanToProcessQueue(const CObservation::ConstPtr & o);
+
+  /** Hands a LiDAR scan that is ready for processing (i.e. already has the IMU
+   *  data it needs for de-skew, when applicable) to the single worker thread.
+   *  worker_lidar_'s POLICY_DROP_OLD implements the "drop stale, keep freshest"
+   *  policy itself: if the worker is idle the scan starts right away; if it is
+   *  busy, this call replaces any older not-yet-started scan still queued
+   *  behind it. This method only adds the drop-stats bookkeeping the pool
+   *  itself doesn't provide. Safe to call from any thread. */
+  void submitReadyLidarScanToWorker(const CObservation::ConstPtr & o);
+  /// Number of LiDAR scans currently running or queued on worker_lidar_ (0, 1, or 2).
+  int pendingLidarScanCount() const;
+
+  /** Releases to the worker every LiDAR scan on worker_lidar_wait_for_imu_list_
+   *  whose whole time span is already covered by IMU data fed into the de-skew
+   *  buffer (i.e. latest_fed_imu_time_ is more than one scan period past the
+   *  scan timestamp). On an IMU catch-up burst several scans can qualify at
+   *  once; only the freshest is submitted (the pool would drop the rest anyway).
+   *  Takes no heavy locks (only the wait-list mutex + atomics), so it can run on
+   *  the sensor-input thread while onLidar holds state_mtx_; this decouples scan
+   *  release from IMU-worker processing latency. No-op for LO (empty wait list). */
+  void releaseReadyLidarScansToWorker();
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
 

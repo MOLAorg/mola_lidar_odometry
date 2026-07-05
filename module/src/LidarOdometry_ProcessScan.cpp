@@ -118,8 +118,6 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
   auto lckState = mrpt::lockHelper(state_mtx_);
 
-  profiler_.leave("delay_onNewObs_to_process");
-
   // for rate stats:
   state_.append_lidar_stamp(obs->sensorLabel, obs->timestamp, *this);
 

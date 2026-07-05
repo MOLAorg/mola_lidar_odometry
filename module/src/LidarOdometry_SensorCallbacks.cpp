@@ -32,6 +32,8 @@
 
 // Std:
 #include <regex>
+#include <utility>
+#include <vector>
 
 namespace mola
 {
@@ -109,68 +111,164 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
   MRPT_TRY_END
 }
 
+int LidarOdometry::pendingLidarScanCount() const
+{
+  const bool executing = [this]() {
+    auto lck = mrpt::lockHelper(is_busy_mtx_);
+    return state_.worker_tasks_lidar != 0;
+  }();
+  return (executing ? 1 : 0) + static_cast<int>(worker_lidar_.pendingTasks());
+}
+
 void LidarOdometry::sendLidarScanToProcessQueue(const CObservation::ConstPtr & o)
 {
-  // If we don't rely on IMU, directly enqueue the task. Otherwise, put it on the wait list until
-  // IMU data for the required timestamps has arrived so we can do de-skew:
-
-  auto queued = [this]() {
-    auto lck = mrpt::lockHelper(is_busy_mtx_);
-    return state_.worker_tasks_lidar + worker_lidar_.pendingTasks();
-  }() + [this]() {
-    auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
-    return static_cast<int>(worker_lidar_wait_for_imu_list_.size());
-  }();
-
-  profiler_.registerUserMeasure("onNewObservation.lidar_queue_length", static_cast<double>(queued));
-  if (queued > params_.max_lidar_queue_before_drop) {
-    MRPT_LOG_THROTTLE_WARN_FMT(
-      1.0, "Dropping observation due to LiDAR worker thread too busy (dropped frames: %.02f%%)",
-      getDropStats() * 100.0);
-    profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
-    addDropStats(true);
-    return;
-  }
-  addDropStats(false);
-  profiler_.enter("delay_onNewObs_to_process");
+  // Two routes to the single worker thread, depending on whether the pipeline
+  // needs IMU data for de-skew:
+  //  - No IMU needed: the scan is ready right away -> hand it to the worker.
+  //  - IMU needed:    park it on the wait list until IMU data covering the whole
+  //                   scan time span has arrived (see onIMUImpl), then submit.
+  // In both cases the worker pool (POLICY_DROP_OLD) applies a "drop stale, keep
+  // freshest" policy, so under overload old scans are skipped and only the
+  // newest ready one is processed, keeping latency low.
 
   if (!isPipelineUsingIMU()) {
-    {
-      auto lck = mrpt::lockHelper(is_busy_mtx_);
-      state_.worker_tasks_lidar++;
-    }
+    profiler_.registerUserMeasure(
+      "onNewObservation.lidar_queue_length", static_cast<double>(pendingLidarScanCount()));
 
-    auto fut = worker_lidar_.enqueue(&LidarOdometry::onLidar, this, o);
-    (void)fut;
-  } else {
-    // IMU usage:
+    submitReadyLidarScanToWorker(o);
+    return;
+  }
+
+  // IMU usage: park on the wait list.
+  const double thisStamp = mrpt::Clock::toDouble(o->getTimeStamp());
+  size_t waitListSize = 0;
+  {
     auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
-    worker_lidar_wait_for_imu_list_.emplace(mrpt::Clock::toDouble(o->getTimeStamp()), o);
+    worker_lidar_wait_for_imu_list_.emplace(thisStamp, o);
+
+    // Estimate the scan period from consecutive *arrival* timestamps (EMA), so
+    // it reflects the true sensor rate even while scans are being dropped:
+    if (last_lidar_arrival_stamp_ > 0) {
+      const double dt = thisStamp - last_lidar_arrival_stamp_;
+      if (dt > 0 && dt < 1.0) {
+        const double prev = lidar_scan_period_.load();
+        lidar_scan_period_.store(0.9 * prev + 0.1 * dt);
+      }
+    }
+    last_lidar_arrival_stamp_ = thisStamp;
+
+    // Safety cap: if IMU data lags badly, keep the wait list from growing without
+    // bound by dropping the oldest still-waiting scans (they would be the most
+    // stale ones anyway):
+    while (worker_lidar_wait_for_imu_list_.size() > params_.max_lidar_queue_before_drop) {
+      worker_lidar_wait_for_imu_list_.erase(worker_lidar_wait_for_imu_list_.begin());
+      addDropStats(true);
+      profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
+    }
+    waitListSize = worker_lidar_wait_for_imu_list_.size();
+  }
+
+  // The IMU covering this or an earlier scan may already have been fed to the
+  // de-skew buffer, so try to release now instead of waiting for the next IMU
+  // callback (which may be stuck behind onLidar on the IMU worker thread):
+  releaseReadyLidarScansToWorker();
+
+  const int queued = pendingLidarScanCount() + static_cast<int>(waitListSize);
+  profiler_.registerUserMeasure("onNewObservation.lidar_queue_length", static_cast<double>(queued));
+}
+
+void LidarOdometry::releaseReadyLidarScansToWorker()
+{
+  const double fedImuTime = latest_fed_imu_time_.load();
+  if (fedImuTime <= 0) {
+    return;  // no IMU fed yet: nothing can be de-skewed/released
+  }
+  const double lidar_scan_period = lidar_scan_period_.load();
+
+  // Collect every waiting scan whose whole span is already covered by fed IMU
+  // data (fedImuTime more than one scan period past the scan timestamp), in
+  // chronological order, then submit outside the wait-list lock:
+  std::vector<CObservation::ConstPtr> readyScans;
+  {
+    auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
+    for (auto it = worker_lidar_wait_for_imu_list_.begin();
+         it != worker_lidar_wait_for_imu_list_.end();) {
+      const auto [lidarTim, lidarObs] = *it;
+      if (fedImuTime - lidarTim > lidar_scan_period) {
+        readyScans.push_back(lidarObs);
+        it = worker_lidar_wait_for_imu_list_.erase(it);
+      } else {
+        // The list is sorted by timestamp: no later scan can qualify either.
+        break;
+      }
+    }
+  }
+
+  // On an IMU catch-up burst several scans can qualify at once, but only the
+  // newest matters ("keep freshest"): drop-account the older ones directly
+  // instead of submitting each only to have it superseded by the next.
+  if (!readyScans.empty()) {
+    for (std::size_t i = 0; i + 1 < readyScans.size(); i++) {
+      addDropStats(true);
+      profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
+    }
+    submitReadyLidarScanToWorker(readyScans.back());
   }
 }
 
-void LidarOdometry::onLidar(const CObservation::ConstPtr & o)
+void LidarOdometry::submitReadyLidarScanToWorker(const CObservation::ConstPtr & o)
+{
+  // worker_lidar_ uses POLICY_DROP_OLD: with a single worker thread, enqueue()
+  // itself discards any older, not-yet-started scan once one is already queued
+  // behind the one currently running. The pool gives no callback for that
+  // eviction, so detect it here (before enqueueing) purely for the drop-stats
+  // accounting; running scans are never aborted, only queued ones can be
+  // dropped this way.
+  if (worker_lidar_.pendingTasks() > 0) {
+    addDropStats(true);
+    profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
+    MRPT_LOG_THROTTLE_WARN_FMT(
+      1.0, "Dropping LiDAR scan (worker busy: keeping only the freshest); dropped frames: %.02f%%",
+      getDropStats() * 100.0);
+  }
+
+  auto fut = worker_lidar_.enqueue(&LidarOdometry::onLidar, this, o, mrpt::Clock::nowDouble());
+  (void)fut;
+}
+
+void LidarOdometry::onLidar(const CObservation::ConstPtr & o, const double readyTimestamp)
 {
   const bool abort_running = [this]() {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
     return destructor_called_;
   }();
 
-  // All methods that are enqueued into a thread pool should have its own
-  // top-level try-catch:
-  if (!abort_running) {
-    try {
-      processLidarScan(o);
-    } catch (const std::exception & e) {
-      MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
-      auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
-      state_.fatal_error = true;
-    }
+  if (abort_running) {
+    return;
   }
 
   {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
-    state_.worker_tasks_lidar--;
+    state_.worker_tasks_lidar = 1;
+  }
+
+  profiler_.registerUserMeasure(
+    "delay_onNewObs_to_process", mrpt::Clock::nowDouble() - readyTimestamp);
+
+  // All methods that are enqueued into a thread pool should have its own
+  // top-level try-catch:
+  try {
+    addDropStats(false);
+    processLidarScan(o);
+  } catch (const std::exception & e) {
+    MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+    state_.fatal_error = true;
+  }
+
+  {
+    auto lck = mrpt::lockHelper(is_busy_mtx_);
+    state_.worker_tasks_lidar = 0;
   }
 }
 
@@ -237,47 +335,25 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
     mp2p_icp_filters::apply_generators(state_.obs_generators, *imu, dummy_map);
   }
 
+  // Mark how far IMU data has now been fed into the de-skew buffer, so a waiting
+  // scan is only released once the IMU covering its whole span is available.
+  // Monotonic update, to be robust against out-of-order IMU timestamps:
+  {
+    const double imuTim = mrpt::Clock::toDouble(imu->timestamp);
+    double prev = latest_fed_imu_time_.load();
+    while (imuTim > prev && !latest_fed_imu_time_.compare_exchange_weak(prev, imuTim)) {
+    }
+  }
+
   // 3) Gravity estimation for ICP verticality correction:
   if (params_.imu_gravity_correction.enabled) {
     auto lckState2 = mrpt::lockHelper(state_mtx_);
     state_.gravity_estimator.add(*imu, params_.imu_gravity_correction.averaging_samples);
   }
 
-  // Finally, schedule to run those LiDAR scans that were waiting for IMU data:
-  if (isPipelineUsingIMU()) {
-    const auto imuTim = mrpt::Clock::toDouble(imu->timestamp);
-
-    const auto rate_lidar_hz = [&] {
-      auto lckState = mrpt::lockHelper(state_mtx_);
-      auto [rate_lidar, rate_imu_, rate_gnss_] = state_.get_sensor_rates();
-      return rate_lidar;
-    }();
-
-    const double lidar_scan_period = rate_lidar_hz > 0 ? 1.0 / rate_lidar_hz : 0.1;
-
-    auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
-
-    for (auto it = worker_lidar_wait_for_imu_list_.begin();
-         it != worker_lidar_wait_for_imu_list_.end();) {
-      const auto [lidarTim, lidarObs] = *it;
-
-      const double lidar2imu_dt = imuTim - lidarTim;
-      if (lidar2imu_dt > lidar_scan_period) {
-        // Enqueue this one:
-        {
-          auto lck2 = mrpt::lockHelper(is_busy_mtx_);
-          state_.worker_tasks_lidar++;
-        }
-        auto fut = worker_lidar_.enqueue(&LidarOdometry::onLidar, this, lidarObs);
-        (void)fut;
-
-        // and remove from the list:
-        it = worker_lidar_wait_for_imu_list_.erase(it);
-      } else {
-        ++it;
-      }
-    }
-  }
+  // Finally, release any waiting LiDAR scan now fully covered by fed IMU data.
+  // No-op for LO (the wait list is only populated by IMU-de-skew pipelines):
+  releaseReadyLidarScansToWorker();
 }
 
 void LidarOdometry::onGPS(const CObservation::ConstPtr & o)

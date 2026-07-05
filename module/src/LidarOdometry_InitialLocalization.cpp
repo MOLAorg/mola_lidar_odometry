@@ -42,6 +42,15 @@ void LidarOdometry::handleInitialLocalizationDoInitFromPose(
       mrpt::Clock::fromDouble(mrpt::Clock::toDouble(*state_.last_obs_timestamp) - 1e-3);
     state_.navstate_fuse->fuse_pose(t1, initPose, params_.publish_reference_frame);
     state_.navstate_fuse->fuse_pose(t2, initPose, params_.publish_reference_frame);
+
+    // Also skip fusing the next few ICP corrections into the state estimator
+    // (same safeguard used by relocalize_near_pose_pdf()/relocalize_from_gnss()):
+    // the very first ICP correction after this reset is only a tiny "dt" away
+    // from the fake evolution above, so dividing its position delta by that
+    // dt can produce a huge, spurious velocity. Skipping a few steps lets ICP
+    // re-converge on a stable pose before velocity is derived again.
+    state_.step_counter_post_relocalization =
+      params_.initial_localization.additional_uncertainty_after_reloc_how_many_timesteps;
   }
 
   // also, keep it as the last pose for subsequent ICP runs:

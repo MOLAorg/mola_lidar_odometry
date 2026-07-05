@@ -55,6 +55,28 @@ not here -- but two structural changes live in this file:
 `pushKeyframeToSharedKeyframeMap()`'s dedicated frame name, and the
 distance-checker `insert()` gating fix mentioned above.
 
+## Scan enqueue & overload handling (drop stale, keep freshest)
+
+Incoming LiDAR scans reach a single worker thread (`worker_lidar_`) via
+`onNewObservation` -> `sendLidarScanToProcessQueue`
+(`LidarOdometry_SensorCallbacks.cpp`). Two routes:
+
+- **LO (no IMU de-skew):** the scan is ready immediately and goes straight to
+  `submitReadyLidarScanToWorker()`.
+- **LIO (IMU de-skew):** the scan is parked on `worker_lidar_wait_for_imu_list_`
+  until IMU data covering its whole time span has arrived; `onIMUImpl` then
+  submits the now-ready scans via the same `submitReadyLidarScanToWorker()`.
+
+`submitReadyLidarScanToWorker()` implements a **"drop stale, keep freshest"**
+policy against a single pending slot (`worker_lidar_pending_fresh_scan_`): if the
+worker is idle the scan is dispatched at once; if it is busy the scan replaces
+(drops) any older scan waiting in the slot. `onLidar` processes its scan and then
+drains the slot in a loop, so under overload the worker always advances to the
+*newest* available scan instead of grinding through a deep FIFO backlog. This
+keeps end-to-end latency near a single processing period (so the state-estimator
+prediction is queried only a little into the future) for both LO and LIO.
+`params_.max_lidar_queue_before_drop` now only bounds the IMU wait list.
+
 ## Non-repetitive (solid-state) LiDARs (e.g. Livox AVIA)
 
 Spinning LiDARs (Velodyne, Ouster, ...) cover their full FOV every rotation, so
