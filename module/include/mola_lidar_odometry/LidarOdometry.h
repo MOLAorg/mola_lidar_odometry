@@ -1014,6 +1014,28 @@ private:
   std::multimap<double /*timestamp*/, CObservation::ConstPtr> worker_lidar_wait_for_imu_list_;
   std::mutex worker_lidar_wait_for_imu_list_mtx_;
 
+  /// Timestamp (seconds, sensor clock) up to which IMU data has actually been
+  /// *fed* into the de-skew LocalVelocityBuffer (updated at the end of the IMU
+  /// feeding in onIMUImpl). A waiting scan may only be released to the worker
+  /// once this passes its own timestamp by one scan period, i.e. once the IMU
+  /// covering the scan's whole span is available for de-skew. Kept as an atomic
+  /// so the wait-list can be drained (see releaseReadyLidarScansToWorker) from
+  /// the sensor-input thread too, without waiting for the (FIFO, possibly
+  /// backed-up) IMU worker to run its own drain -- decoupling scan release from
+  /// IMU-processing latency.
+  std::atomic<double> latest_fed_imu_time_{0};
+
+  /// Cached estimate of the LiDAR scan period [s], read lock-free by
+  /// releaseReadyLidarScansToWorker(). Estimated from consecutive scan *arrival*
+  /// (sensor) timestamps rather than the processed-scan rate: under heavy
+  /// dropping the processed rate collapses, which would otherwise inflate this
+  /// period and make scans wait for far more IMU than they actually need,
+  /// needlessly deepening the wait list.
+  std::atomic<double> lidar_scan_period_{0.1};
+  /// Sensor timestamp [s] of the previous LiDAR scan seen at input, for the
+  /// arrival-based period estimate above. Guarded by the wait-list mutex.
+  double last_lidar_arrival_stamp_ = 0;
+
   /** The worker thread pool with 1 thread for processing incoming observations*/
   mrpt::WorkerThreadsPool worker_others_{
     1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_imu"};
@@ -1194,6 +1216,16 @@ private:
   void submitReadyLidarScanToWorker(const CObservation::ConstPtr & o);
   /// Number of LiDAR scans currently running or queued on worker_lidar_ (0, 1, or 2).
   int pendingLidarScanCount() const;
+
+  /** Releases to the worker every LiDAR scan on worker_lidar_wait_for_imu_list_
+   *  whose whole time span is already covered by IMU data fed into the de-skew
+   *  buffer (i.e. latest_fed_imu_time_ is more than one scan period past the
+   *  scan timestamp). On an IMU catch-up burst several scans can qualify at
+   *  once; only the freshest is submitted (the pool would drop the rest anyway).
+   *  Takes no heavy locks (only the wait-list mutex + atomics), so it can run on
+   *  the sensor-input thread while onLidar holds state_mtx_; this decouples scan
+   *  release from IMU-worker processing latency. No-op for LO (empty wait list). */
+  void releaseReadyLidarScansToWorker();
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
 
