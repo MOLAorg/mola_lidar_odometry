@@ -1091,7 +1091,7 @@ private:
   MapServer::ReturnStatus map_load_impl(const std::string & path);
   MapServer::ReturnStatus map_save_impl(const std::string & path);
 
-  /// Must be called from a scope with state_flags_mtx_ already acquired!
+  /// Locks is_busy_mtx_ internally to update the drop-stats window.
   void addDropStats(bool frame_is_dropped);
 
   /// Returns the ratio [0,1] of lidar frames dropped due to slow processing in the last few seconds.

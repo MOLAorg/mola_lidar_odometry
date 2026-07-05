@@ -687,6 +687,7 @@ void LidarOdometry::doWriteDebugTracesFile(const mrpt::Clock::time_point & scan_
 
 void LidarOdometry::addDropStats(bool frame_is_dropped)
 {
+  auto lck = mrpt::lockHelper(is_busy_mtx_);
   state_.drop_frames_stats_good[state_.drop_frames_stats_next_index] = !frame_is_dropped;
   state_.drop_frames_stats_dropped[state_.drop_frames_stats_next_index] = frame_is_dropped;
   if (++state_.drop_frames_stats_next_index >= MethodState::DROP_STATS_WINDOW_LENGTH) {
@@ -696,7 +697,7 @@ void LidarOdometry::addDropStats(bool frame_is_dropped)
 
 double LidarOdometry::getDropStats() const
 {
-  auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+  auto lck = mrpt::lockHelper(is_busy_mtx_);
   const auto good =
     std::count(state_.drop_frames_stats_good.begin(), state_.drop_frames_stats_good.end(), true);
   const auto bad = std::count(
