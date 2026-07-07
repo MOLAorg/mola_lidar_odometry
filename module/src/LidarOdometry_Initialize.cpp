@@ -409,6 +409,15 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     } else {
       doPreloadLocalMap();
     }
+  } else if (!params_.local_map_updates.enabled) {
+    // Mapping disabled (localization-only) but no preexisting map was configured
+    // to load: the local map will remain empty, which will make the first ICP
+    // attempt run against an unprepared, empty map instead of building one online.
+    MRPT_LOG_ERROR(
+      "Mapping is disabled (mapping_enabled=false, localization-only mode) but no "
+      "'local_map_updates.load_existing_local_map' (nor a simplemap) was configured to "
+      "preload. The local map will remain empty: localization will very likely fail or "
+      "crash on the first LiDAR scan. Either provide a map to load, or enable mapping.");
   }
 
   // Attach to the state estimation module, which since MOLA-LO v0.5.0,
@@ -545,6 +554,17 @@ void LidarOdometry::doPreloadLocalMap()
 
   state_.map_has_been_loaded = true;
   pending_preload_map_ = false;
+
+  // Same guard as above, but here it also catches a configured map file that
+  // turned out to load empty (e.g. an empty or corrupt map), which the checks
+  // in initialize() above cannot see since they run before loading happens.
+  if (!params_.local_map_updates.enabled && state_.local_map->empty()) {
+    MRPT_LOG_ERROR(
+      "Mapping is disabled (mapping_enabled=false, localization-only mode) but the "
+      "local map is empty after the preload step. Localization will very likely fail "
+      "or crash on the first LiDAR scan. Check that "
+      "'local_map_updates.load_existing_local_map' points to a valid, non-empty map.");
+  }
 }
 
 }  // namespace mola
