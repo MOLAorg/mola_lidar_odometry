@@ -49,8 +49,9 @@ void LidarOdometry::handleInitialLocalizationDoInitFromPose(
     // from the fake evolution above, so dividing its position delta by that
     // dt can produce a huge, spurious velocity. Skipping a few steps lets ICP
     // re-converge on a stable pose before velocity is derived again.
-    state_.step_counter_post_relocalization =
-      params_.initial_localization.additional_uncertainty_after_reloc_how_many_timesteps;
+    state_.step_counter_post_relocalization = std::max(
+      params_.initial_localization.additional_uncertainty_after_reloc_how_many_timesteps,
+      params_.initial_localization.additional_map_freeze_after_reloc_how_many_timesteps);
   }
 
   // also, keep it as the last pose for subsequent ICP runs:

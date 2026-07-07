@@ -524,6 +524,15 @@ public:
       // Right after a re-localization, do not update the pose state estimator for a few iterations
       uint32_t additional_uncertainty_after_reloc_how_many_timesteps = 5;
 
+      // Right after a re-localization (or initial localization), also do not
+      // update the local map nor the simplemap for this many timesteps.
+      // 0 (default) disables this and preserves pre-existing behavior:
+      // map updates are independent of the re-localization recovery window.
+      // Shares the same recovery-window counter as
+      // additional_uncertainty_after_reloc_how_many_timesteps (the window
+      // becomes the max of the two when both are set).
+      uint32_t additional_map_freeze_after_reloc_how_many_timesteps = 0;
+
       /// Number of IMU (accelerometer) samples to accumulate while stationary to estimate Pitch & Roll:
       uint32_t imu_initial_calibration_sample_count = 50;
 
