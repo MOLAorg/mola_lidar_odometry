@@ -211,6 +211,14 @@ initial_localization:
   imu_initial_calibration_sample_count: "${MOLA_LO_INITIAL_IMU_SAMPLES|400}"
   imu_initial_calibration_max_age: 5.0
   use_imu_orientation: "${MOLA_LO_INITIAL_IMU_USE_ORIENTATION|true}"
+  # Right after a re-localization (or initial localization), also hold off
+  # local map / simplemap updates for this many timesteps (shares the same
+  # recovery-window counter as additional_uncertainty_after_reloc_how_many_
+  # timesteps above). 0 (default) disables this and is a no-op: this fires
+  # on every initial-localization convergence too, not just explicit
+  # relocalizations, so a nonzero default here would drop early keyframes
+  # on any dataset where the vehicle is already moving at t=0.
+  additional_map_freeze_after_reloc_how_many_timesteps: "${MOLA_LO_INIT_MAP_FREEZE_STEPS|0}"
 
   # Parameters for InitLocalization::FromStateEstimator:
   from_state_estimator_max_position_sigma: "${MOLA_LO_INIT_SE_MAX_POS_SIGMA|0.5}"

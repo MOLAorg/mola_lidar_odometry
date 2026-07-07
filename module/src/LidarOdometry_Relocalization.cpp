@@ -61,8 +61,9 @@ void LidarOdometry::relocalize_near_pose_pdf_impl(const mrpt::poses::CPose3DPDFG
   state_.adapt_thres_sigma = std::sqrt(p.cov.asEigen().block<2, 2>(0, 0).trace());
 
   // Handle uncertainty in next steps:
-  state_.step_counter_post_relocalization =
-    il.additional_uncertainty_after_reloc_how_many_timesteps;
+  state_.step_counter_post_relocalization = std::max(
+    il.additional_uncertainty_after_reloc_how_many_timesteps,
+    il.additional_map_freeze_after_reloc_how_many_timesteps);
 
   MRPT_LOG_INFO_STREAM(
     "relocalize_near_pose_pdf(): Using thres_sigma=" << state_.adapt_thres_sigma
@@ -85,8 +86,9 @@ void LidarOdometry::relocalize_from_gnss_impl()
   state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;
 
   // Handle uncertainty in next steps:
-  state_.step_counter_post_relocalization =
-    il.additional_uncertainty_after_reloc_how_many_timesteps;
+  state_.step_counter_post_relocalization = std::max(
+    il.additional_uncertainty_after_reloc_how_many_timesteps,
+    il.additional_map_freeze_after_reloc_how_many_timesteps);
 }
 
 }  // namespace mola

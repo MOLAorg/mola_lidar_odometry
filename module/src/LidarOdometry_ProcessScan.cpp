@@ -691,6 +691,10 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     }
 
     // Update velocity model:
+    // Snapshot before it gets decremented below, so the map-freeze check
+    // further down still sees this step as part of the recovery window.
+    const uint32_t stepCounterPostRelocalization = state_.step_counter_post_relocalization;
+
     if (icpIsGood) {
       // Good ICP, update state estimation filter with new data from ICP:
 
@@ -828,6 +832,17 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     // Older mola_pose_list: countNearby() unavailable; min_nearby_poses_occupied has no effect.
 #endif
 
+    // Reuse the post-relocalization recovery window/counter (see
+    // additional_map_freeze_after_reloc_how_many_timesteps): only actually
+    // freezes anything when that parameter is >0, so leaving it at its
+    // default of 0 is a no-op regardless of
+    // additional_uncertainty_after_reloc_how_many_timesteps's own value.
+    // Use the pre-decrement snapshot so the last step of the recovery window
+    // (where pose fusion was still suppressed above) also freezes the map.
+    const bool mapFrozenPostReloc =
+      params_.initial_localization.additional_map_freeze_after_reloc_how_many_timesteps > 0 &&
+      stepCounterPostRelocalization > 0;
+
     // clang-format off
     updateLocalMap =
       (icpIsGood &&
@@ -835,7 +850,8 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
        params_.local_map_updates.enabled &&
        // skip map update for the special ICP alignment without motion model
        hasMotionModel &&
-       distFarEnoughLocal
+       distFarEnoughLocal &&
+       !mapFrozenPostReloc
        );
     // clang-format on
 
@@ -889,7 +905,8 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     updateSimpleMap =
       params_.simplemap.generate &&
       (icpIsGood &&
-       (distance_enough_sm || params_.simplemap.add_non_keyframes_too)
+       (distance_enough_sm || params_.simplemap.add_non_keyframes_too) &&
+       !mapFrozenPostReloc
        );
     // clang-format on
 
