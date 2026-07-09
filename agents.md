@@ -8,6 +8,17 @@ This repository provides a LiDAR-Inertial Odometry (LIO) frontend for the MOLA f
 
 Official Docs: https://docs.mola-slam.org/latest/
 
+## `ros2-lidar-odometry.launch.py`: `initial_pose` argument
+
+Added because it was missing: `InitLocalization::FixedPose` has always
+supported a known starting pose via the pipeline YAML's `MOLA_INITIAL_X/Y/Z/
+YAW/PITCH/ROLL` env vars, but the ROS 2 launch file had no argument wired to
+them (only `mola_footprint_to_base_link_tf`, a different thing — a static
+footprint-to-base_link offset, not the localization starting pose). Use
+`initial_pose:="[x, y, z, yaw_deg, pitch_deg, roll_deg]"` (same format as
+`mola_footprint_to_base_link_tf`); empty (default) leaves the pipeline
+YAML's own fallback (origin) in place.
+
 ## State estimator integration
 
 Per LiDAR scan, `LidarOdometry` queries the configured `mola::NavStateFilter`
@@ -76,6 +87,35 @@ drains the slot in a loop, so under overload the worker always advances to the
 keeps end-to-end latency near a single processing period (so the state-estimator
 prediction is queried only a little into the future) for both LO and LIO.
 `params_.max_lidar_queue_before_drop` now only bounds the IMU wait list.
+
+## Adaptive-threshold sustained-failure recovery is ON by default
+
+`recover_on_sustained_failure` (all `pipelines/*.yaml`, `adaptive_threshold`
+block) defaults to **true**. Root cause: the adaptive-threshold sigma is an
+EMA-smoothed P-controller driven toward `icp_quality_controller_setpoint`
+(default 0.85); a run of easy/near-static scans with goodness consistently
+above the setpoint (routine with a clean/synthetic LiDAR, e.g. MVSIM) drives
+sigma monotonically down to its `min_motion` floor. Once there, a single
+larger inter-scan motion (a turn) is enough to push ICP into failure, and
+since sigma only shrinks on GOOD ICPs and previously only grew when this flag
+was on, the correspondence search window stayed frozen shut forever — a
+permanent stall (`estimated_trajectory` stops growing, "Not able to use
+velocity motion model" repeats indefinitely). Reproduced with
+`mola_lidar_odometry` + MVSIM (Jackal, 3D LiDAR) driving a short, obstacle-free
+path: sigma reached the floor by ~pathStep 90-140 and then stalled
+permanently every time with the flag off; with it on, the pipeline
+self-recovered within a handful of scans and ran cleanly to completion. Set
+`MOLA_ADAPT_THRESHOLD_RECOVER=false` to restore the old (deadlock-prone)
+behavior.
+
+`recover_after_n_bad`/`recover_growth_factor` default to a fast reaction (2
+bad frames, x2.0 growth) instead of the initially-added slow one (5 bad
+frames, x1.5). Rationale, also found via MVSIM end-to-end testing: every
+frame stuck is a frame of real, untracked vehicle motion; the slower
+defaults let that gap grow large enough that once the search window finally
+reopened, ICP locked onto a self-consistent but WRONG registration (a
+sudden ~30-40 deg yaw error that then persisted for the rest of the run,
+instead of a brief quality dip that recovers to the true pose).
 
 ## Non-repetitive (solid-state) LiDARs (e.g. Livox AVIA)
 

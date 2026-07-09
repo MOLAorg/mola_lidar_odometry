@@ -407,6 +407,28 @@ def generate_launch_description():
     initial_localization_method_env_var = OpaqueFunction(
         function=_apply_initial_localization_method)
 
+    initial_pose_arg = DeclareLaunchArgument(
+        "initial_pose", default_value="",
+        description="Known initial pose for InitLocalization::FixedPose, as "
+                    "\"[x, y, z, yaw_deg, pitch_deg, roll_deg]\" in the loaded map's frame "
+                    "(mirrors `mola_footprint_to_base_link_tf`'s format). If empty (default), "
+                    "the pipeline YAML fallback is used (identity/origin, via MOLA_INITIAL_X/Y/Z/"
+                    "YAW/PITCH/ROLL, see pipelines/lidar3d-default.yaml).")
+
+    def _apply_initial_pose(context, *args, **kwargs):
+        v = LaunchConfiguration('initial_pose').perform(context).strip()
+        if not v:
+            return []
+        components = [c.strip() for c in v.strip('[]').split(',')]
+        if len(components) != 6:
+            raise RuntimeError(
+                "\n\n[ERROR] initial_pose must have exactly 6 comma-separated "
+                f"components \"[x, y, z, yaw_deg, pitch_deg, roll_deg]\", got: {v!r}\n")
+        names = ['MOLA_INITIAL_X', 'MOLA_INITIAL_Y', 'MOLA_INITIAL_Z',
+                 'MOLA_INITIAL_YAW', 'MOLA_INITIAL_PITCH', 'MOLA_INITIAL_ROLL']
+        return [SetEnvironmentVariable(name=n, value=c) for n, c in zip(names, components)]
+    initial_pose_env_var = OpaqueFunction(function=_apply_initial_pose)
+
     use_state_estimator_arg = DeclareLaunchArgument(
         "use_state_estimator", default_value="False",
         description="If true, uses StateEstimationSmoother (requires optional package).")
@@ -669,6 +691,8 @@ def generate_launch_description():
         lidar_qos_depth_env_var,
         initial_localization_method_arg,
         initial_localization_method_env_var,
+        initial_pose_arg,
+        initial_pose_env_var,
         lidar_scan_validity_enable_env_var,
         lidar_scan_validity_minimum_point_count_arg,
         lidar_scan_validity_minimum_point_env_var,
