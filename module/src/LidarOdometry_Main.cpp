@@ -44,9 +44,6 @@
 #include <mrpt/system/string_utils.h>
 #include <mrpt/topography/conversions.h>
 
-// GUI:
-#include <mrpt/gui/CDisplayWindowGUI.h>
-
 // STD:
 #include <chrono>
 #include <thread>

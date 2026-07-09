@@ -25,9 +25,6 @@
 // MOLA:
 #include <mola_yaml/yaml_helpers.h>
 
-// MRPT:
-#include <mrpt/gui/CDisplayWindowGUI.h>  // for nanogui controls
-
 namespace mola
 {
 
