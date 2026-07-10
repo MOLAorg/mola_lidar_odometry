@@ -58,7 +58,7 @@ params:
     enabled: true
     initial_sigma: ${MOLA_SIGMA_INITIAL|0.50} # [m]
     min_motion: ${MOLA_SIGMA_MIN_MOTION|0.04} # [m]
-    maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|0.50} # [m]
+    maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|2.00} # [m]
     max_sigma_step: ${MOLA_SIGMA_MAX_STEP|0.05} # [m]
     icp_quality_controller_setpoint: ${MOLA_SIGMA_CONTROLLER_QUALITY_SETPOINT|0.85}
     kp: ${MOLA_SIGMA_CONTROLLER_GAIN|2.0}
@@ -73,7 +73,12 @@ params:
     # push ICP into failure, and with sigma frozen the correspondence search
     # window never reopens, so the pipeline stalls indefinitely
     # (estimated_trajectory never grows again). Set to false to restore the
-    # old behavior.
+    # old behavior. `maximum_sigma` must be set strictly above
+    # `initial_sigma`, or this mechanism is a no-op: sigma always starts
+    # each run AT initial_sigma, so a bad ICP on frame 1 (e.g. a slightly
+    # imprecise localization-only seed pose against a prebuilt map) has no
+    # room to grow into and can never recover (observed in testing as ICP
+    # goodness stuck just under min_icp_goodness for an entire run).
     #
     # recover_after_n_bad/recover_growth_factor default to a fast reaction
     # (2 bad frames, x2.0 growth) rather than a slow one (5 bad frames,
