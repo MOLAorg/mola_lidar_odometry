@@ -474,17 +474,27 @@ def generate_launch_description():
             " else 'mola::state_estimation_simple::StateEstimationSimple'"
         ]))
 
+    # NOTE: 'state_estimation' (not 'state_estimator') must match the
+    # module *instance name* the state estimator is registered under in
+    # mola-cli-launchs/lidar_odometry_ros2.yaml ("- name: state_estimation"),
+    # since that's what ends up in each LocalizationUpdate/MapUpdate's
+    # `.method` field (StateEstimationSmoother::spinOnce() and
+    # ::publish_georef(), via getModuleInstanceName()'s colon-suffix) and is
+    # therefore what publish_tf_from_slam_source/
+    # publish_odometry_msgs_from_slam_source filter against. A mismatch here
+    # silently discards every update from the state estimator: no /tf, no
+    # odometry topic, ever, regardless of how well localization converged.
     localization_publish_tf_source_env_var = SetEnvironmentVariable(
         name='MOLA_LOCALIZATION_PUBLISH_TF_SOURCE',
         value=PythonExpression([
-            "'state_estimator' if ", LaunchConfiguration(
+            "'state_estimation' if ", LaunchConfiguration(
                 'use_state_estimator'), " else 'lidar_odometry'"
         ])
     )
     localization_publish_odom_source_env_var = SetEnvironmentVariable(
         name='MOLA_LOCALIZATION_PUBLISH_ODOM_MSGS_SOURCE',
         value=PythonExpression([
-            "'state_estimator' if ", LaunchConfiguration(
+            "'state_estimation' if ", LaunchConfiguration(
                 'use_state_estimator'), " else 'lidar_odometry'"
         ])
     )
