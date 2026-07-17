@@ -26,14 +26,16 @@ for a motion prior via `state_.navstate_fuse->estimated_navstate(scan_ref_time,
 publish_reference_frame)` (`module/src/LidarOdometry_ProcessScan.cpp`), then feeds
 the registered pose back with `fuse_pose()`.
 
-When paired with `mola_state_estimation_smoother` configured with
-`async_backend: true`, that per-scan `estimated_navstate()` call does NOT trigger
-the smoother's iSAM2 window solve on the LiDAR thread; it returns a fast prediction
-from the smoother's lightweight predictor (re-anchored on the last completed
-backend solve), while the window solve runs concurrently in the smoother's own
-thread. This bounds per-scan latency for real-time use. With the default
-`async_backend: false`, `estimated_navstate()` runs the window solve synchronously
-(deterministic, but heavier per call) - see `mola_state_estimation`'s docs.
+The smoother's shipped `state-estimation-smoother.yaml` (loaded by this repo's
+ros2 launch) defaults to its real-time path: `async_backend: true` (the per-scan
+`estimated_navstate()` returns a fast prediction from the smoother's lightweight
+predictor re-anchored on the last completed backend solve, while the iSAM2 window
+solve runs concurrently in the smoother's own thread - bounding per-scan latency),
+plus high-rate keyframe decimation (`odometry_min_sample_period` /
+`imu_min_sample_period` = 0.1). Override per launch via the `MOLA_*` env vars.
+For OFFLINE / reproducible batch runs set `MOLA_ASYNC_BACKEND=false` (async
+serving is non-deterministic). Full parameter table: `mola_state_estimation`'s
+AGENTS.md ("Real-time setup").
 
 ### REP-105 `map -> odom` published directly (jitter-free)
 
@@ -49,6 +51,16 @@ suffix `/map_odom`), and the bridge's TF source is routed to that method via the
 `localization_publish_tf_source` launch argument
 (`localization_publish_tf_source:=state_estimation/map_odom`). The bridge then
 forwards it verbatim (its `child_frame != base_link` path).
+
+Minimal launch-side setup (single wheel-odom source, ROS odom frame `odom`):
+```
+MOLA_PUBLISH_MAP_TO_ODOM_TF=true
+MOLA_MAP_TO_ODOM_FRAME=odom_wheels    # the source's sensor label
+MOLA_MAP_TO_ODOM_CHILD_FRAME=odom     # the REP-105 odom /tf frame
+```
+plus `localization_publish_tf_source:=state_estimation/map_odom`. The primary
+`map -> base_link` update still drives the pose topic
+(`MOLA_LOCALIZATION_PUBLISH_ODOM_MSGS_SOURCE` stays at the estimator's method).
 
 Frame-name gotcha: the smoother keys each odometry source by its sensor label
 (the bridge subscription's `output_sensor_label`; the `nav_msgs/Odometry` topic
