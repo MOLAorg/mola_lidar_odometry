@@ -194,6 +194,7 @@ install(
     scripts/mola-lo-gui-rosbag2
     scripts/mola-lo-gui-rosbag1
     scripts/mola-lo-gui-ouster
+    scripts/mola-lo-gui-conslam
   DESTINATION
     bin
 )

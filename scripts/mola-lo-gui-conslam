@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# For usage instructions, see: https://docs.mola-slam.org/latest/
+#
+# Convenience wrapper around mola-lo-gui-rosbag1 for the ConSLAM dataset:
+# presets its camera/IMU/LiDAR topic names and fixed LiDAR pose, and enables
+# the mola_state_estimation_smoother state estimator (see
+# mola_state_estimation's AGENTS.md, "Real-time setup").
+
+if [ "$#" -eq 0 ]; then
+    echo "Error: A ConSLAM ROS 1 bag file (.bag) is required."
+    echo "Usage: $0 /path/to/sequenceN.bag [additional flags for mola-cli]"
+    exit 1
+fi
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../mola-cli-launchs/
+if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
+  MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
+fi
+
+FILE=$1
+shift 1
+
+# ConSLAM-specific sensor topics (override by exporting before invoking this script).
+# Note: topics in the ConSLAM bags have no leading slash (e.g. 'imu/data', not '/imu/data'),
+# and there is no /tf or /tf_static at all, so every sensor pose must be fixed.
+# See mola_mapper/mola-cli-launchs/lidar_odometry_mapper_from_conslam.yaml for the
+# validated reference configuration this mirrors.
+: "${MOLA_CAMERA_TOPIC:=pp_rgb/synced2points}"
+: "${MOLA_IMU_TOPIC:=imu/data}"
+: "${MOLA_LIDAR_TOPIC:=pp_points/synced2rgb}"
+
+# No /tf: use the IMU as base_link (it is the dataset's own reference frame), fixed at
+# the origin, with the LiDAR yawed 180 deg from it (the two share the same "up" axis;
+# see the reference launch file's header for the paper-documented mounting-frame axes):
+: "${MOLA_TF_BASE_LINK:=imu}"
+: "${MOLA_USE_FIXED_IMU_POSE:=1}"
+: "${MOLA_USE_FIXED_LIDAR_POSE:=1}"
+: "${LIDAR_POSE_YAW:=180}"
+# Camera pose is only used for the GUI preview (unused by LO/LIO itself):
+: "${MOLA_USE_FIXED_CAMERA_POSE:=1}"
+
+# Hand-held scanner (not a vehicle): larger/faster rotations than a car, so lean on the
+# IMU for deskewing and for the initial pitch/roll estimate:
+: "${MOLA_LO_INITIAL_LOCALIZATION_METHOD:=InitLocalization::PitchAndRollFromIMU}"
+: "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
+
+# No GNSS in this dataset: pin the first pose to the map origin, or the smoother's
+# GTSAM graph is left with a rank-deficient null-space (IndeterminantLinearSystemException):
+: "${MOLA_LINK_FIRST_POSE_SIGMA:=1e-6}"
+
+# Enable the iSAM2 sliding-window smoother instead of the default simple estimator:
+SMOOTHER_SHARE_DIR=$(ros2 pkg prefix mola_state_estimation_smoother 2>/dev/null)/share/mola_state_estimation_smoother
+if [ ! -f "$SMOOTHER_SHARE_DIR/params/state-estimation-smoother.yaml" ]; then
+    echo "Error: package 'mola_state_estimation_smoother' was not found. Please install it."
+    exit 1
+fi
+
+export MOLA_CAMERA_TOPIC
+export MOLA_IMU_TOPIC
+export MOLA_LIDAR_TOPIC
+export MOLA_TF_BASE_LINK
+export MOLA_USE_FIXED_IMU_POSE
+export MOLA_USE_FIXED_LIDAR_POSE
+export LIDAR_POSE_YAW
+export MOLA_USE_FIXED_CAMERA_POSE
+export MOLA_LO_INITIAL_LOCALIZATION_METHOD
+export MOLA_DESKEW_METHOD
+export MOLA_LINK_FIRST_POSE_SIGMA
+
+MOLA_STATE_ESTIMATOR="mola::state_estimation_smoother::StateEstimationSmoother" \
+MOLA_STATE_ESTIMATOR_YAML="${MOLA_STATE_ESTIMATOR_YAML:-$SMOOTHER_SHARE_DIR/params/state-estimation-smoother.yaml}" \
+MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
+MOLA_INPUT_ROSBAG1="$FILE" \
+  mola-cli \
+    "$MOLA_LAUNCHS_DIR/lidar_odometry_from_rosbag1.yaml" \
+    "$@"
