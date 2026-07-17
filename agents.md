@@ -35,6 +35,31 @@ thread. This bounds per-scan latency for real-time use. With the default
 `async_backend: false`, `estimated_navstate()` runs the window solve synchronously
 (deterministic, but heavier per call) - see `mola_state_estimation`'s docs.
 
+### REP-105 `map -> odom` published directly (jitter-free)
+
+By default, under `publish_localization_following_rep105: true` the bridge
+composes `map -> odom = (map -> base_link)(t) * (odom -> base_link)^-1` by TF
+lookup. When the localizer's stamp leads the odom TF (the normal case for an
+estimate extrapolated to "now"), the exact lookup misses and the bridge composes
+against a stale odom transform, injecting motion-correlated `map -> odom` jitter.
+
+To avoid the composition, the smoother can publish `map -> odom` straight from
+its own `T_map_to_odom` graph variable (`publish_map_to_odom_tf: true`, method
+suffix `/map_odom`), and the bridge's TF source is routed to that method via the
+`localization_publish_tf_source` launch argument
+(`localization_publish_tf_source:=state_estimation/map_odom`). The bridge then
+forwards it verbatim (its `child_frame != base_link` path).
+
+Frame-name gotcha: the smoother keys each odometry source by its sensor label
+(the bridge subscription's `output_sensor_label`; the `nav_msgs/Odometry` topic
+path defaults to `MOLA_ODOM_SENSOR_LABEL|odom_wheels`). The `map -> odom` `/tf`
+child frame must equal the REP-105 odom frame the external driver publishes
+`odom -> base_link` for (usually `odom`). So either set the smoother's
+`map_to_odom_child_frame` to that frame, or set `MOLA_ODOM_SENSOR_LABEL` to it;
+otherwise the tree does not connect (tf2 "two unconnected trees"). LO's own poses
+are fed under `MOLA_LO_PUBLISH_REF_FRAME` (default `map`), so they do not create
+a separate odom source.
+
 ## SharedKeyframeMap sink (central-map keyframe push, e.g. mola_mapper_3d)
 
 Separately from the dense `navstate_fuse` querying above, `LidarOdometry`

@@ -195,6 +195,12 @@ modules:
         # With `odometry_as_robot_pose_observation=true` (default), this produces a 3D
         # CObservationRobotPose (6x6 covariance), which is what the Smoother wants for
         # multi-source fusion.
+        # NOTE: output_sensor_label is the smoother's frame_id for this odometry
+        # source. If the smoother publishes map->odom directly
+        # (publish_map_to_odom_tf), the published /tf child frame must equal the
+        # REP-105 odom frame the external driver publishes odom->base_link for
+        # (usually "odom"): set MOLA_ODOM_SENSOR_LABEL to it, or the smoother's
+        # map_to_odom_child_frame. Otherwise the /tf tree will not connect.
         - topic: ${MOLA_ODOM_TOPIC|}
           msg_type: Odometry
           output_sensor_label: ${MOLA_ODOM_SENSOR_LABEL|odom_wheels}
