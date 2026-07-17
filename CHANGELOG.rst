@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+3.0.0 (2026-07-17)
+------------------
 * Merge pull request `#101 <https://github.com/MOLAorg/mola_lidar_odometry/issues/101>`_ from MOLAorg/fix/relocalize-tf-source-and-sigma-recovery
   fix: two bugs blocking GNSS+IMU relocalization (FromStateEstimator)
 * fix: MOLA_LOCALIZATION_PUBLISH_TF_SOURCE used the wrong module-name string
