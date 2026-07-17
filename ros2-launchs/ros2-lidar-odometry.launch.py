@@ -484,11 +484,25 @@ def generate_launch_description():
     # publish_odometry_msgs_from_slam_source filter against. A mismatch here
     # silently discards every update from the state estimator: no /tf, no
     # odometry topic, ever, regardless of how well localization converged.
+    # By default the bridge publishes /tf from the active estimator's primary
+    # localization method ('state_estimation' or 'lidar_odometry'). This arg
+    # lets a caller override that source, e.g. to route /tf from the smoother's
+    # 'state_estimation/map_odom' method so map->odom is taken straight from the
+    # estimator's own T_map_to_odom (publish_map_to_odom_tf) instead of being
+    # composed by the bridge from a mismatched-timestamp odom lookup. Empty
+    # keeps the default behavior.
+    localization_publish_tf_source_arg = DeclareLaunchArgument(
+        "localization_publish_tf_source", default_value="",
+        description="Override the bridge's publish_tf_from_slam_source (the "
+                    "localization `method` whose /tf is published). Empty = the "
+                    "default ('state_estimation' if use_state_estimator else "
+                    "'lidar_odometry').")
     localization_publish_tf_source_env_var = SetEnvironmentVariable(
         name='MOLA_LOCALIZATION_PUBLISH_TF_SOURCE',
         value=PythonExpression([
-            "'state_estimation' if ", LaunchConfiguration(
-                'use_state_estimator'), " else 'lidar_odometry'"
+            "'", LaunchConfiguration('localization_publish_tf_source'),
+            "' or ('state_estimation' if ", LaunchConfiguration(
+                'use_state_estimator'), " else 'lidar_odometry')"
         ])
     )
     localization_publish_odom_source_env_var = SetEnvironmentVariable(
@@ -776,6 +790,7 @@ def generate_launch_description():
         state_estimator_config_yaml_arg,
         OpaqueFunction(function=resolve_state_estimator_config),
 
+        localization_publish_tf_source_arg,
         localization_publish_tf_source_env_var,
         localization_publish_odom_source_env_var,
         # group
