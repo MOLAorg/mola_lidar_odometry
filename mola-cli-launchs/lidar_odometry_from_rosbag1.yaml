@@ -58,6 +58,9 @@ modules:
       - raw_sensor_label: "${MOLA_LIDAR_NAME|lidar}"
         decimation: 1
         win_pos: 5 5 400 400
+      - raw_sensor_label: "${MOLA_CAMERA_SENSOR_NAME|camera}"
+        decimation: 1
+        win_pos: 5 370 600 200
 
     params:
       # We use an environment variable to force the user to specify a bag file:
@@ -100,6 +103,14 @@ modules:
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
+
+        - topic: ${MOLA_CAMERA_TOPIC|''}
+          is_optional: true
+          sensorLabel: ${MOLA_CAMERA_SENSOR_NAME|camera}
+          type: CObservationImage
+          # If present, this will override whatever /tf tells about the sensor pose:
+          fixed_sensor_pose: "${CAMERA_POSE_X|0} ${CAMERA_POSE_Y|0} ${CAMERA_POSE_Z|0} ${CAMERA_POSE_YAW|0} ${CAMERA_POSE_PITCH|0} ${CAMERA_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg'
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_CAMERA_POSE|false}
 
         # 2D wheel odometry (disabled by default)
         - topic: ${MOLA_ODOMETRY_TOPIC|''}
