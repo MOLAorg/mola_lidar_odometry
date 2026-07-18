@@ -115,7 +115,7 @@ modules:
         # cam2 is the forward-facing camera (yaw ~ 0 wrt the LiDAR), enabled
         # by default for the GUI preview. cam0/cam1 (below, commented out)
         # point sideways; uncomment to also feed them in (e.g. for mapping).
-        - topic: "${MOLA_CAMERA_TOPIC|/alphasense_driver_ros/cam2/debayered/image/compressed}"
+        - topic: "${MOLA_CAMERA_TOPIC|/alphasense_driver_ros/cam0/debayered/image/compressed}"
           type: CObservationImage
           sensorLabel: "${MOLA_CAMERA_SENSOR_NAME|camera}"
           is_optional: true
@@ -123,9 +123,9 @@ modules:
           fixed_sensor_pose: "0.002228 0.050377 -0.073378 -0.1092 0.0896 -89.9231"
           use_fixed_sensor_pose: true
 
-        #- topic: /alphasense_driver_ros/cam0/debayered/image/compressed
+        #- topic: /alphasense_driver_ros/cam2/debayered/image/compressed
         #  type: CObservationImage
-        #  sensorLabel: camera0
+        #  sensorLabel: camera2
         #  is_optional: true
         #  # T_lidar_cam0:
         #  fixed_sensor_pose: "-0.054541 -0.002683 -0.073943 89.5878 -0.1301 -90.2621"
