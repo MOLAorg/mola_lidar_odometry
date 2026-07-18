@@ -196,6 +196,7 @@ install(
     scripts/mola-lo-gui-ouster
     scripts/mola-lo-gui-conslam
     scripts/mola-lo-gui-oxford-spires
+    scripts/mola-lo-gui-botanicgarden
   DESTINATION
     bin
 )

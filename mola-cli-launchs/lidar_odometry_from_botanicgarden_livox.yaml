@@ -26,7 +26,9 @@
 # There is no /tf or /tf_static in the bag, so use_fixed_sensor_pose is
 # mandatory for all sensors.
 #
-# Usage:
+# Usage (normally invoked through 'scripts/mola-lo-gui-botanicgarden --livox'
+# instead, which also enables the mola_state_estimation_smoother estimator by
+# default):
 #   export BOTANICGARDEN_LIO_BAG=$HOME/datasets/botanic/1018_00_LIO.bag
 #   MOLA_DESKEW_METHOD=MotionCompensationMethod::IMU \
 #   MOLA_IGNORE_NO_POINT_STAMPS=false \
@@ -56,6 +58,15 @@
 #   MOLA_WITH_GUI=false        -- headless mode
 #   MOLA_TIME_WARP=1.0         -- playback speed factor
 #   MOLA_QUIT_ON_DATASET_END=true  -- exit when bag ends
+#   MOLA_STATE_ESTIMATOR / MOLA_STATE_ESTIMATOR_YAML
+#     -- select the state estimator (default below: state_estimation_simple).
+#        When invoking mola-cli directly (bypassing the wrapper script above),
+#        set these to use the smoother instead, e.g.:
+#          MOLA_STATE_ESTIMATOR=mola::state_estimation_smoother::StateEstimationSmoother
+#          MOLA_STATE_ESTIMATOR_YAML=$(ros2 pkg prefix mola_state_estimation_smoother)/share/mola_state_estimation_smoother/params/state-estimation-smoother.yaml
+#        No GNSS in this dataset, so also set MOLA_LINK_FIRST_POSE_SIGMA=1e-6
+#        to pin the first pose (otherwise the smoother's GTSAM graph is left
+#        with a rank-deficient null-space).
 # -----------------------------------------------------------------------------
 
 modules:

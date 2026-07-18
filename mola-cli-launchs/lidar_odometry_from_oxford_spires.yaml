@@ -26,7 +26,8 @@
 # to an empty string and are silently skipped). Use the mola-lo-gui-oxford-spires
 # wrapper script to fill these in automatically from a sequence directory.
 #
-# Usage (normally invoked through scripts/mola-lo-gui-oxford-spires instead):
+# Usage (normally invoked through scripts/mola-lo-gui-oxford-spires instead,
+# which also enables the mola_state_estimation_smoother estimator by default):
 #   OXFORD_SPIRES_BAG_0=$SEQ/raw/ros2bag/<part0>/ \
 #   OXFORD_SPIRES_BAG_1=$SEQ/raw/ros2bag/<part1>/ \
 #     mola-cli $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/mola-cli-launchs/lidar_odometry_from_oxford_spires.yaml
@@ -35,6 +36,15 @@
 #   MOLA_WITH_GUI=false        -- headless mode
 #   MOLA_TIME_WARP=1.0         -- playback speed factor
 #   MOLA_QUIT_ON_DATASET_END=true  -- exit when the bag(s) end
+#   MOLA_STATE_ESTIMATOR / MOLA_STATE_ESTIMATOR_YAML
+#     -- select the state estimator (default below: state_estimation_simple).
+#        When invoking mola-cli directly (bypassing the wrapper script above),
+#        set these to use the smoother instead, e.g.:
+#          MOLA_STATE_ESTIMATOR=mola::state_estimation_smoother::StateEstimationSmoother
+#          MOLA_STATE_ESTIMATOR_YAML=$(ros2 pkg prefix mola_state_estimation_smoother)/share/mola_state_estimation_smoother/params/state-estimation-smoother.yaml
+#        No GNSS in this dataset, so also set MOLA_LINK_FIRST_POSE_SIGMA=1e-6
+#        to pin the first pose (otherwise the smoother's GTSAM graph is left
+#        with a rank-deficient null-space).
 # -----------------------------------------------------------------------------
 
 modules:

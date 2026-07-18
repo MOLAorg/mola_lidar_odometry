@@ -14,9 +14,14 @@
 #
 # Example:
 #   mola-lo-gui-oxford-spires /mnt/storage/oxford-spires/data/sequences/2024-03-12-keble-college-01/
+#
+# Enables the mola_state_estimation_smoother state estimator by default (see
+# mola_state_estimation's AGENTS.md, "Real-time setup"); override by exporting
+# MOLA_STATE_ESTIMATOR / MOLA_STATE_ESTIMATOR_YAML before invoking this script.
 
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -103,6 +108,32 @@ def main() -> None:
     # readings (see mola_imu_preintegration's ImuInitialCalibrator).
     env.setdefault("MOLA_LO_INITIAL_LOCALIZATION_METHOD", "InitLocalization::PitchAndRollFromIMU")
     env.setdefault("MOLA_DESKEW_METHOD", "MotionCompensationMethod::IMU")
+
+    # Enable the iSAM2 sliding-window smoother instead of the default simple
+    # estimator (see mola_state_estimation's AGENTS.md, "Real-time setup").
+    # Resolved at runtime via `ros2 pkg prefix` since the smoother's params
+    # live in a separate package's install prefix (no merge-install here).
+    if "MOLA_STATE_ESTIMATOR_YAML" not in env:
+        prefix = subprocess.run(
+            ["ros2", "pkg", "prefix", "mola_state_estimation_smoother"],
+            capture_output=True, text=True,
+        ).stdout.strip()
+        if not prefix:
+            die(
+                "package 'mola_state_estimation_smoother' was not found. "
+                "Please install it, or export MOLA_STATE_ESTIMATOR_YAML "
+                "yourself to use a different estimator."
+            )
+        smoother_yaml = Path(prefix) / "share" / "mola_state_estimation_smoother" / "params" / "state-estimation-smoother.yaml"
+        if not smoother_yaml.is_file():
+            die(f"Smoother config not found: '{smoother_yaml}'")
+        env["MOLA_STATE_ESTIMATOR_YAML"] = str(smoother_yaml)
+    env.setdefault("MOLA_STATE_ESTIMATOR", "mola::state_estimation_smoother::StateEstimationSmoother")
+
+    # No GNSS in this dataset: pin the first pose to the map origin, or the
+    # smoother's GTSAM graph is left with a rank-deficient null-space
+    # (IndeterminantLinearSystemException):
+    env.setdefault("MOLA_LINK_FIRST_POSE_SIGMA", "1e-6")
 
     os.execvpe("mola-cli", ["mola-cli", str(launch_yaml), *extra_args], env)
 

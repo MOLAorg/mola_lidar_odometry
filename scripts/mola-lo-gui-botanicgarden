@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# For usage instructions, see: https://docs.mola-slam.org/latest/
+#
+# Convenience wrapper around mola-cli for the BotanicGarden dataset
+# (https://github.com/robot-pesg/BotanicGarden): points at the recorded ROS 1
+# "LIO" bag and enables the mola_state_estimation_smoother state estimator
+# (see mola_state_estimation's AGENTS.md, "Real-time setup").
+#
+# The "LIO" bag records two lidars at once, so two pipelines are available:
+#   (default) the spinning Velodyne VLP-16 -> lidar_odometry_from_botanicgarden.yaml
+#   --livox   the solid-state Livox AVIA   -> lidar_odometry_from_botanicgarden_livox.yaml
+# The Livox is non-repetitive (a single scan does not cover the full FOV), so
+# its pipeline needs different tuning; see this repo's agents.md,
+# "Non-repetitive (solid-state) LiDARs".
+#
+# Usage:
+#   mola-lo-gui-botanicgarden /path/to/1018_00_LIO.bag [--livox] [additional flags for mola-cli]
+#
+# Optional environment variables:
+#   BOTANICGARDEN_GT_BAG=/path/to/gt_1018_00_qnew.bag
+#     -- also replays /gt_poses (not consumed by LidarOdometry; ground-truth
+#        reference only)
+#   MOLA_STATE_ESTIMATOR / MOLA_STATE_ESTIMATOR_YAML
+#     -- override the default smoother estimator
+
+if [ "$#" -eq 0 ]; then
+    echo "Error: A BotanicGarden ROS 1 '..._LIO.bag' file is required."
+    echo "Usage: $0 /path/to/dataset_LIO.bag [--livox] [additional flags for mola-cli]"
+    exit 1
+fi
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../mola-cli-launchs/
+if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
+  MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
+fi
+
+# Split the bag path (first non-flag argument) from the --livox selector and
+# any remaining flags to forward to mola-cli:
+BOTANICGARDEN_LIO_BAG=""
+USE_LIVOX=0
+EXTRA_ARGS=()
+for arg in "$@"; do
+    if [ "$arg" == "--livox" ]; then
+        USE_LIVOX=1
+    elif [ -z "$BOTANICGARDEN_LIO_BAG" ]; then
+        BOTANICGARDEN_LIO_BAG=$arg
+    else
+        EXTRA_ARGS+=("$arg")
+    fi
+done
+export BOTANICGARDEN_LIO_BAG
+
+LAUNCH_YAML=$MOLA_LAUNCHS_DIR/lidar_odometry_from_botanicgarden.yaml
+: "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
+: "${MOLA_IGNORE_NO_POINT_STAMPS:=false}"
+export MOLA_DESKEW_METHOD
+export MOLA_IGNORE_NO_POINT_STAMPS
+
+if [ "$USE_LIVOX" -eq 1 ]; then
+    LAUNCH_YAML=$MOLA_LAUNCHS_DIR/lidar_odometry_from_botanicgarden_livox.yaml
+    # Non-repetitive scan pattern: accumulate 2+ scans per location before
+    # moving on, for denser local map / simplemap coverage:
+    : "${MOLA_MIN_NEARBY_POSES_OCCUPIED:=2}"
+    : "${MOLA_SIMPLEMAP_MIN_NEARBY_POSES:=2}"
+    export MOLA_MIN_NEARBY_POSES_OCCUPIED
+    export MOLA_SIMPLEMAP_MIN_NEARBY_POSES
+fi
+
+# No GNSS in this dataset: pin the first pose to the map origin, or the
+# smoother's GTSAM graph is left with a rank-deficient null-space
+# (IndeterminantLinearSystemException):
+: "${MOLA_LINK_FIRST_POSE_SIGMA:=1e-6}"
+export MOLA_LINK_FIRST_POSE_SIGMA
+
+# Enable the iSAM2 sliding-window smoother instead of the default simple
+# estimator:
+SMOOTHER_SHARE_DIR=$(ros2 pkg prefix mola_state_estimation_smoother 2>/dev/null)/share/mola_state_estimation_smoother
+if [ ! -f "$SMOOTHER_SHARE_DIR/params/state-estimation-smoother.yaml" ]; then
+    echo "Error: package 'mola_state_estimation_smoother' was not found. Please install it."
+    exit 1
+fi
+
+MOLA_STATE_ESTIMATOR="${MOLA_STATE_ESTIMATOR:-mola::state_estimation_smoother::StateEstimationSmoother}" \
+MOLA_STATE_ESTIMATOR_YAML="${MOLA_STATE_ESTIMATOR_YAML:-$SMOOTHER_SHARE_DIR/params/state-estimation-smoother.yaml}" \
+  mola-cli \
+    "$LAUNCH_YAML" \
+    "${EXTRA_ARGS[@]}"
