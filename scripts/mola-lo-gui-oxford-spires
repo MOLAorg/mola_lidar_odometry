@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+# For usage instructions, see: https://docs.mola-slam.org/latest/
+#
+# Convenience wrapper around mola-cli for the Oxford Spires Dataset
+# (https://dynamic.robots.ox.ac.uk/datasets/oxford-spires):
+# presets its LiDAR/IMU/camera topic names and fixed sensor poses (see
+# mola-cli-launchs/lidar_odometry_from_oxford_spires.yaml for the details
+# and the calibration source), and transparently stitches together
+# multipart sequences (some sequences are split across several ros2bag
+# directories) into a single continuous replay.
+#
+# Usage:
+#   mola-lo-gui-oxford-spires /path/to/data/sequences/<sequence-name>/ [additional flags for mola-cli]
+#
+# Example:
+#   mola-lo-gui-oxford-spires /mnt/storage/oxford-spires/data/sequences/2024-03-12-keble-college-01/
+
+import os
+import re
+import sys
+from pathlib import Path
+
+# Number of "OXFORD_SPIRES_BAG_N" slots defined in the launch YAML:
+MAX_BAG_PARTS = 6
+
+
+def die(msg: str) -> None:
+    print(f"Error: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def find_bag_parts(seq_dir: Path) -> list[Path]:
+    bag_root = seq_dir / "raw" / "ros2bag"
+    if not bag_root.is_dir():
+        die(
+            f"'{bag_root}' does not exist. Expected argument to be a sequence "
+            f"directory such as '.../data/sequences/2024-03-12-keble-college-01/', "
+            f"containing a 'raw/ros2bag/' subdirectory."
+        )
+
+    parts = [d for d in bag_root.iterdir() if d.is_dir() and (d / "metadata.yaml").is_file()]
+    if not parts:
+        die(f"No ros2bag directories (with a 'metadata.yaml') found under '{bag_root}'.")
+
+    # Directory names end in "..._<part_index>" (e.g.
+    # "1710252275_2024-03-12-14-04-36_0", "..._1", "..._2", ...): sort
+    # numerically on that suffix so multipart sequences replay in order.
+    def part_index(d: Path) -> int:
+        m = re.search(r"_(\d+)$", d.name)
+        return int(m.group(1)) if m else 0
+
+    parts.sort(key=part_index)
+
+    if len(parts) > MAX_BAG_PARTS:
+        die(
+            f"Sequence '{seq_dir.name}' has {len(parts)} ros2bag parts, but this "
+            f"script/launch file only supports up to {MAX_BAG_PARTS}. Add more "
+            f"OXFORD_SPIRES_BAG_N slots to lidar_odometry_from_oxford_spires.yaml."
+        )
+
+    return parts
+
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} /path/to/data/sequences/<sequence-name>/ [additional flags for mola-cli]")
+        sys.exit(1)
+
+    seq_dir = Path(sys.argv[1]).expanduser().resolve()
+    extra_args = sys.argv[2:]
+
+    if not seq_dir.is_dir():
+        die(f"'{seq_dir}' is not a directory.")
+
+    parts = find_bag_parts(seq_dir)
+    print(f"Sequence '{seq_dir.name}': found {len(parts)} ros2bag part(s):", file=sys.stderr)
+    for p in parts:
+        print(f"  - {p}", file=sys.stderr)
+
+    script_dir = Path(__file__).resolve().parent
+
+    launchs_dir = script_dir.parent / "mola-cli-launchs"
+    installed_launchs_dir = script_dir.parent / "share" / "mola_lidar_odometry" / "mola-cli-launchs"
+    if installed_launchs_dir.is_dir():
+        launchs_dir = installed_launchs_dir
+
+    launch_yaml = launchs_dir / "lidar_odometry_from_oxford_spires.yaml"
+    if not launch_yaml.is_file():
+        die(f"Launch file not found: '{launch_yaml}'")
+
+    env = os.environ.copy()
+    # Set every slot (not just the ones we have parts for): otherwise a
+    # OXFORD_SPIRES_BAG_N the user left exported from a previous run would
+    # leak through os.environ.copy() and get appended as a stale extra part.
+    for i in range(MAX_BAG_PARTS):
+        env[f"OXFORD_SPIRES_BAG_{i}"] = str(parts[i]) if i < len(parts) else ""
+
+    # Handheld/backpack platform (VILENS): lean on the IMU for the initial
+    # pitch/roll estimate and for deskewing, same as the ConSLAM wrapper.
+    # The Alphasense IMU does not publish an onboard-fused orientation (its
+    # Imu messages carry an all-zero quaternion), so the pitch/roll
+    # initializer automatically falls back to leveling from raw accelerometer
+    # readings (see mola_imu_preintegration's ImuInitialCalibrator).
+    env.setdefault("MOLA_LO_INITIAL_LOCALIZATION_METHOD", "InitLocalization::PitchAndRollFromIMU")
+    env.setdefault("MOLA_DESKEW_METHOD", "MotionCompensationMethod::IMU")
+
+    os.execvpe("mola-cli", ["mola-cli", str(launch_yaml), *extra_args], env)
+
+
+if __name__ == "__main__":
+    main()
