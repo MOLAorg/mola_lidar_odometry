@@ -1,0 +1,148 @@
+# -----------------------------------------------------------------------------
+#                        SLAM system definition for MOLA
+# This file defines:
+# LiDAR odometry from the Oxford Spires Dataset, read directly from its
+# ROS 2 bag(s) via mola::Rosbag2Dataset.
+#
+# Dataset: Oxford Spires (https://dynamic.robots.ox.ac.uk/datasets/oxford-spires)
+# Sensor inventory (confirmed with a bag's metadata.yaml):
+#   /hesai/pandar                                       sensor_msgs/PointCloud2   Hesai Pandar, ~10 Hz
+#   /alphasense_driver_ros/imu                           sensor_msgs/Imu           Alphasense IMU, ~400 Hz
+#   /alphasense_driver_ros/cam0/debayered/image/compressed  sensor_msgs/CompressedImage
+#   /alphasense_driver_ros/cam1/debayered/image/compressed  sensor_msgs/CompressedImage
+#   /alphasense_driver_ros/cam2/debayered/image/compressed  sensor_msgs/CompressedImage
+# NO /tf or /tf_static in these bags, so use_fixed_sensor_pose is mandatory
+# for every sensor.
+#
+# Extrinsics: taken from data/calibration/cam-lidar-imu.yaml (Kalibr
+# "C_q_CL"/"C_r_CL" cam-to-lidar, and "C_q_CI"/"C_r_CI" cam0-to-imu),
+# with the Hesai LiDAR as base_link (identity pose) and every other sensor's
+# pose obtained by inverting/composing those transforms into the LiDAR frame.
+#
+# Some sequences are split across several ros2bag directories (a multipart
+# recording); mola::Rosbag2Dataset accepts a YAML sequence for
+# 'rosbag_filename' and replays them back-to-back as a single continuous
+# dataset, so this file exposes OXFORD_SPIRES_BAG_0..5 (unused slots resolve
+# to an empty string and are silently skipped). Use the mola-lo-gui-oxford-spires
+# wrapper script to fill these in automatically from a sequence directory.
+#
+# Usage (normally invoked through scripts/mola-lo-gui-oxford-spires instead):
+#   OXFORD_SPIRES_BAG_0=$SEQ/raw/ros2bag/<part0>/ \
+#   OXFORD_SPIRES_BAG_1=$SEQ/raw/ros2bag/<part1>/ \
+#     mola-cli $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/mola-cli-launchs/lidar_odometry_from_oxford_spires.yaml
+#
+# Optional overrides:
+#   MOLA_WITH_GUI=false        -- headless mode
+#   MOLA_TIME_WARP=1.0         -- playback speed factor
+#   MOLA_QUIT_ON_DATASET_END=true  -- exit when the bag(s) end
+# -----------------------------------------------------------------------------
+
+modules:
+  # =====================
+  # MolaViz / MolaVizImGui
+  # =====================
+  - name: viz
+    type: ${MOLA_GUI_MODULE|mola::MolaVizImGui}
+    enabled: ${MOLA_WITH_GUI|true}
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
+    params:
+      imgui_app_name: lo_oxford_spires
+
+  # =====================
+  # Rosbag2Dataset (Oxford Spires)
+  # =====================
+  - name: dataset_input
+    type: mola::Rosbag2Dataset
+    verbosity_level: "${MOLA_VERBOSITY_ROSBAG2|INFO}"
+    execution_rate: 50 # Hz
+    quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|false}
+
+    gui_preview_sensors:
+      - raw_sensor_label: "${MOLA_LIDAR_NAME|lidar}"
+        decimation: 1
+        enabled: ${MOLA_WITH_GUI|true}
+        win_pos: 5 5 400 400
+      - raw_sensor_label: "${MOLA_CAMERA_SENSOR_NAME|camera}"
+        decimation: 1
+        enabled: ${MOLA_WITH_GUI|true}
+        win_pos: 5 420 400 300
+
+    params:
+      # Filled in by the mola-lo-gui-oxford-spires wrapper script, one entry
+      # per ros2bag directory of a (possibly multipart) sequence. Empty
+      # slots are silently skipped:
+      rosbag_filename:
+        - ${OXFORD_SPIRES_BAG_0}
+        - ${OXFORD_SPIRES_BAG_1|}
+        - ${OXFORD_SPIRES_BAG_2|}
+        - ${OXFORD_SPIRES_BAG_3|}
+        - ${OXFORD_SPIRES_BAG_4|}
+        - ${OXFORD_SPIRES_BAG_5|}
+
+      base_link_frame_id: "${MOLA_TF_BASE_LINK|hesai_lidar}"
+      time_warp_scale: ${MOLA_TIME_WARP|1.0}
+      start_paused: ${MOLA_DATASET_START_PAUSED|false}
+      # 0 (default): replay the whole sequence. Set e.g. to quickly validate
+      # a long sequence without waiting for it to finish:
+      max_duration_sec: ${MOLA_MAX_DURATION_SEC|0}
+
+      sensors:
+        - topic: "${MOLA_LIDAR_TOPIC|/hesai/pandar}"
+          type: CObservationPointCloud
+          sensorLabel: "${MOLA_LIDAR_NAME|lidar}"
+          # Hesai LiDAR is used as the reference (base_link) frame here:
+          fixed_sensor_pose: "0 0 0 0 0 0"
+          use_fixed_sensor_pose: true
+
+        - topic: "${MOLA_IMU_TOPIC|/alphasense_driver_ros/imu}"
+          type: CObservationIMU
+          sensorLabel: imu
+          # T_lidar_imu, derived from cam0's C_q_CI/C_r_CI (cam0-to-imu) and
+          # C_q_CL/C_r_CL (cam0-to-lidar):
+          fixed_sensor_pose: "0.018771 -0.008218 -0.070474 -90.6263 -0.1665 -0.1287"
+          use_fixed_sensor_pose: true
+
+        # cam2 is the forward-facing camera (yaw ~ 0 wrt the LiDAR), enabled
+        # by default for the GUI preview. cam0/cam1 (below, commented out)
+        # point sideways; uncomment to also feed them in (e.g. for mapping).
+        - topic: "${MOLA_CAMERA_TOPIC|/alphasense_driver_ros/cam2/debayered/image/compressed}"
+          type: CObservationImage
+          sensorLabel: "${MOLA_CAMERA_SENSOR_NAME|camera}"
+          is_optional: true
+          # T_lidar_cam2:
+          fixed_sensor_pose: "0.002228 0.050377 -0.073378 -0.1092 0.0896 -89.9231"
+          use_fixed_sensor_pose: true
+
+        #- topic: /alphasense_driver_ros/cam0/debayered/image/compressed
+        #  type: CObservationImage
+        #  sensorLabel: camera0
+        #  is_optional: true
+        #  # T_lidar_cam0:
+        #  fixed_sensor_pose: "-0.054541 -0.002683 -0.073943 89.5878 -0.1301 -90.2621"
+        #  use_fixed_sensor_pose: true
+
+        #- topic: /alphasense_driver_ros/cam1/debayered/image/compressed
+        #  type: CObservationImage
+        #  sensorLabel: camera1
+        #  is_optional: true
+        #  # T_lidar_cam1:
+        #  fixed_sensor_pose: "0.001823 -0.057626 -0.073524 179.5324 -0.1189 -89.8271"
+        #  use_fixed_sensor_pose: true
+
+  # =====================
+  # LidarOdometry
+  # =====================
+  - name: lidar_odom
+    type: mola::LidarOdometry
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_LO|INFO}"
+    raw_data_source: "dataset_input"
+    params: "${MOLA_ODOMETRY_PIPELINE_YAML|../pipelines/lidar3d-default.yaml}"
+
+  # =====================
+  # State Estimation
+  # =====================
+  - name: state_estimation
+    type: "${MOLA_STATE_ESTIMATOR|mola::state_estimation_simple::StateEstimationSimple}"
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_STATE_ESTIMATOR|INFO}"
+    raw_data_source: "dataset_input"
+    params: "${MOLA_STATE_ESTIMATOR_YAML|../state-estimator-params/state-estimation-simple.yaml}"
