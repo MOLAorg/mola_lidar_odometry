@@ -89,8 +89,11 @@ def main() -> None:
         die(f"Launch file not found: '{launch_yaml}'")
 
     env = os.environ.copy()
-    for i, part in enumerate(parts):
-        env[f"OXFORD_SPIRES_BAG_{i}"] = str(part)
+    # Set every slot (not just the ones we have parts for): otherwise a
+    # OXFORD_SPIRES_BAG_N the user left exported from a previous run would
+    # leak through os.environ.copy() and get appended as a stale extra part.
+    for i in range(MAX_BAG_PARTS):
+        env[f"OXFORD_SPIRES_BAG_{i}"] = str(parts[i]) if i < len(parts) else ""
 
     # Handheld/backpack platform (VILENS): lean on the IMU for the initial
     # pitch/roll estimate and for deskewing, same as the ConSLAM wrapper.
