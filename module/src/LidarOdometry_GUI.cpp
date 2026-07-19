@@ -187,12 +187,6 @@ mola::gui::Tab LidarOdometry::buildTabView()
     }});
 
   tab.widgets.emplace_back(CheckBox{
-    "Show log messages", params_.visualization.show_console_messages, [this](bool checked) {
-      this->enqueue_request(
-        [this, checked]() { params_.visualization.show_console_messages = checked; });
-    }});
-
-  tab.widgets.emplace_back(CheckBox{
     "Show gravity-alignment vector", params_.visualization.show_gravity_align_vector,
     [this](bool checked) {
       this->enqueue_request(
@@ -238,9 +232,6 @@ void LidarOdometry::internalBuildGUI()
       const mrpt::Clock::time_point timestamp) {
       using namespace std::string_literals;
 
-      if (!params_.visualization.show_console_messages) {
-        return;
-      }
       if (level < this->getMinLoggingLevel()) {
         return;
       }

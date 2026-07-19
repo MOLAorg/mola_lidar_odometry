@@ -161,8 +161,6 @@ params:
     show_trajectory: ${MOLA_GUI_SHOW_TRAJECTORY|true}
     trajectory_rgba: [0.1, 0.1, 0.1, 1.0]
 
-    show_console_messages: ${MOLA_GUI_SHOW_CONSOLE_MESSAGES|true}
-
     # Enable or disable each of the three GUI panels:
     show_tab_status: ${MOLA_GUI_SHOW_TAB_STATUS|true}
     show_tab_control: ${MOLA_GUI_SHOW_TAB_CONTROL|true}

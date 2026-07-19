@@ -318,7 +318,6 @@ public:
       int map_update_decimation = 10;
 
       bool gui_subwindow_starts_hidden = false;
-      std::atomic<bool> show_console_messages{true};
 
       // --- Tab visibility ---
       bool show_tab_status = true;
