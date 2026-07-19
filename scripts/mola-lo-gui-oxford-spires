@@ -10,10 +10,14 @@
 # directories) into a single continuous replay.
 #
 # Usage:
-#   mola-lo-gui-oxford-spires /path/to/data/sequences/<sequence-name>/ [additional flags for mola-cli]
+#   mola-lo-gui-oxford-spires /path/to/data/sequences/<sequence-name>/ [--headless] [additional flags for mola-cli]
 #
 # Example:
 #   mola-lo-gui-oxford-spires /mnt/storage/oxford-spires/data/sequences/2024-03-12-keble-college-01/
+#
+# --headless (alias --no-gui): run without the 3D GUI (batch/CI). Equivalent to
+# exporting MOLA_WITH_GUI=false; the flag is a convenience so no env var is
+# needed. Everything else is forwarded verbatim to mola-cli.
 #
 # Enables the mola_state_estimation_smoother state estimator by default (see
 # mola_state_estimation's AGENTS.md, "Real-time setup"); override by exporting
@@ -73,6 +77,18 @@ def main() -> None:
 
     seq_dir = Path(sys.argv[1]).expanduser().resolve()
     extra_args = sys.argv[2:]
+
+    # Intercept --headless / --no-gui: run without the GUI. Consumed here (not
+    # forwarded) since mola-cli would not understand it; it just sets the same
+    # MOLA_WITH_GUI=false env var the launch YAML reads.
+    headless = False
+    filtered_args = []
+    for arg in extra_args:
+        if arg in ("--headless", "--no-gui"):
+            headless = True
+        else:
+            filtered_args.append(arg)
+    extra_args = filtered_args
 
     if not seq_dir.is_dir():
         die(f"'{seq_dir}' is not a directory.")
@@ -134,6 +150,9 @@ def main() -> None:
     # smoother's GTSAM graph is left with a rank-deficient null-space
     # (IndeterminantLinearSystemException):
     env.setdefault("MOLA_LINK_FIRST_POSE_SIGMA", "1e-6")
+
+    if headless:
+        env["MOLA_WITH_GUI"] = "false"
 
     os.execvpe("mola-cli", ["mola-cli", str(launch_yaml), *extra_args], env)
 
