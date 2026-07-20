@@ -161,6 +161,11 @@ params:
     show_trajectory: ${MOLA_GUI_SHOW_TRAJECTORY|true}
     trajectory_rgba: [0.1, 0.1, 0.1, 1.0]
 
+    # Camera tracks the vehicle. Exposed as an env hook so an integrator (e.g.
+    # mola_mapper, where the mapper module owns the camera) can disable it here
+    # without editing this pipeline. Default true (standalone LIO behavior).
+    camera_follows_vehicle: ${MOLA_GUI_CAMERA_FOLLOWS_VEHICLE|true}
+
     # Enable or disable each of the three GUI panels:
     show_tab_status: ${MOLA_GUI_SHOW_TAB_STATUS|true}
     show_tab_control: ${MOLA_GUI_SHOW_TAB_CONTROL|true}
