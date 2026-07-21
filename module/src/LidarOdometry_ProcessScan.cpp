@@ -368,7 +368,8 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     {
       mrpt::poses::CPose3D sensorPoseInVehicle;
       obs->getSensorPose(sensorPoseInVehicle);
-      state_.kf_decider_simplemap->insert(state_.last_lidar_pose.mean + sensorPoseInVehicle);
+      state_.kf_decider_simplemap->insert(
+        state_.last_lidar_pose.mean + sensorPoseInVehicle, mrpt::Clock::toDouble(obs->timestamp));
     }
   } else {
     // Register point clouds using ICP:
@@ -805,9 +806,11 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     obs->getSensorPose(sensorPoseInVehicle);
     const mrpt::poses::CPose3D lidarPoseInWorld = state_.last_lidar_pose.mean + sensorPoseInVehicle;
 
+    const double obsTimestamp = mrpt::Clock::toDouble(obs->timestamp);
+
     // Create a new KF if we are far enough from the existing ones:
     const auto decisionLocalMap =
-      state_.kf_decider_local_map->check(params_.local_map_updates, lidarPoseInWorld);
+      state_.kf_decider_local_map->check(params_.local_map_updates, lidarPoseInWorld, obsTimestamp);
 
     const bool distFarEnoughLocal = decisionLocalMap.create;
     const double euclidean_dist_since_last = decisionLocalMap.translation;
@@ -837,7 +840,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     // clang-format on
 
     if (updateLocalMap) {
-      state_.kf_decider_local_map->insert(lidarPoseInWorld);
+      state_.kf_decider_local_map->insert(lidarPoseInWorld, obsTimestamp);
 
       if (
         params_.local_map_updates.max_distance_to_keep_keyframes > 0 &&
@@ -858,9 +861,9 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     }
 
     // Same shared policy as the local map above, but with the simplemap's own
-    // (independently tuned) thresholds:
+    // (independently tuned) thresholds and time window:
     const auto decisionSimpleMap =
-      state_.kf_decider_simplemap->check(params_.simplemap, lidarPoseInWorld);
+      state_.kf_decider_simplemap->check(params_.simplemap, lidarPoseInWorld, obsTimestamp);
 
     distance_enough_sm = decisionSimpleMap.create;
 
@@ -890,7 +893,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       // still needs the distance_enough_sm criterion to actually behave as
       // "sparse" instead of always firing (an empty checker reports every
       // pose as "far enough"):
-      state_.kf_decider_simplemap->insert(lidarPoseInWorld);
+      state_.kf_decider_simplemap->insert(lidarPoseInWorld, obsTimestamp);
     }
 
     MRPT_LOG_DEBUG_FMT(

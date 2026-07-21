@@ -20,6 +20,8 @@
 #include <mrpt/poses/CPose3D.h>
 
 #include <cstdint>
+#include <deque>
+#include <utility>
 
 namespace mola
 {
@@ -45,7 +47,8 @@ struct KeyframeDecisionOptions
    *  Use if mostly mapping without "closed loops".
    *
    *  If false (default), a KD-tree is used to check the distance to *all*
-   *  past keyframe poses.
+   *  past keyframe poses. See also nearby_keyframe_time_window, which bounds
+   *  how far back in time that search reaches.
    */
   bool measure_from_last_kf_only = false;
 
@@ -56,6 +59,23 @@ struct KeyframeDecisionOptions
    *  each location.
    */
   uint32_t min_nearby_poses_occupied = 1;
+
+  /** Time window [seconds] for the "is there already a keyframe here?" test.
+   *  0 (default) disables it: the test then reaches ALL past keyframes.
+   *
+   *  With the default, purely spatial policy, revisiting a mapped area
+   *  creates NO new keyframes, since the previous pass' keyframes are the
+   *  nearest neighbors. That is the desired behavior for a local metric map
+   *  (a revisit adds no coverage), but it starves loop closure: a loop can
+   *  only be detected if BOTH of its endpoints exist as keyframes, so the
+   *  revisit that should close the loop produces nothing to close it with.
+   *
+   *  When set to a positive value, only keyframes newer than this many
+   *  seconds take part in the test (plus the most recent one, always, so a
+   *  stationary vehicle does not emit one keyframe per window). Older
+   *  keyframes become invisible to it, so a revisit spawns fresh keyframes.
+   */
+  double nearby_keyframe_time_window = 0;
 
   // Loaded by LidarOdometry::Parameters::load_keyframe_policy(), which owns
   // the dynamic-expression parameter pool the distance thresholds register
@@ -98,12 +118,15 @@ public:
 
   /** Evaluates the policy for a candidate keyframe pose. Does NOT modify the
    *  stored poses; call insert() if the keyframe is actually created.
+   *  \param timestamp Observation timestamp [s], only used if
+   *         `opts.nearby_keyframe_time_window` is enabled.
    */
   [[nodiscard]] Decision check(
-    const KeyframeDecisionOptions & opts, const mrpt::poses::CPose3D & pose) const;
+    const KeyframeDecisionOptions & opts, const mrpt::poses::CPose3D & pose,
+    double timestamp) const;
 
   /** Stores an actually-created keyframe pose. */
-  void insert(const mrpt::poses::CPose3D & pose);
+  void insert(const mrpt::poses::CPose3D & pose, double timestamp);
 
   /** Drops stored poses farther than the given distance (local map cleanup) */
   void removeAllFartherThan(const mrpt::poses::CPose3D & pose, double maxTranslation);
@@ -115,11 +138,20 @@ public:
 private:
   /** All stored keyframe poses (KD-tree searchable). */
   SearchablePoseList poses_;
+
+  /** Keyframes within the time window, oldest first. Only maintained (and
+   *  only non-empty) while `nearby_keyframe_time_window` is enabled. The
+   *  newest entry is never dropped, whatever its age. */
+  mutable std::deque<std::pair<double, mrpt::poses::CPose3D>> recent_;
+
+  /** Drops entries older than the window, always keeping the newest one. */
+  void prune_recent(double now, double window) const;
 };
 
 }  // namespace mola
 
 /** Feature macro: the keyframe-creation policy is shared between the local map
- *  and simplemap deciders (mola::KeyframeDecider).
+ *  and simplemap deciders (mola::KeyframeDecider) and supports a temporal
+ *  window (`nearby_keyframe_time_window`).
  */
 #define MOLA_LO_HAS_KEYFRAME_DECIDER 1

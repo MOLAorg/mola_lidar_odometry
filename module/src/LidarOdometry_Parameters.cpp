@@ -219,12 +219,18 @@ void LidarOdometry::Parameters::load_keyframe_policy(
     cfg.getOrDefault<bool>("measure_from_last_kf_only", o.measure_from_last_kf_only);
   o.min_nearby_poses_occupied =
     cfg.getOrDefault<uint32_t>("min_nearby_poses_occupied", o.min_nearby_poses_occupied);
+  o.nearby_keyframe_time_window =
+    cfg.getOrDefault<double>("nearby_keyframe_time_window", o.nearby_keyframe_time_window);
 
   ASSERTMSG_(
     o.min_nearby_poses_occupied >= 1,
     mrpt::format(
       "%s.min_nearby_poses_occupied=%u must be >= 1", section_name,
       static_cast<unsigned>(o.min_nearby_poses_occupied)));
+  ASSERTMSG_(
+    o.nearby_keyframe_time_window >= 0, mrpt::format(
+                                          "%s.nearby_keyframe_time_window=%f must be >= 0",
+                                          section_name, o.nearby_keyframe_time_window));
 }
 
 void LidarOdometry::Parameters::SimpleMapOptions::initialize(const Yaml & cfg, Parameters & parent)

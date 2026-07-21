@@ -40,17 +40,17 @@ mola::KeyframeDecisionOptions defaultOptions()
  *  keyframe. Returns how many keyframes were created. */
 size_t run(
   mola::KeyframeDecider & d, const mola::KeyframeDecisionOptions & o, double fromX, double toX,
-  double step)
+  double step, double & t, double dt)
 {
   ASSERT_(step != 0);
   const int nSteps = static_cast<int>(std::floor((toX - fromX) / step + 1e-9)) + 1;
   ASSERT_(nSteps > 0);
 
   size_t created = 0;
-  for (int i = 0; i < nSteps; i++) {
+  for (int i = 0; i < nSteps; i++, t += dt) {
     const double x = fromX + i * step;
-    if (d.check(o, at(x)).create) {
-      d.insert(at(x));
+    if (d.check(o, at(x), t).create) {
+      d.insert(at(x), t);
       created++;
     }
   }
@@ -64,7 +64,7 @@ TEST(KeyframeDecider, FirstPoseAlwaysCreates)
   const auto o = defaultOptions();
   mola::KeyframeDecider d;
 
-  EXPECT_TRUE(d.check(o, at(0)).create);
+  EXPECT_TRUE(d.check(o, at(0), 0.0).create);
   EXPECT_TRUE(d.empty());
 }
 
@@ -74,28 +74,94 @@ TEST(KeyframeDecider, SpatialSpacing)
   const auto o = defaultOptions();
   mola::KeyframeDecider d;
 
-  const size_t n = run(d, o, 0.0, 10.0, 0.25);
+  double t = 0;
+  const size_t n = run(d, o, 0.0, 10.0, 0.25, t, 0.1);
 
   // The threshold is strict, so keyframes land at 0, 1.25, 2.5, ... 10 m:
   EXPECT_EQ(n, 9u);
   EXPECT_EQ(d.size(), 9u);
 }
 
-// Coming back over an already-mapped area creates NO keyframes, since the
-// previous pass' ones are the nearest neighbors.
-TEST(KeyframeDecider, RevisitCreatesNothing)
+// The bug this policy exists to fix: with the purely spatial policy, coming
+// back over an already-mapped area creates NO keyframes, so loop closure never
+// gets the second endpoint of the loop.
+TEST(KeyframeDecider, RevisitCreatesNothingWithoutTimeWindow)
 {
   const auto o = defaultOptions();
   mola::KeyframeDecider d;
 
-  run(d, o, 0.0, 10.0, 0.25);
+  double t = 0;
+  run(d, o, 0.0, 10.0, 0.25, t, 0.1);
   const size_t nAfterFirstPass = d.size();
 
-  // Drive back over the very same places:
-  const size_t createdOnRevisit = run(d, o, 10.0, 0.0, -0.25);
+  // Drive back over the very same places, much later:
+  t += 1000.0;
+  const size_t createdOnRevisit = run(d, o, 10.0, 0.0, -0.25, t, 0.1);
 
   EXPECT_EQ(createdOnRevisit, 0u);
   EXPECT_EQ(d.size(), nAfterFirstPass);
+}
+
+// With the temporal window enabled, the same revisit does create keyframes,
+// since the first pass' ones are no longer visible to the policy.
+TEST(KeyframeDecider, RevisitCreatesKeyframesWithTimeWindow)
+{
+  auto o = defaultOptions();
+  o.nearby_keyframe_time_window = 20.0;
+
+  mola::KeyframeDecider d;
+
+  double t = 0;
+  run(d, o, 0.0, 10.0, 0.25, t, 0.1);
+  const size_t nAfterFirstPass = d.size();
+  EXPECT_EQ(nAfterFirstPass, 9u);
+
+  // Same places, long after the window:
+  t += 1000.0;
+  const size_t createdOnRevisit = run(d, o, 10.0, 0.0, -0.25, t, 0.1);
+
+  // The revisit is sampled as densely as the first pass, minus the keyframe
+  // the first pass created out of an empty map: the second pass starts right
+  // on top of the last keyframe of the first one.
+  EXPECT_EQ(createdOnRevisit, nAfterFirstPass - 1);
+  EXPECT_EQ(d.size(), nAfterFirstPass + createdOnRevisit);
+}
+
+// A stationary vehicle must NOT emit one keyframe per time window: the newest
+// keyframe is kept in the window whatever its age.
+TEST(KeyframeDecider, StationaryVehicleDoesNotAccumulate)
+{
+  auto o = defaultOptions();
+  o.nearby_keyframe_time_window = 5.0;
+
+  mola::KeyframeDecider d;
+
+  double t = 0;
+  ASSERT_TRUE(d.check(o, at(0), t).create);
+  d.insert(at(0), t);
+
+  // Parked for 10 minutes:
+  for (int i = 0; i < 6000; i++) {
+    t += 0.1;
+    EXPECT_FALSE(d.check(o, at(0), t).create);
+  }
+
+  EXPECT_EQ(d.size(), 1u);
+}
+
+// The time window must not disturb normal forward driving: same spacing as the
+// spatial policy.
+TEST(KeyframeDecider, TimeWindowKeepsForwardSpacing)
+{
+  auto o = defaultOptions();
+  o.nearby_keyframe_time_window = 20.0;
+
+  mola::KeyframeDecider d;
+
+  double t = 0;
+  const size_t n = run(d, o, 0.0, 10.0, 0.25, t, 0.1);
+
+  EXPECT_EQ(n, 9u);  // same as the purely spatial policy
 }
 
 // Rotating in place beyond the angular threshold also creates keyframes.
@@ -104,14 +170,14 @@ TEST(KeyframeDecider, RotationThreshold)
   const auto o = defaultOptions();
   mola::KeyframeDecider d;
 
-  d.insert(mrpt::poses::CPose3D::FromXYZYawPitchRoll(0, 0, 0, 0, 0, 0));
+  d.insert(mrpt::poses::CPose3D::FromXYZYawPitchRoll(0, 0, 0, 0, 0, 0), 0.0);
 
   const auto smallTurn =
     mrpt::poses::CPose3D::FromXYZYawPitchRoll(0, 0, 0, mrpt::DEG2RAD(10), 0, 0);
-  EXPECT_FALSE(d.check(o, smallTurn).create);
+  EXPECT_FALSE(d.check(o, smallTurn, 1.0).create);
 
   const auto bigTurn = mrpt::poses::CPose3D::FromXYZYawPitchRoll(0, 0, 0, mrpt::DEG2RAD(45), 0, 0);
-  EXPECT_TRUE(d.check(o, bigTurn).create);
+  EXPECT_TRUE(d.check(o, bigTurn, 1.0).create);
 }
 
 // min_nearby_poses_occupied > 1 asks for several keyframes per spot (used by
@@ -125,10 +191,10 @@ TEST(KeyframeDecider, MinNearbyPosesOccupied)
 
   // Three keyframes at the very same place, then no more:
   for (int i = 0; i < 3; i++) {
-    ASSERT_TRUE(d.check(o, at(0)).create) << "i=" << i;
-    d.insert(at(0));
+    ASSERT_TRUE(d.check(o, at(0), i).create) << "i=" << i;
+    d.insert(at(0), i);
   }
-  EXPECT_FALSE(d.check(o, at(0)).create);
+  EXPECT_FALSE(d.check(o, at(0), 4.0).create);
   EXPECT_EQ(d.size(), 3u);
 }
 
@@ -139,10 +205,11 @@ TEST(KeyframeDecider, MeasureFromLastOnly)
   const auto o = defaultOptions();
   mola::KeyframeDecider d(true /*measure_from_last_kf_only*/);
 
-  run(d, o, 0.0, 10.0, 0.25);
+  double t = 0;
+  run(d, o, 0.0, 10.0, 0.25, t, 0.1);
 
   // Back to the origin: far from the LAST keyframe (at 10 m), so it creates.
-  EXPECT_TRUE(d.check(o, at(0)).create);
+  EXPECT_TRUE(d.check(o, at(0), t).create);
 }
 
 int main(int argc, char ** argv)

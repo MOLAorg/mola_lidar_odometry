@@ -18,19 +18,75 @@
 #include <mola_lidar_odometry/KeyframeDecider.h>
 #include <mrpt/poses/Lie/SO.h>
 
+#include <optional>
+
 namespace mola
 {
 
+namespace
+{
+/** Translational and rotational distance of `p` with respect to `ref`. */
+std::pair<double, double> pose_distance(
+  const mrpt::poses::CPose3D & p, const mrpt::poses::CPose3D & ref)
+{
+  const mrpt::poses::CPose3D delta = p - ref;
+  return {delta.norm(), mrpt::poses::Lie::SO<3>::log(delta.getRotationMatrix()).norm()};
+}
+}  // namespace
+
+void KeyframeDecider::prune_recent(double now, double window) const
+{
+  // Always keep the newest entry, whatever its age: otherwise a stationary
+  // vehicle would emit one keyframe per window once its last one ages out.
+  while (recent_.size() > 1 && (now - recent_.front().first) > window) {
+    recent_.pop_front();
+  }
+}
+
 KeyframeDecider::Decision KeyframeDecider::check(
-  const KeyframeDecisionOptions & opts, const mrpt::poses::CPose3D & pose) const
+  const KeyframeDecisionOptions & opts, const mrpt::poses::CPose3D & pose, double timestamp) const
 {
   Decision d;
 
   const double maxTranslation = opts.min_translation_between_keyframes;
   const double maxRotation = mrpt::DEG2RAD(opts.min_rotation_between_keyframes);
 
-  // Distance to the closest keyframe ever created (or just to the last one,
-  // if measure_from_last_kf_only).
+  // Temporal policy: only recent keyframes take part in the test, so
+  // revisiting a mapped area does create new keyframes (needed by loop
+  // closure to have both endpoints of a loop).
+  if (opts.nearby_keyframe_time_window > 0) {
+    prune_recent(timestamp, opts.nearby_keyframe_time_window);
+
+    if (recent_.empty()) {
+      d.create = true;
+      return d;
+    }
+
+    // The window holds a handful of entries, so a linear scan is cheaper
+    // than any spatial index:
+    bool anyNearby = false;
+    std::optional<double> closestTranslation;
+
+    for (const auto & [t, p] : recent_) {
+      const auto [dist, rot] = pose_distance(pose, p);
+
+      if (!closestTranslation.has_value() || dist < *closestTranslation) {
+        closestTranslation = dist;
+        d.translation = dist;
+        d.rotation = rot;
+      }
+
+      if (dist <= maxTranslation && rot <= maxRotation) {
+        anyNearby = true;
+      }
+    }
+
+    d.create = !anyNearby;
+    return d;
+  }
+
+  // Classic, purely spatial policy: distance to the closest keyframe ever
+  // created (or just to the last one, if measure_from_last_kf_only).
   const auto [isFirstPose, distanceToClosest] = poses_.check(pose);
 
   d.translation = distanceToClosest.norm();
@@ -55,7 +111,11 @@ KeyframeDecider::Decision KeyframeDecider::check(
   return d;
 }
 
-void KeyframeDecider::insert(const mrpt::poses::CPose3D & pose) { poses_.insert(pose); }
+void KeyframeDecider::insert(const mrpt::poses::CPose3D & pose, double timestamp)
+{
+  poses_.insert(pose);
+  recent_.emplace_back(timestamp, pose);
+}
 
 void KeyframeDecider::removeAllFartherThan(const mrpt::poses::CPose3D & pose, double maxTranslation)
 {

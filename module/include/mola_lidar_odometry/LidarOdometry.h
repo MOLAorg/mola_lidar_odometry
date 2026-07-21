@@ -204,8 +204,8 @@ public:
     MultipleLidarOptions multiple_lidars;
 
     /** Keyframe-creation policy for the LOCAL METRIC MAP. The distance
-         * thresholds and the occupancy count come from
-         * mola::KeyframeDecisionOptions, shared with SimpleMapOptions;
+         * thresholds, the occupancy count and the temporal window all come
+         * from mola::KeyframeDecisionOptions, shared with SimpleMapOptions;
          * they stay plain (non-nested) YAML keys of the `local_map_updates`
          * section.
          */
@@ -419,7 +419,8 @@ public:
          * pushed to a mola::SharedKeyframeMap sink (the central mapper's
          * keyframe backbone). Same shared policy as MapUpdateOptions, but
          * tuned independently: unlike the local map, this one feeds loop
-         * closure.
+         * closure, so it is the one that usually wants
+         * `nearby_keyframe_time_window` enabled.
          */
     struct SimpleMapOptions : public mola::KeyframeDecisionOptions
     {
