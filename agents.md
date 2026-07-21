@@ -85,7 +85,8 @@ never have a sink.
 
 When present, `pushKeyframeToSharedKeyframeMap()`
 (`LidarOdometry_ProcessScan.cpp`) pushes a SPARSE keyframe at the exact same
-`distance_enough_sm` criterion as the self-written simplemap, but
+`distance_enough_sm` criterion as the self-written simplemap (see the shared
+keyframe policy below), but
 INDEPENDENTLY of whether `params_.simplemap.generate` is set (the underlying
 distance-checker's `insert()` is now driven by `pushToSharedKeyframeMapNow`
 too, not just `updateSimpleMap` -- this was a real bug, see below). It uses
@@ -153,6 +154,44 @@ defaults let that gap grow large enough that once the search window finally
 reopened, ICP locked onto a self-consistent but WRONG registration (a
 sudden ~30-40 deg yaw error that then persisted for the rest of the run,
 instead of a brief quality dip that recovers to the true pose).
+
+
+## Keyframe-creation policy (shared by local map and simplemap)
+
+`mola::KeyframeDecider` + `mola::KeyframeDecisionOptions`
+(`KeyframeDecider.{h,cpp}`) hold the single "is this pose far enough from the
+existing keyframes to warrant a new one?" policy. There are TWO instances,
+tuned independently: `state_.kf_decider_local_map` (local metric map) and
+`state_.kf_decider_simplemap` (the simplemap, which is also what feeds a
+SharedKeyframeMap sink). `Parameters::MapUpdateOptions` and
+`Parameters::SimpleMapOptions` both DERIVE from `KeyframeDecisionOptions`, so
+its fields stay plain, non-nested YAML keys of their sections; both are loaded
+by `Parameters::load_keyframe_policy()`, which lives on `Parameters` because
+the two distance thresholds may be formulas that must register into its
+dynamic-parameter pool. The two distance thresholds are passed to `check()` per
+call, never held, so those formulas are re-evaluated every scan. The two policy
+SELECTORS (`measure_from_last_kf_only`, `nearby_keyframe_time_window`) are
+instead read once, by the constructor, which takes the whole options struct:
+they pick which of the two mutually exclusive storages the decider maintains
+(the `SearchablePoseList` KD-tree, or the in-window deque), so they cannot be
+per-scan formulas. `check()` asserts the window did not change afterwards.
+
+`nearby_keyframe_time_window` [s] (`MOLA_SIMPLEMAP_KF_TIME_WINDOW`, default 0 =
+disabled) bounds how far BACK IN TIME the redundancy test reaches. With the
+purely spatial default, revisiting a mapped area creates NO keyframes, since
+the previous pass' ones are the nearest neighbors. That is right for the local
+map (a revisit adds no coverage) but starves loop closure, which can only
+detect a loop whose BOTH endpoints exist as keyframes -- so the revisit that
+should close the loop produces nothing to close it with. With a positive
+window, only keyframes newer than that take part in the test (plus the most
+recent one ALWAYS, so a parked vehicle does not emit one keyframe per window),
+and a revisit spawns fresh keyframes. Enable it on the simplemap, not the local
+map. `test/test_keyframe_decider.cpp` covers both regimes.
+
+Under the window, the in-window deque is the ONLY store (the KD-tree is not
+even fed), it is scanned newest-first and left as soon as
+`min_nearby_poses_occupied` matches, and `insert()` clamps non-monotonic
+timestamps so the time-ordered pruning stays valid.
 
 ## Non-repetitive (solid-state) LiDARs (e.g. Livox AVIA)
 

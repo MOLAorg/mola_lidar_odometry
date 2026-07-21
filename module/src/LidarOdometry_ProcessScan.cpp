@@ -357,18 +357,19 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
     state_.navstate_fuse->fuse_pose(scan_ref_time, initPose, params_.publish_reference_frame);
 
-    // Seed last_lidar_pose and distance_checker_simplemap with the origin so
-    // the next scan's distance check starts from here rather than from "empty"
-    // (an empty checker reports isFirstPoseInSMChecker=true for every pose,
-    // which would spuriously fire a second keyframe on the very next scan):
+    // Seed last_lidar_pose and the simplemap keyframe decider with the origin
+    // so the next scan's distance check starts from here rather than from
+    // "empty" (an empty decider asks for a keyframe at every pose, which would
+    // spuriously fire a second keyframe on the very next scan):
     state_.last_lidar_pose = initPose;
-    if (!state_.distance_checker_simplemap) {
-      state_.distance_checker_simplemap.emplace(params_.simplemap.measure_from_last_kf_only);
+    if (!state_.kf_decider_simplemap) {
+      state_.kf_decider_simplemap.emplace(params_.simplemap);
     }
     {
       mrpt::poses::CPose3D sensorPoseInVehicle;
       obs->getSensorPose(sensorPoseInVehicle);
-      state_.distance_checker_simplemap->insert(state_.last_lidar_pose.mean + sensorPoseInVehicle);
+      state_.kf_decider_simplemap->insert(
+        state_.last_lidar_pose.mean + sensorPoseInVehicle, mrpt::Clock::toDouble(obs->timestamp));
     }
   } else {
     // Register point clouds using ICP:
@@ -789,14 +790,13 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       }
     }
 
-    // Create distance checker on first usage:
-    if (!state_.distance_checker_local_map) {
-      state_.distance_checker_local_map.emplace(
-        params_.local_map_updates.measure_from_last_kf_only);
+    // Create keyframe deciders on first usage:
+    if (!state_.kf_decider_local_map) {
+      state_.kf_decider_local_map.emplace(params_.local_map_updates);
     }
 
-    if (!state_.distance_checker_simplemap) {
-      state_.distance_checker_simplemap.emplace(params_.simplemap.measure_from_last_kf_only);
+    if (!state_.kf_decider_simplemap) {
+      state_.kf_decider_simplemap.emplace(params_.simplemap);
     }
 
     // Use the lidar sensor pose (in world frame) as the distance-checker key.
@@ -806,31 +806,15 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     obs->getSensorPose(sensorPoseInVehicle);
     const mrpt::poses::CPose3D lidarPoseInWorld = state_.last_lidar_pose.mean + sensorPoseInVehicle;
 
-    // Create a new KF if the distance since the last one is large enough:
-    const auto [isFirstPoseInChecker, distanceToClosest] =
-      state_.distance_checker_local_map->check(lidarPoseInWorld);
+    const double obsTimestamp = mrpt::Clock::toDouble(obs->timestamp);
 
-    const double euclidean_dist_since_last = distanceToClosest.norm();
-    const double rot_since_last =
-      mrpt::poses::Lie::SO<3>::log(distanceToClosest.getRotationMatrix()).norm();
+    // Create a new KF if we are far enough from the existing ones:
+    const auto decisionLocalMap =
+      state_.kf_decider_local_map->check(params_.local_map_updates, lidarPoseInWorld, obsTimestamp);
 
-    bool distFarEnoughLocal =
-      (isFirstPoseInChecker ||
-       euclidean_dist_since_last > params_.local_map_updates.min_translation_between_keyframes ||
-       rot_since_last > mrpt::DEG2RAD(params_.local_map_updates.min_rotation_between_keyframes));
-
-#if defined(MOLA_POSE_LIST_HAS_KFM_POSE_PLUMBING)
-    if (!distFarEnoughLocal && params_.local_map_updates.min_nearby_poses_occupied > 1) {
-      const uint32_t nearbyCount = state_.distance_checker_local_map->countNearby(
-        lidarPoseInWorld, params_.local_map_updates.min_translation_between_keyframes,
-        mrpt::DEG2RAD(params_.local_map_updates.min_rotation_between_keyframes));
-      if (nearbyCount < params_.local_map_updates.min_nearby_poses_occupied) {
-        distFarEnoughLocal = true;
-      }
-    }
-#else
-    // Older mola_pose_list: countNearby() unavailable; min_nearby_poses_occupied has no effect.
-#endif
+    const bool distFarEnoughLocal = decisionLocalMap.create;
+    const double euclidean_dist_since_last = decisionLocalMap.translation;
+    const double rot_since_last = decisionLocalMap.rotation;
 
     // Reuse the post-relocalization recovery window/counter (see
     // additional_map_freeze_after_reloc_how_many_timesteps): only actually
@@ -856,7 +840,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     // clang-format on
 
     if (updateLocalMap) {
-      state_.distance_checker_local_map->insert(lidarPoseInWorld);
+      state_.kf_decider_local_map->insert(lidarPoseInWorld, obsTimestamp);
 
       if (
         params_.local_map_updates.max_distance_to_keep_keyframes > 0 &&
@@ -866,40 +850,22 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
         state_.localmap_check_removal_counter = 0;
 
-        const auto nInit = state_.distance_checker_local_map->size();
+        const auto nInit = state_.kf_decider_local_map->size();
 
-        state_.distance_checker_local_map->removeAllFartherThan(
+        state_.kf_decider_local_map->removeAllFartherThan(
           lidarPoseInWorld, params_.local_map_updates.max_distance_to_keep_keyframes);
 
-        const auto nFinal = state_.distance_checker_local_map->size();
+        const auto nFinal = state_.kf_decider_local_map->size();
         MRPT_LOG_DEBUG_STREAM("removeAllFartherThan: " << nInit << " => " << nFinal << " KFs");
       }
     }
 
-    const auto [isFirstPoseInSMChecker, distanceToClosestSM] =
-      state_.distance_checker_simplemap->check(lidarPoseInWorld);
+    // Same shared policy as the local map above, but with the simplemap's own
+    // (independently tuned) thresholds and time window:
+    const auto decisionSimpleMap =
+      state_.kf_decider_simplemap->check(params_.simplemap, lidarPoseInWorld, obsTimestamp);
 
-    const double euclidean_dist_since_last_sm = distanceToClosestSM.norm();
-    const double rot_since_last_sm =
-      mrpt::poses::Lie::SO<3>::log(distanceToClosestSM.getRotationMatrix()).norm();
-
-    distance_enough_sm =
-      isFirstPoseInSMChecker ||
-      euclidean_dist_since_last_sm > params_.simplemap.min_translation_between_keyframes ||
-      rot_since_last_sm > mrpt::DEG2RAD(params_.simplemap.min_rotation_between_keyframes);
-
-#if defined(MOLA_POSE_LIST_HAS_KFM_POSE_PLUMBING)
-    if (!distance_enough_sm && params_.simplemap.min_nearby_poses_occupied > 1) {
-      const uint32_t nearbyCountSM = state_.distance_checker_simplemap->countNearby(
-        lidarPoseInWorld, params_.simplemap.min_translation_between_keyframes,
-        mrpt::DEG2RAD(params_.simplemap.min_rotation_between_keyframes));
-      if (nearbyCountSM < params_.simplemap.min_nearby_poses_occupied) {
-        distance_enough_sm = true;
-      }
-    }
-#else
-    // Older mola_pose_list: countNearby() unavailable; min_nearby_poses_occupied has no effect.
-#endif
+    distance_enough_sm = decisionSimpleMap.create;
 
     // clang-format off
     updateSimpleMap =
@@ -927,7 +893,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       // still needs the distance_enough_sm criterion to actually behave as
       // "sparse" instead of always firing (an empty checker reports every
       // pose as "far enough"):
-      state_.distance_checker_simplemap->insert(lidarPoseInWorld);
+      state_.kf_decider_simplemap->insert(lidarPoseInWorld, obsTimestamp);
     }
 
     MRPT_LOG_DEBUG_FMT(

@@ -40,7 +40,7 @@
 
 // Other packages:
 #include <mola_imu_preintegration/ImuInitialCalibrator.h>
-#include <mola_pose_list/SearchablePoseList.h>
+#include <mola_lidar_odometry/KeyframeDecider.h>
 
 // MP2P_ICP
 #include <mp2p_icp/ICP.h>
@@ -138,6 +138,20 @@ public:
 
   struct Parameters : public mp2p_icp::Parameterizable
   {
+    /** Loads the keyframe-creation policy shared by the local-map and
+         *  simplemap sections. Lives here, and not in KeyframeDecisionOptions
+         *  itself, because the two distance thresholds may be formulas and
+         *  must register into THIS object's dynamic-parameter pool.
+         *  \param section_name Only used in error messages.
+         *  \param distances_required Whether the two distance thresholds must
+         *         be present in the YAML. Kept per-section for backwards
+         *         compatibility: the local-map section demands them, the
+         *         simplemap one defaults them.
+         */
+    void load_keyframe_policy(
+      mola::KeyframeDecisionOptions & o, const Yaml & cfg, const char * section_name,
+      bool distances_required);
+
     /** List of sensor labels or regex's to be matched to input observations
          *  to be used as raw lidar observations.
          */
@@ -188,29 +202,18 @@ public:
 
     MultipleLidarOptions multiple_lidars;
 
-    struct MapUpdateOptions
+    /** Keyframe-creation policy for the LOCAL METRIC MAP. The distance
+         * thresholds, the occupancy count and the temporal window all come
+         * from mola::KeyframeDecisionOptions, shared with SimpleMapOptions;
+         * they stay plain (non-nested) YAML keys of the `local_map_updates`
+         * section.
+         */
+    struct MapUpdateOptions : public mola::KeyframeDecisionOptions
     {
       /** If set to false, the odometry system can be used as
              * localization-only.
              */
       bool enabled = true;
-
-      /** Minimum Euclidean distance (x,y,z) between keyframes inserted
-             * into the local map [meters]. */
-      double min_translation_between_keyframes = 1.0;
-
-      /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether)
-             * between keyframes inserted into
-             * the local map [in degrees]. */
-      double min_rotation_between_keyframes = 30.0;
-
-      /** If true, distance from the last map update are only considered.
-             * Use if mostly mapping without "closed loops".
-             *
-             *  If false (default), a KD-tree will be used to check the distance
-             * to *all* past map insert poses.
-             */
-      bool measure_from_last_kf_only = false;
 
       /** Should match the "remove farther than" option of the local
              * metric map. 0 means deletion of distant keyframes is disabled.
@@ -222,14 +225,6 @@ public:
              * how often to do the distant keyframes clean up.
              */
       uint32_t check_for_removal_every_n = 100;
-
-      /** Minimum number of stored poses within the threshold distance
-             *  before a volume is considered "occupied" and no new keyframe
-             *  is inserted there. Default=1 gives the classic behavior.
-             *  Increase to 2+ for non-repetitive-scan lidars (e.g. Livox)
-             *  so multiple scans are taken from each location.
-             */
-      uint32_t min_nearby_poses_occupied = 1;
 
       /** Publish updated map via mola::MapSourceBase once every N frames
              */
@@ -419,26 +414,16 @@ public:
     std::map<AlignKind, ICP_case> icp;
 
     // === SIMPLEMAP GENERATION ====
-    struct SimpleMapOptions
+    /** Keyframe-creation policy for the SIMPLEMAP, which is also the one
+         * pushed to a mola::SharedKeyframeMap sink (the central mapper's
+         * keyframe backbone). Same shared policy as MapUpdateOptions, but
+         * tuned independently: unlike the local map, this one feeds loop
+         * closure, so it is the one that usually wants
+         * `nearby_keyframe_time_window` enabled.
+         */
+    struct SimpleMapOptions : public mola::KeyframeDecisionOptions
     {
       bool generate = false;
-
-      /** Minimum Euclidean distance (x,y,z) between keyframes inserted
-             * into the simplemap [meters]. */
-      double min_translation_between_keyframes = 1.0;
-
-      /** Minimum rotation (in 3D space, yaw, pitch,roll, altogether)
-             * between keyframes inserted into
-             * the map [in degrees]. */
-      double min_rotation_between_keyframes = 30.0;
-
-      /** If true, distance from the last map update are only considered.
-             * Use if mostly mapping without "closed loops".
-             *
-             *  If false (default), a KD-tree will be used to check the distance
-             * to *all* past map insert poses.
-             */
-      bool measure_from_last_kf_only = false;
 
       /** If not empty, the final simple map will be dumped to a file at
              * destruction time */
@@ -470,13 +455,6 @@ public:
 
       /** If enabled, saved keyframes will contain an additional 'deskewed' observation with the motion-compensated cloud. */
       bool save_deskewed_scans = false;
-
-      /** Minimum number of stored poses within the threshold distance
-             *  before a volume is considered "occupied" and no new keyframe
-             *  is inserted there. Default=1 gives the classic behavior.
-             *  Increase to 2+ for non-repetitive-scan lidars (e.g. Livox).
-             */
-      uint32_t min_nearby_poses_occupied = 1;
 
       void initialize(const Yaml & c, Parameters & parent);
     };
@@ -932,8 +910,8 @@ private:
 
     // to check for map updates. Defined as optional<> so we enforce
     // setting their type in the ctor:
-    std::optional<SearchablePoseList> distance_checker_local_map;
-    std::optional<SearchablePoseList> distance_checker_simplemap;
+    std::optional<KeyframeDecider> kf_decider_local_map;
+    std::optional<KeyframeDecider> kf_decider_simplemap;
 
     /// See check_for_removal_every_n
     uint32_t localmap_check_removal_counter = 0;

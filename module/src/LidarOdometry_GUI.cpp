@@ -864,9 +864,12 @@ void LidarOdometry::updateVisualizationTextLabels()
       "Dropped frames: %5.02f%% (avr queue=%4.02f)", getDropStats() * 100.0, averageLidarQueue));
   }
 
+  // The deciders are created lazily on the first processed scan, while the GUI
+  // may refresh before that (or while initial localization is still pending):
   gui_.lbMapStats->set(mrpt::format(
-    "Keyframes: Localmap=%zu, simplemap=%zu", state_.distance_checker_local_map->size(),
-    state_.distance_checker_simplemap->size()));
+    "Keyframes: Localmap=%zu, simplemap=%zu",
+    state_.kf_decider_local_map ? state_.kf_decider_local_map->size() : 0u,
+    state_.kf_decider_simplemap ? state_.kf_decider_simplemap->size() : 0u));
 
   if (state_.last_motion_model_output) {
     const auto & tw = state_.last_motion_model_output->twist;

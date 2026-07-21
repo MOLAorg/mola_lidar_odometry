@@ -116,12 +116,22 @@ params:
 
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
 
-    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|(1.0e-2 + sqrt(wx^2+wy^2+wz^2)*1.0)*ESTIMATED_OBSERVATION_RADIUS} # m
-    min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|15 + sqrt(wx^2+wy^2+wz^2)*500} # deg
+    # NOTE: unlike local_map_updates above, these thresholds are NOT scaled by
+    # angular velocity: this is what feeds the SharedKeyframeMap sink (e.g.
+    # mola_mapper), and the old w-scaled formula (rotation threshold growing
+    # by 500 deg per rad/s) made it create close to NO keyframes while
+    # smoothly turning, starving loop closure of the keyframes it needs.
+    min_translation_between_keyframes: "${MOLA_SIMPLEMAP_MIN_XYZ|(1.0e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_OBSERVATION_RADIUS}" # [m]
+    min_rotation_between_keyframes: "${MOLA_SIMPLEMAP_MIN_ROT|(15 + sqrt(wx^2+wy^2+wz^2)*5 )}" # [deg]
 
     generate_lazy_load_scan_files: ${MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD|false} # If enabled, a directory will be create alongside the .simplemap and pointclouds will be externally serialized there.
     add_non_keyframes_too: ${MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES|false} # If enabled, all frames are stored in the simplemap, but non-keyframes will be without associated observations.
     min_nearby_poses_occupied: ${MOLA_SIMPLEMAP_MIN_NEARBY_POSES|1}
+    # Revisiting an already-mapped area creates NO keyframes with the purely
+    # spatial criterion above, which starves loop closure of the second endpoint
+    # of the loop. Set to a positive value [s] so only keyframes newer than that
+    # take part in the "is there one here already?" test.
+    nearby_keyframe_time_window: ${MOLA_SIMPLEMAP_KF_TIME_WINDOW|0} # [s], 0=disabled
     save_gnss_max_age: 1.0 # [s] max age of GNSS observations to keep in the keyframe
 
   # Save the final trajectory in TUM format. Disabled by default.

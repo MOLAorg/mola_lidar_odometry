@@ -71,6 +71,12 @@ params:
     generate: ${MOLA_GENERATE_SIMPLEMAP|false} # Can be overridden with CLI flag --output-simplemap
     min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|0.05} # m
     min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|3.0} # deg
+
+    # Revisiting an already-mapped area creates NO keyframes with the purely
+    # spatial criterion above, which starves loop closure of the second endpoint
+    # of the loop. Set to a positive value [s] so only keyframes newer than that
+    # take part in the "is there one here already?" test.
+    nearby_keyframe_time_window: ${MOLA_SIMPLEMAP_KF_TIME_WINDOW|0} # [s], 0=disabled
     save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
 
   # Save the final trajectory in TUM format. Disabled by default.
