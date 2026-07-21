@@ -50,7 +50,7 @@ size_t run(
   for (int i = 0; i < nSteps; i++, t += dt) {
     const double x = fromX + i * step;
     if (d.check(o, at(x), t).create) {
-      d.insert(at(x), t);
+      d.insert(o, at(x), t);
       created++;
     }
   }
@@ -138,7 +138,7 @@ TEST(KeyframeDecider, StationaryVehicleDoesNotAccumulate)
 
   double t = 0;
   ASSERT_TRUE(d.check(o, at(0), t).create);
-  d.insert(at(0), t);
+  d.insert(o, at(0), t);
 
   // Parked for 10 minutes:
   for (int i = 0; i < 6000; i++) {
@@ -170,7 +170,7 @@ TEST(KeyframeDecider, RotationThreshold)
   const auto o = defaultOptions();
   mola::KeyframeDecider d;
 
-  d.insert(mrpt::poses::CPose3D::FromXYZYawPitchRoll(0, 0, 0, 0, 0, 0), 0.0);
+  d.insert(o, mrpt::poses::CPose3D::FromXYZYawPitchRoll(0, 0, 0, 0, 0, 0), 0.0);
 
   const auto smallTurn =
     mrpt::poses::CPose3D::FromXYZYawPitchRoll(0, 0, 0, mrpt::DEG2RAD(10), 0, 0);
@@ -192,10 +192,36 @@ TEST(KeyframeDecider, MinNearbyPosesOccupied)
   // Three keyframes at the very same place, then no more:
   for (int i = 0; i < 3; i++) {
     ASSERT_TRUE(d.check(o, at(0), i).create) << "i=" << i;
-    d.insert(at(0), i);
+    d.insert(o, at(0), i);
   }
   EXPECT_FALSE(d.check(o, at(0), 4.0).create);
   EXPECT_EQ(d.size(), 3u);
+}
+
+// The temporal policy must NOT bypass the occupancy count: with both options
+// set, a spot still needs min_nearby_poses_occupied keyframes, and no more.
+TEST(KeyframeDecider, MinNearbyPosesOccupiedWithTimeWindow)
+{
+  auto o = defaultOptions();
+  o.min_nearby_poses_occupied = 3;
+  o.nearby_keyframe_time_window = 5.0;
+
+  mola::KeyframeDecider d;
+
+  double t = 0;
+
+  // Same place, well inside the window: 3 keyframes, then no more.
+  for (int i = 0; i < 3; i++, t += 0.5) {
+    ASSERT_TRUE(d.check(o, at(0), t).create) << "i=" << i;
+    d.insert(o, at(0), t);
+  }
+  EXPECT_FALSE(d.check(o, at(0), t).create);
+  EXPECT_EQ(d.size(), 3u);
+
+  // Past the window, all but the newest keyframe age out, so the occupancy
+  // count drops below the threshold and the spot admits keyframes again:
+  t += 100.0;
+  EXPECT_TRUE(d.check(o, at(0), t).create);
 }
 
 // measure_from_last_kf_only ignores all but the last keyframe, so a revisit

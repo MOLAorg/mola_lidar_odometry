@@ -18,6 +18,7 @@
 #include <mola_lidar_odometry/KeyframeDecider.h>
 #include <mrpt/poses/Lie/SO.h>
 
+#include <algorithm>
 #include <optional>
 
 namespace mola
@@ -63,8 +64,9 @@ KeyframeDecider::Decision KeyframeDecider::check(
     }
 
     // The window holds a handful of entries, so a linear scan is cheaper
-    // than any spatial index:
-    bool anyNearby = false;
+    // than any spatial index. It doubles as the "occupied volume" count, so
+    // min_nearby_poses_occupied keeps working under the temporal policy:
+    uint32_t nearbyCount = 0;
     std::optional<double> closestTranslation;
 
     for (const auto & [t, p] : recent_) {
@@ -77,11 +79,13 @@ KeyframeDecider::Decision KeyframeDecider::check(
       }
 
       if (dist <= maxTranslation && rot <= maxRotation) {
-        anyNearby = true;
+        nearbyCount++;
       }
     }
 
-    d.create = !anyNearby;
+    // With the default min_nearby_poses_occupied=1 this is just "no recent
+    // keyframe is nearby".
+    d.create = nearbyCount < std::max<uint32_t>(1, opts.min_nearby_poses_occupied);
     return d;
   }
 
@@ -111,10 +115,16 @@ KeyframeDecider::Decision KeyframeDecider::check(
   return d;
 }
 
-void KeyframeDecider::insert(const mrpt::poses::CPose3D & pose, double timestamp)
+void KeyframeDecider::insert(
+  const KeyframeDecisionOptions & opts, const mrpt::poses::CPose3D & pose, double timestamp)
 {
   poses_.insert(pose);
-  recent_.emplace_back(timestamp, pose);
+
+  // Only maintained while the temporal policy is in use: nothing ever prunes
+  // this deque otherwise, and it would grow for the whole run to no purpose.
+  if (opts.nearby_keyframe_time_window > 0) {
+    recent_.emplace_back(timestamp, pose);
+  }
 }
 
 void KeyframeDecider::removeAllFartherThan(const mrpt::poses::CPose3D & pose, double maxTranslation)

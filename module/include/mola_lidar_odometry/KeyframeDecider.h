@@ -126,7 +126,8 @@ public:
     double timestamp) const;
 
   /** Stores an actually-created keyframe pose. */
-  void insert(const mrpt::poses::CPose3D & pose, double timestamp);
+  void insert(
+    const KeyframeDecisionOptions & opts, const mrpt::poses::CPose3D & pose, double timestamp);
 
   /** Drops stored poses farther than the given distance (local map cleanup) */
   void removeAllFartherThan(const mrpt::poses::CPose3D & pose, double maxTranslation);
@@ -139,9 +140,9 @@ private:
   /** All stored keyframe poses (KD-tree searchable). */
   SearchablePoseList poses_;
 
-  /** Keyframes within the time window, oldest first. Only maintained (and
-   *  only non-empty) while `nearby_keyframe_time_window` is enabled. The
-   *  newest entry is never dropped, whatever its age. */
+  /** Keyframes within the time window, oldest first. Only fed by insert()
+   *  while `nearby_keyframe_time_window` is enabled, since nothing prunes it
+   *  otherwise. The newest entry is never dropped, whatever its age. */
   mutable std::deque<std::pair<double, mrpt::poses::CPose3D>> recent_;
 
   /** Drops entries older than the window, always keeping the newest one. */
