@@ -168,8 +168,13 @@ SharedKeyframeMap sink). `Parameters::MapUpdateOptions` and
 its fields stay plain, non-nested YAML keys of their sections; both are loaded
 by `Parameters::load_keyframe_policy()`, which lives on `Parameters` because
 the two distance thresholds may be formulas that must register into its
-dynamic-parameter pool. Options are passed to `check()` per call, never held,
-so those formulas are re-evaluated every scan.
+dynamic-parameter pool. The two distance thresholds are passed to `check()` per
+call, never held, so those formulas are re-evaluated every scan. The two policy
+SELECTORS (`measure_from_last_kf_only`, `nearby_keyframe_time_window`) are
+instead read once, by the constructor, which takes the whole options struct:
+they pick which of the two mutually exclusive storages the decider maintains
+(the `SearchablePoseList` KD-tree, or the in-window deque), so they cannot be
+per-scan formulas. `check()` asserts the window did not change afterwards.
 
 `nearby_keyframe_time_window` [s] (`MOLA_SIMPLEMAP_KF_TIME_WINDOW`, default 0 =
 disabled) bounds how far BACK IN TIME the redundancy test reaches. With the
@@ -182,6 +187,11 @@ window, only keyframes newer than that take part in the test (plus the most
 recent one ALWAYS, so a parked vehicle does not emit one keyframe per window),
 and a revisit spawns fresh keyframes. Enable it on the simplemap, not the local
 map. `test/test_keyframe_decider.cpp` covers both regimes.
+
+Under the window, the in-window deque is the ONLY store (the KD-tree is not
+even fed), it is scanned newest-first and left as soon as
+`min_nearby_poses_occupied` matches, and `insert()` clamps non-monotonic
+timestamps so the time-ordered pruning stays valid.
 
 ## Non-repetitive (solid-state) LiDARs (e.g. Livox AVIA)
 

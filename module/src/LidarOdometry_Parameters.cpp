@@ -227,6 +227,20 @@ void LidarOdometry::Parameters::load_keyframe_policy(
     mrpt::format(
       "%s.min_nearby_poses_occupied=%u must be >= 1", section_name,
       static_cast<unsigned>(o.min_nearby_poses_occupied)));
+
+#if !defined(MOLA_POSE_LIST_HAS_KFM_POSE_PLUMBING)
+  // The spatial policy delegates the occupancy count to
+  // SearchablePoseList::countNearby(), which older mola_pose_list versions do
+  // not have. Reject the combination instead of silently ignoring the option
+  // (the temporal policy does its own counting, so it is unaffected).
+  ASSERTMSG_(
+    o.min_nearby_poses_occupied == 1 || o.nearby_keyframe_time_window > 0,
+    mrpt::format(
+      "%s.min_nearby_poses_occupied>1 requires a newer mola_pose_list, or "
+      "nearby_keyframe_time_window to be enabled",
+      section_name));
+#endif
+
   ASSERTMSG_(
     o.nearby_keyframe_time_window >= 0, mrpt::format(
                                           "%s.nearby_keyframe_time_window=%f must be >= 0",

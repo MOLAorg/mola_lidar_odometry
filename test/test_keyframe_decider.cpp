@@ -50,7 +50,7 @@ size_t run(
   for (int i = 0; i < nSteps; i++, t += dt) {
     const double x = fromX + i * step;
     if (d.check(o, at(x), t).create) {
-      d.insert(o, at(x), t);
+      d.insert(at(x), t);
       created++;
     }
   }
@@ -62,7 +62,7 @@ size_t run(
 TEST(KeyframeDecider, FirstPoseAlwaysCreates)
 {
   const auto o = defaultOptions();
-  mola::KeyframeDecider d;
+  mola::KeyframeDecider d(o);
 
   EXPECT_TRUE(d.check(o, at(0), 0.0).create);
   EXPECT_TRUE(d.empty());
@@ -72,7 +72,7 @@ TEST(KeyframeDecider, FirstPoseAlwaysCreates)
 TEST(KeyframeDecider, SpatialSpacing)
 {
   const auto o = defaultOptions();
-  mola::KeyframeDecider d;
+  mola::KeyframeDecider d(o);
 
   double t = 0;
   const size_t n = run(d, o, 0.0, 10.0, 0.25, t, 0.1);
@@ -88,7 +88,7 @@ TEST(KeyframeDecider, SpatialSpacing)
 TEST(KeyframeDecider, RevisitCreatesNothingWithoutTimeWindow)
 {
   const auto o = defaultOptions();
-  mola::KeyframeDecider d;
+  mola::KeyframeDecider d(o);
 
   double t = 0;
   run(d, o, 0.0, 10.0, 0.25, t, 0.1);
@@ -109,7 +109,7 @@ TEST(KeyframeDecider, RevisitCreatesKeyframesWithTimeWindow)
   auto o = defaultOptions();
   o.nearby_keyframe_time_window = 20.0;
 
-  mola::KeyframeDecider d;
+  mola::KeyframeDecider d(o);
 
   double t = 0;
   run(d, o, 0.0, 10.0, 0.25, t, 0.1);
@@ -134,11 +134,11 @@ TEST(KeyframeDecider, StationaryVehicleDoesNotAccumulate)
   auto o = defaultOptions();
   o.nearby_keyframe_time_window = 5.0;
 
-  mola::KeyframeDecider d;
+  mola::KeyframeDecider d(o);
 
   double t = 0;
   ASSERT_TRUE(d.check(o, at(0), t).create);
-  d.insert(o, at(0), t);
+  d.insert(at(0), t);
 
   // Parked for 10 minutes:
   for (int i = 0; i < 6000; i++) {
@@ -156,7 +156,7 @@ TEST(KeyframeDecider, TimeWindowKeepsForwardSpacing)
   auto o = defaultOptions();
   o.nearby_keyframe_time_window = 20.0;
 
-  mola::KeyframeDecider d;
+  mola::KeyframeDecider d(o);
 
   double t = 0;
   const size_t n = run(d, o, 0.0, 10.0, 0.25, t, 0.1);
@@ -168,9 +168,9 @@ TEST(KeyframeDecider, TimeWindowKeepsForwardSpacing)
 TEST(KeyframeDecider, RotationThreshold)
 {
   const auto o = defaultOptions();
-  mola::KeyframeDecider d;
+  mola::KeyframeDecider d(o);
 
-  d.insert(o, mrpt::poses::CPose3D::FromXYZYawPitchRoll(0, 0, 0, 0, 0, 0), 0.0);
+  d.insert(mrpt::poses::CPose3D::FromXYZYawPitchRoll(0, 0, 0, 0, 0, 0), 0.0);
 
   const auto smallTurn =
     mrpt::poses::CPose3D::FromXYZYawPitchRoll(0, 0, 0, mrpt::DEG2RAD(10), 0, 0);
@@ -182,21 +182,26 @@ TEST(KeyframeDecider, RotationThreshold)
 
 // min_nearby_poses_occupied > 1 asks for several keyframes per spot (used by
 // non-repetitive-scan lidars).
+// Under the spatial policy the count is delegated to
+// SearchablePoseList::countNearby(), so the option is a documented no-op when
+// building against an older mola_pose_list without it:
+#if defined(MOLA_POSE_LIST_HAS_KFM_POSE_PLUMBING)
 TEST(KeyframeDecider, MinNearbyPosesOccupied)
 {
   auto o = defaultOptions();
   o.min_nearby_poses_occupied = 3;
 
-  mola::KeyframeDecider d;
+  mola::KeyframeDecider d(o);
 
   // Three keyframes at the very same place, then no more:
   for (int i = 0; i < 3; i++) {
     ASSERT_TRUE(d.check(o, at(0), i).create) << "i=" << i;
-    d.insert(o, at(0), i);
+    d.insert(at(0), i);
   }
   EXPECT_FALSE(d.check(o, at(0), 4.0).create);
   EXPECT_EQ(d.size(), 3u);
 }
+#endif
 
 // The temporal policy must NOT bypass the occupancy count: with both options
 // set, a spot still needs min_nearby_poses_occupied keyframes, and no more.
@@ -206,14 +211,14 @@ TEST(KeyframeDecider, MinNearbyPosesOccupiedWithTimeWindow)
   o.min_nearby_poses_occupied = 3;
   o.nearby_keyframe_time_window = 5.0;
 
-  mola::KeyframeDecider d;
+  mola::KeyframeDecider d(o);
 
   double t = 0;
 
   // Same place, well inside the window: 3 keyframes, then no more.
   for (int i = 0; i < 3; i++, t += 0.5) {
     ASSERT_TRUE(d.check(o, at(0), t).create) << "i=" << i;
-    d.insert(o, at(0), t);
+    d.insert(at(0), t);
   }
   EXPECT_FALSE(d.check(o, at(0), t).create);
   EXPECT_EQ(d.size(), 3u);
@@ -228,14 +233,76 @@ TEST(KeyframeDecider, MinNearbyPosesOccupiedWithTimeWindow)
 // creates keyframes even without the time window.
 TEST(KeyframeDecider, MeasureFromLastOnly)
 {
-  const auto o = defaultOptions();
-  mola::KeyframeDecider d(true /*measure_from_last_kf_only*/);
+  auto o = defaultOptions();
+  o.measure_from_last_kf_only = true;
+
+  mola::KeyframeDecider d(o);
 
   double t = 0;
   run(d, o, 0.0, 10.0, 0.25, t, 0.1);
 
   // Back to the origin: far from the LAST keyframe (at 10 m), so it creates.
   EXPECT_TRUE(d.check(o, at(0), t).create);
+}
+
+// measure_from_last_kf_only must keep meaning "only the last one" when the
+// temporal window is also enabled, instead of being silently ignored.
+TEST(KeyframeDecider, MeasureFromLastOnlyWithTimeWindow)
+{
+  auto o = defaultOptions();
+  o.measure_from_last_kf_only = true;
+  o.nearby_keyframe_time_window = 20.0;
+
+  mola::KeyframeDecider d(o);
+
+  double t = 0;
+  run(d, o, 0.0, 10.0, 0.25, t, 0.1);
+
+  // Only the last keyframe is ever retained as a decision reference:
+  EXPECT_EQ(d.activeSize(), 1u);
+
+  // Back to the origin: far from that last keyframe (at 10 m), so it creates.
+  EXPECT_TRUE(d.check(o, at(0), t).create);
+}
+
+// Keyframes explicitly dropped by the local-map cleanup must stop taking part
+// in the test under the temporal policy too.
+TEST(KeyframeDecider, RemoveAllFartherThanUnderTimeWindow)
+{
+  auto o = defaultOptions();
+  o.nearby_keyframe_time_window = 1000.0;  // long enough to retain everything
+
+  mola::KeyframeDecider d(o);
+
+  double t = 0;
+  run(d, o, 0.0, 10.0, 0.25, t, 0.1);
+  EXPECT_EQ(d.size(), 9u);
+
+  // Keep only what is within 2 m of the far end of the run:
+  d.removeAllFartherThan(at(10.0), 2.0);
+  EXPECT_LT(d.size(), 9u);
+
+  // The origin's keyframe is gone, so that spot admits a keyframe again:
+  EXPECT_TRUE(d.check(o, at(0), t).create);
+}
+
+// Out-of-order timestamps must not defeat the window pruning, which pops from
+// the front and therefore needs the entries to stay sorted in time.
+TEST(KeyframeDecider, NonMonotonicTimestamps)
+{
+  auto o = defaultOptions();
+  o.nearby_keyframe_time_window = 5.0;
+
+  mola::KeyframeDecider d(o);
+
+  d.insert(at(0), 100.0);
+  d.insert(at(2), 99.0);  // jitter: older than the previous one
+  d.insert(at(4), 101.0);
+
+  // Well past the window: all but the newest entry must have aged out, so the
+  // origin (whose keyframe is gone) asks for a new one.
+  EXPECT_TRUE(d.check(o, at(0), 200.0).create);
+  EXPECT_EQ(d.activeSize(), 1u);
 }
 
 int main(int argc, char ** argv)

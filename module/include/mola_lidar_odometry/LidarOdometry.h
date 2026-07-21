@@ -41,7 +41,6 @@
 // Other packages:
 #include <mola_imu_preintegration/ImuInitialCalibrator.h>
 #include <mola_lidar_odometry/KeyframeDecider.h>
-#include <mola_pose_list/SearchablePoseList.h>
 
 // MP2P_ICP
 #include <mp2p_icp/ICP.h>

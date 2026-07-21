@@ -363,14 +363,13 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     // spuriously fire a second keyframe on the very next scan):
     state_.last_lidar_pose = initPose;
     if (!state_.kf_decider_simplemap) {
-      state_.kf_decider_simplemap.emplace(params_.simplemap.measure_from_last_kf_only);
+      state_.kf_decider_simplemap.emplace(params_.simplemap);
     }
     {
       mrpt::poses::CPose3D sensorPoseInVehicle;
       obs->getSensorPose(sensorPoseInVehicle);
       state_.kf_decider_simplemap->insert(
-        params_.simplemap, state_.last_lidar_pose.mean + sensorPoseInVehicle,
-        mrpt::Clock::toDouble(obs->timestamp));
+        state_.last_lidar_pose.mean + sensorPoseInVehicle, mrpt::Clock::toDouble(obs->timestamp));
     }
   } else {
     // Register point clouds using ICP:
@@ -793,11 +792,11 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
     // Create keyframe deciders on first usage:
     if (!state_.kf_decider_local_map) {
-      state_.kf_decider_local_map.emplace(params_.local_map_updates.measure_from_last_kf_only);
+      state_.kf_decider_local_map.emplace(params_.local_map_updates);
     }
 
     if (!state_.kf_decider_simplemap) {
-      state_.kf_decider_simplemap.emplace(params_.simplemap.measure_from_last_kf_only);
+      state_.kf_decider_simplemap.emplace(params_.simplemap);
     }
 
     // Use the lidar sensor pose (in world frame) as the distance-checker key.
@@ -841,8 +840,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     // clang-format on
 
     if (updateLocalMap) {
-      state_.kf_decider_local_map->insert(
-        params_.local_map_updates, lidarPoseInWorld, obsTimestamp);
+      state_.kf_decider_local_map->insert(lidarPoseInWorld, obsTimestamp);
 
       if (
         params_.local_map_updates.max_distance_to_keep_keyframes > 0 &&
@@ -895,7 +893,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       // still needs the distance_enough_sm criterion to actually behave as
       // "sparse" instead of always firing (an empty checker reports every
       // pose as "far enough"):
-      state_.kf_decider_simplemap->insert(params_.simplemap, lidarPoseInWorld, obsTimestamp);
+      state_.kf_decider_simplemap->insert(lidarPoseInWorld, obsTimestamp);
     }
 
     MRPT_LOG_DEBUG_FMT(
