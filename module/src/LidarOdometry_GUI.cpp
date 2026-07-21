@@ -865,8 +865,8 @@ void LidarOdometry::updateVisualizationTextLabels()
   }
 
   gui_.lbMapStats->set(mrpt::format(
-    "Keyframes: Localmap=%zu, simplemap=%zu", state_.distance_checker_local_map->size(),
-    state_.distance_checker_simplemap->size()));
+    "Keyframes: Localmap=%zu, simplemap=%zu", state_.kf_decider_local_map->size(),
+    state_.kf_decider_simplemap->size()));
 
   if (state_.last_motion_model_output) {
     const auto & tw = state_.last_motion_model_output->twist;

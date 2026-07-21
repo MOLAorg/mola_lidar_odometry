@@ -195,19 +195,44 @@ void LidarOdometry::Parameters::Visualization::initializeModelPart(const Yaml & 
   }
 }
 
+void LidarOdometry::Parameters::load_keyframe_policy(
+  mola::KeyframeDecisionOptions & o, const Yaml & cfg, const char * section_name,
+  bool distances_required)
+{
+  // The two distance thresholds may be formulas (e.g. shrinking with angular
+  // velocity), so they are declared as dynamic parameters re-evaluated per
+  // scan, not read once. The DECLARE_PARAMETER_IN_* macros are expanded by
+  // hand here because they derive the YAML key from the variable name, which
+  // does not survive being passed in as a reference.
+  auto declareDistance = [&](const char * key, double & target) {
+    if (distances_required && !cfg.has(key)) {
+      throw std::invalid_argument(
+        mrpt::format("Required parameter `%s.%s` not found in configuration.", section_name, key));
+    }
+    parseAndDeclareParameter(cfg.getOrDefault<std::string>(key, std::to_string(target)), target);
+  };
+
+  declareDistance("min_translation_between_keyframes", o.min_translation_between_keyframes);
+  declareDistance("min_rotation_between_keyframes", o.min_rotation_between_keyframes);
+
+  o.measure_from_last_kf_only =
+    cfg.getOrDefault<bool>("measure_from_last_kf_only", o.measure_from_last_kf_only);
+  o.min_nearby_poses_occupied =
+    cfg.getOrDefault<uint32_t>("min_nearby_poses_occupied", o.min_nearby_poses_occupied);
+
+  ASSERTMSG_(
+    o.min_nearby_poses_occupied >= 1,
+    mrpt::format(
+      "%s.min_nearby_poses_occupied=%u must be >= 1", section_name,
+      static_cast<unsigned>(o.min_nearby_poses_occupied)));
+}
+
 void LidarOdometry::Parameters::SimpleMapOptions::initialize(const Yaml & cfg, Parameters & parent)
 {
   YAML_LOAD_OPT(generate, bool);
-  DECLARE_PARAMETER_IN_OPT(cfg, min_translation_between_keyframes, parent);
-  DECLARE_PARAMETER_IN_OPT(cfg, min_rotation_between_keyframes, parent);
+  parent.load_keyframe_policy(*this, cfg, "simplemap", false /*distances_required*/);
   YAML_LOAD_OPT(save_final_map_to_file, std::string);
   YAML_LOAD_OPT(add_non_keyframes_too, bool);
-  YAML_LOAD_OPT(measure_from_last_kf_only, bool);
-  YAML_LOAD_OPT(min_nearby_poses_occupied, uint32_t);
-  ASSERTMSG_(
-    min_nearby_poses_occupied >= 1, mrpt::format(
-                                      "simplemap.min_nearby_poses_occupied=%u must be >= 1",
-                                      static_cast<unsigned>(min_nearby_poses_occupied)));
   YAML_LOAD_OPT(generate_lazy_load_scan_files, bool);
   YAML_LOAD_OPT(save_gnss_max_age, double);
   YAML_LOAD_OPT(save_deskewed_scans, bool);
@@ -223,17 +248,10 @@ void LidarOdometry::Parameters::MultipleLidarOptions::initialize(
 void LidarOdometry::Parameters::MapUpdateOptions::initialize(const Yaml & cfg, Parameters & parent)
 {
   YAML_LOAD_OPT(enabled, bool);
-  DECLARE_PARAMETER_IN_REQ(cfg, min_translation_between_keyframes, parent);
-  DECLARE_PARAMETER_IN_REQ(cfg, min_rotation_between_keyframes, parent);
+  parent.load_keyframe_policy(*this, cfg, "local_map_updates", true /*distances_required*/);
   DECLARE_PARAMETER_IN_OPT(cfg, max_distance_to_keep_keyframes, parent);
   DECLARE_PARAMETER_IN_OPT(cfg, check_for_removal_every_n, parent);
   DECLARE_PARAMETER_IN_OPT(cfg, publish_map_updates_every_n, parent);
-  YAML_LOAD_OPT(measure_from_last_kf_only, bool);
-  YAML_LOAD_OPT(min_nearby_poses_occupied, uint32_t);
-  ASSERTMSG_(
-    min_nearby_poses_occupied >= 1, mrpt::format(
-                                      "simplemap.min_nearby_poses_occupied=%u must be >= 1",
-                                      static_cast<unsigned>(min_nearby_poses_occupied)));
   YAML_LOAD_OPT(load_existing_local_map, std::string);
   YAML_LOAD_OPT(save_final_local_map, std::string);
 
