@@ -561,27 +561,35 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     auto icp_params = in.icp_params;
     size_t remainingIcpIters = icp_params.maxIterations;
 
-    // Debug helper: dump ICP logs to file if quality is under a threshold, or if the timestamp is within a range:
-    icp_params.functor_should_generate_debug_file =
-      [this](const mp2p_icp::LogRecord & log) -> bool {
-      // Debug helper: dump icp logs for from-to timestamps only:
-      thread_local auto MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP =
-        mrpt::get_env<double>("MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP", 0);
-      thread_local auto MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP =
-        mrpt::get_env<double>("MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP", 0);
+    // Debug helper: dump ICP logs to file if quality is under a threshold, or if the timestamp is
+    // within a range. Only install the predicate when one of those two triggers is actually
+    // configured: mp2p_icp::ICP::align() gives an installed functor unconditional priority over its
+    // own `generateDebugFiles`/`MP2P_ICP_GENERATE_DEBUG_FILES` (and that path's `decimationDebugFiles`
+    // support), so always installing it here silently shadowed that global switch (see
+    // functor_should_generate_debug_file's use in mp2p_icp/src/ICP.cpp).
+    thread_local auto MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP =
+      mrpt::get_env<double>("MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP", 0);
+    thread_local auto MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP =
+      mrpt::get_env<double>("MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP", 0);
 
-      const bool cond_1 =
-        params_.write_debug_icp_log_if_quality_under.has_value() &&
-        log.icpResult.quality < params_.write_debug_icp_log_if_quality_under.value();
+    if (
+      params_.write_debug_icp_log_if_quality_under.has_value() ||
+      MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP > 0) {
+      icp_params.functor_should_generate_debug_file =
+        [this](const mp2p_icp::LogRecord & log) -> bool {
+        const bool cond_1 =
+          params_.write_debug_icp_log_if_quality_under.has_value() &&
+          log.icpResult.quality < params_.write_debug_icp_log_if_quality_under.value();
 
-      const bool cond_2 =
-        (MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP > 0 && state_.last_icp_timestamp.has_value() &&
-         mrpt::Clock::toDouble(*state_.last_icp_timestamp) >=
-           MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP &&
-         mrpt::Clock::toDouble(*state_.last_icp_timestamp) <= MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP);
+        const bool cond_2 =
+          (MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP > 0 && state_.last_icp_timestamp.has_value() &&
+           mrpt::Clock::toDouble(*state_.last_icp_timestamp) >=
+             MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP &&
+           mrpt::Clock::toDouble(*state_.last_icp_timestamp) <= MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP);
 
-      return cond_1 || cond_2;
-    };
+        return cond_1 || cond_2;
+      };
+    }
 
     do {
       icp_params.maxIterations = remainingIcpIters;
