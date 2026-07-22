@@ -8,6 +8,8 @@
 # launch file. See "mola-cli-launchs/*" examples or the main project docs:
 # =====================================================================================
 
+# TODO: Once mola_yaml >=3.0.0 for all ros2 distros, simplify all yaml with $import and common files
+
 params:
   pipeline_name: "GICP (Generalized ICP) with cov-to-cov pairings" # For display/debug only
 
