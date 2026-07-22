@@ -585,7 +585,8 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
           (MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP > 0 && state_.last_icp_timestamp.has_value() &&
            mrpt::Clock::toDouble(*state_.last_icp_timestamp) >=
              MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP &&
-           mrpt::Clock::toDouble(*state_.last_icp_timestamp) <= MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP);
+           mrpt::Clock::toDouble(*state_.last_icp_timestamp) <=
+             MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP);
 
         return cond_1 || cond_2;
       };
