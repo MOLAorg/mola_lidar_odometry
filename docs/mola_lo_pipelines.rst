@@ -699,6 +699,12 @@ ICP log files
   are saved whenever ICP quality drops below that threshold, independently of ``MP2P_ICP_GENERATE_DEBUG_FILES``.
   Useful for targeted debugging of bad frames without enabling full logging.
 
+- ``MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP`` / ``MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP`` (Default: ``0``, disabled):
+  A valid, non-empty window (both set, with ``TO >= FROM``) saves ``.icplog`` files for all ICP runs whose timestamp
+  falls within the ``[FROM, TO]`` range (in seconds, as Unix epoch or dataset time), independently of
+  ``MP2P_ICP_GENERATE_DEBUG_FILES``. Useful to capture a specific time window without enabling full logging. Each
+  ``.icplog`` embeds the full local-map snapshot for that call (tens of MB), so keep the range narrow.
+
 .. note::
 
    Enabling ICP log files is the most powerful tool to **debug mapping or localization** issues or to understand what
@@ -712,12 +718,6 @@ If ``MP2P_ICP_GENERATE_DEBUG_FILES`` is not enabled, the rest of parameters that
   optimization steps are also stored in the ICP logs. Great to learn how ICP actually works, but increases log file sizes.
 - ``MP2P_ICP_LOG_FILES_SAVE_DETAILS_DECIMATION`` (Default: ``3``): If ``MP2P_ICP_LOG_FILES_SAVE_DETAILS`` is enabled,
   how many ICP internal iterations to drop for each saved one.
-- ``MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP`` (Default: ``0``, disabled): If set to a non-zero value together with
-  ``MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP``, ICP log files are saved for all ICP runs whose timestamp falls within
-  the ``[FROM, TO]`` range (in seconds, as Unix epoch or dataset time). Useful to capture a specific time window
-  without enabling full logging.
-- ``MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP`` (Default: ``0``, disabled): Upper bound of the timestamp range for
-  selective ICP log dumping. Must be set together with ``MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP``.
 
 
 Trace debug files
