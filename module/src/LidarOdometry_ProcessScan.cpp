@@ -572,17 +572,21 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     thread_local auto MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP =
       mrpt::get_env<double>("MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP", 0);
 
-    if (
-      params_.write_debug_icp_log_if_quality_under.has_value() ||
-      MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP > 0) {
+    // A half-open or reversed window (TO unset/zero, or earlier than FROM) can never match, so
+    // it must not install the functor either: doing so would shadow the native switch without
+    // ever dumping anything.
+    const bool hasTimestampWindow = MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP > 0 &&
+      MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP >= MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP;
+
+    if (params_.write_debug_icp_log_if_quality_under.has_value() || hasTimestampWindow) {
       icp_params.functor_should_generate_debug_file =
-        [this](const mp2p_icp::LogRecord & log) -> bool {
+        [this, hasTimestampWindow](const mp2p_icp::LogRecord & log) -> bool {
         const bool cond_1 =
           params_.write_debug_icp_log_if_quality_under.has_value() &&
           log.icpResult.quality < params_.write_debug_icp_log_if_quality_under.value();
 
         const bool cond_2 =
-          (MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP > 0 && state_.last_icp_timestamp.has_value() &&
+          (hasTimestampWindow && state_.last_icp_timestamp.has_value() &&
            mrpt::Clock::toDouble(*state_.last_icp_timestamp) >=
              MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP &&
            mrpt::Clock::toDouble(*state_.last_icp_timestamp) <=
