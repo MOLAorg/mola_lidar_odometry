@@ -349,6 +349,33 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
   if (params_.imu_gravity_correction.enabled) {
     auto lckState2 = mrpt::lockHelper(state_mtx_);
     state_.gravity_estimator.add(*imu, params_.imu_gravity_correction.averaging_samples);
+
+#if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
+    // Feed the DEDICATED long-retention buffer used by the preintegration
+    // method. Kept separate from the shared de-skew buffer, which is sized for
+    // a single scan and whose contents also drive trajectory_from_buffer().
+    if (
+      params_.imu_gravity_correction.method ==
+      Parameters::IMUGravityCorrection::Method::Preintegration) {
+      // Move the raw reading into the vehicle frame (rotation + lever arm),
+      // one transformer per sensor label since each keeps its own filter state:
+      auto & tf = state_.gravity_imu_transformers[imu->sensorLabel];
+      const auto imuVeh = tf.process(*imu);
+
+      const double t = mrpt::Clock::toDouble(imuVeh.timestamp);
+
+      if (imuVeh.has(mrpt::obs::IMU_X_ACC)) {
+        state_.gravity_imu_buffer.add_linear_acceleration(
+          t, {imuVeh.get(mrpt::obs::IMU_X_ACC), imuVeh.get(mrpt::obs::IMU_Y_ACC),
+              imuVeh.get(mrpt::obs::IMU_Z_ACC)});
+      }
+      if (imuVeh.has(mrpt::obs::IMU_WX)) {
+        state_.gravity_imu_buffer.add_angular_velocity(
+          t, {imuVeh.get(mrpt::obs::IMU_WX), imuVeh.get(mrpt::obs::IMU_WY),
+              imuVeh.get(mrpt::obs::IMU_WZ)});
+      }
+    }
+#endif
   }
 
   // Finally, release any waiting LiDAR scan now fully covered by fed IMU data.

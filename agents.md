@@ -223,6 +223,69 @@ over multiple frames. Two consequences for pipeline tuning:
 See `mola-cli-launchs/lidar_odometry_from_botanicgarden_livox.yaml` for a
 complete example with all three env vars set.
 
+## IMU gravity correction: two methods behind one interface
+
+`Parameters::IMUGravityCorrection::method` selects how the gravity direction
+feeding the ICP prior's pitch/roll is obtained. Both live behind
+`LidarOdometry::estimateGravityPitchRoll()`
+(`module/src/LidarOdometry_GravityEstimation.cpp`), which returns map-frame
+pitch/roll PLUS the sigma to weight them with, so `LidarOdometry_ProcessScan.cpp`
+holds no method-specific logic.
+
+- **`AccelAverage`** (DEFAULT, legacy): averages the last N raw accelerometer
+  samples (`state_.gravity_estimator`). A single sample is gravity PLUS body
+  acceleration, so this is only valid while quasi-static: under sustained
+  motion it is biased, not merely noisy. Uses the fixed `sigma_deg`, and the
+  `gravity_calib_pitch_roll` map-origin offset to re-express absolute IMU tilt
+  in the (possibly non-level) map frame.
+- **`Preintegration`**: drives `mola::imu::MapGravityEstimator`, which
+  estimates the gravity vector IN THE MAP FRAME from preintegrated IMU aided by
+  LO's own attitudes and velocities. Body acceleration cancels out, so it stays
+  valid while moving arbitrarily. Reports its OWN earned sigma. The
+  `gravity_calib_pitch_roll` composition is deliberately NOT applied here: `g_M`
+  is already expressed in the map frame, so composing it would double-count.
+
+Wiring notes:
+- Intervals are closed on a fixed TIME CADENCE (`interval_duration`, default
+  0.5 s), NOT on the keyframe policy: real keyframe spacing reaches many seconds
+  (Oxford: 3.4 s mean / 15.9 s max), too long for the constant-bias assumption,
+  and it would couple this to `simplemap.generate`.
+- Samples are drained from the SHARED de-skew
+  `state_.parameter_source.localVelocityBuffer`, whose retention is widened to
+  `buffer_retention_sec` (default 60 s) at init. Its samples are already
+  body-frame with the lever arm applied (the mp2p_icp `Generator` runs them
+  through `mola::imu::ImuTransformer`). The default retention is 0.5 s; a buffer
+  shorter than the interval silently yields a partial delta attributed to the
+  whole interval, so `Parameters::initialize()` REFUSES such a configuration
+  outright instead of relying on the runtime coverage guard.
+- Only a GOOD ICP feeds the estimator: its attitude and velocity are the
+  inputs, and a failed registration would poison them.
+- `NavState::twist` is in the LOCAL VEHICLE frame, so it is rotated to the map
+  frame; the twist information matrix is inverted and rotated for the real
+  velocity covariance, with a loose default when singular.
+- Fallback is automatic: not converged, sigma above `max_accepted_sigma_deg`,
+  or no estimator yet falls through to `AccelAverage`, which is what works at
+  start-up while still quasi-static.
+
+**Correction scope**: by default the local map and the simplemap are NEVER
+modified; the correction applies to the CURRENT POSE only, through the ICP prior.
+Tilt already baked into the map is therefore not removed. On real drifting
+sequences the prior is a modest net win (MulRan DCC01: APE -14%); where the
+baseline is already gravity-aligned it is neutral.
+
+There is an EXPERIMENTAL, off-by-default map-releveling path
+(`imu_gravity_correction.tilt_rebake`, `LidarOdometry::updateMapReleveling()`):
+it rotates the active local-map keyframes to level, sourcing gravity from the
+preintegration `g_M`, and resets the estimator each rebake to break a feedback
+loop. It DOES drive the reported attitude to vertical, but it injects a
+CONTINUOUS vertical-position leak (net position worse) that is not solved by the
+current-pose pivot, estimator reset, or shrinking the local map. It is kept as a
+research scaffold only; do NOT enable in production. The older
+`GravityMapAligner` + `TrajectoryRebaker` classes remain as reusable primitives.
+
+Design + status: `~/plans/801_lio_imu_preintegration_gravity.md` and
+`~/plans/802_mola_lo_map_level_gravity_rebake.md`.
+
 ## Environment Variables (Debug/Tracing Flags)
 
 Debug/tracing flags in C++ code use `mrpt::get_env<T>(name, default)` (from

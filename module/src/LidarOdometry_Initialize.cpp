@@ -232,6 +232,30 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       params_.imu_gravity_correction.initialize(cfg["imu_gravity_correction"]);
     }
 
+    // The preintegration-based gravity estimator drains its IMU samples from
+    // the shared de-skew LocalVelocityBuffer, whose default retention (0.5 s)
+    // is far shorter than one interval. Widen it here: a buffer shorter than
+    // the interval silently yields a partial delta attributed to the whole
+    // interval, which corrupts every constraint.
+    if (
+      params_.imu_gravity_correction.enabled &&
+      params_.imu_gravity_correction.method ==
+        Parameters::IMUGravityCorrection::Method::Preintegration) {
+      // NOTE: the SHARED de-skew buffer (parameter_source.localVelocityBuffer)
+      // is deliberately left alone. It is sized for one scan and is consumed by
+      // trajectory_from_buffer() for de-skew; widening it changes what de-skew
+      // sees and diverged the solution on real data. Use a dedicated buffer.
+      state_.gravity_imu_buffer.parameters.max_time_window =
+        params_.imu_gravity_correction.buffer_retention_sec;
+
+      // Noise densities used by the preintegrator (sigma units:
+      // m/s^2/sqrt(Hz) and rad/s/sqrt(Hz)):
+      state_.imu_preint_params.cov_acc.setDiagonal(
+        mrpt::square(params_.imu_gravity_correction.accel_noise_sigma));
+      state_.imu_preint_params.cov_gyro.setDiagonal(
+        mrpt::square(params_.imu_gravity_correction.gyro_noise_sigma));
+    }
+
     if (c.has("initial_localization")) {
       params_.initial_localization.initialize(c["initial_localization"]);
     }

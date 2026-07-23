@@ -389,6 +389,18 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       in.init_guess_local_wrt_global = state_.last_motion_model_output->pose.mean.asTPose();
 
       // ICP prior term: any information!=0?
+      //
+      // This prior is the fused estimate of the shared state estimator (bound
+      // via findService<NavStateFilter>), not a bare constant-velocity guess:
+      // besides the twist propagated from past ICP poses, it also folds in any
+      // wheel-odometry integrated into that estimator through fuse_odometry().
+      // So when wheel odometry is available, both the prior mean AND its weight
+      // (cov_inv) carry that motion information into ICP. The IMU gravity
+      // correction below rides on top of this same prior, overriding only
+      // pitch/roll and leaving the (odometry-informed) x/y/z/yaw untouched.
+      //
+      // The prior's overall weight against the LiDAR geometry is tunable via
+      // the state estimator's covariances and the solver's cov2cov_alpha.
       if (state_.last_motion_model_output->pose.cov_inv != mrpt::math::CMatrixDouble66::Zero()) {
         // Send it to the ICP solver:
         in.prior.emplace(state_.last_motion_model_output->pose);
@@ -433,39 +445,15 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       }
     }
 
-    // Apply IMU gravity correction to ICP prior (pitch/roll):
+    // Apply IMU gravity correction to ICP prior (pitch/roll). Both estimation
+    // methods (raw accelerometer average, and the preintegration-based
+    // map-gravity estimator) are behind estimateGravityPitchRoll(), which
+    // already returns the values expressed in the map frame plus the sigma to
+    // weight them with:
     if (params_.imu_gravity_correction.enabled) {
-      const auto gravityPR = state_.gravity_estimator.estimatedPitchRoll(
-        params_.imu_gravity_correction.averaging_samples,
-        params_.imu_gravity_correction.max_age_seconds);
+      const mrpt::poses::CPose3D priorPose(in.init_guess_local_wrt_global);
 
-      if (gravityPR.has_value()) {
-        const auto [imu_pitch, imu_roll] = *gravityPR;
-
-        // The gravity estimator reports *absolute* tilt w.r.t. true vertical,
-        // but the map/global frame may not itself be exactly level (e.g. a
-        // nonzero `fixed_initial_pose` orientation, or the vehicle starting
-        // on a slope). Re-express the absolute IMU tilt relative to the map
-        // frame using the tilt recorded at the map origin as a calibration
-        // offset. Both readings share the same (gauge) yaw=0 convention, which
-        // is valid since pitch/roll extracted from gravity alone are
-        // independent of the (unobservable) yaw used to express them.
-        double map_pitch = imu_pitch;
-        double map_roll = imu_roll;
-        if (state_.gravity_calib_pitch_roll.has_value()) {
-          const auto [pitch0, roll0] = *state_.gravity_calib_pitch_roll;
-
-          const mrpt::poses::CPose3D R_map_veh0(
-            mrpt::poses::CPose3D(params_.initial_localization.fixed_initial_pose));
-          const mrpt::poses::CPose3D R_grav_veh0(0, 0, 0, 0, pitch0, roll0);
-          const mrpt::poses::CPose3D R_grav_veh_t(0, 0, 0, 0, imu_pitch, imu_roll);
-
-          const mrpt::poses::CPose3D R_map_veh_t = R_map_veh0 + (-R_grav_veh0) + R_grav_veh_t;
-
-          map_pitch = R_map_veh_t.pitch();
-          map_roll = R_map_veh_t.roll();
-        }
-
+      if (const auto g = estimateGravityPitchRoll(priorPose); g.has_value()) {
         if (!in.prior.has_value()) {
           // Create a prior from current initial guess:
           in.prior.emplace();
@@ -475,21 +463,18 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
         // Override pitch & roll in the prior mean:
         const double cur_yaw = in.prior->mean.yaw();
-        in.prior->mean.setYawPitchRoll(cur_yaw, map_pitch, map_roll);
+        in.prior->mean.setYawPitchRoll(cur_yaw, g->pitch, g->roll);
 
         // Increase confidence for pitch (idx=4) and roll (idx=5):
-        const double sigma_rad = mrpt::DEG2RAD(params_.imu_gravity_correction.sigma_deg);
-        const double inv_var = 1.0 / (sigma_rad * sigma_rad);
+        const double inv_var = 1.0 / (g->sigma_rad * g->sigma_rad);
 
         // MRPT cov order: x y z yaw pitch[4] roll[5]
         mrpt::keep_max(in.prior->cov_inv(4, 4), inv_var);
         mrpt::keep_max(in.prior->cov_inv(5, 5), inv_var);
 
         MRPT_LOG_DEBUG_FMT(
-          "IMU gravity correction: pitch=%.2f deg, roll=%.2f deg "
-          "(sigma=%.1f deg, %zu samples)",
-          mrpt::RAD2DEG(imu_pitch), mrpt::RAD2DEG(imu_roll),
-          params_.imu_gravity_correction.sigma_deg, state_.gravity_estimator.acc_buffer.size());
+          "IMU gravity correction: pitch=%.2f deg, roll=%.2f deg (sigma=%.2f deg)",
+          mrpt::RAD2DEG(g->pitch), mrpt::RAD2DEG(g->roll), mrpt::RAD2DEG(g->sigma_rad));
       }
     }
 
@@ -732,6 +717,22 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     if (icpIsGood) {
       auto lck = mrpt::lockHelper(state_trajectory_mtx_);
       state_.estimated_trajectory.insert(scan_ref_time, state_.last_lidar_pose.mean);
+    }
+
+    // Advance the map-gravity estimator with the pose/velocity just solved
+    // (no-op unless the preintegration method is selected). Only a good ICP
+    // is fed: its attitude and velocity are the estimator's inputs, and a
+    // failed registration would poison them.
+    if (icpIsGood) {
+      std::optional<mrpt::math::TTwist3D> curTwist;
+      std::optional<mrpt::math::CMatrixDouble66> curTwistInvCov;
+      if (state_.last_motion_model_output) {
+        curTwist = state_.last_motion_model_output->twist;
+        curTwistInvCov = state_.last_motion_model_output->twist_inv_cov;
+      }
+      updateMapGravityEstimator(
+        mrpt::Clock::toDouble(scan_ref_time), state_.last_lidar_pose.mean, curTwist,
+        curTwistInvCov);
     }
 
     // Update for stats in CSV format:
@@ -992,6 +993,12 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     doUpdateSimpleMap(
       sf, distance_enough_sm, observation, scan_ref_time, fullCloudForVizAndPublish);
   }
+
+  // Map-level gravity re-leveling: sync the per-KF pool with the current local
+  // map and, when the accumulated tilt exceeds the trigger (throttled), rotate
+  // the local map + simplemap + trajectory so the tilt is removed at its source.
+  // No-op unless imu_gravity_correction.tilt_rebake.enabled.
+  updateMapReleveling(scan_ref_time);
 
 #if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
   // Build the keyframe request while holding state_mtx_; the actual sink call

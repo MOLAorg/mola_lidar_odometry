@@ -10,6 +10,7 @@ modules:
   # =====================
   - name: viz
     type: ${MOLA_GUI_MODULE|mola::MolaVizImGui}
+    enabled: ${MOLA_WITH_GUI|true}
     verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
     params:
       imgui_app_name: lidar_odometry_from_mulran
@@ -28,13 +29,16 @@ modules:
     gui_preview_sensors:
       - raw_sensor_label: lidar
         decimation: 1
+        enabled: ${MOLA_WITH_GUI|true}
         win_pos: 5 70 400 400
         color_from_z: false
       - raw_sensor_label: gps
         decimation: 1
+        enabled: ${MOLA_WITH_GUI|true}
         win_pos: 5 400 400 400
       - raw_sensor_label: imu
         decimation: 10
+        enabled: ${MOLA_WITH_GUI|true}
         win_pos: 5 550 400 400
     params:
       base_dir: ${MULRAN_BASE_DIR}

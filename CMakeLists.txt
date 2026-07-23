@@ -43,6 +43,7 @@ set(LIB_SRCS
   module/src/LidarOdometry_AdaptiveVariables.cpp
   module/src/LidarOdometry_MapServer.cpp
   module/src/LidarOdometry_GUI.cpp
+  module/src/LidarOdometry_GravityEstimation.cpp
   module/src/LidarOdometry_SensorCallbacks.cpp
   module/src/LidarOdometry_Publish.cpp
   module/src/LidarOdometry_InitialLocalization.cpp

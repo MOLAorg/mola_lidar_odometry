@@ -44,9 +44,45 @@ params:
   # Uses averaged accelerometer readings to constrain ICP pitch/roll.
   imu_gravity_correction:
     enabled: ${MOLA_IMU_GRAVITY_CORRECTION|true}
+
+    # How the gravity direction is estimated:
+    #  AccelAverage   : average the last N raw accelerometer samples. Only valid
+    #                   while quasi-static, since one sample is gravity PLUS body
+    #                   acceleration.
+    #  Preintegration : estimate the gravity vector in the map frame from
+    #                   preintegrated IMU aided by LO's own poses/velocities.
+    #                   Body acceleration cancels out, so it stays valid while
+    #                   moving arbitrarily. Reports its own earned sigma.
+    method: ${MOLA_IMU_GRAVITY_METHOD|AccelAverage}
+
+    # AccelAverage only:
     sigma_deg: ${MOLA_IMU_GRAVITY_SIGMA_DEG|2.0}
     averaging_samples: ${MOLA_IMU_GRAVITY_AVG_SAMPLES|20}
     max_age_seconds: ${MOLA_IMU_GRAVITY_MAX_AGE|2.0}
+
+    # Preintegration only:
+    interval_duration: ${MOLA_IMU_GRAVITY_INTERVAL|0.5}
+    buffer_retention_sec: ${MOLA_IMU_GRAVITY_BUFFER_RETENTION|60.0}
+    accel_noise_sigma: ${MOLA_IMU_GRAVITY_ACC_SIGMA|3e-2}
+    gyro_noise_sigma: ${MOLA_IMU_GRAVITY_GYR_SIGMA|3e-3}
+    max_accepted_sigma_deg: ${MOLA_IMU_GRAVITY_MAX_SIGMA_DEG|2.0}
+    min_sigma_deg: ${MOLA_IMU_GRAVITY_MIN_SIGMA_DEG|0.5}
+    max_applied_sigma_deg: ${MOLA_IMU_GRAVITY_MAX_APPLIED_SIGMA_DEG|1e6}
+    # Map-level gravity re-leveling. EXPERIMENTAL, OFF by default. Levels the
+    # reported attitude well but injects a continuous vertical-position leak
+    # (net position worse); kept as a research scaffold only. The per-scan ICP
+    # prior above is the safe, effective path. Do not enable in production.
+    tilt_rebake:
+      enabled: ${MOLA_IMU_GRAVITY_REBAKE|false}
+      trigger_deg: ${MOLA_IMU_GRAVITY_REBAKE_TRIGGER_DEG|2.0}
+      min_interval_sec: ${MOLA_IMU_GRAVITY_REBAKE_MIN_INTERVAL|5.0}
+      min_active_keyframes: ${MOLA_IMU_GRAVITY_REBAKE_MIN_KFS|5}
+      window_half_width: ${MOLA_IMU_GRAVITY_REBAKE_WINDOW|5}
+      min_pool_per_kf: ${MOLA_IMU_GRAVITY_REBAKE_MIN_POOL|3}
+    estimator:
+      window_size: ${MOLA_IMU_GRAVITY_WINDOW|20}
+      bias_acc_prior_sigma: ${MOLA_IMU_GRAVITY_BA_PRIOR|0.15}
+      bias_gyro_prior_sigma: ${MOLA_IMU_GRAVITY_BG_PRIOR|0.01}
 
   # When publishing pose updates, the reference frame for both, estimated robot poses, and the local map.
   publish_reference_frame: "${MOLA_LO_PUBLISH_REF_FRAME|odom}"
@@ -309,6 +345,11 @@ icp_settings_with_vel:
         # Blend [0,1] for the robust kernel residual reference toward the prior
         # mean pose (0=current iterate only, 1=prior mean only). See mp2p_icp.
         robustKernelPriorRefBlend: "${MOLA_LO_ROBUST_KERNEL_PRIOR_REF_BLEND|0.0}"
+        # Scaling of the cov2cov (GICP) data block against the pose prior. 1.0
+        # keeps the standard cost; <1 down-weights LiDAR geometry so the prior
+        # (e.g. IMU gravity pitch/roll) carries more relative weight.
+        cov2cov_alpha: "${MOLA_LO_COV2COV_ALPHA|1.0}"
+        cov2cov_auto_balance_with_prior: "${MOLA_LO_COV2COV_AUTO_BALANCE|true}"
         #innerLoopVerbose: true
 
         # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher

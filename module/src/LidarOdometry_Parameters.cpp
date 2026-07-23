@@ -331,6 +331,62 @@ void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cf
   YAML_LOAD_OPT(averaging_samples, uint32_t);
   YAML_LOAD_OPT(max_age_seconds, double);
 
+  YAML_LOAD_OPT(interval_duration, double);
+  YAML_LOAD_OPT(buffer_retention_sec, double);
+  YAML_LOAD_OPT(accel_noise_sigma, double);
+  YAML_LOAD_OPT(gyro_noise_sigma, double);
+  YAML_LOAD_OPT(max_accepted_sigma_deg, double);
+  YAML_LOAD_OPT(min_sigma_deg, double);
+  YAML_LOAD_OPT(max_applied_sigma_deg, double);
+
+  if (cfg.has("method")) {
+    const auto s = cfg["method"].as<std::string>();
+    if (s == "AccelAverage") {
+      method = Method::AccelAverage;
+    } else if (s == "Preintegration") {
+#if !defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
+      THROW_EXCEPTION(
+        "imu_gravity_correction.method='Preintegration' requires a newer "
+        "mola_imu_preintegration providing MapGravityEstimator; this build only "
+        "supports 'AccelAverage'");
+#endif
+      method = Method::Preintegration;
+    } else {
+      THROW_EXCEPTION_FMT(
+        "imu_gravity_correction.method='%s' is unknown; valid values are "
+        "'AccelAverage' and 'Preintegration'",
+        s.c_str());
+    }
+  }
+
+#if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
+  if (cfg.has("estimator")) {
+    estimator.load_from(cfg["estimator"]);
+  }
+#endif
+
+  if (cfg.has("tilt_rebake")) {
+    tilt_rebake.initialize(cfg["tilt_rebake"]);
+  }
+
+  if (enabled && method == Method::Preintegration) {
+    ASSERT_GT_(interval_duration, 0.0);
+    ASSERT_GT_(accel_noise_sigma, 0.0);
+    ASSERT_GT_(gyro_noise_sigma, 0.0);
+    ASSERT_GT_(max_accepted_sigma_deg, 0.0);
+
+    // A retention shorter than the interval silently yields a partial delta
+    // attributed to the whole interval, corrupting every constraint. Refuse
+    // the configuration outright rather than rely on the coverage guard to
+    // reject every single interval at runtime.
+    ASSERTMSG_(
+      buffer_retention_sec > 2.0 * interval_duration,
+      mrpt::format(
+        "imu_gravity_correction.buffer_retention_sec=%.2f must comfortably exceed "
+        "interval_duration=%.2f",
+        buffer_retention_sec, interval_duration));
+  }
+
   if (enabled) {
     ASSERTMSG_(
       averaging_samples >= 1 && averaging_samples < IMU_BUFFER_SIZE,
@@ -340,6 +396,21 @@ void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cf
 
     ASSERTMSG_(
       sigma_deg > 0, mrpt::format("imu_gravity_correction.sigma_deg=%.4f must be > 0", sigma_deg));
+  }
+}
+
+void LidarOdometry::Parameters::IMUGravityCorrection::TiltRebake::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(enabled, bool);
+  YAML_LOAD_OPT(trigger_deg, double);
+  YAML_LOAD_OPT(min_interval_sec, double);
+  YAML_LOAD_OPT(min_active_keyframes, uint32_t);
+  YAML_LOAD_OPT(window_half_width, uint32_t);
+  YAML_LOAD_OPT(min_pool_per_kf, uint32_t);
+
+  if (enabled) {
+    ASSERT_GT_(trigger_deg, 0.0);
+    ASSERT_GE_(min_interval_sec, 0.0);
   }
 }
 

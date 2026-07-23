@@ -40,7 +40,19 @@
 
 // Other packages:
 #include <mola_imu_preintegration/ImuInitialCalibrator.h>
+#include <mola_imu_preintegration/ImuTransformer.h>
+#include <mola_imu_preintegration/LocalVelocityBuffer.h>
+#if __has_include(<mola_imu_preintegration/MapGravityEstimator.h>)
+#include <mola_imu_preintegration/MapGravityEstimator.h>
+/// Set when the available mola_imu_preintegration provides the
+/// preintegration-based gravity estimator, i.e. when
+/// IMUGravityCorrection::Method::Preintegration can be built. Older checkouts
+/// only offer the accelerometer-average method.
+#define MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR 1
+#endif
+#include <mola_lidar_odometry/GravityMapAligner.h>
 #include <mola_lidar_odometry/KeyframeDecider.h>
+#include <mola_lidar_odometry/TrajectoryRebaker.h>
 
 // MP2P_ICP
 #include <mp2p_icp/ICP.h>
@@ -551,11 +563,32 @@ public:
 
     struct IMUGravityCorrection
     {
+      /// How the gravity direction is estimated.
+      enum class Method : uint8_t
+      {
+        /// Average the last N raw accelerometer samples. Only valid while the
+        /// vehicle is quasi-static: a single sample is gravity PLUS body
+        /// acceleration, so under sustained motion this is biased, not merely
+        /// noisy.
+        AccelAverage = 0,
+
+        /// Estimate the gravity vector in the map frame from preintegrated IMU
+        /// measurements aided by the odometry's own poses and velocities
+        /// (mola::imu::MapGravityEstimator). Body acceleration cancels out, so
+        /// this stays valid while moving arbitrarily.
+        Preintegration,
+      };
+
       /// Enable accelerometer-based pitch/roll correction in ICP prior.
       bool enabled = true;
 
+      /// Which estimator to use. Defaults to the legacy accelerometer average.
+      Method method = Method::AccelAverage;
+
       /// Sigma [degrees] for the gravity-derived pitch/roll prior.
-      /// Lower values = more trust in IMU. Typical: 1–5 deg.
+      /// Lower values = more trust in IMU. Typical: 1-5 deg.
+      /// Only used by Method::AccelAverage: the preintegration method reports
+      /// its own "earned" sigma, propagated from its information matrix.
       double sigma_deg = 2.0;
 
       /// Number of recent accelerometer samples to average for gravity estimation.
@@ -564,6 +597,96 @@ public:
       /// Maximum age [seconds] for accelerometer samples used in averaging.
       /// Samples older than this are discarded. 0 = no age limit.
       double max_age_seconds = 2.0;
+
+      /** \name Method::Preintegration only
+       *  @{ */
+
+      /// Nominal duration [s] of one preintegration interval. Intervals are
+      /// closed on this time cadence rather than on the keyframe policy: real
+      /// keyframe spacing can reach many seconds, which is too long for the
+      /// constant-bias assumption and yields too few intervals per window.
+      double interval_duration = 0.5;
+
+      /// Retention [s] forced on the shared de-skew LocalVelocityBuffer while
+      /// this method is active. MUST comfortably exceed interval_duration: a
+      /// buffer shorter than the interval silently yields a partial delta
+      /// attributed to the whole interval, which corrupts every constraint
+      /// (the interval-coverage guard exists to catch exactly that).
+      double buffer_retention_sec = 60.0;
+
+      /// Accelerometer noise density [m/s^2/sqrt(Hz)].
+      double accel_noise_sigma = 3e-2;
+
+      /// Gyroscope noise density [rad/s/sqrt(Hz)].
+      double gyro_noise_sigma = 3e-3;
+
+      /// Maximum sigma [degrees] of the estimated correction still accepted
+      /// for injection into the ICP prior.
+      double max_accepted_sigma_deg = 2.0;
+
+      /// Floor [degrees] applied to the estimator's own "earned" sigma before
+      /// it is used to weight the ICP prior. The information matrix can grow
+      /// very confident over a long window, and a prior far tighter than the
+      /// ICP's own attitude accuracy destabilizes registration.
+      double min_sigma_deg = 0.5;
+
+      /// Ceiling [degrees] on the applied prior sigma. Independent of the
+      /// acceptance gate (`max_accepted_sigma_deg`): the gate decides whether an
+      /// estimate is used at all, this caps how strong the resulting pitch/roll
+      /// prior is. Lowering it strengthens the gravity constraint on pitch/roll
+      /// ONLY (the prior touches just cov_inv(4,4)/(5,5)), pinning attitude to
+      /// gravity while leaving ICP's full strength on x/y/z/yaw. Default is
+      /// effectively disabled (uses the earned sigma as-is).
+      double max_applied_sigma_deg = 1e6;
+
+#if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
+      /// Parameters of the underlying sliding-window estimator.
+      mola::imu::MapGravityEstimator::Parameters estimator;
+#endif
+
+      /** @} */
+
+      /** Map-level gravity re-leveling ("rebake"). EXPERIMENTAL, OFF by default.
+       *  Periodically rotates the local-map keyframes (and cached pose/twist) so
+       *  the accumulated map tilt is removed at its source, sourcing gravity from
+       *  the preintegration estimator (g_M).
+       *
+       *  KNOWN LIMITATION (do not enable in production): it drives the reported
+       *  attitude to true vertical (DCC01 tilt 3.5 -> 2.0 deg) but injects a
+       *  CONTINUOUS vertical-position leak (DCC01 vertical APE 8.5 -> ~39 m),
+       *  independent of local-map size. Re-leveling the map's attitude about the
+       *  trailing current pose displaces the forward map in Z, which the
+       *  forward-driving vehicle then accumulates as position drift. Net position
+       *  is worse than both the plain baseline and the per-scan prior, so this is
+       *  kept only as a research scaffold, not a usable feature. */
+      struct TiltRebake
+      {
+        /// Master switch. Off by default. EXPERIMENTAL: has an unresolved
+        /// vertical-position leak (see struct docs); do not enable in production.
+        bool enabled = false;
+
+        /// Only rebake when the local map's z-axis tilt vs measured gravity
+        /// exceeds this [degrees].
+        double trigger_deg = 2.0;
+
+        /// Minimum wall-clock spacing [s] between rebakes (throttle).
+        double min_interval_sec = 5.0;
+
+        /// Require at least this many active keyframes before rebaking.
+        uint32_t min_active_keyframes = 5;
+
+        /// Half-width P of the per-KF averaging window Window(i)=[i-P, i+P] used
+        /// by GravityMapAligner::estimatePerKFCorrection.
+        uint32_t window_half_width = 5;
+
+        /// Minimum pool members inside Window(i) required to emit a per-KF
+        /// correction (else that KF is passed through with identity).
+        uint32_t min_pool_per_kf = 3;
+
+        void initialize(const Yaml & c);
+      };
+
+      TiltRebake tilt_rebake;
 
       void initialize(const Yaml & c);
     };
@@ -700,6 +823,22 @@ public:
 
   /** @} */
 
+  /** Pure geometry: the vehicle's absolute (pitch, roll) with respect to TRUE
+   *  VERTICAL, given the gravity vector expressed in the MAP frame and the
+   *  vehicle's attitude in that same map frame.
+   *
+   *  This is the correct way to feed a map-frame gravity estimate into the ICP
+   *  prior: the answer must describe the VEHICLE's tilt (so it can be compared
+   *  against a raw accelerometer reading), NOT the map's tilt. Left-multiplying
+   *  the pose by a map-leveling rotation instead returns the map tilt and makes
+   *  the prior fight the (unchanged) local map. Kept as a static, dependency-
+   *  free function precisely so this invariant is unit-testable.
+   *
+   *  Returns nullopt for a degenerate (near-zero) gravity vector.
+   */
+  static std::optional<std::pair<double, double>> vehiclePitchRollFromMapGravity(
+    const mrpt::math::TVector3D & gravity_in_map, const mrpt::poses::CPose3D & vehiclePose);
+
   /** @name Virtual interface of MapServer
      *{ */
 
@@ -822,6 +961,44 @@ private:
 
     GravityEstimator gravity_estimator;
 
+    /// Sliding-window estimator of the gravity vector in the map frame, used
+    /// by IMUGravityCorrection::Method::Preintegration. Unlike
+    /// `gravity_estimator` above, it stays valid while the vehicle is moving,
+    /// because body acceleration cancels out in the preintegrated delta.
+    /// Only instantiated when that method is selected.
+#if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
+    std::optional<mola::imu::MapGravityEstimator> map_gravity_estimator;
+#endif
+
+    /// Noise densities handed to the preintegrator, built once from the
+    /// IMUGravityCorrection parameters.
+    mola::imu::ImuIntegrationParams imu_preint_params;
+
+    /// DEDICATED long-retention buffer of body-frame IMU samples feeding
+    /// `map_gravity_estimator`. Deliberately NOT the shared de-skew buffer
+    /// (`parameter_source.localVelocityBuffer`): that one is sized for a
+    /// single scan (0.5 s) and is also consumed by trajectory_from_buffer()
+    /// for de-skew, which anchors on the newest sample and integrates
+    /// outwards. Widening it to cover a gravity interval changes what de-skew
+    /// sees and diverged the solution on real data.
+    mola::imu::LocalVelocityBuffer gravity_imu_buffer;
+
+    /// Per-sensorLabel transformers moving raw IMU readings into the vehicle
+    /// frame (rotation + lever arm) before they enter gravity_imu_buffer.
+    std::map<std::string, mola::imu::ImuTransformer> gravity_imu_transformers;
+
+    /// Start of the preintegration interval currently being accumulated: the
+    /// odometry pose and map-frame velocity at that instant, which become the
+    /// `from` end of the next interval handed to `map_gravity_estimator`.
+    struct GravityIntervalAnchor
+    {
+      double timestamp = 0;  ///< seconds, sensor clock
+      mrpt::poses::CPose3D pose;
+      mrpt::math::TVector3D v_map{0, 0, 0};
+      mrpt::math::CMatrixDouble33 cov_v_map;
+    };
+    std::optional<GravityIntervalAnchor> gravity_interval_anchor;
+
     /// Gravity-derived (pitch, roll), in radians, captured at the time the first
     /// keyframe (map origin) was created. The IMU gravity estimator reports
     /// *absolute* tilt with respect to true vertical, while the map/global frame
@@ -830,6 +1007,23 @@ private:
     /// offset is required to correctly re-express later absolute IMU tilt
     /// readings relative to the (possibly non-level) map frame.
     std::optional<std::pair<double, double>> gravity_calib_pitch_roll;
+
+    /// Per-KF accelerometer pool driving the map-level rebake (T802). Fed a
+    /// sample per local-map keyframe; produces per-KF pitch/roll corrections
+    /// consumed by TrajectoryRebaker. Independent of `map_gravity_estimator`,
+    /// which drives the fast per-scan ICP prior.
+    mola::GravityMapAligner gravity_map_aligner;
+
+    /// Wall-clock time of the last successful tilt rebake (throttle).
+    std::optional<mrpt::Clock::time_point> last_gravity_rebake_tim;
+
+    /// One-time latch: warn once if tilt_rebake is enabled but the configured
+    /// local-map layer does not implement KeyframeMapCapable.
+    bool gravity_rebake_unsupported_warned = false;
+
+    /// Accumulated left-composed residual keeping the PUBLISHED pose stream
+    /// continuous across rebakes (published = rebake_publish_residual + live).
+    mrpt::poses::CPose3D rebake_publish_residual;
 
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 
@@ -1240,6 +1434,58 @@ private:
   void appendKeyframeMetadataObs(
     mrpt::obs::CSensoryFrame & keyframe_obs, const mrpt::Clock::time_point & scan_ref_time,
     const mp2p_icp::metric_map_t & observation);
+
+  /** Advances the map-gravity estimator with the odometry state just solved
+   *  for this scan (Method::Preintegration only).
+   *
+   *  Opens the first interval on the first call, and thereafter closes one
+   *  whenever `interval_duration` has elapsed: it drains the IMU samples of
+   *  the elapsed span from the shared de-skew buffer, preintegrates them, and
+   *  hands the interval plus both endpoints' poses/velocities to the
+   *  estimator, then re-solves.
+   *
+   *  @param timestamp  Scan reference time (seconds, sensor clock).
+   *  @param vehiclePose  Vehicle pose in the map frame.
+   *  @param twist  Vehicle twist, in the LOCAL VEHICLE frame (as NavState
+   *                defines it); rotated to the map frame internally.
+   *  @param twistInvCov  Information matrix of the twist, same frame.
+   */
+  void updateMapGravityEstimator(
+    double timestamp, const mrpt::poses::CPose3D & vehiclePose,
+    const std::optional<mrpt::math::TTwist3D> & twist,
+    const std::optional<mrpt::math::CMatrixDouble66> & twistInvCov);
+
+  /** Returns the gravity-corrected (pitch, roll) of `vehiclePose` in the map
+   *  frame, together with the sigma to weight them with, or nullopt when no
+   *  usable estimate is available (so the caller can fall back).
+   *  Implements both IMUGravityCorrection methods behind one interface.
+   */
+  struct GravityPitchRoll
+  {
+    double pitch = 0;      ///< [rad]
+    double roll = 0;       ///< [rad]
+    double sigma_rad = 0;  ///< sigma to apply to BOTH pitch and roll
+  };
+  std::optional<GravityPitchRoll> estimateGravityPitchRoll(
+    const mrpt::poses::CPose3D & vehiclePose) const;
+
+  /** Re-expresses an absolute (gravity-referenced) pitch/roll into the map
+   *  frame, using the tilt recorded at the map origin as a calibration offset.
+   *  Shared by both IMUGravityCorrection methods.
+   */
+  std::optional<GravityPitchRoll> applyGravityCalibration(
+    double imu_pitch, double imu_roll, double sigma_rad) const;
+
+  /** Map-level gravity re-leveling ("rebake"), driven from onLidar after a
+   *  local-map update. Syncs the per-KF accelerometer pool with the current
+   *  local-map keyframes (feeding new KFs, dropping evicted ones) and, when
+   *  the local map's accumulated tilt exceeds `tilt_rebake.trigger_deg` and the
+   *  throttle allows, rotates the local map, the in-progress simplemap and the
+   *  cached trajectory/pose so the tilt is removed at its source. No-op unless
+   *  the local-map layer implements KeyframeMapCapable. Must be called with
+   *  state_mtx_ held.
+   */
+  void updateMapReleveling(const mrpt::Clock::time_point & scan_tim);
 };
 
 namespace detail
