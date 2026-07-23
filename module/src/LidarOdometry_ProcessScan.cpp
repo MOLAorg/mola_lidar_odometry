@@ -575,7 +575,8 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     // A half-open or reversed window (TO unset/zero, or earlier than FROM) can never match, so
     // it must not install the functor either: doing so would shadow the native switch without
     // ever dumping anything.
-    const bool hasTimestampWindow = MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP > 0 &&
+    const bool hasTimestampWindow =
+      MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP > 0 &&
       MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP >= MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP;
 
     if (params_.write_debug_icp_log_if_quality_under.has_value() || hasTimestampWindow) {
