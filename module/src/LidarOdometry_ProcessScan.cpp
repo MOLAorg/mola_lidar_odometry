@@ -403,10 +403,15 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
           m.z(0);
           m.setYawPitchRoll(m.yaw(), .0, .0);
 
-          // MRPT cov_inv order: x[0] y[1] z[2] yaw[3] pitch[4] roll[5]
+          // The ICP solver applies this information matrix to the residual
+          // log(P_prior^-1 * P_cur), i.e. in the SE(3) *Lie* tangent, whose
+          // rotation entries are the rotation-vector components
+          // [3]=w_x (~roll), [4]=w_y (~pitch), [5]=w_z (~yaw). That is NOT
+          // MRPT's (x,y,z,yaw,pitch,roll) Euler ordering: the two swap
+          // indices 3 and 5. SE(2) fixes z/pitch/roll, leaving x, y and yaw:
           in.prior->cov_inv(2, 2) = large_certainty;  // dz
-          in.prior->cov_inv(4, 4) = large_certainty;  // pitch
-          in.prior->cov_inv(5, 5) = large_certainty;  // roll
+          in.prior->cov_inv(3, 3) = large_certainty;  // roll  (w_x)
+          in.prior->cov_inv(4, 4) = large_certainty;  // pitch (w_y)
         }
 
         MRPT_LOG_DEBUG_STREAM("ICP prior=" << *in.prior);
@@ -477,13 +482,21 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
         const double cur_yaw = in.prior->mean.yaw();
         in.prior->mean.setYawPitchRoll(cur_yaw, map_pitch, map_roll);
 
-        // Increase confidence for pitch (idx=4) and roll (idx=5):
         const double sigma_rad = mrpt::DEG2RAD(params_.imu_gravity_correction.sigma_deg);
         const double inv_var = 1.0 / (sigma_rad * sigma_rad);
 
-        // MRPT cov order: x y z yaw pitch[4] roll[5]
-        mrpt::keep_max(in.prior->cov_inv(4, 4), inv_var);
-        mrpt::keep_max(in.prior->cov_inv(5, 5), inv_var);
+        // Gravity observes the two TILT axes only, and must leave yaw free.
+        //
+        // The ICP solver applies this information matrix to the residual
+        // log(P_prior^-1 * P_cur), i.e. in the SE(3) *Lie* tangent, whose
+        // rotation entries are the rotation-vector components
+        // [3]=w_x (~roll), [4]=w_y (~pitch), [5]=w_z (~yaw). That is NOT
+        // MRPT's (x,y,z,yaw,pitch,roll) Euler ordering used by
+        // CPose3DPDFGaussian elsewhere: the two swap indices 3 and 5. Writing
+        // "roll" at index 5 therefore pinned YAW to the motion model's own
+        // yaw and left roll completely unconstrained.
+        mrpt::keep_max(in.prior->cov_inv(3, 3), inv_var);  // roll  (w_x)
+        mrpt::keep_max(in.prior->cov_inv(4, 4), inv_var);  // pitch (w_y)
 
         MRPT_LOG_DEBUG_FMT(
           "IMU gravity correction: pitch=%.2f deg, roll=%.2f deg "
