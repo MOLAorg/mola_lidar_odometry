@@ -71,6 +71,68 @@ bool LidarOdometry::isPipelineUsingIMU_locked() const
   return *state_.isPipelinesUsingIMU;
 }
 
+#if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
+std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
+{
+  // Caller holds state_mtx_.
+  const auto pr = state_.gravity_estimator.estimatedPitchRoll(
+    params_.imu_gravity_correction.averaging_samples,
+    params_.imu_gravity_correction.max_age_seconds);
+  if (!pr.has_value()) {
+    return std::nullopt;
+  }
+
+  // "Up" unit vector from (pitch, roll), matching the convention of
+  // GravityEstimator::estimatedPitchRoll(): pitch = asin(-u.x),
+  // roll = atan2(u.y, u.z). At rest the accelerometer's specific force points
+  // up, so this IS the measured gravity-up direction in the vehicle frame.
+  const auto upFrom = [](double p, double r) {
+    return mrpt::math::TVector3D(
+      -std::sin(p), std::cos(p) * std::sin(r), std::cos(p) * std::cos(r));
+  };
+
+  mp2p_icp::GravityPrior g;
+  g.up_body = upFrom(pr->first, pr->second);
+
+  // Gravity direction expressed in the MAP frame. The map origin is not
+  // necessarily level (nonzero fixed_initial_pose, or starting on a slope), so
+  // rotate the tilt captured there into map coordinates. No Euler algebra is
+  // involved: this is a plain vector rotation, valid at any yaw.
+  if (state_.gravity_calib_pitch_roll.has_value()) {
+    const auto [pitch0, roll0] = *state_.gravity_calib_pitch_roll;
+    const mrpt::poses::CPose3D R_map_veh0(
+      mrpt::poses::CPose3D(params_.initial_localization.fixed_initial_pose));
+    g.up_map = R_map_veh0.rotateVector(upFrom(pitch0, roll0));
+  } else {
+    g.up_map = {0, 0, 1};
+  }
+
+  g.sigma_rad = effectiveGravitySigmaRad();
+  return g;
+}
+#endif
+
+double LidarOdometry::effectiveGravitySigmaRad() const
+{
+  // Caller holds state_mtx_.
+  const double sigma0 = mrpt::DEG2RAD(params_.imu_gravity_correction.sigma_deg);
+  if (!params_.imu_gravity_correction.adaptive_sigma) {
+    return sigma0;
+  }
+
+  // Add the MEASURED dispersion of the buffered gravity directions in
+  // quadrature. Quasi-static -> dispersion ~0 -> sigma ~= sigma0 (unchanged).
+  // Under real vehicle dynamics the accepted samples disagree, sigma grows, and
+  // the constraint self-silences instead of asserting an aliased tilt that the
+  // reading does not actually contain.
+  const auto disp = state_.gravity_estimator.directionDispersionSigma(
+    params_.imu_gravity_correction.max_age_seconds);
+  if (!disp.has_value()) {
+    return sigma0;
+  }
+  return std::sqrt(sigma0 * sigma0 + (*disp) * (*disp));
+}
+
 // here happens the main stuff:
 void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOLINT
 {
@@ -438,8 +500,24 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       }
     }
 
-    // Apply IMU gravity correction to ICP prior (pitch/roll):
-    if (params_.imu_gravity_correction.enabled) {
+    // Apply the IMU verticality constraint as a yaw-free, rank-2 observation
+    // handled by the solver itself: it constrains only the two tilt DOFs and
+    // never touches yaw or translation.
+#if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
+    if (params_.imu_gravity_correction.enabled && params_.imu_gravity_correction.use_rank2_prior) {
+      in.gravityPrior = buildGravityPrior();
+      if (in.gravityPrior.has_value()) {
+        MRPT_LOG_DEBUG_FMT(
+          "IMU gravity (rank-2): up_body=[%.4f %.4f %.4f] up_map=[%.4f %.4f %.4f] sigma=%.2f deg",
+          in.gravityPrior->up_body.x, in.gravityPrior->up_body.y, in.gravityPrior->up_body.z,
+          in.gravityPrior->up_map.x, in.gravityPrior->up_map.y, in.gravityPrior->up_map.z,
+          mrpt::RAD2DEG(in.gravityPrior->sigma_rad));
+      }
+    }
+#endif
+
+    // Legacy path: fold the gravity-derived pitch/roll into the SE(3) prior.
+    if (params_.imu_gravity_correction.enabled && !params_.imu_gravity_correction.use_rank2_prior) {
       const auto gravityPR = state_.gravity_estimator.estimatedPitchRoll(
         params_.imu_gravity_correction.averaging_samples,
         params_.imu_gravity_correction.max_age_seconds);
@@ -482,7 +560,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
         const double cur_yaw = in.prior->mean.yaw();
         in.prior->mean.setYawPitchRoll(cur_yaw, map_pitch, map_roll);
 
-        const double sigma_rad = mrpt::DEG2RAD(params_.imu_gravity_correction.sigma_deg);
+        const double sigma_rad = effectiveGravitySigmaRad();
         const double inv_var = 1.0 / (sigma_rad * sigma_rad);
 
         // Gravity observes the two TILT axes only, and must leave yaw free.
@@ -620,8 +698,14 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       }
 
       // Run ICP:
+#if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
+      icpCase.icp->align(
+        *observation, *state_.local_map, current_solution, icp_params, icp_result, in.prior,
+        std::nullopt /*outputDebugInfo*/, in.gravityPrior);
+#else
       icpCase.icp->align(
         *observation, *state_.local_map, current_solution, icp_params, icp_result, in.prior);
+#endif
 
       if (icp_result.nIterations <= remainingIcpIters) {
         remainingIcpIters -= icp_result.nIterations;

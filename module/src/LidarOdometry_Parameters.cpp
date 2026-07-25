@@ -327,6 +327,8 @@ void LidarOdometry::Parameters::ObservationValidityChecks::initialize(const Yaml
 void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cfg)
 {
   YAML_LOAD_OPT(enabled, bool);
+  YAML_LOAD_OPT(use_rank2_prior, bool);
+  YAML_LOAD_OPT(adaptive_sigma, bool);
   YAML_LOAD_OPT(sigma_deg, double);
   YAML_LOAD_OPT(averaging_samples, uint32_t);
   YAML_LOAD_OPT(max_age_seconds, double);
