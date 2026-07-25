@@ -44,6 +44,14 @@ params:
   # Uses averaged accelerometer readings to constrain ICP pitch/roll.
   imu_gravity_correction:
     enabled: ${MOLA_IMU_GRAVITY_CORRECTION|true}
+    # Yaw-free, rank-2 verticality constraint solved by mp2p_icp. Set to false
+    # only to reproduce results from the legacy path, which folded tilt into
+    # the SE(3) pose prior.
+    use_rank2_prior: ${MOLA_IMU_GRAVITY_RANK2|true}
+    # Widen sigma_deg by the measured dispersion of the accelerometer
+    # directions, so the constraint stands down when the readings are not
+    # actually gravity (braking, cornering, vibration).
+    adaptive_sigma: ${MOLA_IMU_GRAVITY_ADAPTIVE_SIGMA|true}
     sigma_deg: ${MOLA_IMU_GRAVITY_SIGMA_DEG|2.0}
     averaging_samples: ${MOLA_IMU_GRAVITY_AVG_SAMPLES|20}
     max_age_seconds: ${MOLA_IMU_GRAVITY_MAX_AGE|2.0}

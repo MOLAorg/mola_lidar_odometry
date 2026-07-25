@@ -249,6 +249,44 @@ a single YAML enough. When adding keys, keep KFM's *required* ones
 nanoflann >= 1.10.0. On distributions with an older one the class still exists
 and is registered, but instantiating it throws an explanatory error, so
 selecting it there fails with a clear message rather than silently falling back.
+## IMU gravity correction
+
+`params.imu_gravity_correction` constrains the ICP solution's tilt from the
+accelerometer. Two knobs decide *how*, both defaulting to `true`:
+
+- `use_rank2_prior`: deliver it as mp2p_icp's yaw-free, rank-2 `gravityPrior`,
+  which touches only the two tilt DOFs. The legacy path (`false`) folds
+  pitch/roll into the SE(3) pose prior, whose diagonal only isolates roll/pitch
+  near yaw=0 and which injects translation. Compiled only when the mp2p_icp in
+  use provides `mp2p_icp::GravityPrior` (`__has_include` guard in
+  `LidarOdometry.h`); older versions still build and fall back with a warning.
+- `adaptive_sigma`: widen `sigma_deg` by the measured dispersion of the buffered
+  accelerometer directions. Required in practice: the quasi-static gate accepts
+  `|norm(a)-g| <= 2 m/s^2`, i.e. up to ~11.8 deg of aliased tilt, so without it
+  the constraint asserts tilt the reading does not contain and net-degrades
+  odometry on a moving vehicle.
+
+Note that the two are not independent in effect: the rank-2 form alone is a
+correctness fix but does not improve odometry, because the tilt-to-Z coupling
+lives in the geometry Hessian and is parameterization-invariant. The gain comes
+from `adaptive_sigma`.
+
+## Reproducible odometry evaluation
+
+Trajectory-to-trajectory comparisons are only meaningful under all of:
+
+- the **batch CLI** (`mola-lidar-odometry-cli`), never the real-time GUI: under
+  real-time pacing scans are dropped and the motion prior is extrapolated with
+  queueing delay, which alone moved APE on one sequence by several times.
+- **`taskset -c N`**: `tbb::parallel_reduce` is FP non-associative, so thread
+  scheduling changes the result. Pinning makes runs bit-identical; check with
+  `md5sum` on the output `.tum` before comparing anything.
+- **`MOLA_ASYNC_BACKEND=false`** when using the smoother state estimator (its
+  async serving path is non-deterministic).
+
+The smoother also needs `-l <libmola_state_estimation_smoother.so>`; the CLI
+does not load that plugin by default and the class factory otherwise fails with
+"unknown class name".
 
 ## Environment Variables (Debug/Tracing Flags)
 

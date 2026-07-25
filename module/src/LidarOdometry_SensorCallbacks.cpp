@@ -638,4 +638,69 @@ LidarOdometry::MethodState::GravityEstimator::estimatedPitchRoll(
   return std::make_pair(pitch, roll);
 }
 
+std::optional<double> LidarOdometry::MethodState::GravityEstimator::directionDispersionSigma(
+  double max_age_seconds) const
+{
+  const auto n = acc_buffer.size();
+  if (n < 2) {
+    return std::nullopt;
+  }
+
+  const double newest_stamp = acc_buffer.peek(n - 1).timestamp;
+  const bool use_age_filter = max_age_seconds > 0;
+
+  const auto isUsable = [&](std::size_t i, double & nrm) {
+    const auto & e = acc_buffer.peek(i);
+    if (use_age_filter && (newest_stamp - e.timestamp) > max_age_seconds) {
+      return false;
+    }
+    nrm = std::sqrt(e.acc[0] * e.acc[0] + e.acc[1] * e.acc[1] + e.acc[2] * e.acc[2]);
+    return nrm >= 1e-6;
+  };
+
+  // Mean direction. The sensor frame suffices: a fixed rotation to the vehicle
+  // frame does not change the angles between directions.
+  double mx = 0;
+  double my = 0;
+  double mz = 0;
+  std::size_t count = 0;
+  for (std::size_t i = 0; i < n; i++) {
+    double nrm = 0;
+    if (!isUsable(i, nrm)) {
+      continue;
+    }
+    const auto & e = acc_buffer.peek(i);
+    mx += e.acc[0] / nrm;
+    my += e.acc[1] / nrm;
+    mz += e.acc[2] / nrm;
+    ++count;
+  }
+  if (count < 2) {
+    return std::nullopt;
+  }
+
+  const double mn = std::sqrt(mx * mx + my * my + mz * mz);
+  if (mn < 1e-6) {
+    return std::nullopt;
+  }
+  mx /= mn;
+  my /= mn;
+  mz /= mn;
+
+  // RMS angle of each sample's direction about the mean direction:
+  double sumSqAng = 0;
+  for (std::size_t i = 0; i < n; i++) {
+    double nrm = 0;
+    if (!isUsable(i, nrm)) {
+      continue;
+    }
+    const auto & e = acc_buffer.peek(i);
+    const double dot = (e.acc[0] * mx + e.acc[1] * my + e.acc[2] * mz) / nrm;
+    const double ang = std::acos(std::min(1.0, std::max(-1.0, dot)));
+    sumSqAng += ang * ang;
+  }
+
+  return std::sqrt(sumSqAng / static_cast<double>(count));
+}
+
 }  // namespace mola

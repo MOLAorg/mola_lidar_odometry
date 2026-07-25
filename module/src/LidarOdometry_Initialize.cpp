@@ -232,6 +232,18 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       params_.imu_gravity_correction.initialize(cfg["imu_gravity_correction"]);
     }
 
+#if !defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
+    // Built against an mp2p_icp without the rank-2 gravity prior: degrade to
+    // the legacy path instead of failing, so older setups keep working.
+    if (params_.imu_gravity_correction.enabled && params_.imu_gravity_correction.use_rank2_prior) {
+      MRPT_LOG_WARN(
+        "imu_gravity_correction.use_rank2_prior requires a newer mp2p_icp "
+        "providing mp2p_icp::GravityPrior; falling back to the legacy "
+        "pose-prior path.");
+      params_.imu_gravity_correction.use_rank2_prior = false;
+    }
+#endif
+
     if (c.has("initial_localization")) {
       params_.initial_localization.initialize(c["initial_localization"]);
     }

@@ -48,6 +48,16 @@
 #include <mp2p_icp_filters/FilterBase.h>
 #include <mp2p_icp_filters/Generator.h>
 
+// The yaw-free, rank-2 gravity prior is only available in recent mp2p_icp
+// versions. Keep building against older ones, falling back at run time to the
+// legacy path that folds tilt into the SE(3) pose prior.
+#if defined(__has_include)
+#if __has_include(<mp2p_icp/GravityPrior.h>)
+#include <mp2p_icp/GravityPrior.h>
+#define MOLA_LO_HAS_MP2P_GRAVITY_PRIOR 1
+#endif
+#endif
+
 // MRPT
 #include <mrpt/containers/circular_buffer.h>
 #include <mrpt/core/WorkerThreadsPool.h>
@@ -551,11 +561,37 @@ public:
 
     struct IMUGravityCorrection
     {
-      /// Enable accelerometer-based pitch/roll correction in ICP prior.
+      /// Enable accelerometer-based pitch/roll correction of the ICP solution.
       bool enabled = true;
 
-      /// Sigma [degrees] for the gravity-derived pitch/roll prior.
-      /// Lower values = more trust in IMU. Typical: 1–5 deg.
+      /// Apply the verticality constraint as mp2p_icp's yaw-free, rank-2
+      /// `gravityPrior` (recommended) instead of folding the gravity-derived
+      /// pitch/roll into the SE(3) pose prior.
+      ///
+      /// The legacy path (false) encodes tilt in a 6x6 prior information
+      /// matrix, whose diagonal only isolates roll/pitch near yaw=0 and which
+      /// injects translation directly. Kept selectable for reproducibility of
+      /// older results.
+      ///
+      /// Requires an mp2p_icp version providing mp2p_icp::GravityPrior; when
+      /// built against an older one this silently falls back to the legacy
+      /// path (with a warning), it does not fail.
+      bool use_rank2_prior = true;
+
+      /// Widen `sigma_deg` in quadrature by the MEASURED angular dispersion of
+      /// the buffered accelerometer directions, so the constraint stands down
+      /// automatically when the accelerometer is not actually measuring
+      /// gravity.
+      ///
+      /// Needed because the quasi-static acceptance gate alone is far too
+      /// permissive: accepting |norm(a) - g| <= 2 m/s^2 admits up to
+      /// asin(2/9.81) ~= 11.8 deg of aliased tilt. Without this, on a real
+      /// vehicle the gravity constraint asserts tilt information the reading
+      /// does not contain, and odometry gets worse rather than better.
+      bool adaptive_sigma = true;
+
+      /// Sigma [degrees] for the gravity-derived verticality constraint.
+      /// Lower values = more trust in IMU. Typical: 1 to 5 deg.
       double sigma_deg = 2.0;
 
       /// Number of recent accelerometer samples to average for gravity estimation.
@@ -744,6 +780,11 @@ private:
 
     mrpt::poses::CPose3D last_keyframe_pose;
     std::optional<mrpt::poses::CPose3DPDFGaussianInf> prior;
+#if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
+    /// Yaw-free, rank-2 gravity observation (alternative to folding tilt into
+    /// `prior`; see buildGravityPrior()). Only set when the rank-2 path is on.
+    std::optional<mp2p_icp::GravityPrior> gravityPrior;
+#endif
     id_t global_id = mola::INVALID_ID;
     id_t local_id = mola::INVALID_ID;
     double time_since_last_keyframe = 0;
@@ -818,6 +859,20 @@ private:
       /// max_age_seconds <= 0 means no age filtering.
       std::optional<std::pair<double, double>> estimatedPitchRoll(
         uint32_t required_samples, double max_age_seconds) const;
+
+      /// Empirical 1-sigma [rad] of the gravity DIRECTION over the samples
+      /// currently in the buffer: the RMS angle between each buffered sample's
+      /// direction and their mean direction.
+      ///
+      /// This is the honest uncertainty of the reading, measured rather than
+      /// assumed. While quasi-static it is small; under real vehicle dynamics
+      /// (braking, cornering, vibration) the accepted samples disagree and it
+      /// grows, so a caller that adds it in quadrature to its configured sigma
+      /// gets a verticality constraint that self-silences exactly when the
+      /// quasi-static assumption behind it stops holding.
+      ///
+      /// nullopt if fewer than 2 usable samples.
+      std::optional<double> directionDispersionSigma(double max_age_seconds) const;
     };
 
     GravityEstimator gravity_estimator;
@@ -1021,6 +1076,19 @@ private:
   /// Sensor timestamp [s] of the previous LiDAR scan seen at input, for the
   /// arrival-based period estimate above. Guarded by the wait-list mutex.
   double last_lidar_arrival_stamp_ = 0;
+
+#if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
+  /// Builds the yaw-free rank-2 gravity observation for the current scan from
+  /// the accelerometer gravity estimate, expressed against the map-frame
+  /// gravity direction captured at the map origin. nullopt if no reading yet.
+  /// Caller must hold state_mtx_.
+  [[nodiscard]] std::optional<mp2p_icp::GravityPrior> buildGravityPrior() const;
+#endif
+
+  /// The gravity sigma [rad] actually applied this scan: the configured
+  /// `imu_gravity_correction.sigma_deg`, optionally widened by the measured
+  /// direction dispersion (see `adaptive_sigma`). Caller must hold state_mtx_.
+  [[nodiscard]] double effectiveGravitySigmaRad() const;
 
   /** The worker thread pool with 1 thread for processing incoming observations*/
   mrpt::WorkerThreadsPool worker_others_{
