@@ -228,12 +228,27 @@ complete example with all three env vars set.
 `${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}` picks the class used for
 both the `localmap` layer and the `observation` (scan) layer -- `Matcher_Cov2Cov`
 pairs the two, so they must always be the same `mp2p_icp::NearestPointWithCovCapable`
-class. The alternative is `mola::IncrementalPointCloud` (odometry only, no loop
-closure; see `mola_metric_maps`), tuned by the `MOLA_INCREMENTAL_MAP_*` vars in
-the same `creationOpts` block. Both classes' option keys live side by side there:
+class. Both classes' option keys live side by side in one `creationOpts` block:
 each map class silently ignores the keys it does not define, which is what makes
 a single YAML enough. When adding keys, keep KFM's *required* ones
 (`max_search_keyframes`, `k_correspondences_for_cov`) present.
+
+- `mola::KeyframePointCloudMap` (default): keyframe-based, points kept in per-KF
+  local frames, so it survives loop-closure re-mapping. Tuned by the
+  `MOLA_LOCALMAP_*` vars.
+- `mola::IncrementalPointCloud`: single global frame, one incremental
+  self-balancing k-d tree, no per-scan tree rebuild. **Odometry only** (a global
+  SE(3) re-map would force a full rebuild). Tuned by `MOLA_INCREMENTAL_MAP_*`:
+  `MAX_SIZE` (eviction cube **half-side** [m] -- a much tighter budget than KFM's
+  `remove_frames_farther_than`, which is a radius over keyframe centres),
+  `ASYNC_REBUILD` (default `true`; moves the k-d tree rebuilds off the mapping
+  thread and is what keeps insertion latency flat), `ALPHA_BALANCE`,
+  `ALPHA_DELETED`, `RESERVE_POINTS`.
+
+`mola::IncrementalPointCloud` needs `mola_metric_maps` built against
+nanoflann >= 1.10.0. On distributions with an older one the class still exists
+and is registered, but instantiating it throws an explanatory error, so
+selecting it there fails with a clear message rather than silently falling back.
 
 ## Environment Variables (Debug/Tracing Flags)
 
