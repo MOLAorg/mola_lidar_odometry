@@ -24,6 +24,9 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
     continue-on-error: ${{ matrix.allow_failure == true }}
     strategy:
+      # Without this, one broken distro cancels the sibling jobs, so a known
+      # failure hides the results that would otherwise be actionable.
+      fail-fast: false
       matrix:
         include:
           # Humble Hawksbill (May 2022 - May 2027)
