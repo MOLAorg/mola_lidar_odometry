@@ -319,7 +319,8 @@ icp_settings_with_vel:
         threshold: "2.0*ADAPTIVE_THRESHOLD_SIGMA"
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
-        # Both layers here must be of type 'mola::KeyframePointCloudMap'
+        # Both layers here must be of the very same cov-capable map class, the
+        # one selected below by ${MOLA_LOCALMAP_CLASS}.
         layerMatches:
           - { global: "${MOLA_LOCALMAP_LAYER_NAME|localmap}", local: "observation" }
 
@@ -346,13 +347,43 @@ localmap_generator:
 
       metric_map_definition:
         # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/stable/group_mrpt_maps_grp.html
-        class: mola::KeyframePointCloudMap
+        #
+        # Two local-map classes are supported here, both implementing
+        # mp2p_icp::NearestPointWithCovCapable (required by Matcher_Cov2Cov):
+        #  - mola::KeyframePointCloudMap (default): keyframe-based, points kept
+        #    in per-KF local frames, so it survives loop-closure re-mapping.
+        #  - mola::IncrementalPointCloud: single global frame, one incremental
+        #    self-balancing k-d tree, no per-scan tree rebuild. Odometry only.
+        # Option keys not understood by the selected class are simply ignored,
+        # so both sets can coexist below.
+        class: ${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}
         plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
-          max_search_keyframes: ${MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES|3}
+          # --- common to both classes ---
           k_correspondences_for_cov: ${MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV|20}
           min_correspondences_for_cov: ${MOLA_LOCALMAP_MIN_CORRESPONDENCES_FOR_COV|5}
           max_distance_for_cov: ${MOLA_LOCALMAP_MAX_DISTANCE_FOR_COV|2.0}
+          # --- mola::IncrementalPointCloud only ---
+          # Half side [m] of the cube of points kept around the robot on each
+          # insertion (Chebyshev distance, as in HashedVoxelPointCloud's
+          # remove_voxels_farther_than). Unlike the keyframe map, EVERY point
+          # inside this cube is kept in a single tree and rendered, so this is
+          # a much tighter budget than 'remove_frames_farther_than' below:
+          # keep it near the sensor range, not several times it.
+          remove_points_farther_than: "${MOLA_INCREMENTAL_MAP_MAX_SIZE|$f{max(25.0, 0.5*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
+          # Run the k-d tree balancing rebuilds on a background thread, so the
+          # mapping thread never pays for them. Measured on Oxford Spires, this
+          # takes local-map insertion from mean 28 ms / max 371 ms (with 9 calls
+          # over 200 ms) down to mean 10 ms / max 38 ms and no spike at all:
+          async_rebuild: ${MOLA_INCREMENTAL_MAP_ASYNC_REBUILD|true}
+          alpha_balance: ${MOLA_INCREMENTAL_MAP_ALPHA_BALANCE|0.75}
+          alpha_deleted: ${MOLA_INCREMENTAL_MAP_ALPHA_DELETED|0.5}
+          # Pre-allocated point storage. With async_rebuild this also keeps the
+          # mapping thread from ever having to wait for the background worker,
+          # which it must do before the point buffers can be reallocated:
+          reserve_points: ${MOLA_INCREMENTAL_MAP_RESERVE_POINTS|2000000}
+          # --- mola::KeyframePointCloudMap only ---
+          max_search_keyframes: ${MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES|3}
           use_view_direction_filter: ${MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER|true}
           max_view_angle_deg: ${MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG|120}
           rotation_distance_weight: 2.0
@@ -395,7 +426,8 @@ observations_generator:
       process_class_names_regex: ".*"
       process_sensor_labels_regex: ".*"
 
-  # This just creates an empty layer of the custom class 'mola::KeyframePointCloudMap'
+  # This just creates an empty layer of the local map class: Matcher_Cov2Cov
+  # pairs it against the local map, so both must be of the same class.
   - class_name: mp2p_icp_filters::Generator
     params:
       name: "Generator (obs)"
@@ -407,9 +439,9 @@ observations_generator:
 
       metric_map_definition:
         # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/stable/group_mrpt_maps_grp.html
-        class: mola::KeyframePointCloudMap
+        class: ${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}
         plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
-        creationOpts: ~ # none required
+        creationOpts: ~ # none required: defaults are fine for a single scan
         insertOpts: ~
         likelihoodOpts: ~ # none required
         renderOpts: ~

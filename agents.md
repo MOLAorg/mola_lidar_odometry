@@ -223,6 +223,18 @@ over multiple frames. Two consequences for pipeline tuning:
 See `mola-cli-launchs/lidar_odometry_from_botanicgarden_livox.yaml` for a
 complete example with all three env vars set.
 
+## Selectable local-map class in `pipelines/lidar3d-gicp.yaml`
+
+`${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}` picks the class used for
+both the `localmap` layer and the `observation` (scan) layer -- `Matcher_Cov2Cov`
+pairs the two, so they must always be the same `mp2p_icp::NearestPointWithCovCapable`
+class. The alternative is `mola::IncrementalPointCloud` (odometry only, no loop
+closure; see `mola_metric_maps`), tuned by the `MOLA_INCREMENTAL_MAP_*` vars in
+the same `creationOpts` block. Both classes' option keys live side by side there:
+each map class silently ignores the keys it does not define, which is what makes
+a single YAML enough. When adding keys, keep KFM's *required* ones
+(`max_search_keyframes`, `k_correspondences_for_cov`) present.
+
 ## Environment Variables (Debug/Tracing Flags)
 
 Debug/tracing flags in C++ code use `mrpt::get_env<T>(name, default)` (from
