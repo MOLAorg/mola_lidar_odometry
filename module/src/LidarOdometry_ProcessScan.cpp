@@ -949,7 +949,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
   // Should we create a new KF?
   if (updateLocalMap) {
-    const ProfilerEntry tle2(profiler_, "onLidar.4.update_local_map");
+    ProfilerEntry tle2(profiler_, "onLidar.4.update_local_map");
 
     // If the local map is empty, create it from this first observation:
     if (state_.local_map->empty()) {
@@ -997,6 +997,21 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     tle3.stop();
 
     state_.mark_local_map_as_updated();
+
+    tle2.stop();
+
+#ifdef MOLA_KERNEL_VIZ_HAS_METRICS
+    // Stream the local-map update cost to the visualizer's live plot
+    // windows, mirroring the ICP time/goodness metrics above.
+    if (visualizer_) {
+      if (!metric_update_local_map_time_ms_) {
+        metric_update_local_map_time_ms_ =
+          visualizer_->register_metric("lidar_odom/update_local_map_time_ms", "ms");
+      }
+      metric_update_local_map_time_ms_->push(
+        1000.0 * profiler_.getLastTime("onLidar.4.update_local_map"));
+    }
+#endif
 
   }  // end done add a new KF to local map
 

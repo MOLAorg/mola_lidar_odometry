@@ -1047,6 +1047,7 @@ private:
   MetricChannel::Ptr metric_icp_time_ms_;
   MetricChannel::Ptr metric_icp_goodness_;
   MetricChannel::Ptr metric_onlidar_time_ms_;
+  MetricChannel::Ptr metric_update_local_map_time_ms_;
 #endif
 
   // Accessing this struct in gui_ requires acquiring state_gui_mtx_
