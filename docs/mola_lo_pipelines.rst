@@ -149,7 +149,8 @@ layer and the per-scan ``observation`` layer, since ICP pairs the two:
    * - ``mola::KeyframePointCloudMap``
      - **Default.** Keyframe-based: points are stored in per-keyframe local
        frames, so the map survives a loop-closure re-map. Required for SLAM
-       (``mola_sm_loop_closure``) and for map building in general.
+       (``mola_sm_loop_closure``) and for any mapping session where the
+       trajectory may be corrected after the fact.
    * - ``mola::IncrementalPointCloud``
      - Single global frame, holding one incremental, self-balancing k-d tree
        that is updated in place instead of being rebuilt on every scan.

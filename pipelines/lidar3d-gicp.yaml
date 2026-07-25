@@ -353,7 +353,7 @@ localmap_generator:
         #
         #  - mola::KeyframePointCloudMap (default): keyframe-based, points kept
         #    in per-KF local frames, so it survives loop-closure re-mapping.
-        #    Required for SLAM and map building.
+        #    Required for loop-closure-capable SLAM.
         #
         #  - mola::IncrementalPointCloud: single global frame, one incremental
         #    self-balancing k-d tree updated in place instead of rebuilt on
