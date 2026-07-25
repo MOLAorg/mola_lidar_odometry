@@ -350,10 +350,26 @@ localmap_generator:
         #
         # Two local-map classes are supported here, both implementing
         # mp2p_icp::NearestPointWithCovCapable (required by Matcher_Cov2Cov):
+        #
         #  - mola::KeyframePointCloudMap (default): keyframe-based, points kept
         #    in per-KF local frames, so it survives loop-closure re-mapping.
+        #    Required for SLAM and map building.
+        #
         #  - mola::IncrementalPointCloud: single global frame, one incremental
-        #    self-balancing k-d tree, no per-scan tree rebuild. Odometry only.
+        #    self-balancing k-d tree updated in place instead of rebuilt on
+        #    every scan. ODOMETRY ONLY: a global SE(3) re-map would force a full
+        #    rebuild, so do not combine it with loop closure. Needs
+        #    mola_metric_maps built against nanoflann >= 1.10.
+        #
+        #    To try it (the class applies to the 'observation' layer below too,
+        #    since Matcher_Cov2Cov pairs the two):
+        #
+        #      MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud \
+        #      ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py [...]
+        #
+        #    Tuned by the MOLA_INCREMENTAL_MAP_* variables below. See
+        #    https://docs.mola-slam.org/latest/mola_lo_pipelines.html
+        #
         # Option keys not understood by the selected class are simply ignored,
         # so both sets can coexist below.
         class: ${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}
