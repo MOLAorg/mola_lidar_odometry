@@ -50,4 +50,4 @@ params:
   gnss_fuse_z: ${MOLA_NAVSTATE_GNSS_FUSE_Z|false}
 
   # regex for IMU sensor labels (ROS topics) to accept as IMU readings:
-  do_process_imu_labels: ${MOLA_NAVSTATE_IMU_SENSOR_NAME|.*}
+  do_process_imu_labels_re: ${MOLA_NAVSTATE_IMU_SENSOR_NAME|.*}
