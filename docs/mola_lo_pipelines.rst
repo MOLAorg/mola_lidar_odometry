@@ -76,6 +76,11 @@ To use a prepared ``.mm`` map for localization, ensure it contains a layer named
 +=======================+=========================================================+=============================================+
 | ``lidar3d-gicp.yaml`` | Keyframe-based 3D point clouds (layer: ``localmap``)    | Generalized ICP (“cov-to-cov”)              |
 |    (Default)          | (:ref:`doxid-classmola_1_1_keyframe_point_cloud_map`)   |                                             |
+|                       |                                                         |                                             |
+|                       | Optionally, an incremental k-d tree point cloud         |                                             |
+|                       | (``mola::IncrementalPointCloud``), selected via         |                                             |
+|                       | ``MOLA_LOCALMAP_CLASS``: see                            |                                             |
+|                       | :ref:`gicp_localmap_class`.                             |                                             |
 +-----------------------+---------------------------------------------------------+---------------------------------------------+
 | ``lidar3d-icp.yaml``  | Voxel-based 3D point clouds (layer: ``localmap``)       | Standard ICP (point-to-point)               |
 |                       | (:ref:`doxid-classmola_1_1_hashed_voxel_point_cloud`)   |                                             |
@@ -124,6 +129,64 @@ local map based on key-frames of point clouds, and exploits the Generalized ICP 
 .. note::
 
    See: :ref:`pipelines_env_vars`
+
+.. _gicp_localmap_class:
+
+Selecting the local map class
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This pipeline can build its local map with either of two classes. Both implement
+the ``mp2p_icp::NearestPointWithCovCapable`` interface required by the
+``Matcher_Cov2Cov`` matcher, and the choice applies to **both** the ``localmap``
+layer and the per-scan ``observation`` layer, since ICP pairs the two:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - ``MOLA_LOCALMAP_CLASS``
+     - Description
+   * - ``mola::KeyframePointCloudMap``
+     - **Default.** Keyframe-based: points are stored in per-keyframe local
+       frames, so the map survives a loop-closure re-map. Required for SLAM
+       (``mola_sm_loop_closure``) and for any mapping session where the
+       trajectory may be corrected after the fact.
+   * - ``mola::IncrementalPointCloud``
+     - Single global frame, holding one incremental, self-balancing k-d tree
+       that is updated in place instead of being rebuilt on every scan.
+       **Odometry only:** a global SE(3) re-map would force a full rebuild, so
+       it must not be used together with loop closure.
+
+To try the incremental map from the CLI:
+
+.. code-block:: bash
+
+   MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud \
+   MOLA_ODOMETRY_PIPELINE_YAML=$(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-gicp.yaml \
+   mola-lo-gui-rosbag2 /path/to/dataset.mcap
+
+or from a ROS 2 launch file:
+
+.. code-block:: bash
+
+   MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud \
+   ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py [...]
+
+Note that ``lidar3d-gicp.yaml`` is already the default pipeline, so
+``MOLA_ODOMETRY_PIPELINE_YAML`` only needs to be set for the dataset wrappers
+that default to another one (e.g. ``mola-lo-gui-oxford-spires``).
+
+.. note::
+
+   ``mola::IncrementalPointCloud`` requires ``mola_metric_maps`` to have been
+   built against **nanoflann >= 1.10.0**, the release that introduced the
+   incremental k-d tree index. On ROS distributions shipping an older nanoflann
+   the class still exists and is registered, but instantiating it throws an
+   explanatory error, so selecting it fails with a clear message rather than
+   silently falling back.
+
+Tuning is done through the ``MOLA_INCREMENTAL_MAP_*`` variables, see
+:ref:`pipelines_env_vars`.
 
 .. dropdown:: YAML listing
     :icon: code-review
@@ -509,6 +572,33 @@ ICP settings
 
 - ``MOLA_LOCALMAP_LAYER_NAME`` (Default: ``localmap``; GICP and ICP pipelines): Name of the metric map layer used
   as the local map for ICP matching and map insertion.
+
+- ``MOLA_LOCALMAP_CLASS`` (Default: ``mola::KeyframePointCloudMap``; GICP pipeline only): C++ class used for
+  both the local map and the per-scan observation layer. The alternative is ``mola::IncrementalPointCloud``
+  (odometry only, no loop closure). See :ref:`gicp_localmap_class`.
+
+The following only apply when ``MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud``:
+
+- ``MOLA_INCREMENTAL_MAP_MAX_SIZE`` (Default: ``max(25.0, 0.5*ESTIMATED_OBSERVATION_RADIUS)`` [m]): **Half side**
+  of the axis-aligned cube of points kept around the robot; everything outside it is evicted on each map update.
+  Note this is a much tighter budget than the keyframe map's ``MOLA_LOCAL_MAP_MAX_SIZE``, which is a radius over
+  keyframe *centers*: here every point inside the cube is kept in a single tree and rendered, so setting it too
+  large makes the local map accumulate scans instead of sliding.
+
+- ``MOLA_INCREMENTAL_MAP_ASYNC_REBUILD`` (Default: ``true``): Run the k-d tree balancing rebuilds on a background
+  thread, so the mapping thread never pays for them. Measured on the Oxford Spires dataset, this takes local map
+  insertion from mean 28 ms / max 371 ms down to mean 10 ms / max 38 ms, removing all latency spikes. Costs
+  roughly twice the index memory plus one worker thread; set to ``false`` on core-constrained targets.
+
+- ``MOLA_INCREMENTAL_MAP_RESERVE_POINTS`` (Default: ``2000000``): Point storage reserved up front. With
+  ``ASYNC_REBUILD`` enabled this also prevents the mapping thread from ever having to wait for the background
+  worker, which it must do before the point buffers can be reallocated.
+
+- ``MOLA_INCREMENTAL_MAP_ALPHA_BALANCE`` (Default: ``0.75``): A subtree is rebuilt when its larger child holds
+  more than this fraction of its points. Lower values keep queries faster at the price of more frequent rebuilds.
+
+- ``MOLA_INCREMENTAL_MAP_ALPHA_DELETED`` (Default: ``0.5``): A subtree is rebuilt, physically dropping evicted
+  points, once this fraction of it is dead. Lower values reclaim memory more aggressively.
 
 - ``MOLA_LO_ROBUST_KERNEL`` (Default: ``RobustKernel::GemanMcClure``): Robust kernel type used in the ICP
   Gauss-Newton solver.
