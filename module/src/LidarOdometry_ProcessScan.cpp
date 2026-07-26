@@ -21,6 +21,7 @@
 
 // This module:
 #include <mola_lidar_odometry/LidarOdometry.h>
+#include <mrpt/maps/CPointsMap.h>
 
 // mp2p_icp:
 #include <mp2p_icp_filters/FilterDeskew.h>
@@ -71,6 +72,152 @@ bool LidarOdometry::isPipelineUsingIMU_locked() const
   return *state_.isPipelinesUsingIMU;
 }
 
+#if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
+bool LidarOdometry::relevelMapFrame(const mrpt::poses::CPose3D & R_fix)
+{
+  // Caller holds state_mtx_.
+  //
+  // Two passes: check every layer can be transformed BEFORE touching anything,
+  // so a map class we cannot rotate leaves the system untouched rather than
+  // half-rotated (which would silently corrupt registration).
+  // The local map is CLEARED rather than transformed in place.
+  //
+  // Transforming it would be cheaper, but there is no safe generic way to do
+  // it from here: LO does not link mola_metric_maps (map classes are runtime
+  // plugins), and the one class reachable through mrpt::maps::CPointsMap*,
+  // mola::IncrementalPointCloud, silently leaves its incremental k-d tree
+  // indexing the old coordinates when changeCoordinatesReference() is called
+  // (MOLAorg/mola#186) - its ensureIndexUpToDate() rebuilds on point-count
+  // changes only. A stale index returns wrong neighbours with no error at all,
+  // which is far worse than dropping the map.
+  //
+  // Clearing is safe and cheap here because re-levelling happens early, while
+  // the sliding local map is a few seconds of data that is rebuilt from the
+  // following scans. Once the map classes expose a rebuild-aware rigid
+  // transform, this can become an in-place rotation.
+  state_.local_map->clear();
+
+  // The trajectory and the current pose must move with the map, or the gauge
+  // change would become a real (and wrong) pose jump.
+  state_.last_lidar_pose.mean = R_fix + state_.last_lidar_pose.mean;
+  {
+    auto lckTraj = mrpt::lockHelper(state_trajectory_mtx_);
+    mrpt::poses::CPose3DInterpolator rotated;
+    for (const auto & [tim, p] : state_.estimated_trajectory) {
+      rotated.insert(tim, R_fix + mrpt::poses::CPose3D(p));
+    }
+    state_.estimated_trajectory = std::move(rotated);
+  }
+
+  // The frozen verticality reference and the estimator's window both refer to
+  // the OLD frame, so drop them: up_map is re-captured, and the estimator
+  // restarts against the corrected frame.
+  state_.gravity_calib_pitch_roll.reset();
+  state_.map_gravity.estimator.reset();
+  state_.map_gravity.open_t_from.reset();
+  state_.map_gravity.intervals_since_solve = 0;
+  state_.map_gravity.relevel_done = true;
+
+  return true;
+}
+
+void LidarOdometry::closeMapGravityInterval(
+  double timestamp, const mrpt::poses::CPose3D & pose, const mrpt::math::TTwist3D & twistLocal)
+{
+  // Caller holds state_mtx_.
+  auto & mg = state_.map_gravity;
+
+  // Velocity in the MAP frame, which is the frame the estimator works in.
+  const auto R = pose.getRotationMatrix();
+  const mrpt::math::TVector3D v_map = {
+    R(0, 0) * twistLocal.vx + R(0, 1) * twistLocal.vy + R(0, 2) * twistLocal.vz,
+    R(1, 0) * twistLocal.vx + R(1, 1) * twistLocal.vy + R(1, 2) * twistLocal.vz,
+    R(2, 0) * twistLocal.vx + R(2, 1) * twistLocal.vy + R(2, 2) * twistLocal.vz};
+
+  // Gravity enters as (v_to - v_from - R_from*dV) / dt, so a velocity error eps
+  // becomes a gravity error eps/dt: at the scan rate (dt ~ 0.1 s) a 0.1 m/s
+  // velocity error is ~1 m/s^2, i.e. ~6 deg of apparent tilt. Accumulate over a
+  // longer span before closing an interval so that sensitivity drops as 1/dt.
+  const double openSpan =
+    mg.open_t_from.has_value() ? (timestamp - *mg.open_t_from) : 0.0;
+  const bool spanLongEnough =
+    openSpan >= params_.imu_gravity_correction.map_gravity.min_interval_seconds;
+
+  if (mg.open_t_from.has_value() && spanLongEnough) {
+    mola::imu::MapGravityEstimator::Interval iv;
+    iv.t_from = *mg.open_t_from;
+    iv.t_to = timestamp;
+    iv.delta = mg.preintegrator.current_state();
+    iv.R_from = mg.open_R_from.getRotationMatrix();
+    iv.R_to = R;
+    iv.v_from = mg.open_v_from;
+    iv.v_to = v_map;
+
+    if (mg.estimator.add_interval(iv)) {
+      if (++mg.intervals_since_solve >= params_.imu_gravity_correction.map_gravity.solve_every_n) {
+        mg.intervals_since_solve = 0;
+        if (mg.estimator.solve()) {
+          const auto & r = *mg.estimator.latest_result();
+
+          // One-shot re-levelling of the map frame, once the estimate is good
+          // enough and while the map is still young.
+          const auto & mgp = params_.imu_gravity_correction.map_gravity;
+          if (mgp.relevel_map_frame && !mg.relevel_done && r.converged) {
+            const double sigDeg =
+              mrpt::RAD2DEG(std::max(r.pitch_sigma, r.roll_sigma));
+            const double age = mg.first_interval_time.has_value()
+                                 ? (timestamp - *mg.first_interval_time)
+                                 : 0.0;
+            if (mgp.relevel_deadline_seconds > 0 && age > mgp.relevel_deadline_seconds) {
+              MRPT_LOG_WARN_FMT(
+                "MapGravity: re-levelling deadline passed (%.1f s) without a "
+                "confident estimate (best sigma %.3f deg); leaving the map frame as is.",
+                age, sigDeg);
+              mg.relevel_done = true;  // do not keep trying
+            } else if (sigDeg <= mgp.relevel_max_tilt_sigma_deg) {
+              mrpt::poses::CPose3D R_fix;
+              R_fix.setRotationMatrix(r.correction);
+              MRPT_LOG_INFO_FMT(
+                "MapGravity: re-levelling the map frame by %.3f deg "
+                "(sigma %.3f deg, %zu intervals, %.1f s of odometry).",
+                mrpt::RAD2DEG(r.tilt), sigDeg, r.num_intervals, age);
+              if (!relevelMapFrame(R_fix)) {
+                mg.relevel_done = true;  // unsupported map class: do not retry
+              }
+              return;  // estimator was reset; nothing else to do this scan
+            }
+          }
+          MRPT_LOG_DEBUG_FMT(
+            "MapGravity: g_map=[%.4f %.4f %.4f] tilt=%.3f deg (pitch %.3f+-%.3f, roll "
+            "%.3f+-%.3f deg) ba=[%.4f %.4f %.4f] bg=[%.5f %.5f %.5f] intervals=%zu",
+            r.gravity_in_map.x, r.gravity_in_map.y, r.gravity_in_map.z, mrpt::RAD2DEG(r.tilt),
+            mrpt::RAD2DEG(r.pitch_correction), mrpt::RAD2DEG(r.pitch_sigma),
+            mrpt::RAD2DEG(r.roll_correction), mrpt::RAD2DEG(r.roll_sigma), r.bias_acc.x,
+            r.bias_acc.y, r.bias_acc.z, r.bias_gyro.x, r.bias_gyro.y, r.bias_gyro.z,
+            r.num_intervals);
+        }
+      }
+    } else {
+      MRPT_LOG_DEBUG_STREAM(
+        "MapGravity: interval rejected: " << mg.estimator.last_rejection_reason());
+    }
+  }
+
+  if (!mg.first_interval_time.has_value()) {
+    mg.first_interval_time = timestamp;
+  }
+
+  // Only re-open (and drop the accumulated preintegration) once an interval was
+  // actually closed; otherwise keep integrating into the still-open one.
+  if (!mg.open_t_from.has_value() || spanLongEnough) {
+    mg.open_t_from = timestamp;
+    mg.open_R_from = pose;
+    mg.open_v_from = v_map;
+    mg.preintegrator.reset_integration();
+  }
+}
+#endif
+
 #if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
 std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
 {
@@ -98,16 +245,43 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
   // necessarily level (nonzero fixed_initial_pose, or starting on a slope), so
   // rotate the tilt captured there into map coordinates. No Euler algebra is
   // involved: this is a plain vector rotation, valid at any yaw.
-  if (state_.gravity_calib_pitch_roll.has_value()) {
-    const auto [pitch0, roll0] = *state_.gravity_calib_pitch_roll;
-    const mrpt::poses::CPose3D R_map_veh0(
-      mrpt::poses::CPose3D(params_.initial_localization.fixed_initial_pose));
-    g.up_map = R_map_veh0.rotateVector(upFrom(pitch0, roll0));
-  } else {
-    g.up_map = {0, 0, 1};
+  double extraSigmaRad = 0;
+  bool upMapFromEstimator = false;
+
+#if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
+  // Preferred source: the online map-frame gravity estimate. It replaces the
+  // one-shot capture below, whose error is whatever the accelerometer average
+  // happened to be at the first keyframe and which never improves afterwards.
+  if (params_.imu_gravity_correction.map_gravity.enabled) {
+    if (const auto & r = state_.map_gravity.estimator.latest_result();
+        r.has_value() && r->converged) {
+      const auto & gm = r->gravity_in_map;
+      const double n = std::sqrt(gm.x * gm.x + gm.y * gm.y + gm.z * gm.z);
+      if (n > 1e-3) {
+        // gravity_in_map points DOWN, "up" is its negation.
+        g.up_map = {-gm.x / n, -gm.y / n, -gm.z / n};
+        upMapFromEstimator = true;
+        // The reference direction is itself uncertain; add its earned sigma to
+        // the per-scan reading's, instead of pretending the reference is exact.
+        extraSigmaRad = std::max(r->pitch_sigma, r->roll_sigma);
+      }
+    }
+  }
+#endif
+
+  if (!upMapFromEstimator) {
+    if (state_.gravity_calib_pitch_roll.has_value()) {
+      const auto [pitch0, roll0] = *state_.gravity_calib_pitch_roll;
+      const mrpt::poses::CPose3D R_map_veh0(
+        mrpt::poses::CPose3D(params_.initial_localization.fixed_initial_pose));
+      g.up_map = R_map_veh0.rotateVector(upFrom(pitch0, roll0));
+    } else {
+      g.up_map = {0, 0, 1};
+    }
   }
 
-  g.sigma_rad = effectiveGravitySigmaRad();
+  const double s = effectiveGravitySigmaRad();
+  g.sigma_rad = std::sqrt(s * s + extraSigmaRad * extraSigmaRad);
   return g;
 }
 #endif
@@ -830,6 +1004,20 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
       auto lck = mrpt::lockHelper(state_trajectory_mtx_);
       state_.estimated_trajectory.insert(scan_ref_time, state_.last_lidar_pose.mean);
     }
+
+#if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
+    // Close the preintegration interval at this newly-committed pose. Only on a
+    // good ICP: the estimator trusts the odometry's RELATIVE attitude, so a
+    // failed registration must not enter the window.
+    if (
+      icpIsGood && params_.imu_gravity_correction.enabled &&
+      params_.imu_gravity_correction.map_gravity.enabled &&
+      state_.last_motion_model_output.has_value()) {
+      closeMapGravityInterval(
+        mrpt::Clock::toDouble(scan_ref_time), state_.last_lidar_pose.mean,
+        state_.last_motion_model_output->twist);
+    }
+#endif
 
     // Update for stats in CSV format:
     state_.parameter_source.updateVariable("icp_iterations", out.icp_iterations);
