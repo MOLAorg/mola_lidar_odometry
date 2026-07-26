@@ -230,6 +230,17 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
 
     if (cfg.has("imu_gravity_correction")) {
       params_.imu_gravity_correction.initialize(cfg["imu_gravity_correction"]);
+
+#if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
+      if (params_.imu_gravity_correction.map_gravity.enabled) {
+        state_.map_gravity.estimator.parameters.load_from(
+          params_.imu_gravity_correction.map_gravity.estimator_params);
+        MRPT_LOG_INFO(
+          "imu_gravity_correction.map_gravity enabled: the verticality "
+          "reference will be estimated online instead of frozen at the first "
+          "keyframe.");
+      }
+#endif
     }
 
 #if !defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
