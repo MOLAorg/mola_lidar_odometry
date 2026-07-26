@@ -121,6 +121,7 @@ params:
     show_current_observation: true # shows "live raw" LiDAR points
     #current_pose_corner_size: 1.5
     #sensor_poses_corner_size: 0.5  # XYZ corner for each LiDAR sensor pose; 0 to disable
+    show_current_pose_corner: ${MOLA_LO_SHOW_CURRENT_POSE_CORNER|true} # Set to false to hide the current-pose XYZ corner (e.g. for a first-person camera)
     local_map_point_size: 3
     local_map_render_voxelmap_free_space: ${MOLA_RENDER_VOXELMAP_FREESPACE|true} # for 2D-LIDAR SLAM this may be affordable; for 3D it slows down too much
     model:

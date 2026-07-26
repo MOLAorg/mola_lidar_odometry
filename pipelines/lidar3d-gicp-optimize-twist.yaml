@@ -169,6 +169,7 @@ params:
     ground_grid_spacing: 5.0 # [m]
     #current_pose_corner_size: 1.5
     #sensor_poses_corner_size: 0.5  # XYZ corner for each LiDAR sensor pose; 0 to disable
+    show_current_pose_corner: ${MOLA_LO_SHOW_CURRENT_POSE_CORNER|true} # Set to false to hide the current-pose XYZ corner (e.g. for a first-person camera)
     model:
       - file: ${MOLA_VEHICLE_MODEL_FILE|""} # Default: none
         tf.x: ${MOLA_VEHICLE_MODEL_X|0.0} # deg
