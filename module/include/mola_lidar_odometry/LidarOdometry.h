@@ -282,6 +282,14 @@ public:
       float current_pose_corner_size = 1.5f;  //! [m]
       float sensor_poses_corner_size = 0.5f;  //! [m], 0 to disable
 
+      /** Whether to render the current-pose XYZ corner at all (independently
+             * of current_pose_corner_size). Useful to turn off from a
+             * first-person camera, where the corner ends up filling the whole
+             * view. Can also be changed at runtime via
+             * setCurrentPoseCornerVisualization().
+             */
+      bool show_current_pose_corner = true;
+
       // --- Ground grid ---
       bool show_ground_grid = true;
       float ground_grid_spacing = 5.0f;
@@ -710,6 +718,11 @@ public:
      *  its RGBA color (each component in [0,1]). Lets a host own the
      *  trajectory appearance instead of toggling the scene object externally. */
   void setTrajectoryVisualization(bool show, const std::vector<float> & rgba);
+
+  /** Shows or hides the current-pose XYZ corner opengl object. Useful for a
+     *  host using a first-person camera placed at the vehicle pose, where the
+     *  corner would otherwise fill the whole view. */
+  void setCurrentPoseCornerVisualization(bool show);
 
   /** @} */
 

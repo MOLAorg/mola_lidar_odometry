@@ -368,6 +368,11 @@ void LidarOdometry::setTrajectoryVisualization(bool show, const std::vector<floa
   });
 }
 
+void LidarOdometry::setCurrentPoseCornerVisualization(bool show)
+{
+  enqueue_request([this, show]() { params_.visualization.show_current_pose_corner = show; });
+}
+
 std::string LidarOdometry::vizParentFrame() const
 {
 #if defined(MOLA_KERNEL_VIZ_HAS_MOVABLE_FRAMES)
@@ -411,7 +416,8 @@ void LidarOdometry::updateVisualization(
   // the parent (MolaViz::update_3d_object deep-reads it on the GUI
   // thread while the lidar worker may keep producing new frames).
   auto glVehicle = mrpt::opengl::CSetOfObjects::Create();
-  if (const auto l = params_.visualization.current_pose_corner_size; l > 0) {
+  if (const auto l = params_.visualization.current_pose_corner_size;
+      params_.visualization.show_current_pose_corner && l > 0) {
     glVehicle->insert(mrpt::opengl::stock_objects::CornerXYZ(l));
   }
   if (const auto l = params_.visualization.sensor_poses_corner_size; l > 0) {
