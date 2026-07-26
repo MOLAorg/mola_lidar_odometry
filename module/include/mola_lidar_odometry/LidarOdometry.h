@@ -636,8 +636,21 @@ public:
         /// turns a 0.1 m/s velocity error into ~6 deg of apparent tilt.
         double min_interval_seconds = 1.0;
 
+        /// EXPERIMENTAL, and known to be unsafe on some sequences - see the
+        /// warning below before enabling.
+        ///
         /// Apply the estimated correction ONCE as a rigid re-levelling of the
         /// map frame, instead of only feeding `up_map` to the per-scan prior.
+        ///
+        /// @warning Validated only on Oxford Spires observatory-quarter, where
+        /// it takes the map frame from 6.16 to 0.83 deg and improves APE. On
+        /// blenheim-palace it has been observed to LOSE TRACKING outright (APE
+        /// 0.58 -> 14.98), and on MulRan DCC01 it is slightly harmful. It also
+        /// triggers non-deterministically: a repeat of the same blenheim
+        /// configuration never fired at all. The suspected cause is clearing
+        /// the local map mid-run on a fast-moving platform. Needs a
+        /// post-correction registration health check with rollback, and
+        /// probably a slow continuous correction rather than a single jump.
         ///
         /// Needed because the map frame can start several degrees off vertical
         /// (the initial levelling is one accelerometer average) and a per-scan

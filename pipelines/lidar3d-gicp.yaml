@@ -73,9 +73,11 @@ params:
       # ACCUMULATES, so this wants to be much longer than the estimator default.
       window_size: ${MOLA_IMU_MAP_GRAVITY_WINDOW|200}
       min_interval_seconds: ${MOLA_IMU_MAP_GRAVITY_MIN_INTERVAL|1.0}
-      # One-shot rigid re-levelling of the map frame once the estimate is
-      # confident. This is what actually fixes an initially-tilted map: the
-      # per-scan prior is far too weak to rotate the frame back.
+      # EXPERIMENTAL - can lose tracking. One-shot rigid re-levelling of the
+      # map frame once the estimate is confident. Fixes an initially-tilted map
+      # (Oxford observatory-quarter: 6.16 -> 0.83 deg), but on blenheim-palace
+      # it has been seen to destroy the run (APE 0.58 -> 14.98) and it fires
+      # non-deterministically. Leave disabled unless you are experimenting.
       # Requires a local-map class exposing a rigid transform (a CPointsMap,
       # e.g. mola::IncrementalPointCloud); it is skipped with a warning for
       # keyframe-based maps.
