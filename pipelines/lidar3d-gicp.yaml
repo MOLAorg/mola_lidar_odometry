@@ -505,7 +505,7 @@ observations_deskew_pass:
       input_pointcloud_layer: "raw"
       output_layer_between: "raw_range_filtered"
       range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
-      range_max: 1.2*ESTIMATED_OBSERVATION_RADIUS
+      range_max: "${MOLA_MAXIMUM_RANGE_FILTER|1.2*ESTIMATED_OBSERVATION_RADIUS}"
       metric_l_infinity: true
 
   - class_name: mp2p_icp_filters::FilterDeskew
