@@ -344,6 +344,34 @@ void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cf
     ASSERTMSG_(
       sigma_deg > 0, mrpt::format("imu_gravity_correction.sigma_deg=%.4f must be > 0", sigma_deg));
   }
+
+  if (cfg.has("map_gravity")) {
+    map_gravity.initialize(cfg["map_gravity"]);
+  }
+}
+
+void LidarOdometry::Parameters::IMUGravityCorrection::MapGravity::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(enabled, bool);
+  YAML_LOAD_OPT(solve_every_n, uint32_t);
+  ASSERT_(solve_every_n >= 1);
+  YAML_LOAD_OPT(min_interval_seconds, double);
+  ASSERTMSG_(
+    min_interval_seconds > 0,
+    mrpt::format(
+      "imu_gravity_correction.map_gravity.min_interval_seconds=%.4f must be > 0",
+      min_interval_seconds));
+
+  // Everything else is forwarded verbatim to mola::imu::MapGravityEstimator,
+  // so its options do not have to be mirrored here.
+  estimator_params = mrpt::containers::yaml::Map();
+  for (const auto & [k, v] : cfg.asMapRange()) {
+    const auto key = k.as<std::string>();
+    if (key == "enabled" || key == "solve_every_n" || key == "min_interval_seconds") {
+      continue;
+    }
+    estimator_params[key] = v;
+  }
 }
 
 void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_values)

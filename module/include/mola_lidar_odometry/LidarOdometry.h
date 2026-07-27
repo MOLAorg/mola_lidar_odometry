@@ -40,6 +40,13 @@
 
 // Other packages:
 #include <mola_imu_preintegration/ImuInitialCalibrator.h>
+#if __has_include(<mola_imu_preintegration/MapGravityEstimator.h>)
+#include <mola_imu_preintegration/MapGravityEstimator.h>
+/** Feature macro: mola_imu_preintegration provides mola::imu::MapGravityEstimator,
+ *  used here to estimate the gravity direction IN THE MAP FRAME instead of
+ *  freezing it from a single accelerometer average at the first keyframe. */
+#define MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR 1
+#endif
 #include <mola_lidar_odometry/KeyframeDecider.h>
 
 // MP2P_ICP
@@ -609,6 +616,46 @@ public:
       /// Samples older than this are discarded. 0 = no age limit.
       double max_age_seconds = 2.0;
 
+      /// Estimate the map-frame gravity direction online, instead of freezing
+      /// it from one accelerometer average at the first keyframe.
+      ///
+      /// The frozen capture is only as good as `averaging_samples` worth of
+      /// accelerometer while the platform is not actually static: measured on
+      /// a handheld sequence, independent 50 ms averages disagree by ~4 deg
+      /// RMS, and whatever value happens to be captured then biases the
+      /// verticality reference for the whole run.
+      ///
+      /// mola::imu::MapGravityEstimator instead solves for gravity in the map
+      /// frame (plus IMU biases) from preintegrated IMU and this odometry's
+      /// own relative attitudes and velocities, so platform acceleration
+      /// cancels and no quasi-static window is needed. Its `up_map` and its
+      /// earned sigma then replace the frozen ones.
+      struct MapGravity
+      {
+        bool enabled = false;
+
+        /// Run a solve() every N closed intervals (a solve is a small
+        /// Gauss-Newton over the window, but not free).
+        uint32_t solve_every_n = 5;
+
+        /// Minimum wall-clock span [s] of one interval. Gravity is recovered as
+        /// (v_to - v_from - R_from*dV)/dt, so a velocity error eps shows up as
+        /// a gravity error eps/dt: closing an interval every scan (dt ~ 0.1 s)
+        /// turns a 0.1 m/s velocity error into ~6 deg of apparent tilt.
+        double min_interval_seconds = 1.0;
+
+        /// Options forwarded verbatim to mola::imu::MapGravityEstimator, so its
+        /// parameters do not have to be mirrored here. Note that its own
+        /// defaults are tuned for a different use: `window_size` in particular
+        /// wants to be much larger here (100+ rather than 20), since the whole
+        /// point is that verticality information accumulates.
+        mrpt::containers::yaml estimator_params;
+
+        void initialize(const Yaml & c);
+      };
+
+      MapGravity map_gravity;
+
       void initialize(const Yaml & c);
     };
 
@@ -890,6 +937,31 @@ private:
 
     GravityEstimator gravity_estimator;
 
+#if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
+    /// Online estimate of gravity in the MAP frame (plus IMU biases), used to
+    /// replace the one-shot `gravity_calib_pitch_roll` capture when
+    /// `imu_gravity_correction.map_gravity.enabled`.
+    struct MapGravityState
+    {
+      mola::imu::MapGravityEstimator estimator;
+      mola::imu::ImuPreintegrator preintegrator;
+
+      /// Wall-clock stamp of the last IMU sample fed to the preintegrator, to
+      /// derive dt for the next one.
+      std::optional<double> last_imu_time;
+
+      /// Open interval start: stamp, attitude and map-frame velocity captured
+      /// when the previous scan was committed.
+      std::optional<double> open_t_from;
+      mrpt::poses::CPose3D open_R_from;
+      mrpt::math::TVector3D open_v_from{0, 0, 0};
+
+      uint32_t intervals_since_solve = 0;
+    };
+
+    MapGravityState map_gravity;
+#endif
+
     /// Gravity-derived (pitch, roll), in radians, captured at the time the first
     /// keyframe (map origin) was created. The IMU gravity estimator reports
     /// *absolute* tilt with respect to true vertical, while the map/global frame
@@ -1102,6 +1174,19 @@ private:
   /// `imu_gravity_correction.sigma_deg`, optionally widened by the measured
   /// direction dispersion (see `adaptive_sigma`). Caller must hold state_mtx_.
   [[nodiscard]] double effectiveGravitySigmaRad() const;
+
+#if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
+  /// Feeds one IMU observation into the map-gravity preintegrator, in the
+  /// vehicle frame. Caller must hold state_mtx_.
+  void accumulateImuForMapGravity(const mrpt::obs::CObservationIMU & imu);
+
+  /// Closes the currently open preintegration interval at the just-committed
+  /// scan pose, appends it to the map-gravity estimator, and periodically
+  /// re-solves. Caller must hold state_mtx_.
+  void closeMapGravityInterval(
+    double timestamp, const mrpt::poses::CPose3D & pose, const mrpt::math::TTwist3D & twistLocal);
+
+#endif
 
   /** The worker thread pool with 1 thread for processing incoming observations*/
   mrpt::WorkerThreadsPool worker_others_{
