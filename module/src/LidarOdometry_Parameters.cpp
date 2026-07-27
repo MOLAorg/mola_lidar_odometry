@@ -343,7 +343,6 @@ void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cf
 
     ASSERTMSG_(
       sigma_deg > 0, mrpt::format("imu_gravity_correction.sigma_deg=%.4f must be > 0", sigma_deg));
-
   }
 
   if (cfg.has("map_gravity")) {
@@ -357,18 +356,18 @@ void LidarOdometry::Parameters::IMUGravityCorrection::MapGravity::initialize(con
   YAML_LOAD_OPT(solve_every_n, uint32_t);
   ASSERT_(solve_every_n >= 1);
   YAML_LOAD_OPT(min_interval_seconds, double);
-  YAML_LOAD_OPT(relevel_map_frame, bool);
-  YAML_LOAD_OPT(relevel_max_tilt_sigma_deg, double);
-  YAML_LOAD_OPT(relevel_deadline_seconds, double);
+  ASSERTMSG_(
+    min_interval_seconds > 0,
+    mrpt::format(
+      "imu_gravity_correction.map_gravity.min_interval_seconds=%.4f must be > 0",
+      min_interval_seconds));
 
   // Everything else is forwarded verbatim to mola::imu::MapGravityEstimator,
   // so its options do not have to be mirrored here.
   estimator_params = mrpt::containers::yaml::Map();
   for (const auto & [k, v] : cfg.asMapRange()) {
     const auto key = k.as<std::string>();
-    if (key == "enabled" || key == "solve_every_n" || key == "min_interval_seconds" ||
-        key == "relevel_map_frame" || key == "relevel_max_tilt_sigma_deg" ||
-        key == "relevel_deadline_seconds") {
+    if (key == "enabled" || key == "solve_every_n" || key == "min_interval_seconds") {
       continue;
     }
     estimator_params[key] = v;

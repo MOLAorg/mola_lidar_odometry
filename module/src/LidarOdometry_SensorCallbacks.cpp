@@ -590,8 +590,9 @@ void LidarOdometry::accumulateImuForMapGravity(const mrpt::obs::CObservationIMU 
   // Caller holds state_mtx_.
   using namespace mrpt::obs;
 
-  if (!imu.has(IMU_X_ACC) || !imu.has(IMU_Y_ACC) || !imu.has(IMU_Z_ACC) || !imu.has(IMU_WX) ||
-      !imu.has(IMU_WY) || !imu.has(IMU_WZ)) {
+  if (
+    !imu.has(IMU_X_ACC) || !imu.has(IMU_Y_ACC) || !imu.has(IMU_Z_ACC) || !imu.has(IMU_WX) ||
+    !imu.has(IMU_WY) || !imu.has(IMU_WZ)) {
     return;  // preintegration needs both accelerometer and gyroscope
   }
 
@@ -613,14 +614,12 @@ void LidarOdometry::accumulateImuForMapGravity(const mrpt::obs::CObservationIMU 
   // accelerometer is not compensated: it is a centripetal/tangential term that
   // averages out over a window and is small for the offsets seen here.
   const auto R = imu.sensorPose.getRotationMatrix();
-  const mrpt::math::TVector3D a_s = {
-    imu.get(IMU_X_ACC), imu.get(IMU_Y_ACC), imu.get(IMU_Z_ACC)};
+  const mrpt::math::TVector3D a_s = {imu.get(IMU_X_ACC), imu.get(IMU_Y_ACC), imu.get(IMU_Z_ACC)};
   const mrpt::math::TVector3D w_s = {imu.get(IMU_WX), imu.get(IMU_WY), imu.get(IMU_WZ)};
 
   const auto rot = [&R](const mrpt::math::TVector3D & v) {
     return mrpt::math::TVector3D(
-      R(0, 0) * v.x + R(0, 1) * v.y + R(0, 2) * v.z,
-      R(1, 0) * v.x + R(1, 1) * v.y + R(1, 2) * v.z,
+      R(0, 0) * v.x + R(0, 1) * v.y + R(0, 2) * v.z, R(1, 0) * v.x + R(1, 1) * v.y + R(1, 2) * v.z,
       R(2, 0) * v.x + R(2, 1) * v.y + R(2, 2) * v.z);
   };
 

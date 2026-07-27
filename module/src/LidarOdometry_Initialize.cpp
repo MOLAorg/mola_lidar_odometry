@@ -240,6 +240,13 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
           "reference will be estimated online instead of frozen at the first "
           "keyframe.");
       }
+#else
+      if (params_.imu_gravity_correction.map_gravity.enabled) {
+        MRPT_LOG_WARN(
+          "imu_gravity_correction.map_gravity is enabled but this build "
+          "lacks mola::imu::MapGravityEstimator; the verticality reference "
+          "will remain frozen at the first keyframe.");
+      }
 #endif
     }
 

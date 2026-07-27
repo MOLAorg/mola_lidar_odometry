@@ -644,26 +644,11 @@ public:
         /// turns a 0.1 m/s velocity error into ~6 deg of apparent tilt.
         double min_interval_seconds = 1.0;
 
-        /// Apply the estimated correction ONCE as a rigid re-levelling of the
-        /// map frame, instead of only feeding `up_map` to the per-scan prior.
-        ///
-        /// Needed because the map frame can start several degrees off vertical
-        /// (the initial levelling is one accelerometer average) and a per-scan
-        /// prior with ~0.01% authority cannot rotate it back. Re-levelling is a
-        /// pure gauge change - it rotates the trajectory and the local map
-        /// together, so no registration is invalidated - and it is what makes
-        /// the published map actually gravity-aligned.
-        bool relevel_map_frame = false;
-
-        /// Only re-level once the estimator's tilt sigma is below this [deg].
-        double relevel_max_tilt_sigma_deg = 0.5;
-
-        /// Give up re-levelling after this many seconds of odometry, so a
-        /// late, poorly-conditioned solve cannot rotate an already-large map.
-        /// <=0 means no deadline.
-        double relevel_deadline_seconds = 60.0;
-
-        /// Options forwarded verbatim to mola::imu::MapGravityEstimator.
+        /// Options forwarded verbatim to mola::imu::MapGravityEstimator, so its
+        /// parameters do not have to be mirrored here. Note that its own
+        /// defaults are tuned for a different use: `window_size` in particular
+        /// wants to be much larger here (100+ rather than 20), since the whole
+        /// point is that verticality information accumulates.
         mrpt::containers::yaml estimator_params;
 
         void initialize(const Yaml & c);
@@ -972,13 +957,6 @@ private:
       mrpt::math::TVector3D open_v_from{0, 0, 0};
 
       uint32_t intervals_since_solve = 0;
-
-      /// Stamp of the first interval ever closed, used as the age reference
-      /// for the re-levelling deadline.
-      std::optional<double> first_interval_time;
-
-      /// The one-shot map-frame re-levelling has been done (or abandoned).
-      bool relevel_done = false;
     };
 
     MapGravityState map_gravity;
@@ -1208,11 +1186,6 @@ private:
   void closeMapGravityInterval(
     double timestamp, const mrpt::poses::CPose3D & pose, const mrpt::math::TTwist3D & twistLocal);
 
-  /// Rigidly rotates the map frame (local map + trajectory + current pose) by
-  /// `R_fix`, re-levelling it against gravity. Returns false if any map layer
-  /// cannot be transformed, in which case NOTHING is modified.
-  /// Caller must hold state_mtx_.
-  [[nodiscard]] bool relevelMapFrame(const mrpt::poses::CPose3D & R_fix);
 #endif
 
   /** The worker thread pool with 1 thread for processing incoming observations*/
