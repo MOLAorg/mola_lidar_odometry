@@ -24,6 +24,7 @@ find_package(mola_common REQUIRED)
 find_package(mrpt-maps REQUIRED)
 find_package(mrpt-tclap REQUIRED)
 find_package(mola_kernel REQUIRED)
+find_package(mola_yaml REQUIRED)
 find_package(mp2p_icp REQUIRED)
 find_package(mp2p_icp_filters REQUIRED)
 find_package(mola_pose_list REQUIRED)
@@ -60,6 +61,7 @@ mola_add_library(
   PUBLIC_LINK_LIBRARIES
     mrpt::maps
     mola::mola_kernel
+    mola::mola_yaml
     mola::mp2p_icp
     mola::mp2p_icp_filters
     mola::mola_pose_list
@@ -68,6 +70,7 @@ mola_add_library(
 #  mrpt::maps
   CMAKE_DEPENDENCIES
     mola_kernel
+    mola_yaml
     mp2p_icp
     mp2p_icp_filters
     mrpt-maps
