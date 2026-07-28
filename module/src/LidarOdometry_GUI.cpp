@@ -729,8 +729,18 @@ void LidarOdometry::updateVisualizationLocalMap(std::vector<std::function<void()
     rp.points.allLayers.render_voxelmaps_free_space =
       params_.visualization.local_map_render_voxelmap_free_space;
 
-    // local map:
+    // local map: this recolors/renders every point currently in the map, an
+    // O(map size) cost that keeps growing with it (e.g. under
+    // mola::IncrementalPointCloud, whose local map never shrinks back below
+    // its eviction cube). It runs under state_mtx_ (held by the caller since
+    // processLidarScan()), which stalls the dataset reader, IMU worker, and
+    // executor threads for the whole call once the local map gets large. Its
+    // only shared_state touched is state_.local_map, whose *content* is only
+    // ever mutated by this same worker thread earlier in processLidarScan(),
+    // never concurrently, so it is safe to read here without the lock:
+    state_mtx_.unlock();
     auto glMap = state_.local_map->get_visualization(rp);
+    state_mtx_.lock();
 
     updateTasks.emplace_back([visualizer = visualizer_, glMap, vizFrame]() {
       vizUpsert3D(visualizer, "liodom/localmap", glMap, vizFrame);
