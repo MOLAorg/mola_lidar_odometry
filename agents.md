@@ -156,6 +156,22 @@ sudden ~30-40 deg yaw error that then persisted for the rest of the run,
 instead of a brief quality dip that recovers to the true pose).
 
 
+## Local-map locking: `state_mtx_` vs `local_map_content_mtx_`
+
+Rendering the local map (`updateVisualizationLocalMap()`) is O(map size) and
+must not run under `state_mtx_`, or it stalls the dataset reader, IMU worker
+and executor threads once the map is large. So it releases `state_mtx_` (via
+the caller's `std::unique_lock`, passed down through
+`updateVisualization*()`) and takes the finer-grained `local_map_content_mtx_`
+instead, which every mutation of `state_.local_map` contents (insert, `clear()`,
+`load_from_file()`) must also hold.
+
+Lock order: take `state_mtx_` first, then `local_map_content_mtx_`; never hold
+the latter while acquiring the former. Note the renderer therefore *releases*
+`state_mtx_` before taking the contents mutex, and releases the contents mutex
+before re-acquiring `state_mtx_`.
+
+
 ## Keyframe-creation policy (shared by local map and simplemap)
 
 `mola::KeyframeDecider` + `mola::KeyframeDecisionOptions`

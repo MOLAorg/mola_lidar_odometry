@@ -46,6 +46,7 @@
 
 // STD:
 #include <chrono>
+#include <mutex>
 #include <thread>
 
 // Portable config path
@@ -160,11 +161,19 @@ void LidarOdometry::spinOnce()
     auto lckGuiMtx = mrpt::lockHelper(state_gui_mtx_);
     guiCreated = gui_.gui_created;
   }
-  if (
-    visualizer_ &&
-    ((state_.local_map && state_.local_map->empty()) || !isActive() || !guiCreated)) {
-    if (mrpt::Clock::nowDouble() - gui_.timestampLastUpdateUI > 1.0) {
-      updateVisualization({}, {});
+  // Evaluated before taking state_mtx_, since it uses state_flags_mtx_:
+  const bool isNowActive = isActive();
+
+  if (visualizer_) {
+    // updateVisualization() reads state_, so it must be called with state_mtx_
+    // held (it takes care of momentarily releasing it while rendering the
+    // potentially large local map):
+    std::unique_lock<std::mutex> lckState(state_mtx_);
+
+    if (
+      ((state_.local_map && state_.local_map->empty()) || !isNowActive || !guiCreated) &&
+      mrpt::Clock::nowDouble() - gui_.timestampLastUpdateUI > 1.0) {
+      updateVisualization({}, {}, lckState);
     }
   }
 

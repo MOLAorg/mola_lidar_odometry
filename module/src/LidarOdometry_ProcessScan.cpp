@@ -35,6 +35,7 @@
 #include <mrpt/poses/Lie/SO.h>
 
 #include <algorithm>
+#include <mutex>
 
 namespace mola
 {
@@ -270,7 +271,7 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   obs->load();
   const auto this_obs_tim = obs->timestamp;
 
-  auto lckState = mrpt::lockHelper(state_mtx_);
+  std::unique_lock<std::mutex> lckState(state_mtx_);
 
   // for rate stats:
   state_.append_lidar_stamp(obs->sensorLabel, obs->timestamp, *this);
@@ -1127,7 +1128,10 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     !state_.last_icp_was_good && state_.estimated_trajectory.size() == 1 &&
     params_.local_map_updates.enabled && !state_.map_has_been_loaded) {
     // Re-start the local map:
-    state_.local_map->clear();
+    {
+      auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
+      state_.local_map->clear();
+    }
     state_.estimated_trajectory.clear();
     state_.gravity_calib_pitch_roll.reset();  // new map origin: recapture at next first KF
     updateLocalMap = false;
@@ -1139,6 +1143,10 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   // Should we create a new KF?
   if (updateLocalMap) {
     ProfilerEntry tle2(profiler_, "onLidar.4.update_local_map");
+
+    // The whole block below mutates the local map layers, so it must exclude
+    // a concurrent visualization render (see local_map_content_mtx_ docs):
+    auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
 
     // If the local map is empty, create it from this first observation:
     if (state_.local_map->empty()) {
@@ -1182,6 +1190,9 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     for (const auto & [lyName, lyMap] : observation->layers) {
       state_.local_map->layers.erase(lyName);
     }
+
+    // No more changes to the map contents below:
+    lckMapContents.unlock();
 
     tle3.stop();
 
@@ -1281,12 +1292,12 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     const ProfilerEntry tle(profiler_, "onLidar.6.updateVisualization");
 
     if (state_.last_icp_was_good) {
-      updateVisualization(observationRawForViz, fullCloudForVizAndPublish);
+      updateVisualization(observationRawForViz, fullCloudForVizAndPublish, lckState);
     } else {
       // On bad ICP: still update the local map display, GUI panel, and text
       // labels. Skipping the full updateVisualization() avoids 3D pose/path
       // updates that would be based on an unreliable ICP result.
-      updateVisualizationAlways();
+      updateVisualizationAlways(lckState);
     }
   }
 

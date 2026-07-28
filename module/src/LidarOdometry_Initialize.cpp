@@ -521,6 +521,9 @@ void LidarOdometry::doPreloadLocalMap()
       "Loading map from file: '" << params_.local_map_updates.load_existing_local_map << "'...");
 
     auto lckState = mrpt::lockHelper(state_mtx_);
+    // Guards the map contents against a concurrent visualization render,
+    // which runs without state_mtx_ (see local_map_content_mtx_ docs):
+    auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
 
     const bool loadOk =
       state_.local_map->load_from_file(params_.local_map_updates.load_existing_local_map);

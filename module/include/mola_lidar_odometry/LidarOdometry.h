@@ -84,6 +84,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <regex>
 #include <string>
 #include <vector>
@@ -1097,7 +1098,9 @@ private:
     // to the GUI thread directly: each update clones it into a fresh
     // CSetOfObjects wrapper before dispatch.
     mrpt::opengl::CSetOfLines::Ptr glEstimatedPath;
-    int mapUpdateCnt = std::numeric_limits<int>::max();
+    /// Decimation counter for the local map visualization. Saturating (never
+    /// wraps around), so its maximum value means "refresh at the next chance".
+    unsigned int mapUpdateCnt = std::numeric_limits<unsigned int>::max();
 
     // List of old observations to be unload()'ed, to save RAM if:
     // 1) building a simplemap, and
@@ -1246,6 +1249,15 @@ private:
   mutable std::mutex drop_stats_mtx_;
   mutable std::mutex state_flags_mtx_;
   mutable std::mutex state_mtx_;
+
+  /// Guards the *contents* (layers) of MethodState::local_map.
+  /// Rendering the map is O(map size) and would stall every other user of
+  /// state_mtx_ (dataset reader, IMU worker, executor thread) if done under it,
+  /// so updateVisualizationLocalMap() temporarily releases state_mtx_ and takes
+  /// this one instead. Lock order: a thread that needs both must take
+  /// state_mtx_ first; it must never be held while acquiring state_mtx_.
+  mutable std::mutex local_map_content_mtx_;
+
   mutable std::mutex state_trajectory_mtx_;
   mutable std::recursive_mutex state_simplemap_mtx_;
   mutable std::mutex state_gui_mtx_;
@@ -1301,19 +1313,23 @@ private:
   void updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw);
   void updatePipelineDynamicVariablesRobotPoseOnly();
 
+  /// All these methods read state_, so the caller must own state_mtx_ and pass
+  /// its lock object down: it is momentarily released while rendering the
+  /// local map (see local_map_content_mtx_).
   void updateVisualization(
     const mp2p_icp::metric_map_t & currentObservation,
-    const mrpt::maps::CPointsMap::Ptr & deskewedCloud);
+    const mrpt::maps::CPointsMap::Ptr & deskewedCloud, std::unique_lock<std::mutex> & lckState);
 
   void updateVisualizationInitVehFrame();
   void updateVisualizationCurrentObservation(
     const mp2p_icp::metric_map_t & currentObservation,
     const mrpt::maps::CPointsMap::Ptr & deskewedCloud);
-  void updateVisualizationLocalMap(std::vector<std::function<void()>> & updateTasks);
+  void updateVisualizationLocalMap(
+    std::vector<std::function<void()>> & updateTasks, std::unique_lock<std::mutex> & lckState);
   void updateVisualizationPath(std::vector<std::function<void()>> & updateTasks);
   void updateVisualizationGravityVector(std::vector<std::function<void()>> & updateTasks);
   void updateVisualizationTextLabels();
-  void updateVisualizationAlways();
+  void updateVisualizationAlways(std::unique_lock<std::mutex> & lckState);
 
   void internalBuildGUI();
   mola::gui::Tab buildTabStatus();

@@ -39,8 +39,32 @@
 #include <mrpt/system/filesystem.h>
 #include <mrpt/version.h>
 
+// STD:
+#include <algorithm>
+#include <limits>
+#include <mutex>
+
 namespace mola
 {
+
+namespace
+{
+/** Temporarily releases an already-held lock, re-acquiring it on scope exit
+ *  (including if the guarded code throws).
+ */
+class ScopedUnlock
+{
+public:
+  explicit ScopedUnlock(std::unique_lock<std::mutex> & lck) : lck_(lck) { lck_.unlock(); }
+  ~ScopedUnlock() { lck_.lock(); }
+
+  ScopedUnlock(const ScopedUnlock &) = delete;
+  ScopedUnlock & operator=(const ScopedUnlock &) = delete;
+
+private:
+  std::unique_lock<std::mutex> & lck_;
+};
+}  // namespace
 
 mola::gui::Tab LidarOdometry::buildTabStatus()
 {
@@ -385,14 +409,16 @@ std::string LidarOdometry::vizParentFrame() const
 
 void LidarOdometry::updateVisualization(
   const mp2p_icp::metric_map_t & currentObservation,
-  const mrpt::maps::CPointsMap::Ptr & deskewedCloud)
+  const mrpt::maps::CPointsMap::Ptr & deskewedCloud, std::unique_lock<std::mutex> & lckState)
 {
   const ProfilerEntry tle(profiler_, "updateVisualization");
 
   gui_.timestampLastUpdateUI = mrpt::Clock::nowDouble();
 
-  // In this point, we are called by the LIDAR worker thread, so it's safe
-  // to read the state without mutexes.
+  // We may be called either from the LIDAR worker thread or from the executor
+  // thread (spinOnce()), so state_ is read under state_mtx_, already held by
+  // the caller (see lckState).
+  ASSERT_(lckState.owns_lock());
   ASSERT_(visualizer_);
 
   // Movable scene-frame to draw under (empty = viewport root):
@@ -528,15 +554,17 @@ void LidarOdometry::updateVisualization(
     MRPT_LOG_INFO(s);
   }
 
-  updateVisualizationAlways();
+  updateVisualizationAlways(lckState);
 }
 
-void LidarOdometry::updateVisualizationAlways()
+void LidarOdometry::updateVisualizationAlways(std::unique_lock<std::mutex> & lckState)
 {
+  ASSERT_(lckState.owns_lock());
+
   // Local map: update whenever map content changed, independent of ICP quality.
   {
     std::vector<std::function<void()>> updateTasks;
-    updateVisualizationLocalMap(updateTasks);
+    updateVisualizationLocalMap(updateTasks, lckState);
     for (const auto & ut : updateTasks) {
       ut();
     }
@@ -707,13 +735,27 @@ void LidarOdometry::updateVisualizationCurrentObservation(
   (void)fut;
 }
 
-void LidarOdometry::updateVisualizationLocalMap(std::vector<std::function<void()>> & updateTasks)
+void LidarOdometry::updateVisualizationLocalMap(
+  std::vector<std::function<void()>> & updateTasks, std::unique_lock<std::mutex> & lckState)
 {
+  ASSERT_(lckState.owns_lock());
+
   const std::string vizFrame = vizParentFrame();
-  if (
-    params_.visualization.show_localmap && state_.local_map &&
-    ((state_.mapUpdateCnt++ > params_.visualization.map_update_decimation) &&
-     state_.local_map_needs_viz_update)) {
+
+  bool decimationReached = false;
+  if (params_.visualization.show_localmap && state_.local_map) {
+    const auto decimation =
+      static_cast<unsigned int>(std::max(0, params_.visualization.map_update_decimation));
+    decimationReached = state_.mapUpdateCnt > decimation;
+
+    // Saturating increment: the counter is *set* to its maximum value elsewhere
+    // to request an immediate refresh, so it must not wrap around.
+    if (state_.mapUpdateCnt < std::numeric_limits<unsigned int>::max()) {
+      state_.mapUpdateCnt++;
+    }
+  }
+
+  if (decimationReached && state_.local_map_needs_viz_update) {
     const ProfilerEntry tle2(profiler_, "updateVisualization.update_local_map");
 
     state_.mapUpdateCnt = 0;
@@ -729,8 +771,26 @@ void LidarOdometry::updateVisualizationLocalMap(std::vector<std::function<void()
     rp.points.allLayers.render_voxelmaps_free_space =
       params_.visualization.local_map_render_voxelmap_free_space;
 
-    // local map:
-    auto glMap = state_.local_map->get_visualization(rp);
+    // local map: this recolors/renders every point currently in the map, an
+    // O(map size) cost that keeps growing with it (e.g. under
+    // mola::IncrementalPointCloud, whose local map never shrinks back below
+    // its eviction cube). Doing it under state_mtx_ stalls the dataset reader,
+    // IMU worker, and executor threads for the whole call once the local map
+    // gets large, so state_mtx_ is temporarily released here and the map
+    // contents are guarded by the finer-grained local_map_content_mtx_ instead.
+    // Note the strict order: state_mtx_ is released *before* acquiring the
+    // contents mutex, since holders of the latter may be waiting for the
+    // former (see the lock order documented in the class declaration).
+    mrpt::opengl::CSetOfObjects::Ptr glMap;
+    {
+      // Keep the map alive even if state_ is reset while unlocked:
+      const auto localMap = state_.local_map;
+
+      const ScopedUnlock unlockState(lckState);
+      auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
+
+      glMap = localMap->get_visualization(rp);
+    }
 
     updateTasks.emplace_back([visualizer = visualizer_, glMap, vizFrame]() {
       vizUpsert3D(visualizer, "liodom/localmap", glMap, vizFrame);
@@ -747,7 +807,7 @@ void LidarOdometry::updateVisualizationLocalMap(std::vector<std::function<void()
     // Force an immediate redraw the next time the local map is shown again,
     // since it may not change on its own (e.g. localization-only mode):
     state_.local_map_needs_viz_update = true;
-    state_.mapUpdateCnt = std::numeric_limits<int>::max();
+    state_.mapUpdateCnt = std::numeric_limits<unsigned int>::max();
   }
 }
 
