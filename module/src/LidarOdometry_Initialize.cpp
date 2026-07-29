@@ -235,10 +235,17 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       if (params_.imu_gravity_correction.map_gravity.enabled) {
         state_.map_gravity.estimator.parameters.load_from(
           params_.imu_gravity_correction.map_gravity.estimator_params);
-        MRPT_LOG_INFO(
-          "imu_gravity_correction.map_gravity enabled: the verticality "
-          "reference will be estimated online instead of frozen at the first "
-          "keyframe.");
+        if (params_.imu_gravity_correction.map_gravity.log_only) {
+          MRPT_LOG_INFO(
+            "imu_gravity_correction.map_gravity enabled in LOG-ONLY mode: the "
+            "estimate is computed and logged but does not reach the verticality "
+            "reference, so the trajectory matches that of a disabled run.");
+        } else {
+          MRPT_LOG_INFO(
+            "imu_gravity_correction.map_gravity enabled: the verticality "
+            "reference will be estimated online instead of frozen at the first "
+            "keyframe.");
+        }
       }
 #else
       if (params_.imu_gravity_correction.map_gravity.enabled) {

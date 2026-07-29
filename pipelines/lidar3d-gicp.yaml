@@ -67,8 +67,25 @@ params:
     # quasi-static window is required.
     map_gravity:
       enabled: ${MOLA_IMU_MAP_GRAVITY|false}
+      # Compute and log the estimate without letting it affect the verticality
+      # reference, so it can be scored against ground truth on a new dataset
+      # without its own feedback contaminating the map frame it is estimating.
+      log_only: ${MOLA_IMU_MAP_GRAVITY_LOG_ONLY|false}
       solve_every_n: ${MOLA_IMU_MAP_GRAVITY_SOLVE_EVERY_N|5}
-      max_tilt_sigma_deg: ${MOLA_IMU_MAP_GRAVITY_MAX_TILT_SIGMA|3.0}
+      # NOTE: there is deliberately no ACCURACY threshold here. The estimator
+      # reports every usable estimate with its earned pitch/roll sigma, which is
+      # added in quadrature to the gravity prior's sigma, so a weak estimate
+      # silences itself instead of being discarded wholesale.
+      #
+      # There IS a data-quantity precondition, which is a different thing. Until
+      # the window holds enough intervals the solution is pulled by the |g|
+      # constraint and the bias priors, and that pull is a BIAS the linearized
+      # covariance cannot see, so the estimate is not merely uncertain, it is
+      # confidently wrong: measured on Oxford Spires, error/sigma runs ~3.6 over
+      # the first 100 s and settles at ~1.2 once ~130 intervals have
+      # accumulated. Until then the accelerometer capture is the better
+      # reference, and this keeps LO on it.
+      min_intervals_for_convergence: ${MOLA_IMU_MAP_GRAVITY_MIN_INTERVALS|130}
       # Sliding-window length. The whole point is that verticality information
       # ACCUMULATES, so this wants to be much longer than the estimator default.
       window_size: ${MOLA_IMU_MAP_GRAVITY_WINDOW|200}

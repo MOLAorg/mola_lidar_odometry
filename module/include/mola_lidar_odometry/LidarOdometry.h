@@ -645,6 +645,16 @@ public:
         /// turns a 0.1 m/s velocity error into ~6 deg of apparent tilt.
         double min_interval_seconds = 1.0;
 
+        /// Run the estimator and log its result, but do NOT let it influence
+        /// the verticality constraint. The trajectory then comes out identical
+        /// to a run with `enabled: false`, which is what makes the estimate
+        /// scoreable against ground truth: with the feedback loop closed, the
+        /// map frame it is estimating is partly its own doing.
+        ///
+        /// Use this to validate the estimator on a new dataset before trusting
+        /// it, and keep it OFF in production.
+        bool log_only = false;
+
         /// Options forwarded verbatim to mola::imu::MapGravityEstimator, so its
         /// parameters do not have to be mirrored here. Note that its own
         /// defaults are tuned for a different use: `window_size` in particular
@@ -972,6 +982,17 @@ private:
     /// readings relative to the (possibly non-level) map frame.
     std::optional<std::pair<double, double>> gravity_calib_pitch_roll;
 
+    /// Vehicle pose at the instant `gravity_calib_pitch_roll` was captured.
+    /// The capture is attempted at the first keyframe, but the accelerometer
+    /// average is often not available yet there: at the very first scan the
+    /// IMU buffer holds only the few milliseconds that arrived before it, and
+    /// the quasi-static gate rejects most of those on a moving platform. It is
+    /// therefore retried on later scans, and the reading has to be transported
+    /// through the pose it was taken at to still refer to the map frame.
+    /// Equals `fixed_initial_pose` when the first attempt succeeds, which is
+    /// what makes the retry a strict extension of the original behavior.
+    std::optional<mrpt::poses::CPose3D> gravity_calib_pose;
+
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
 
     std::map<std::string, mrpt::Clock::time_point> last_obs_tim_by_label;
@@ -1177,6 +1198,13 @@ private:
   /// `imu_gravity_correction.sigma_deg`, optionally widened by the measured
   /// direction dispersion (see `adaptive_sigma`). Caller must hold state_mtx_.
   [[nodiscard]] double effectiveGravitySigmaRad() const;
+
+  /// Captures the map-origin verticality reference from the accelerometer, if
+  /// it has not been captured yet and an average is available. Safe (and
+  /// intended) to call on every scan: it is a no-op once captured.
+  /// `poseAtCapture` is the vehicle pose the reading belongs to, needed to
+  /// express it in the map frame. Caller must hold state_mtx_.
+  void captureMapOriginVerticality(const mrpt::poses::CPose3D & poseAtCapture);
 
 #if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
   /// Feeds one IMU observation into the map-gravity preintegrator, in the

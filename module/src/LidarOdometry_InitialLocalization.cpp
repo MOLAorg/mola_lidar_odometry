@@ -133,6 +133,7 @@ void LidarOdometry::handleInitialLocalization()
             state_.local_map->clear();
           }
           state_.gravity_calib_pitch_roll.reset();  // new map origin: recapture at next first KF
+          state_.gravity_calib_pose.reset();
           ASSERT_(state_.local_map->empty());
           {
             auto lckSM = mrpt::lockHelper(state_simplemap_mtx_);

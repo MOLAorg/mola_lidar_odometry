@@ -355,6 +355,7 @@ void LidarOdometry::Parameters::IMUGravityCorrection::MapGravity::initialize(con
   YAML_LOAD_OPT(enabled, bool);
   YAML_LOAD_OPT(solve_every_n, uint32_t);
   ASSERT_(solve_every_n >= 1);
+  YAML_LOAD_OPT(log_only, bool);
   YAML_LOAD_OPT(min_interval_seconds, double);
   ASSERTMSG_(
     min_interval_seconds > 0,
@@ -367,7 +368,9 @@ void LidarOdometry::Parameters::IMUGravityCorrection::MapGravity::initialize(con
   estimator_params = mrpt::containers::yaml::Map();
   for (const auto & [k, v] : cfg.asMapRange()) {
     const auto key = k.as<std::string>();
-    if (key == "enabled" || key == "solve_every_n" || key == "min_interval_seconds") {
+    if (
+      key == "enabled" || key == "solve_every_n" || key == "min_interval_seconds" ||
+      key == "log_only") {
       continue;
     }
     estimator_params[key] = v;

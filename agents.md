@@ -287,6 +287,24 @@ correctness fix but does not improve odometry, because the tilt-to-Z coupling
 lives in the geometry Hessian and is parameterization-invariant. The gain comes
 from `adaptive_sigma`.
 
+The accelerometer supplies `up_body` (a per-scan measurement); the map's own
+vertical `up_map` is a separate question. By default it is FROZEN from one
+accelerometer average at the first keyframe, so whatever error that capture had
+biases verticality for the whole run.
+`imu_gravity_correction.map_gravity.enabled` replaces it with
+`mola::imu::MapGravityEstimator`, which solves for gravity in the map frame from
+preintegrated IMU plus this odometry's own relative attitudes and velocities;
+its earned pitch/roll sigma is added in quadrature to the prior's, so a weak
+estimate silences itself. There is no quality threshold anywhere in that path,
+by design: the library reports every usable estimate with its sigma and the
+weighting decides (see `mola_imu_preintegration/agents.md`).
+
+`map_gravity.log_only` computes and logs the estimate without letting it reach
+the verticality reference, so the trajectory is identical to a disabled run.
+That is the mode to validate the estimator on a new dataset: with the feedback
+loop closed, the map frame being estimated is partly the estimator's own doing,
+and scoring it against ground truth would be self-referential.
+
 ## Reproducible odometry evaluation
 
 Trajectory-to-trajectory comparisons are only meaningful under all of:
@@ -303,6 +321,15 @@ Trajectory-to-trajectory comparisons are only meaningful under all of:
 The smoother also needs `-l <libmola_state_estimation_smoother.so>`; the CLI
 does not load that plugin by default and the class factory otherwise fails with
 "unknown class name".
+
+Always characterize the run-to-run noise floor (the same config twice) before
+believing a difference between two configs, and confirm the estimate covers the
+full ground-truth timespan.
+
+Ready-made rig for Oxford Spires (`StateEstimationSimple`, deterministic):
+`~/lo-gravity-eval/{oxford_env.sh,run_oxford.sh,eval_tum.py,analyze_map_gravity.py}`.
+The bags carry no `/tf`, so the sensor extrinsics must be passed as the fixed
+poses the env script sets, and the sensor labels are the topic names.
 
 ## Environment Variables (Debug/Tracing Flags)
 
