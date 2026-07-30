@@ -41,6 +41,7 @@
 #include <mrpt/system/COutputLogger.h>
 #include <mrpt/system/datetime.h>
 #include <mrpt/system/filesystem.h>
+#include <mrpt/system/string_utils.h>
 #include <mrpt/system/os.h>
 #include <mrpt/system/progress.h>
 
@@ -329,12 +330,30 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
     "with --lidar-sensor-label <TOPIC_NAME>");
 
   auto o = std::make_shared<mola::Rosbag2Dataset>();
+
+  // A comma-separated value becomes a YAML sequence, so a recording split
+  // across several bag directories (e.g. Oxford Spires keble-college-04, two
+  // halves of one continuous recording sharing a base timestamp) is replayed as
+  // the single sequence it is. Rosbag2Dataset accepts a scalar or a sequence.
+  std::string bagsYaml;
+  {
+    std::vector<std::string> parts;
+    mrpt::system::tokenize(rosbag2file, ",", parts);
+    ASSERT_(!parts.empty());
+    if (parts.size() == 1) {
+      bagsYaml = "'" + mrpt::system::trim(parts[0]) + "'";
+    } else {
+      for (const auto & bp : parts) {
+        bagsYaml += "\n        - '" + mrpt::system::trim(bp) + "'";
+      }
+    }
+  }
   o->setMinLoggingLevel(logLevel);
 
   const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
     R""""(
     params:
-      rosbag_filename: '%s'
+      rosbag_filename: %s
       base_link_frame_id: '%s'
       tf_topic: '%s'
       tf_static_topic: '%s'
@@ -356,7 +375,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
 )"""",
-    rosbag2file.c_str(), cli.arg_baseLinkName.getValue().c_str(),
+    bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(),
     cli.arg_tfTopic.getValue().c_str(), cli.arg_tfStaticTopic.getValue().c_str(),
     cli.arg_lidarLabel.getValue().c_str(), cli.arg_imuLabel.getValue().c_str())));
 
