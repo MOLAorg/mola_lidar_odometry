@@ -239,6 +239,27 @@ over multiple frames. Two consequences for pipeline tuning:
 See `mola-cli-launchs/lidar_odometry_from_botanicgarden_livox.yaml` for a
 complete example with all three env vars set.
 
+## `pipelines/lidar3d-gicp-single-filter.yaml` (temporary test variant)
+
+Same as `lidar3d-gicp.yaml`, except that the two chained `FilterDecimateAdaptive`
+stages are replaced by ONE filter emitting both `decimated_for_map` and
+`decimated_for_icp` from a single voxelization pass, via its `outputs`
+parameter. Voxelizing is the dominant cost, so the second stage becomes
+essentially free (~2 ms/scan on a 100k-point cloud).
+
+One parameter does NOT survive the fold, and the fold-back has to reconcile it:
+the chained "icp" stage had its own `voxel_size` (default 0.10), while a single
+filter has only one grid, `${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.15}`. So the ICP
+cloud is now sampled from the 0.15 m grid over the full scan rather than from a
+0.10 m grid over the already-decimated map cloud. (Both stages always read that
+same env var, so only the two defaults ever differed.)
+
+It lives in a separate file
+only because `outputs` needs an mp2p_icp newer than the current release; fold it
+back into `lidar3d-gicp.yaml` and delete it once mp2p_icp is re-released. It is
+deliberately NOT wired into `test/CMakeLists.txt`, which must keep building
+against the released mp2p_icp.
+
 ## Selectable local-map class in `pipelines/lidar3d-gicp.yaml`
 
 `${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}` picks the class used for
