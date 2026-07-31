@@ -10,6 +10,14 @@
 # measured on a synthetic 100k-point scan, the 1st filter pass drops from
 # ~15.0 ms to ~13.0 ms, with unchanged ICP quality.
 #
+# NOT a pure parity change in one respect: both outputs now share the single
+# grid at ${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.15}, so the separate 0.10 m voxel
+# size the chained "icp" stage used no longer exists. The ICP cloud is therefore
+# sampled from the 0.15 m grid over the FULL scan, instead of from a 0.10 m grid
+# over the already-decimated map cloud. Note also that both stages read the same
+# MOLA_CLOUD_DECIMATION_VOXEL_SIZE variable before, so setting it already forced
+# both to the same value; only the two defaults differed.
+#
 # NOTE: this requires an mp2p_icp with support for the "outputs" parameter of
 # FilterDecimateAdaptive, newer than the currently released version, hence it is
 # kept as a separate file instead of changing lidar3d-gicp.yaml. Once mp2p_icp
