@@ -105,6 +105,7 @@ find_package(mola_input_kitti360_dataset) # optional
 find_package(mola_input_mulran_dataset) # optional
 find_package(mola_input_rawlog) # optional
 find_package(mola_input_rosbag2) # optional
+find_package(mola_input_rosbag1) # optional
 find_package(mola_input_paris_luco_dataset) # optional
 find_package(mola_state_estimation_simple QUIET) # optional
 
@@ -162,6 +163,14 @@ if(mola_input_rosbag2_FOUND)
   target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_ROSBAG2)
 else()
   message(STATUS "mola-lidar-odometry-cli: With rosbag2 = NO")
+endif()
+
+if(mola_input_rosbag1_FOUND)
+  message(STATUS "mola-lidar-odometry-cli: With rosbag1 = YES")
+  target_link_libraries(mola-lidar-odometry-cli mola::mola_input_rosbag1)
+  target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_ROSBAG1)
+else()
+  message(STATUS "mola-lidar-odometry-cli: With rosbag1 = NO")
 endif()
 
 if(mola_input_paris_luco_dataset_FOUND)

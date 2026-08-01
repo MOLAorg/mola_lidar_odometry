@@ -30,6 +30,7 @@
   <depend>mola_input_mulran_dataset</depend>
   <depend>mola_input_rawlog</depend>
   <depend>mola_input_rosbag2</depend>
+  <depend>mola_input_rosbag1</depend>
   <depend>mola_input_paris_luco_dataset</depend>
 
   <doc_depend>doxygen</doc_depend>
