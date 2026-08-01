@@ -1,0 +1,418 @@
+# =====================================================================================
+# Pipeline: `lidar3d-dlio-like.yaml`'s ABLATION -- axis 2 (downsampling)
+# reverted to MOLA-LO's stock two-stage cascade, axes 1 (keyframe/map-update
+# threshold) and 3 (map data structure) left DLIO-like. Part of the 806
+# benchmark's map-policy ablation: each of the three bundled changes reverted
+# independently, holding the other two fixed, to find which one (or
+# combination) is load-bearing for the ~37% gap-closing found by the bundled
+# `lidar3d-dlio-like.yaml` run.
+#
+# The three changes, unchanged from `lidar3d-dlio-like.yaml`'s own header
+# (kept here for reference; only (2) is reverted in this file):
+#
+#   1. Local-map update frequency: DLIO adds a keyframe (and only then folds a
+#      scan into the map) when the platform has moved more than
+#      `keyframe_thresh_dist` (1.0 m) OR rotated more than `keyframe_thresh_rot`
+#      (45 deg) from the CLOSEST keyframe ever created (an unbounded, whole-
+#      history search -- see dlio_core's `updateKeyframes()`). MOLA-LO's own
+#      `KeyframeDecider` (non-temporal mode) already implements the identical
+#      "distance to closest keyframe ever created" test -- so this axis is
+#      just parameter values, not a new mechanism: `min_translation_between_keyframes`
+#      and `min_rotation_between_keyframes` are pinned to DLIO's fixed 1.0 m /
+#      45 deg (replacing the default formula, which scales with sensor range
+#      and angular velocity), and `max_distance_to_keep_keyframes` is set to 0
+#      (disables pruning old keyframes from the decider's search, matching
+#      DLIO's unbounded closest-keyframe search).
+#
+#   2. Downsampling before map insertion AND before ICP, made IDENTICAL: DLIO
+#      voxel-filters the incoming scan exactly once (`voxel_filter_res`,
+#      0.25 m leaf size) and reuses that SAME downsampled cloud object both as
+#      the GICP source and as what gets stored in a keyframe if selected (see
+#      dlio_core's `preprocessAndDeskew()` / `current_scan_`). MOLA-LO's
+#      default pipeline instead cascades TWO different-resolution adaptive
+#      decimations (0.15 m/10000 pts for the map, then a further 0.10 m/3000
+#      pt pass for ICP) -- an architecture DLIO simply does not have. Here,
+#      the second stage is removed: `decimated_for_map` is a single
+#      voxel-grid pass at 0.25 m with no point-count cap (so behavior is pure
+#      voxel decimation, like DLIO's), and it is what both the local map
+#      and the ICP "observation" layer are built from.
+#
+#   3. Local-map data structure: `mola::IncrementalPointCloud` (a single,
+#      flat, self-balancing point cloud with a sensor-range-scaled radius
+#      cutoff) is used instead of the default `mola::KeyframePointCloudMap`
+#      (per-keyframe local frames, view-direction filtering, max-search-
+#      keyframes windowing -- machinery DLIO's flat keyframe-union submap has
+#      no equivalent of). This is the closer structural analogue of DLIO's
+#      "just concatenate the selected keyframes' points" submap.
+#
+# Everything else -- gravity handling, the registration cost function
+# (Matcher_Cov2Cov), adaptive threshold, GICP-equivalent solver settings --
+# is left at MOLA-LO's own baseline, unchanged, because isolating THOSE was
+# already the subject of the main gravity-anchoring benchmark (see the "806"
+# plan file), which found them not responsible for the drift differential.
+# This file isolates the *other* candidate: map-maintenance policy.
+# =====================================================================================
+
+params:
+  pipeline_name: "GICP cov2cov, DLIO-like map maintenance, downsampling reverted to stock"
+
+  lidar_sensor_labels: ["${MOLA_LIDAR_NAME|lidar}", "/ouster/points"]
+
+  multiple_lidars:
+    lidar_count: ${MOLA_LIDAR_COUNT|1}
+    max_time_offset: ${MOLA_LIDAR_MAX_TIME_OFFSET|0.1}
+
+  imu_sensor_label: "${MOLA_IMU_NAME|imu}"
+
+  gnss_sensor_label: "${MOLA_GPS_NAME|gps}"
+
+  min_time_between_scans: 1e-3
+
+  observation_radius_filter_coefficient: 0.95
+  absolute_minimum_observation_radius: ${MOLA_ABS_MIN_SENSOR_RANGE|5.0}
+
+  optimize_twist: false
+
+  imu_gravity_correction:
+    enabled: ${MOLA_IMU_GRAVITY_CORRECTION|true}
+    use_rank2_prior: ${MOLA_IMU_GRAVITY_RANK2|true}
+    adaptive_sigma: ${MOLA_IMU_GRAVITY_ADAPTIVE_SIGMA|true}
+    sigma_deg: ${MOLA_IMU_GRAVITY_SIGMA_DEG|2.0}
+    averaging_samples: ${MOLA_IMU_GRAVITY_AVG_SAMPLES|20}
+    max_age_seconds: ${MOLA_IMU_GRAVITY_MAX_AGE|2.0}
+    map_gravity:
+      enabled: ${MOLA_IMU_MAP_GRAVITY|false}
+      log_only: ${MOLA_IMU_MAP_GRAVITY_LOG_ONLY|false}
+      solve_every_n: ${MOLA_IMU_MAP_GRAVITY_SOLVE_EVERY_N|5}
+      min_intervals_for_convergence: ${MOLA_IMU_MAP_GRAVITY_MIN_INTERVALS|130}
+      window_size: ${MOLA_IMU_MAP_GRAVITY_WINDOW|200}
+      min_interval_seconds: ${MOLA_IMU_MAP_GRAVITY_MIN_INTERVAL|1.0}
+
+  publish_reference_frame: "${MOLA_LO_PUBLISH_REF_FRAME|odom}"
+  publish_vehicle_frame: "${MOLA_LO_PUBLISH_VEHICLE_FRAME|base_link}"
+  publish_deskewed_scans: "${MOLA_LO_PUBLISH_DESKEWED_SCANS|false}"
+
+  # --- (1) local-map update frequency: pinned to DLIO's fixed thresholds ---
+  local_map_updates:
+    enabled: "${MOLA_MAPPING_ENABLED|true}"
+    load_existing_local_map: ${MOLA_LOAD_MM|""}
+    load_map_after_gui_init: ${MOLA_LO_LOAD_MAP_AFTER_GUI|false}
+    save_final_local_map: ${MOLA_SAVE_MM|""}
+
+    # DLIO's keyframe_thresh_dist / keyframe_thresh_rot defaults (fixed, not
+    # scaled by sensor range or angular velocity like the stock pipeline's
+    # formula):
+    min_translation_between_keyframes: "${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|1.0}" # [m]
+    min_rotation_between_keyframes: "${MOLA_MIN_ROT_BETWEEN_MAP_UPDATES|45.0}" # [deg]
+
+    # DLIO's closest-keyframe search is over its whole, unbounded keyframe
+    # history (no distance-based forgetting of old keyframes from that
+    # search) -- 0 disables this pruning to match.
+    max_distance_to_keep_keyframes: "${MOLA_LOCAL_MAP_MAX_SIZE|0}" # [m], 0=disabled
+    check_for_removal_every_n: 100
+    min_nearby_poses_occupied: ${MOLA_MIN_NEARBY_POSES_OCCUPIED|1}
+    publish_map_updates_every_n: ${MOLA_PUBLISH_LOCAL_MAP_UPDATES_EVERY_N|40}
+
+  min_icp_goodness: ${MOLA_MINIMUM_ICP_QUALITY|0.50}
+
+  write_debug_icp_log_if_quality_under: ${MOLA_WRITE_DEBUG_ICP_LOG_IF_QUALITY_UNDER|""}
+
+  adaptive_threshold:
+    enabled: true
+    initial_sigma: ${MOLA_SIGMA_INITIAL|0.50}
+    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.04}
+    maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|2.00}
+    max_sigma_step: ${MOLA_SIGMA_MAX_STEP|0.05}
+    icp_quality_controller_setpoint: ${MOLA_SIGMA_CONTROLLER_QUALITY_SETPOINT|0.85}
+    kp: ${MOLA_SIGMA_CONTROLLER_GAIN|2.0}
+    alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.90}
+    recover_on_sustained_failure: ${MOLA_ADAPT_THRESHOLD_RECOVER|true}
+    recover_after_n_bad: ${MOLA_ADAPT_THRESHOLD_RECOVER_AFTER_N_BAD|2}
+    recover_growth_factor: ${MOLA_ADAPT_THRESHOLD_RECOVER_GROWTH_FACTOR|2.0}
+
+  diagnostics:
+    icp_quality_warn: 0.30
+    icp_quality_error: 0.10
+    input_stale_sec: 3.0
+    input_error_sec: 5.0
+    dropped_ratio_warn: 0.20
+    dropped_ratio_error: 0.50
+    timing_utilization_warn: 0.80
+
+  simplemap:
+    generate: ${MOLA_GENERATE_SIMPLEMAP|false}
+    load_existing_simple_map: ${MOLA_LOAD_SM|""}
+    save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
+    min_translation_between_keyframes: "${MOLA_SIMPLEMAP_MIN_XYZ|(1.0e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_OBSERVATION_RADIUS}"
+    min_rotation_between_keyframes: "${MOLA_SIMPLEMAP_MIN_ROT|(15 + sqrt(wx^2+wy^2+wz^2)*5 )}"
+    generate_lazy_load_scan_files: ${MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD|false}
+    add_non_keyframes_too: ${MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES|false}
+    min_nearby_poses_occupied: ${MOLA_SIMPLEMAP_MIN_NEARBY_POSES|1}
+    nearby_keyframe_time_window: ${MOLA_SIMPLEMAP_KF_TIME_WINDOW|0}
+    save_gnss_max_age: 1.0
+    save_deskewed_scans: ${MOLA_SAVE_DESKEWED_SCANS|false}
+
+  estimated_trajectory:
+    save_to_file: ${MOLA_SAVE_TRAJECTORY|false}
+    output_file: ${MOLA_TUM_TRAJECTORY_OUTPUT|'estimated_trajectory.tum'}
+
+  visualization:
+    map_update_decimation: 10
+    show_trajectory: ${MOLA_GUI_SHOW_TRAJECTORY|true}
+    trajectory_rgba: [0.1, 0.1, 0.1, 1.0]
+    camera_follows_vehicle: ${MOLA_GUI_CAMERA_FOLLOWS_VEHICLE|true}
+    show_tab_status: ${MOLA_GUI_SHOW_TAB_STATUS|true}
+    show_tab_control: ${MOLA_GUI_SHOW_TAB_CONTROL|true}
+    show_tab_view: ${MOLA_GUI_SHOW_TAB_VIEW|true}
+    show_current_observation: ${MOLA_GUI_SHOW_CURRENT_OBS|false}
+    show_last_deskewed_observations_decay: ${MOLA_GUI_SHOW_DESKEWED_DECAY|true}
+    last_deskewed_observations_point_size: ${MOLA_GUI_LAST_CLOUDS_POINT_SIZE|1.0}
+    last_deskewed_observations_colormap: ${MOLA_GUI_LAST_CLOUDS_COLORMAP|cmJET}
+    last_deskewed_observations_color_by_field: ${MOLA_GUI_LAST_CLOUDS_COLOR_FIELD|intensity}
+    observations_initial_alpha: 0.10
+    observations_decay_seconds: ${MOLA_GUI_CLOUDS_DECAY_SECS|10.0}
+    current_observation_point_size: ${MOLA_GUI_CURRENT_CLOUD_POINT_SIZE|2.0}
+    current_observation_colormap: ${MOLA_GUI_CURRENT_CLOUD_COLORMAP|cmHOT}
+    current_observation_color_by_field: ${MOLA_GUI_CURRENT_CLOUD_COLOR_FIELD|intensity}
+    current_observation_alpha: 0.20
+    show_gravity_align_vector: ${MOLA_GUI_SHOW_ESTIMATED_GRAVITY_VECTOR|false}
+    background_color_gray_level: "${MOLA_GUI_BACKGROUND_GRAY_LEVEL|0.3}"
+    show_localmap: ${MOLA_GUI_SHOW_LOCAL_MAP|true}
+    local_map_point_size: 1
+    show_ground_grid: ${MOLA_GUI_SHOW_GROUND_GRID|true}
+    ground_grid_spacing: 5.0
+    show_current_pose_corner: ${MOLA_LO_SHOW_CURRENT_POSE_CORNER|true}
+    model:
+      - file: ${MOLA_VEHICLE_MODEL_FILE|""}
+        tf.x: ${MOLA_VEHICLE_MODEL_X|0.0}
+        tf.y: ${MOLA_VEHICLE_MODEL_Y|0.0}
+        tf.z: ${MOLA_VEHICLE_MODEL_Z|0.0}
+        tf.yaw: ${MOLA_VEHICLE_MODEL_YAW|0.0}
+        tf.pitch: ${MOLA_VEHICLE_MODEL_PITCH|0.0}
+        tf.roll: ${MOLA_VEHICLE_MODEL_ROLL|90.0}
+
+  pipeline_profiler_enabled: ${MOLA_PROFILER|true}
+  icp_profiler_enabled: ${MOLA_PROFILER|true}
+
+  start_active: "${MOLA_START_ACTIVE|true}"
+
+  min_motion_model_xyz_cov_inv: 1.0
+
+  debug_traces:
+    save_to_file: "${MOLA_SAVE_DEBUG_TRACES|false}"
+    output_file: "${MOLA_DEBUG_TRACES_FILE|mola-lo-traces.csv}"
+
+  observation_validity_checks:
+    enabled: "${MOLA_ENABLE_OBS_VALIDITY_FILTER|false}"
+    check_layer_name: "raw"
+    minimum_point_count: "${MOLA_OBS_VALIDITY_MIN_POINTS|1000}"
+
+initial_localization:
+  method: "${MOLA_LO_INITIAL_LOCALIZATION_METHOD|InitLocalization::FixedPose}"
+  fixed_initial_pose:
+    ["${MOLA_INITIAL_X|0.0}", "${MOLA_INITIAL_Y|0.0}", "${MOLA_INITIAL_Z|0.0}", "${MOLA_INITIAL_YAW|0.0}", "${MOLA_INITIAL_PITCH|0.0}", "${MOLA_INITIAL_ROLL|0.0}"]
+  imu_initial_calibration_sample_count: "${MOLA_LO_INITIAL_IMU_SAMPLES|400}"
+  imu_initial_calibration_max_age: 5.0
+  use_imu_orientation: "${MOLA_LO_INITIAL_IMU_USE_ORIENTATION|true}"
+  additional_map_freeze_after_reloc_how_many_timesteps: "${MOLA_LO_INIT_MAP_FREEZE_STEPS|0}"
+  from_state_estimator_max_position_sigma: "${MOLA_LO_INIT_SE_MAX_POS_SIGMA|0.5}"
+  from_state_estimator_max_orientation_sigma_deg: "${MOLA_LO_INIT_SE_MAX_ORI_SIGMA|3.0}"
+  from_state_estimator_timeout: "${MOLA_LO_INIT_SE_TIMEOUT|60.0}"
+
+icp_settings_with_vel:
+  class_name: mp2p_icp::ICP
+  params:
+    maxIterations: ${MOLA_MAX_ICP_ITERATIONS|25}
+    minAbsStep_trans: 1e-3
+    minAbsStep_rot: 1e-4
+    saveIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS|false}
+    decimationIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS_DECIMATION|3}
+    debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
+    decimationDebugFiles: ${MP2P_ICP_LOG_FILES_DECIMATION|10}
+    covariance:
+      method: ${MOLA_ICP_COVARIANCE_METHOD|Censi3D}
+      defaultPointSigma: ${MOLA_ICP_COV_DEFAULT_POINT_SIGMA|0.01}
+      floor_sigma_xyz: ${MOLA_ICP_COV_FLOOR_XYZ|0.001}
+      floor_sigma_angles_deg: ${MOLA_ICP_COV_FLOOR_ANGLES_DEG|0.1}
+
+  solvers:
+    - class: mp2p_icp::Solver_GaussNewton
+      params:
+        maxIterations: 1
+        robustKernel: "${MOLA_LO_ROBUST_KERNEL|RobustKernel::GemanMcClure}"
+        robustKernelParam: "${MOLA_LO_ROBUST_KERNEL_PARAM|6.0}"
+        robustKernelPriorRefBlend: "${MOLA_LO_ROBUST_KERNEL_PRIOR_REF_BLEND|0.0}"
+
+  matchers:
+    - class: mp2p_icp::Matcher_Cov2Cov
+      params:
+        threshold: "2.0*ADAPTIVE_THRESHOLD_SIGMA"
+        pairingsPerPoint: 1
+        allowMatchAlreadyMatchedGlobalPoints: true
+        layerMatches:
+          - { global: "${MOLA_LOCALMAP_LAYER_NAME|localmap}", local: "observation" }
+
+  quality:
+    - class: mp2p_icp::QualityEvaluator_PairedRatio
+      params: ~
+
+# --- (3) local-map data structure: IncrementalPointCloud, DLIO's closer analogue ---
+localmap_generator:
+  - class_name: mp2p_icp_filters::Generator
+    params:
+      target_layer: "${MOLA_LOCALMAP_LAYER_NAME|localmap}"
+      throw_on_unhandled_observation_class: true
+      process_class_names_regex: ""
+
+      metric_map_definition:
+        class: ${MOLA_LOCALMAP_CLASS|mola::IncrementalPointCloud}
+        plugin: "libmola_metric_maps.so"
+        creationOpts:
+          k_correspondences_for_cov: ${MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV|20}
+          min_correspondences_for_cov: ${MOLA_LOCALMAP_MIN_CORRESPONDENCES_FOR_COV|5}
+          max_distance_for_cov: ${MOLA_LOCALMAP_MAX_DISTANCE_FOR_COV|2.0}
+          remove_points_farther_than: "${MOLA_INCREMENTAL_MAP_MAX_SIZE|$f{max(25.0, 0.5*ESTIMATED_OBSERVATION_RADIUS)}}"
+          async_rebuild: ${MOLA_INCREMENTAL_MAP_ASYNC_REBUILD|true}
+          alpha_balance: ${MOLA_INCREMENTAL_MAP_ALPHA_BALANCE|0.75}
+          alpha_deleted: ${MOLA_INCREMENTAL_MAP_ALPHA_DELETED|0.5}
+          reserve_points: ${MOLA_INCREMENTAL_MAP_RESERVE_POINTS|2000000}
+          max_search_keyframes: ${MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES|3}
+          use_view_direction_filter: ${MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER|true}
+          max_view_angle_deg: ${MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG|120}
+          rotation_distance_weight: 2.0
+          num_diverse_keyframes: ${MOLA_LOCALMAP_DIVERSE_KEYFRAMES|1}
+          approximate_cov: ${MOLA_LOCALMAP_APPROXIMATE_COV|false}
+        insertOpts:
+          remove_frames_farther_than: "${MOLA_LOCAL_MAP_MAX_SIZE|max(100.0, 1.50*ESTIMATED_OBSERVATION_RADIUS)}"
+        likelihoodOpts: ~
+        renderOpts:
+          color.A: 0.25
+          colormap: "cmHOT"
+          recolorByPointField: ${MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE|intensity}
+          max_points_per_kf: ${MOLA_LOCALMAP_VIZ_MAX_POINTS_PER_KF|10000}
+          max_overall_points: ${MOLA_LOCALMAP_VIZ_MAX_POINTS_OVERALL|500000}
+
+observations_generator:
+  - class_name: mp2p_icp_filters::Generator
+    params:
+      name: "Generator (raw)"
+      target_layer: "raw"
+      throw_on_unhandled_observation_class: true
+      process_class_names_regex: ".*"
+      process_sensor_labels_regex: ".*"
+
+  - class_name: mp2p_icp_filters::Generator
+    params:
+      name: "Generator (obs)"
+      target_layer: "observation"
+      throw_on_unhandled_observation_class: true
+      process_class_names_regex: ""
+
+      metric_map_definition:
+        class: ${MOLA_LOCALMAP_CLASS|mola::IncrementalPointCloud}
+        plugin: "libmola_metric_maps.so"
+        creationOpts: ~
+        insertOpts: ~
+        likelihoodOpts: ~
+        renderOpts: ~
+
+observations_filter_adjust_timestamps:
+  - class_name: mp2p_icp_filters::FilterAdjustTimestamps
+    params:
+      pointcloud_layer: "raw"
+      silently_ignore_no_timestamps: true
+      time_offset: "SENSOR_TIME_OFFSET"
+      method: "${MOLA_SCAN_POINT_STAMPS_ADJUST_METHOD|TimestampAdjustMethod::MiddleIsZero}"
+
+observations_prefilter_file: ${MOLA_LO_OBS_PREFILTER_PIPELINE_FILE|""}
+
+observations_deskew_pass:
+  - class_name: mp2p_icp_filters::FilterByRange
+    params:
+      input_pointcloud_layer: "raw"
+      output_layer_between: "raw_range_filtered"
+      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
+      range_max: "${MOLA_MAXIMUM_RANGE_FILTER|1.2*ESTIMATED_OBSERVATION_RADIUS}"
+      metric_l_infinity: true
+
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      name: "FilterDeskew (early)"
+      input_pointcloud_layer: "raw_range_filtered"
+      output_pointcloud_layer: "deskewed"
+      method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
+      ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|false}"
+      silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true}
+      output_layer_class: "mrpt::maps::CGenericPointsMap"
+      twist: [vx, vy, vz, wx, wy, wz]
+
+  - class_name: mp2p_icp_filters::FilterDeleteLayer
+    params:
+      pointcloud_layer_to_remove: ["raw_range_filtered"]
+
+# --- (2) REVERTED to MOLA-LO's stock two-stage cascade (this is the ablated
+# axis): a coarser pass for the map, then a further, finer, count-capped pass
+# for ICP -- exactly `lidar3d-default.yaml`'s own two stages. ---
+observations_filter_1st_pass:
+  - class_name: mp2p_icp_filters::FilterDecimateAdaptive
+    params:
+      name: "FilterDecimateAdaptive (map)"
+      input_pointcloud_layer: "deskewed"
+      output_pointcloud_layer: "decimated_for_map"
+      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.15}" # [m]
+      desired_output_point_count: "${MOLA_DECIMATED_POINTS_MAP|10000}"
+      parallelization_grain_size: 8000
+
+  - class_name: mp2p_icp_filters::FilterDecimateAdaptive
+    params:
+      name: "FilterDecimateAdaptive (icp)"
+      input_pointcloud_layer: "decimated_for_map"
+      output_pointcloud_layer: "decimated_for_icp"
+      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.10}" # [m]
+      desired_output_point_count: "${MOLA_DECIMATED_POINTS_ICP|3000}"
+      parallelization_grain_size: 8000
+
+observations_filter_2nd_pass:
+  - class_name: mp2p_icp_filters::FilterMerge
+    params:
+      name: "FilterMerge (icp into obs)"
+      input_pointcloud_layer: "decimated_for_icp"
+      target_layer: "observation"
+
+observations_filter_final_pass:
+  - class_name: mp2p_icp_filters::FilterDeleteLayer
+    params:
+      pointcloud_layer_to_remove: ["raw", "deskewed"]
+
+insert_observation_into_local_map:
+  - class_name: mp2p_icp_filters::FilterMerge
+    params:
+      name: "FilterMerge (map into localmap)"
+      input_pointcloud_layer: "decimated_for_map"
+      target_layer: "${MOLA_LOCALMAP_LAYER_NAME|localmap}"
+      input_layer_in_local_coordinates: true
+      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
+
+observations_filter_deskew_for_visualization:
+  - class_name: mp2p_icp_filters::FilterByRange
+    params:
+      input_pointcloud_layer: "raw"
+      output_layer_between: "raw_filtered"
+      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
+      range_max: 1.2*ESTIMATED_OBSERVATION_RADIUS
+      metric_l_infinity: true
+
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      name: "FilterDeskew (viz)"
+      input_pointcloud_layer: "raw_filtered"
+      output_pointcloud_layer: "viz"
+      method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
+      ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|false}"
+      silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true}
+      output_layer_class: "mrpt::maps::CGenericPointsMap"
+      twist: [vx, vy, vz, wx, wy, wz]
+
+  - class_name: mp2p_icp_filters::FilterDeleteLayer
+    params:
+      pointcloud_layer_to_remove: ["raw", "raw_filtered"]
