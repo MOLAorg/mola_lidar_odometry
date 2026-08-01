@@ -71,6 +71,10 @@
 #include <mola_input_rosbag2/Rosbag2Dataset.h>
 #endif
 
+#if defined(HAVE_MOLA_INPUT_ROSBAG1)
+#include <mola_input_rosbag1/Rosbag1Dataset.h>
+#endif
+
 #if defined(HAVE_MOLA_INPUT_PARIS_LUCO)
 #include <mola_input_paris_luco_dataset/ParisLucoDataset.h>
 #endif
@@ -231,6 +235,13 @@ struct Cli
     cmd};
 #endif
 
+#if defined(HAVE_MOLA_INPUT_ROSBAG1)
+  TCLAP::ValueArg<std::string> argRosbag1{
+    "",    "input-rosbag1", "INPUT DATASET: rosbag1. Input dataset in ROS 1 bag format {*.bag}",
+    false, "dataset.bag",   "dataset.bag",
+    cmd};
+#endif
+
 #if defined(HAVE_MOLA_INPUT_KITTI)
   TCLAP::ValueArg<std::string> argKittiSeq{
     "",
@@ -378,6 +389,67 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
     bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(), cli.arg_tfTopic.getValue().c_str(),
     cli.arg_tfStaticTopic.getValue().c_str(), cli.arg_lidarLabel.getValue().c_str(),
     cli.arg_imuLabel.getValue().c_str())));
+
+  o->initialize(cfg);
+
+  return o;
+}
+#endif
+
+#if defined(HAVE_MOLA_INPUT_ROSBAG1)
+std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
+  Cli & cli, const std::string & rosbag1file, const mrpt::system::VerbosityLevel logLevel)
+{
+  ASSERTMSG_(
+    cli.arg_lidarLabel.isSet(),
+    "Using a rosbag1 as input requires telling what is the lidar topic "
+    "with --lidar-sensor-label <TOPIC_NAME>");
+
+  auto o = std::make_shared<mola::Rosbag1Dataset>();
+
+  // A comma-separated value becomes a YAML sequence, so a recording split
+  // across several bag files is replayed as the single sequence it is.
+  // Rosbag1Dataset accepts a scalar or a sequence.
+  std::string bagsYaml;
+  {
+    std::vector<std::string> parts;
+    mrpt::system::tokenize(rosbag1file, ",", parts);
+    ASSERT_(!parts.empty());
+    if (parts.size() == 1) {
+      bagsYaml = "'" + mrpt::system::trim(parts[0]) + "'";
+    } else {
+      for (const auto & bp : parts) {
+        bagsYaml += "\n        - '" + mrpt::system::trim(bp) + "'";
+      }
+    }
+  }
+  o->setMinLoggingLevel(logLevel);
+
+  // Note: /tf and /tf_static topic names are fixed in Rosbag1Dataset.
+  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+    R""""(
+    params:
+      rosbag_filename: %s
+      base_link_frame_id: '%s'
+      sensors:
+        - topic: '%s'
+          type: CObservationPointCloud
+          # If present, this will override whatever /tf tells about the sensor pose:
+          fixed_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
+        - topic: ${MOLA_GNSS_TOPIC|'/gps'}
+          sensorLabel: 'gps'
+          is_optional: true
+          fixed_sensor_pose: "${GPS_POSE_X|0} ${GPS_POSE_Y|0} ${GPS_POSE_Z|0} ${GPS_POSE_YAW|0} ${GPS_POSE_PITCH|0} ${GPS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
+        - topic: '%s'
+          type: CObservationIMU
+          # If present, this will override whatever /tf tells about the sensor pose:
+          fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
+)"""",
+    bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(),
+    cli.arg_lidarLabel.getValue().c_str(), cli.arg_imuLabel.getValue().c_str())));
 
   o->initialize(cfg);
 
@@ -631,6 +703,11 @@ int main_odometry(Cli & cli)
 #if defined(HAVE_MOLA_INPUT_ROSBAG2)
     if (cli.argRosbag2.isSet()) {
     dataset = dataset_from_rosbag2(cli, cli.argRosbag2.getValue(), logLevel);
+  } else
+#endif
+#if defined(HAVE_MOLA_INPUT_ROSBAG1)
+    if (cli.argRosbag1.isSet()) {
+    dataset = dataset_from_rosbag1(cli, cli.argRosbag1.getValue(), logLevel);
   } else
 #endif
 #if defined(HAVE_MOLA_INPUT_PARIS_LUCO)

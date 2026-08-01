@@ -32,6 +32,14 @@
   <depend>mola_input_rosbag2</depend>
   <depend>mola_input_paris_luco_dataset</depend>
 
+  <!-- mola_input_rosbag1 is genuinely optional (unlike the ones above, not yet
+       released as a binary package on every ROS distro/channel combination),
+       so it is deliberately NOT declared as a dependency here: rosdep would
+       fail to resolve it on channels where it is absent, breaking CI/install
+       for everyone else. CMake still picks it up automatically if present in
+       the workspace or underlay (see CMakeLists.txt: find_package(mola_input_rosbag1)
+       is optional). Install it manually to enable the CLI's rosbag1 input. -->
+
   <doc_depend>doxygen</doc_depend>
 
   <!-- Entries to make ROS 2 to discover this as a proper package -->
