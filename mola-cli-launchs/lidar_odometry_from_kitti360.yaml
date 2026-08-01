@@ -10,6 +10,7 @@ modules:
   # =====================
   - name: viz
     type: ${MOLA_GUI_MODULE|mola::MolaVizImGui}
+    enabled: ${MOLA_WITH_GUI|true}
     verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
     params:
       imgui_app_name: lidar_odometry_from_kitti360
