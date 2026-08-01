@@ -448,8 +448,8 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
 )"""",
-    bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(), cli.arg_lidarLabel.getValue().c_str(),
-    cli.arg_imuLabel.getValue().c_str())));
+    bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(),
+    cli.arg_lidarLabel.getValue().c_str(), cli.arg_imuLabel.getValue().c_str())));
 
   o->initialize(cfg);
 
