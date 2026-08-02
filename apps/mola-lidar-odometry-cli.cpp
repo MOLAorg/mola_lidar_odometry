@@ -154,6 +154,8 @@ struct Cli
 
   Cli()
   {
+    cmd.set_version_flag("--version", std::string(MOLA_LO_VERSION));
+
     argYAML.opt =
       cmd
         .add_option(
@@ -164,45 +166,56 @@ struct Cli
       "-v,--verbosity", arg_verbosity_level.value,
       "Verbosity level: ERROR|WARN|INFO|DEBUG {Default: INFO}");
 
-    arg_plugins.value = "foobar.so";
-    arg_plugins.opt = cmd.add_option(
-      "-l,--load-plugins", arg_plugins.value,
-      "One or more {comma separated} *.so files to load as plugins");
+    arg_plugins.opt = cmd
+                        .add_option(
+                          "-l,--load-plugins", arg_plugins.value,
+                          "One or more {comma separated} *.so files to load as plugins")
+                        ->option_text("foobar.so");
 
-    arg_stateEstimatorClass.value = "(StateEstimationSimple|StateEstimationSmoother)";
-    arg_stateEstimatorClass.opt = cmd.add_option(
-      "--state-estimator", arg_stateEstimatorClass.value,
-      "The C++ class name of the state estimator to use");
+    arg_stateEstimatorClass.opt =
+      cmd
+        .add_option(
+          "--state-estimator", arg_stateEstimatorClass.value,
+          "The C++ class name of the state estimator to use")
+        ->option_text("(StateEstimationSimple|StateEstimationSmoother)");
 
-    arg_stateEstimatorParams.value = "/path/to/params.yaml";
     arg_stateEstimatorParams.opt =
       cmd
         .add_option(
           "--state-estimator-param-file", arg_stateEstimatorParams.value,
           "Path to YAML parameters file to configure the state estimator.")
+        ->option_text("/path/to/params.yaml")
         ->required();
 
-    arg_outPath.value = "output-trajectory.txt";
-    arg_outPath.opt = cmd.add_option(
-      "--output-tum-path", arg_outPath.value,
-      "Save the estimated path as a TXT file using the TUM file format {see evo "
-      "docs}");
+    arg_outPath.opt = cmd
+                        .add_option(
+                          "--output-tum-path", arg_outPath.value,
+                          "Save the estimated path as a TXT file using the TUM file format {see "
+                          "evo docs}")
+                        ->option_text("output-trajectory.txt");
 
-    arg_outTwist.value = "output-twist.txt";
-    arg_outTwist.opt = cmd.add_option(
-      "--output-twist", arg_outTwist.value, "Save the estimated twist as a TXT file");
+    arg_outTwist.opt =
+      cmd
+        .add_option("--output-twist", arg_outTwist.value, "Save the estimated twist as a TXT file")
+        ->option_text("output-twist.txt");
 
-    arg_outSimpleMap.value = "output-map.simplemap";
-    arg_outSimpleMap.opt = cmd.add_option(
-      "--output-simplemap", arg_outSimpleMap.value,
-      "Enables building and saving the simplemap for the mapping session");
+    arg_outSimpleMap.opt = cmd
+                             .add_option(
+                               "--output-simplemap", arg_outSimpleMap.value,
+                               "Enables building and saving the simplemap for the mapping session")
+                             ->option_text("output-map.simplemap");
 
-    arg_firstN.opt = cmd.add_option(
-      "--only-first-n", arg_firstN.value, "Run for the first N steps only {0=default, not used}");
+    arg_firstN.opt = cmd
+                       .add_option(
+                         "--only-first-n", arg_firstN.value,
+                         "Run for the first N steps only {0=default, not used}")
+                       ->check(CLI::NonNegativeNumber);
 
-    arg_skipFirstN.opt = cmd.add_option(
-      "--skip-first-n", arg_skipFirstN.value,
-      "Skip the first N dataset entries {0=default, not used}");
+    arg_skipFirstN.opt = cmd
+                           .add_option(
+                             "--skip-first-n", arg_skipFirstN.value,
+                             "Skip the first N dataset entries {0=default, not used}")
+                           ->check(CLI::NonNegativeNumber);
 
     arg_lidarLabel.value = "lidar1";
     arg_lidarLabel.opt = cmd.add_option(
@@ -219,76 +232,96 @@ struct Cli
       "read IMU data from. It can be a regular expression {std::regex}");
 
     arg_baseLinkName.value = "base_link";
-    arg_baseLinkName.opt = cmd.add_option(
-      "--base-link-frame-id", arg_baseLinkName.value,
-      "Only for rosbag input sources. This defines the /tf frame_id used as "
-      "reference frame for the vehicle or robot. It is used to get sensors poses with respect to "
-      "the vehicle from /tf data.");
+    arg_baseLinkName.opt =
+      cmd
+        .add_option(
+          "--base-link-frame-id", arg_baseLinkName.value,
+          "Only for rosbag input sources. This defines the /tf frame_id used as "
+          "reference frame for the vehicle or robot. It is used to get sensors poses with "
+          "respect to the vehicle from /tf data.")
+        ->capture_default_str();
 
     arg_tfTopic.value = "/tf";
-    arg_tfTopic.opt = cmd.add_option(
-      "--tf-topic", arg_tfTopic.value,
-      "Only for rosbag2 input: /tf topic name in the bag. Override for namespaced bags "
-      "(e.g. '/robot1/tf').");
+    arg_tfTopic.opt =
+      cmd
+        .add_option(
+          "--tf-topic", arg_tfTopic.value,
+          "Only for rosbag2 input: /tf topic name in the bag. Override for namespaced bags "
+          "(e.g. '/robot1/tf').")
+        ->capture_default_str();
 
     arg_tfStaticTopic.value = "/tf_static";
-    arg_tfStaticTopic.opt = cmd.add_option(
-      "--tf-static-topic", arg_tfStaticTopic.value,
-      "Only for rosbag2 input: /tf_static topic name in the bag. Override for namespaced bags "
-      "(e.g. '/robot1/tf_static').");
+    arg_tfStaticTopic.opt =
+      cmd
+        .add_option(
+          "--tf-static-topic", arg_tfStaticTopic.value,
+          "Only for rosbag2 input: /tf_static topic name in the bag. Override for namespaced "
+          "bags (e.g. '/robot1/tf_static').")
+        ->capture_default_str();
 
     arg_progressBarPeriod.value = -1.0;
-    arg_progressBarPeriod.opt = cmd.add_option(
-      "--progress-bar-period", arg_progressBarPeriod.value,
-      "Minimum percentage step, in [0,100], between progress bar printouts. Use 0 to disable "
-      "the progress bar entirely. Handy to cut down log verbosity in batch/CI runs (e.g. "
-      "Jenkins). {Default: print on (almost) every processed entry}");
+    arg_progressBarPeriod.opt =
+      cmd
+        .add_option(
+          "--progress-bar-period", arg_progressBarPeriod.value,
+          "Minimum percentage step, in [0,100], between progress bar printouts. Use 0 to "
+          "disable the progress bar entirely. Handy to cut down log verbosity in batch/CI runs "
+          "(e.g. Jenkins). {Default: print on (almost) every processed entry}")
+        ->check(CLI::Range(0.0, 100.0));
 
 #if defined(HAVE_MOLA_INPUT_RAWLOG)
-    argRawlog.value = "dataset.rawlog";
-    argRawlog.opt = cmd.add_option(
-      "--input-rawlog", argRawlog.value,
-      "INPUT DATASET: rawlog. Input dataset in rawlog format {*.rawlog}");
+    argRawlog.opt = cmd
+                      .add_option(
+                        "--input-rawlog", argRawlog.value,
+                        "INPUT DATASET: rawlog. Input dataset in rawlog format {*.rawlog}")
+                      ->option_text("dataset.rawlog");
 #endif
 
 #if defined(HAVE_MOLA_INPUT_ROSBAG2)
-    argRosbag2.value = "dataset.mcap";
-    argRosbag2.opt = cmd.add_option(
-      "--input-rosbag2", argRosbag2.value,
-      "INPUT DATASET: rosbag2. Input dataset in rosbag2 format {*.mcap}");
+    argRosbag2.opt = cmd
+                       .add_option(
+                         "--input-rosbag2", argRosbag2.value,
+                         "INPUT DATASET: rosbag2. Input dataset in rosbag2 format {*.mcap}")
+                       ->option_text("dataset.mcap");
 #endif
 
 #if defined(HAVE_MOLA_INPUT_ROSBAG1)
-    argRosbag1.value = "dataset.bag";
-    argRosbag1.opt = cmd.add_option(
-      "--input-rosbag1", argRosbag1.value,
-      "INPUT DATASET: rosbag1. Input dataset in ROS 1 bag format {*.bag}");
+    argRosbag1.opt = cmd
+                       .add_option(
+                         "--input-rosbag1", argRosbag1.value,
+                         "INPUT DATASET: rosbag1. Input dataset in ROS 1 bag format {*.bag}")
+                       ->option_text("dataset.bag");
 #endif
 
 #if defined(HAVE_MOLA_INPUT_KITTI)
-    argKittiSeq.value = "00";
-    argKittiSeq.opt = cmd.add_option(
-      "--input-kitti-seq", argKittiSeq.value,
-      "INPUT DATASET: Use KITTI dataset sequence number 00|01|...");
+    argKittiSeq.opt = cmd
+                        .add_option(
+                          "--input-kitti-seq", argKittiSeq.value,
+                          "INPUT DATASET: Use KITTI dataset sequence number 00|01|...")
+                        ->option_text("00");
 
-    argKittiAngleDeg.value = 0.205;
-    argKittiAngleDeg.opt = cmd.add_option(
-      "--kitti-correction-angle-deg", argKittiAngleDeg.value,
-      "Correction vertical angle offset {see Deschaud,2018}");
+    argKittiAngleDeg.opt = cmd
+                             .add_option(
+                               "--kitti-correction-angle-deg", argKittiAngleDeg.value,
+                               "Correction vertical angle offset {see Deschaud,2018}")
+                             ->option_text("0.205 [degrees]");
 #endif
 
 #if defined(HAVE_MOLA_INPUT_KITTI360)
-    argKitti360Seq.value = "00";
-    argKitti360Seq.opt = cmd.add_option(
-      "--input-kitti360-seq", argKitti360Seq.value,
-      "INPUT DATASET: Use KITTI360 dataset sequence number 00|01|...|test_00|...");
+    argKitti360Seq.opt =
+      cmd
+        .add_option(
+          "--input-kitti360-seq", argKitti360Seq.value,
+          "INPUT DATASET: Use KITTI360 dataset sequence number 00|01|...|test_00|...")
+        ->option_text("00");
 #endif
 
 #if defined(HAVE_MOLA_INPUT_MULRAN)
-    argMulranSeq.value = "KAIST01";
-    argMulranSeq.opt = cmd.add_option(
-      "--input-mulran-seq", argMulranSeq.value,
-      "INPUT DATASET: Use Mulran dataset sequence KAIST01|KAIST01|...");
+    argMulranSeq.opt = cmd
+                         .add_option(
+                           "--input-mulran-seq", argMulranSeq.value,
+                           "INPUT DATASET: Use Mulran dataset sequence KAIST01|KAIST01|...")
+                         ->option_text("KAIST01");
 #endif
 
 #if defined(HAVE_MOLA_INPUT_PARIS_LUCO)
@@ -775,11 +808,14 @@ int main_odometry(Cli & cli)
   // (useful to cut down log spam in batch/CI runs, e.g. Jenkins).
   const bool progressBarDisabled =
     cli.arg_progressBarPeriod.isSet() && cli.arg_progressBarPeriod.getValue() <= 0;
+  // Throttled mode targets batch/CI logs (the point of --progress-bar-period), where
+  // in-place VT100 cursor updates don't render sensibly, so each printout gets its own line.
+  const bool progressBarThrottled = !progressBarDisabled && cli.arg_progressBarPeriod.isSet();
   const double progressBarPeriodFraction =
     cli.arg_progressBarPeriod.isSet() ? cli.arg_progressBarPeriod.getValue() / 100.0 : 0;
   double lastProgressBarPrintedFraction = -1.0;
 
-  if (!progressBarDisabled) {
+  if (!progressBarDisabled && !progressBarThrottled) {
     std::cout << "\n";  // Needed for the VT100 codes below.
   }
 
@@ -833,7 +869,6 @@ int main_odometry(Cli & cli)
     liodom->onNewObservation(obs);
 
     // Show stats:
-    static int cnt = 0;
     const size_t N = (dataset->datasetSize() - 1);
     const double pc = static_cast<double>(i) / static_cast<double>(N);
 
@@ -841,7 +876,7 @@ int main_odometry(Cli & cli)
     bool doPrintProgress = false;
     if (progressBarDisabled) {
       doPrintProgress = false;
-    } else if (cli.arg_progressBarPeriod.isSet()) {
+    } else if (progressBarThrottled) {
       // Reduced-verbosity mode: print only every `progressBarPeriodFraction`.
       if (
         lastProgressBarPrintedFraction < 0 ||
@@ -851,10 +886,7 @@ int main_odometry(Cli & cli)
       }
     } else {
       // Legacy default: print on (almost) every processed entry.
-      doPrintProgress = (cnt++ % 100 == 0);
-      if (doPrintProgress) {
-        cnt = 0;
-      }
+      doPrintProgress = true;
     }
 
     if (doPrintProgress) {
@@ -862,11 +894,13 @@ int main_odometry(Cli & cli)
       const double ETA = pc > 0 ? (tNow - tStart) * (1.0 / pc - 1) : .0;
       const double totalTime = ETA + (tNow - tStart);
 
-      // VT100 codes: cursor up and clear line
-      if (!has_emitted_log()) {
-        std::cout << "\033[A\33[2KT\r";
+      if (!progressBarThrottled) {
+        // VT100 codes: cursor up and clear line, for an in-place update.
+        if (!has_emitted_log()) {
+          std::cout << "\033[A\33[2KT\r";
+        }
+        unmark_emitted_log();
       }
-      unmark_emitted_log();
 
       std::optional<mrpt::poses::CPose3D> lastPose;
       if (const auto optPoseAndTwist = liodom->lastEstimatedState(); optPoseAndTwist) {

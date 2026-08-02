@@ -117,6 +117,8 @@ mola_add_executable(
   mrpt::maps
   CLI11::CLI11
 )
+target_compile_definitions(mola-lidar-odometry-cli PRIVATE MOLA_LO_VERSION=\"${MY_VERSION}\")
+
 if(mola_state_estimation_simple_FOUND)
   message(STATUS "mola-lidar-odometry-cli: With mola_state_estimation_simple = YES")
   target_link_libraries(mola-lidar-odometry-cli mola::mola_state_estimation_simple)
