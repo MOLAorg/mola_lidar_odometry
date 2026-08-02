@@ -21,7 +21,7 @@
   <depend>mp2p_icp</depend>
   <depend>mola_pose_list</depend>
 
-  <depend>mrpt_libtclap</depend>
+  <depend>cli11</depend>
   <depend>mrpt_libmaps</depend>
 
   <!-- dataset input sources (all are actually optional) -->
