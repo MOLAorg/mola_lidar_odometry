@@ -22,7 +22,7 @@ find_package(mola_common REQUIRED)
 
 # find dependencies:
 find_package(mrpt-maps REQUIRED)
-find_package(mrpt-tclap REQUIRED)
+find_package(CLI11 REQUIRED)
 find_package(mola_kernel REQUIRED)
 find_package(mola_yaml REQUIRED)
 find_package(mp2p_icp REQUIRED)
@@ -115,7 +115,7 @@ mola_add_executable(
   LINK_LIBRARIES
   ${PROJECT_NAME}
   mrpt::maps
-  mrpt::tclap
+  CLI11::CLI11
 )
 if(mola_state_estimation_simple_FOUND)
   message(STATUS "mola-lidar-odometry-cli: With mola_state_estimation_simple = YES")
