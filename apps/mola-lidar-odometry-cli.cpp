@@ -219,6 +219,17 @@ struct Cli
     "/tf_static",
     cmd};
 
+  TCLAP::ValueArg<double> arg_progressBarPeriod{
+    "",
+    "progress-bar-period",
+    "Minimum percentage step, in [0,100], between progress bar printouts. Use 0 to disable "
+    "the progress bar entirely. Handy to cut down log verbosity in batch/CI runs (e.g. "
+    "Jenkins). {Default: print on (almost) every processed entry}",
+    false,
+    -1.0,
+    "10.0 [%]",
+    cmd};
+
 // Input dataset can come from one of these:
 // --------------------------------------------
 #if defined(HAVE_MOLA_INPUT_RAWLOG)
@@ -757,7 +768,18 @@ int main_odometry(Cli & cli)
 
   mrpt::keep_min(lastDatasetEntry, dataset->datasetSize());
 
-  std::cout << "\n";  // Needed for the VT100 codes below.
+  // Progress bar verbosity: unset => print on (almost) every entry (legacy
+  // behavior); 0 => fully disabled; >0 => only every that many percent
+  // (useful to cut down log spam in batch/CI runs, e.g. Jenkins).
+  const bool progressBarDisabled =
+    cli.arg_progressBarPeriod.isSet() && cli.arg_progressBarPeriod.getValue() <= 0;
+  const double progressBarPeriodFraction =
+    cli.arg_progressBarPeriod.isSet() ? cli.arg_progressBarPeriod.getValue() / 100.0 : 0;
+  double lastProgressBarPrintedFraction = -1.0;
+
+  if (!progressBarDisabled) {
+    std::cout << "\n";  // Needed for the VT100 codes below.
+  }
 
   // Run:
   for (size_t i = firstDatasetEntry; i < lastDatasetEntry; i++) {
@@ -810,11 +832,30 @@ int main_odometry(Cli & cli)
 
     // Show stats:
     static int cnt = 0;
-    if (cnt++ % 100 == 0) {
-      cnt = 0;
-      const size_t N = (dataset->datasetSize() - 1);
-      const double pc = static_cast<double>(i) / static_cast<double>(N);
+    const size_t N = (dataset->datasetSize() - 1);
+    const double pc = static_cast<double>(i) / static_cast<double>(N);
 
+    const bool isLastEntry = (i + 1 == lastDatasetEntry);
+    bool doPrintProgress = false;
+    if (progressBarDisabled) {
+      doPrintProgress = false;
+    } else if (cli.arg_progressBarPeriod.isSet()) {
+      // Reduced-verbosity mode: print only every `progressBarPeriodFraction`.
+      if (
+        lastProgressBarPrintedFraction < 0 ||
+        pc - lastProgressBarPrintedFraction >= progressBarPeriodFraction || isLastEntry) {
+        doPrintProgress = true;
+        lastProgressBarPrintedFraction = pc;
+      }
+    } else {
+      // Legacy default: print on (almost) every processed entry.
+      doPrintProgress = (cnt++ % 100 == 0);
+      if (doPrintProgress) {
+        cnt = 0;
+      }
+    }
+
+    if (doPrintProgress) {
       const double tNow = mrpt::Clock::nowDouble();
       const double ETA = pc > 0 ? (tNow - tStart) * (1.0 / pc - 1) : .0;
       const double totalTime = ETA + (tNow - tStart);
