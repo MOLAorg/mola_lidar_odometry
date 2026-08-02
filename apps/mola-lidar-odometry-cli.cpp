@@ -179,12 +179,14 @@ struct Cli
           "The C++ class name of the state estimator to use")
         ->option_text("(StateEstimationSimple|StateEstimationSmoother)");
 
+    // No option_text() here: CLI11 only shows the REQUIRED marker in --help
+    // when the type name is auto-generated (as --config does), not when
+    // option_text() overrides it.
     arg_stateEstimatorParams.opt =
       cmd
         .add_option(
           "--state-estimator-param-file", arg_stateEstimatorParams.value,
           "Path to YAML parameters file to configure the state estimator.")
-        ->option_text("/path/to/params.yaml")
         ->required();
 
     arg_outPath.opt = cmd
@@ -225,11 +227,13 @@ struct Cli
       "read LIDAR data from. It can be a regular expression {std::regex}");
 
     arg_imuLabel.value = "imu";
-    arg_imuLabel.opt = cmd.add_option(
-      "--imu-sensor-label", arg_imuLabel.value,
-      "If provided, this supersedes the values in the 'imu_sensor_label' "
-      "entry of the odometry pipeline, defining the sensorLabel/topic name to "
-      "read IMU data from. It can be a regular expression {std::regex}");
+    arg_imuLabel.opt = cmd
+                         .add_option(
+                           "--imu-sensor-label", arg_imuLabel.value,
+                           "If provided, this supersedes the values in the 'imu_sensor_label' "
+                           "entry of the odometry pipeline, defining the sensorLabel/topic name to "
+                           "read IMU data from. It can be a regular expression {std::regex}")
+                         ->capture_default_str();
 
     arg_baseLinkName.value = "base_link";
     arg_baseLinkName.opt =
@@ -320,7 +324,7 @@ struct Cli
     argMulranSeq.opt = cmd
                          .add_option(
                            "--input-mulran-seq", argMulranSeq.value,
-                           "INPUT DATASET: Use Mulran dataset sequence KAIST01|KAIST01|...")
+                           "INPUT DATASET: Use Mulran dataset sequence KAIST01|KAIST02|...")
                          ->option_text("KAIST01");
 #endif
 

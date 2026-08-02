@@ -445,7 +445,7 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
                                       One or more {comma separated} *.so files to load as plugins
                   --state-estimator (StateEstimationSimple|StateEstimationSmoother)
                                       The C++ class name of the state estimator to use
-                  --state-estimator-param-file /path/to/params.yaml
+                  --state-estimator-param-file TEXT REQUIRED
                                       Path to YAML parameters file to configure the state estimator.
                   --output-tum-path output-trajectory.txt
                                       Save the estimated path as a TXT file using the TUM file format
@@ -463,7 +463,7 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
                                       'lidar_sensor_labels' entry of the odometry pipeline, defining
                                       the sensorLabel/topic name to read LIDAR data from. It can be a
                                       regular expression {std::regex}
-                  --imu-sensor-label TEXT
+                  --imu-sensor-label TEXT [imu]
                                       If provided, this supersedes the values in the 'imu_sensor_label'
                                       entry of the odometry pipeline, defining the sensorLabel/topic
                                       name to read IMU data from. It can be a regular expression
@@ -497,7 +497,7 @@ Then, set the ``KITTI_BASE_DIR`` environment variable and launch the desired seq
                                       INPUT DATASET: Use KITTI360 dataset sequence number
                                       00|01|...|test_00|...
                   --input-mulran-seq KAIST01
-                                      INPUT DATASET: Use Mulran dataset sequence KAIST01|KAIST01|...
+                                      INPUT DATASET: Use Mulran dataset sequence KAIST01|KAIST02|...
                   --input-paris-luco  INPUT DATASET: Use Paris Luco dataset (unique sequence=00)
 
 |
