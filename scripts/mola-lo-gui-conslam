@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 # For usage instructions, see: https://docs.mola-slam.org/latest/
 #
-# Convenience wrapper around mola-lo-gui-rosbag1 for the ConSLAM dataset:
-# presets its camera/IMU/LiDAR topic names and fixed LiDAR pose, and enables
-# the mola_state_estimation_smoother state estimator (see
+# Convenience wrapper around mola-lo-gui-rosbag1/mola-lo-gui-rosbag2 for the
+# ConSLAM dataset: presets its camera/IMU/LiDAR topic names and fixed LiDAR
+# pose, and enables the mola_state_estimation_smoother state estimator (see
 # mola_state_estimation's AGENTS.md, "Real-time setup").
+#
+# Accepts either a ROS 1 bag (.bag) or a ROS 2 bag (.mcap), autodetected from
+# the file extension. ROS 2 bags use lidar_odometry_from_rosbag2.yaml instead
+# of lidar_odometry_from_rosbag1.yaml.
 
 if [ "$#" -eq 0 ]; then
-    echo "Error: A ConSLAM ROS 1 bag file (.bag) is required."
+    echo "Error: A ConSLAM ROS 1 (.bag) or ROS 2 (.mcap) bag file is required."
     echo "Usage: $0 /path/to/sequenceN.bag [additional flags for mola-cli]"
+    echo "Usage: $0 /path/to/sequenceN.mcap [additional flags for mola-cli]"
     exit 1
 fi
 
@@ -69,10 +74,24 @@ export MOLA_LO_INITIAL_LOCALIZATION_METHOD
 export MOLA_DESKEW_METHOD
 export MOLA_LINK_FIRST_POSE_SIGMA
 
-MOLA_STATE_ESTIMATOR="mola::state_estimation_smoother::StateEstimationSmoother" \
-MOLA_STATE_ESTIMATOR_YAML="${MOLA_STATE_ESTIMATOR_YAML:-$SMOOTHER_SHARE_DIR/params/state-estimation-smoother.yaml}" \
-MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
-MOLA_INPUT_ROSBAG1="$FILE" \
-  mola-cli \
-    "$MOLA_LAUNCHS_DIR/lidar_odometry_from_rosbag1.yaml" \
-    "$@"
+# Autodetect the bag type from the file extension: ROS 2 bags (.mcap) use
+# lidar_odometry_from_rosbag2.yaml; everything else is assumed to be a ROS 1 bag.
+if [[ "$FILE" == *.mcap ]]; then
+    LAUNCH_FILE="$MOLA_LAUNCHS_DIR/lidar_odometry_from_rosbag2.yaml"
+    MOLA_STATE_ESTIMATOR="mola::state_estimation_smoother::StateEstimationSmoother" \
+    MOLA_STATE_ESTIMATOR_YAML="${MOLA_STATE_ESTIMATOR_YAML:-$SMOOTHER_SHARE_DIR/params/state-estimation-smoother.yaml}" \
+    MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
+    MOLA_INPUT_ROSBAG2="$FILE" \
+      mola-cli \
+        "$LAUNCH_FILE" \
+        "$@"
+else
+    LAUNCH_FILE="$MOLA_LAUNCHS_DIR/lidar_odometry_from_rosbag1.yaml"
+    MOLA_STATE_ESTIMATOR="mola::state_estimation_smoother::StateEstimationSmoother" \
+    MOLA_STATE_ESTIMATOR_YAML="${MOLA_STATE_ESTIMATOR_YAML:-$SMOOTHER_SHARE_DIR/params/state-estimation-smoother.yaml}" \
+    MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
+    MOLA_INPUT_ROSBAG1="$FILE" \
+      mola-cli \
+        "$LAUNCH_FILE" \
+        "$@"
+fi

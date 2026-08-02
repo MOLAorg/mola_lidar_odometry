@@ -8,6 +8,15 @@ This repository provides a LiDAR-Inertial Odometry (LIO) frontend for the MOLA f
 
 Official Docs: https://docs.mola-slam.org/latest/
 
+## `scripts/mola-lo-gui-conslam`: ROS 1 / ROS 2 bag autodetection
+
+Accepts either a ROS 1 bag (`.bag`) or a ROS 2 bag (`.mcap`) as the first
+argument, autodetected from the file extension. `.mcap` selects
+`lidar_odometry_from_rosbag2.yaml` (`MOLA_INPUT_ROSBAG2`); anything else is
+assumed to be a ROS 1 bag and uses `lidar_odometry_from_rosbag1.yaml`
+(`MOLA_INPUT_ROSBAG1`), matching how `mola-lo-gui-rosbag1`/`mola-lo-gui-rosbag2`
+pick their launch file.
+
 ## `ros2-lidar-odometry.launch.py`: `initial_pose` argument
 
 Added because it was missing: `InitLocalization::FixedPose` has always
