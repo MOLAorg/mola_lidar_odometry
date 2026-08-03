@@ -1,0 +1,124 @@
+# -----------------------------------------------------------------------------
+#                        SLAM system definition for MOLA
+# This file defines:
+# LiDAR-Inertial Odometry from the CitrusFarm dataset, read directly from its
+# ROS 1 ".bag" file(s) via mola::Rosbag1Dataset (no ROS 1 install required).
+#
+# Dataset: CitrusFarm (https://ucr-robotics.github.io/Citrus-Farm-Dataset/)
+# Sensor inventory used here (confirmed with the dataset docs):
+#   base_*.bag:
+#     /microstrain/imu/data        sensor_msgs/Imu           Microstrain GX5, ~100 Hz
+#     /microstrain/mag             sensor_msgs/MagneticField (unused)
+#     /velodyne_points             sensor_msgs/PointCloud2   Velodyne (spinning), ~10 Hz
+#     /piksi/navsatfix_best_fix    sensor_msgs/NavSatFix     GPS-RTK, fixed mode (currently disabled below)
+#     /piksi/debug/receiver_state  piksi_rtk_msgs/...        (unused)
+#   odom_*.bag:
+#     /jackal_velocity_controller/odom  nav_msgs/Odometry    Wheel odometry
+#
+# There is NO /tf or /tf_static in these bags, so use_fixed_sensor_pose is
+# mandatory. The IMU (Microstrain GX5) is used as the base_link/reference
+# frame, matching this repo's BotanicGarden example. Extrinsics were derived
+# from the dataset's own calibration results (Calibration/results/), chaining
+# base_link->lidar (CAD, 05-baselink-lidar-result.txt), lidar->blackfly-cam
+# (03-lidar-cam-result.txt) and blackfly-cam->imu (02-imu-cam-result.yaml,
+# T_cam_imu, Kalibr convention) to get imu->lidar and imu->base_link (wheel
+# odometry frame), and lidar->GPS-RTK (04-lidar-gps-result.txt, translation
+# only: GPS orientation is not meaningful with a single-receiver setup) to
+# get imu->GPS-RTK.
+#
+# Usage (normally invoked through scripts/mola-lo-gui-citrusfarm instead):
+#   MOLA_INPUT_ROSBAG1=/path/to/06_14B_Jackal/base_2023-07-18-14-29-35_0.bag \
+#   MOLA_INPUT_ROSBAG1_ODOM=/path/to/06_14B_Jackal/odom_2023-07-18-14-29-35.bag \
+#     mola-cli $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/mola-cli-launchs/lidar_odometry_from_citrusfarm.yaml
+#
+# Optional environment variables:
+#   MOLA_WITH_GUI=false             -- headless mode
+#   MOLA_TIME_WARP=1.0              -- playback speed factor
+#   MOLA_QUIT_ON_DATASET_END=true   -- exit when bag ends
+#   MOLA_ODOMETRY_PIPELINE_YAML     -- override LO pipeline (default: lidar3d-default.yaml)
+#   MOLA_STATE_ESTIMATOR / MOLA_STATE_ESTIMATOR_YAML
+#     -- select the state estimator (default below: state_estimation_simple).
+# -----------------------------------------------------------------------------
+
+modules:
+  # =====================
+  # MolaViz / MolaVizImGui
+  # =====================
+  - name: viz
+    type: ${MOLA_GUI_MODULE|mola::MolaVizImGui}
+    enabled: ${MOLA_WITH_GUI|true}
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
+    params:
+      imgui_app_name: lo_citrusfarm
+
+  # =====================
+  # Rosbag1Dataset (CitrusFarm)
+  # =====================
+  - name: dataset_input
+    type: mola::Rosbag1Dataset
+    verbosity_level: "${MOLA_VERBOSITY_ROSBAG1|INFO}"
+    execution_rate: 50 # Hz
+    quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|false}
+
+    gui_preview_sensors:
+      - raw_sensor_label: lidar
+        decimation: 1
+        enabled: ${MOLA_WITH_GUI|true}
+        win_pos: 5 5 400 400
+
+    params:
+      # We use environment variables to force the user to specify the bag file(s), e.g.:
+      #   MOLA_INPUT_ROSBAG1=/mnt/storage/CitrusFarm/06_14B_Jackal/base_2023-07-18-14-29-35_0.bag
+      #   MOLA_INPUT_ROSBAG1_ODOM=/mnt/storage/CitrusFarm/06_14B_Jackal/odom_2023-07-18-14-29-35.bag
+      rosbag_filename:
+        - ${MOLA_INPUT_ROSBAG1}
+        - ${MOLA_INPUT_ROSBAG1_ODOM|}
+
+      base_link_frame_id: imu
+      time_warp_scale: ${MOLA_TIME_WARP|1.0}
+      start_paused: ${MOLA_DATASET_START_PAUSED|false}
+
+      sensors:
+        - topic: /microstrain/imu/data # Microstrain GX5: this IS base_link
+          type: CObservationIMU
+          sensorLabel: imu
+          fixed_sensor_pose: "0 0 0 0 0 0"
+          use_fixed_sensor_pose: true
+
+        - topic: /velodyne_points # Velodyne (spinning), ~10 Hz
+          type: CObservationPointCloud
+          sensorLabel: lidar
+          fixed_sensor_pose: "0.0285 0.0091 0.0776 179.8419 -0.3290 0.1130" # T_imu_lidar, derived from CAD + Kalibr calib chain
+          use_fixed_sensor_pose: true
+
+        # GPS-RTK (currently disabled: it's the ground truth)
+        # - topic: /piksi/navsatfix_best_fix   # GPS-RTK, fixed mode
+        #   sensorLabel: gps
+        #   is_optional: true
+        #   fixed_sensor_pose: "0.2494 0.0088 0.2293 0 0 0" # T_imu_gps (translation only: single-receiver orientation is not meaningful)
+        #   use_fixed_sensor_pose: true
+
+        - topic: /jackal_velocity_controller/odom # Wheel odometry, from odom_*.bag
+          sensorLabel: odom_wheels
+          type: CObservationOdometry
+          is_optional: true
+          fixed_sensor_pose: "0.0663 0.0083 -0.3014 179.8419 -0.3290 0.1130" # T_imu_baselink, derived from CAD + Kalibr calib chain
+          use_fixed_sensor_pose: true
+
+  # =====================
+  # LidarOdometry
+  # =====================
+  - name: lidar_odom
+    type: mola::LidarOdometry
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_LO|INFO}"
+    raw_data_source: "dataset_input"
+    params: "${MOLA_ODOMETRY_PIPELINE_YAML|../pipelines/lidar3d-default.yaml}"
+
+  # =====================
+  # State Estimation
+  # =====================
+  - name: state_estimation
+    type: "${MOLA_STATE_ESTIMATOR|mola::state_estimation_simple::StateEstimationSimple}"
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_STATE_ESTIMATOR|INFO}"
+    raw_data_source: "dataset_input"
+    params: "${MOLA_STATE_ESTIMATOR_YAML|../state-estimator-params/state-estimation-simple.yaml}"

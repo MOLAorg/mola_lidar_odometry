@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# For usage instructions, see: https://docs.mola-slam.org/latest/
+#
+# Convenience wrapper around mola-cli for the CitrusFarm dataset
+# (https://ucr-robotics.github.io/Citrus-Farm-Dataset/): points at the
+# recorded ROS 1 "base_*.bag" (LiDAR+IMU+GPS) and, optionally, the matching
+# "odom_*.bag" (wheel odometry) of one sequence.
+#
+# Usage:
+#   mola-lo-gui-citrusfarm /path/to/base_*.bag [/path/to/odom_*.bag] [additional flags for mola-cli]
+#
+# Fixed sensor extrinsics (IMU as base_link/reference frame) are baked into
+# lidar_odometry_from_citrusfarm.yaml; see that file's header comment for how
+# they were derived from the dataset's own calibration results.
+
+if [ "$#" -eq 0 ]; then
+    echo "Error: A CitrusFarm ROS 1 'base_*.bag' file is required."
+    echo "Usage: $0 /path/to/base_*.bag [/path/to/odom_*.bag] [additional flags for mola-cli]"
+    exit 1
+fi
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../mola-cli-launchs/
+if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
+  MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
+fi
+
+# Split the base bag (first non-flag argument) and, if given, the odom bag
+# (second non-flag argument, only if its basename starts with "odom_") from
+# any remaining flags to forward to mola-cli:
+MOLA_INPUT_ROSBAG1=""
+MOLA_INPUT_ROSBAG1_ODOM=""
+EXTRA_ARGS=()
+for arg in "$@"; do
+    if [ -z "$MOLA_INPUT_ROSBAG1" ]; then
+        MOLA_INPUT_ROSBAG1=$arg
+    elif [ -z "$MOLA_INPUT_ROSBAG1_ODOM" ] && [[ "$(basename "$arg")" == odom_* ]]; then
+        MOLA_INPUT_ROSBAG1_ODOM=$arg
+    else
+        EXTRA_ARGS+=("$arg")
+    fi
+done
+export MOLA_INPUT_ROSBAG1
+export MOLA_INPUT_ROSBAG1_ODOM
+
+mola-cli \
+    "$MOLA_LAUNCHS_DIR/lidar_odometry_from_citrusfarm.yaml" \
+    "${EXTRA_ARGS[@]}"
