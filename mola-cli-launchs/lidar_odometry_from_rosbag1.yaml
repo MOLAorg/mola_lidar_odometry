@@ -58,9 +58,11 @@ modules:
     gui_preview_sensors:
       - raw_sensor_label: "${MOLA_LIDAR_NAME|lidar}"
         decimation: 1
+        enabled: ${MOLA_WITH_GUI|true}
         win_pos: 5 5 400 400
       - raw_sensor_label: "${MOLA_CAMERA_SENSOR_NAME|camera}"
         decimation: 1
+        enabled: ${MOLA_WITH_GUI|true}
         win_pos: 5 370 600 200
 
     params:

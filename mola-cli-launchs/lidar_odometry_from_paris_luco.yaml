@@ -29,6 +29,7 @@ modules:
     gui_preview_sensors:
       - raw_sensor_label: lidar
         decimation: 1
+        enabled: ${MOLA_WITH_GUI|true}
         win_pos: 5 70 400 400
     params:
       base_dir: ${PARIS_LUCO_BASE_DIR}
