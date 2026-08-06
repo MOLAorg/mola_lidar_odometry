@@ -483,6 +483,22 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   }
 #endif
 
+#if defined(MOLA_HAS_TRANSFORM_TREE_SOURCE)
+  // Optional: a data source exposing a /tf tree, used only by the (opt-in)
+  // tf-tree visualization. Absent in datasets without /tf, which is fine.
+  {
+    auto srcs = findService<mola::TransformTreeSource>();
+    if (!srcs.empty()) {
+      state_.transform_tree_source = std::dynamic_pointer_cast<TransformTreeSource>(srcs[0]);
+      MRPT_LOG_DEBUG("Detected a TransformTreeSource: /tf tree visualization is available.");
+    } else if (params_.visualization.show_tf_tree) {
+      MRPT_LOG_WARN(
+        "visualization.show_tf_tree is enabled, but no module in this system provides a "
+        "mola::TransformTreeSource: nothing will be drawn.");
+    }
+  }
+#endif
+
   // If using FromStateEstimator initialization, also subscribe to map updates
   // from the state estimator to receive geo-referencing information:
   if (params_.initial_localization.method == InitLocalization::FromStateEstimator) {

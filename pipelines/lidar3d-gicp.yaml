@@ -248,6 +248,18 @@ params:
     #current_pose_corner_size: 1.5
     #sensor_poses_corner_size: 0.5  # XYZ corner for each LiDAR sensor pose; 0 to disable
     show_current_pose_corner: ${MOLA_LO_SHOW_CURRENT_POSE_CORNER|true} # Set to false to hide the current-pose XYZ corner (e.g. for a first-person camera)
+
+    # Robot /tf tree (e.g. a legged robot's joints). Requires the data source
+    # to implement mola::TransformTreeSource (rosbag1/rosbag2 inputs and the
+    # ROS 2 bridge do). All of these can also be toggled at runtime, in the
+    # GUI's "View" tab.
+    show_tf_tree: ${MOLA_LO_SHOW_TF_TREE|false}
+    tf_tree_root_frame: ${MOLA_LO_TF_TREE_ROOT|''} # empty: use the data source's base_link frame
+    tf_tree_corner_size: ${MOLA_LO_TF_TREE_CORNER_SIZE|0.1} # [m]
+    tf_tree_show_links: ${MOLA_LO_TF_TREE_SHOW_LINKS|true}
+    tf_tree_show_names: ${MOLA_LO_TF_TREE_SHOW_NAMES|false}
+    tf_tree_exclude_frames: ${MOLA_LO_TF_TREE_EXCLUDE|''} # comma-separated; drops each frame and its subtree
+
     model:
       - file: ${MOLA_VEHICLE_MODEL_FILE|""} # Default: none
         tf.x: ${MOLA_VEHICLE_MODEL_X|0.0} # deg

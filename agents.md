@@ -17,6 +17,29 @@ assumed to be a ROS 1 bag and uses `lidar_odometry_from_rosbag1.yaml`
 (`MOLA_INPUT_ROSBAG1`), matching how `mola-lo-gui-rosbag1`/`mola-lo-gui-rosbag2`
 pick their launch file.
 
+## Robot /tf tree visualization (opt-in)
+
+`visualization.show_tf_tree` draws the subtree of coordinate frames below
+`tf_tree_root_frame` (empty = ask the data source for its `base_link` frame),
+which on a legged robot is its joint tree. Off by default; every knob is also
+live in the GUI's "View" tab.
+
+The frames come from `mola::TransformTreeSource`, detected at init via
+`findService<>()` and guarded by `__has_include`
+(`MOLA_HAS_TRANSFORM_TREE_SOURCE`), so this still builds against an older
+`mola_kernel`. The source resolves the poses against the root and does the
+subtree filtering itself (see `mola`'s agents.md); LO only draws.
+
+Snapshots are pulled once per visualization update, at the current scan's
+timestamp, so the joints match the rendered cloud rather than the wall clock.
+The result is drawn at the vehicle pose, since the poses are body-relative.
+
+`tf_tree_exclude_frames` (comma-separated) drops a frame together with its
+subtree. It is needed in practice because datasets publish *inverted* edges:
+GrandTour has `base -> odom` and `hesai_lidar -> dlio_odom`, so without
+excluding them a ~130 m translation drags an unrelated subtree into the
+robot's own tree.
+
 ## `ros2-lidar-odometry.launch.py`: `initial_pose` argument
 
 Added because it was missing: `InitLocalization::FixedPose` has always
