@@ -6,10 +6,11 @@
 # carrying the open-source "Boxi" sensor payload.
 #
 # Each mission is published as a set of per-topic ROS 1 bags, so the LiDAR,
-# the IMU and /tf live in SEPARATE files. This script locates them by their
-# "<mission>_<topic>.bag" naming and replays them jointly through the generic
-# lidar_odometry_from_rosbag1.yaml launch file (which accepts up to three bags
-# via MOLA_INPUT_ROSBAG1{,_2,_3}), so no dataset-specific launch file is needed.
+# the IMU, /tf and the front camera live in SEPARATE files. This script
+# locates them by their "<mission>_<topic>.bag" naming and replays them
+# jointly through the generic lidar_odometry_from_rosbag1.yaml launch file
+# (which accepts up to four bags via MOLA_INPUT_ROSBAG1{,_2,_3,_4}), so no
+# dataset-specific launch file is needed.
 #
 # Usage:
 #   mola-lo-gui-grandtour /path/to/<mission-dir>/ [additional flags for mola-cli]
@@ -19,14 +20,17 @@
 #   mola-lo-gui-grandtour ~/datasets/grand-tour-legged/2024-10-01-11-29-55/
 #
 # Sensors used (the rest of each mission's bags are ignored):
-#   <mission>_hesai_undist.bag  /boxi/hesai/points_undistorted  PointCloud2, 10 Hz  (required)
-#   <mission>_tf_minimal.bag    /tf, /tf_static                                     (optional)
-#   <mission>_adis.bag          /boxi/adis/imu                  Imu, 200 Hz         (optional)
+#   <mission>_hesai_undist.bag  /boxi/hesai/points_undistorted        PointCloud2, 10 Hz         (required)
+#   <mission>_tf_minimal.bag    /tf, /tf_static                                                  (optional)
+#   <mission>_adis.bag          /boxi/adis/imu                        Imu, 200 Hz                (optional)
+#   <mission>_hdr_front.bag     /boxi/hdr/front/image_raw/compressed  CompressedImage, ~11 Hz     (optional)
 #
 # Sensor extrinsics come from the dataset's own /tf_static (base -> box_base ->
-# hesai_lidar / adis16475_imu), so no fixed sensor poses are needed as long as
-# the tf bag is present. Without it, the LiDAR falls back to a fixed pose at
-# the origin (the payload extrinsics are then simply unknown).
+# hesai_lidar / adis16475_imu / hdr_base -> hdr_front), so no fixed sensor
+# poses are needed as long as the tf bag is present. Without it, the LiDAR
+# falls back to a fixed pose at the origin (the payload extrinsics are then
+# simply unknown), and the camera preview (if its bag is present) is drawn
+# at the origin too.
 
 if [ "$#" -eq 0 ]; then
     echo "Error: A GrandTour mission directory (or its '*_hesai_undist.bag') is required."
@@ -68,6 +72,7 @@ fi
 
 TF_BAG=${PREFIX}_tf_minimal.bag
 IMU_BAG=${PREFIX}_adis.bag
+CAMERA_BAG=${PREFIX}_hdr_front.bag
 
 echo "GrandTour mission '$(basename "$PREFIX")':"
 echo "  LiDAR bag: $LIDAR_BAG"
@@ -100,9 +105,21 @@ else
     MOLA_INPUT_ROSBAG1_3=
     : "${MOLA_IMU_TOPIC:=}"
 fi
+if [ -f "$CAMERA_BAG" ]; then
+    echo "  Camera bag: $CAMERA_BAG"
+    MOLA_INPUT_ROSBAG1_4=$CAMERA_BAG
+    : "${MOLA_CAMERA_TOPIC:=/boxi/hdr/front/image_raw/compressed}"
+else
+    echo "  Camera bag: (not found: '$CAMERA_BAG'; running without a camera preview)"
+    MOLA_INPUT_ROSBAG1_4=
+    : "${MOLA_CAMERA_TOPIC:=}"
+fi
+
 export MOLA_IMU_TOPIC
+export MOLA_CAMERA_TOPIC
 export MOLA_INPUT_ROSBAG1_2
 export MOLA_INPUT_ROSBAG1_3
+export MOLA_INPUT_ROSBAG1_4
 [ -n "${MOLA_LO_INITIAL_LOCALIZATION_METHOD:-}" ] && export MOLA_LO_INITIAL_LOCALIZATION_METHOD
 
 # The LiDAR stream used here is the dataset's already-undistorted one, so
