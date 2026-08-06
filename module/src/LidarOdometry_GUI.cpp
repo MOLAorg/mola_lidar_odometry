@@ -86,26 +86,40 @@ std::set<std::string> splitCommaSeparated(const std::string & s)
 }
 
 /** Fills `out` with one XYZ corner per frame of `tree` (plus, optionally, the
- *  parent->child links and the frame names). Excluded frames are dropped
- *  together with their own subtrees.
+ *  parent->child links and the frame names), keeping the poses exactly as
+ *  given, i.e. relative to the tree's own root.
+ *
+ *  `subtreeRoot` (empty = the whole tree) selects which subtree to draw;
+ *  `excluded` frames are dropped together with their own subtrees.
+ *
+ *  \return how many frames were actually drawn.
  */
-void renderTfTree(
-  const mola::TransformTree & tree, const std::set<std::string> & excluded, float cornerSize,
-  bool showLinks, bool showNames, mrpt::opengl::CSetOfObjects & out)
+size_t renderTfTree(
+  const mola::TransformTree & tree, const std::string & subtreeRoot,
+  const std::set<std::string> & excluded, float cornerSize, bool showLinks, bool showNames,
+  mrpt::opengl::CSetOfObjects & out)
 {
   auto glLinks = mrpt::opengl::CSetOfLines::Create();
   glLinks->setColor_u8(0x80, 0x80, 0x80, 0xff);
 
-  // Nodes come ordered parents-before-children, so dropping a frame whose
-  // parent was already dropped prunes the whole subtree in one pass:
+  // Nodes come ordered parents-before-children, so both the "keep only this
+  // subtree" and the "drop this frame" tests propagate down in a single pass:
+  const bool wholeTree = subtreeRoot.empty() || subtreeRoot == tree.root;
+  std::set<std::string> kept;
   std::set<std::string> dropped;
   std::map<std::string, mrpt::poses::CPose3D> posesByFrame;
+  size_t nDrawn = 0;
 
   for (const auto & node : tree.nodes) {
+    if (!wholeTree && node.frame != subtreeRoot && kept.count(node.parent) == 0) {
+      continue;
+    }
     if (excluded.count(node.frame) != 0 || dropped.count(node.parent) != 0) {
       dropped.insert(node.frame);
       continue;
     }
+    kept.insert(node.frame);
+    nDrawn++;
     posesByFrame[node.frame] = node.pose_in_root;
 
     if (cornerSize > 0) {
@@ -130,6 +144,8 @@ void renderTfTree(
   if (showLinks) {
     out.insert(glLinks);
   }
+
+  return nDrawn;
 }
 #endif
 
@@ -948,26 +964,31 @@ void LidarOdometry::updateVisualizationTfTree(
   auto glTree = mrpt::opengl::CSetOfObjects::Create();
 
   if (vp.show_tf_tree && state_.transform_tree_source) {
-    // Empty root means "whatever the source calls the robot body".
-    std::string root = vp.tf_tree_root_frame;
-    if (root.empty()) {
-      root = state_.transform_tree_source->transform_tree_default_root();
+    // ALWAYS query from the robot body frame, whatever subtree is to be shown:
+    // the returned poses are relative to the queried root, and the result is
+    // drawn at the vehicle pose below, so querying from any other frame would
+    // offset the whole tree by the (unknown here) body -> root transform.
+    // tf_tree_root_frame then only selects which subtree of it to draw.
+    std::string queryRoot = state_.transform_tree_source->transform_tree_default_root();
+    if (queryRoot.empty()) {
+      queryRoot = vp.tf_tree_root_frame;
     }
 
     // Query at the scan time, so the joints match the rendered cloud rather
     // than the wall clock (the source falls back to its latest data itself).
     if (const auto tree =
-          state_.transform_tree_source->transform_tree(root, state_.last_obs_timestamp);
+          state_.transform_tree_source->transform_tree(queryRoot, state_.last_obs_timestamp);
         tree) {
-      renderTfTree(
-        *tree, splitCommaSeparated(vp.tf_tree_exclude_frames), vp.tf_tree_corner_size,
-        vp.tf_tree_show_links, vp.tf_tree_show_names, *glTree);
+      const size_t n = renderTfTree(
+        *tree, vp.tf_tree_root_frame, splitCommaSeparated(vp.tf_tree_exclude_frames),
+        vp.tf_tree_corner_size, vp.tf_tree_show_links, vp.tf_tree_show_names, *glTree);
 
       MRPT_LOG_THROTTLE_DEBUG_FMT(
-        5.0, "[tf tree] Rendering %zu frame(s) below '%s'.", tree->nodes.size(), root.c_str());
+        5.0, "[tf tree] Rendering %zu of %zu frame(s) under '%s'.", n, tree->nodes.size(),
+        queryRoot.c_str());
     } else {
       MRPT_LOG_THROTTLE_WARN_FMT(
-        5.0, "[tf tree] Root frame '%s' is not known to the data source.", root.c_str());
+        5.0, "[tf tree] Root frame '%s' is not known to the data source.", queryRoot.c_str());
     }
   }
 
