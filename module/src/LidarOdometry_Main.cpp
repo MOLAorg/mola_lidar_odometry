@@ -166,8 +166,7 @@ void LidarOdometry::spinOnce()
 
   if (visualizer_) {
     // updateVisualization() reads state_, so it must be called with state_mtx_
-    // held (it takes care of momentarily releasing it while rendering the
-    // potentially large local map):
+    // held:
     std::unique_lock<std::mutex> lckState(state_mtx_);
 
     if (

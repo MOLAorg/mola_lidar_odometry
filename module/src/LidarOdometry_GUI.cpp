@@ -56,21 +56,6 @@ namespace mola
 
 namespace
 {
-/** Temporarily releases an already-held lock, re-acquiring it on scope exit
- *  (including if the guarded code throws).
- */
-class ScopedUnlock
-{
-public:
-  explicit ScopedUnlock(std::unique_lock<std::mutex> & lck) : lck_(lck) { lck_.unlock(); }
-  ~ScopedUnlock() { lck_.lock(); }
-
-  ScopedUnlock(const ScopedUnlock &) = delete;
-  ScopedUnlock & operator=(const ScopedUnlock &) = delete;
-
-private:
-  std::unique_lock<std::mutex> & lck_;
-};
 #if defined(MOLA_HAS_TRANSFORM_TREE_SOURCE)
 /** Splits "a, b ,c" into {"a","b","c"}, ignoring empty items. */
 std::set<std::string> splitCommaSeparated(const std::string & s)
@@ -750,13 +735,7 @@ void LidarOdometry::updateVisualizationAlways(std::unique_lock<std::mutex> & lck
   ASSERT_(lckState.owns_lock());
 
   // Local map: update whenever map content changed, independent of ICP quality.
-  {
-    std::vector<std::function<void()>> updateTasks;
-    updateVisualizationLocalMap(updateTasks, lckState);
-    for (const auto & ut : updateTasks) {
-      ut();
-    }
-  }
+  updateVisualizationLocalMap();
 
   // Sub-window with custom UI
   // -------------------------------------
@@ -923,11 +902,8 @@ void LidarOdometry::updateVisualizationCurrentObservation(
   (void)fut;
 }
 
-void LidarOdometry::updateVisualizationLocalMap(
-  std::vector<std::function<void()>> & updateTasks, std::unique_lock<std::mutex> & lckState)
+void LidarOdometry::updateVisualizationLocalMap()
 {
-  ASSERT_(lckState.owns_lock());
-
   const std::string vizFrame = vizParentFrame();
 
   bool decimationReached = false;
@@ -962,34 +938,41 @@ void LidarOdometry::updateVisualizationLocalMap(
     // local map: this recolors/renders every point currently in the map, an
     // O(map size) cost that keeps growing with it (e.g. under
     // mola::IncrementalPointCloud, whose local map never shrinks back below
-    // its eviction cube). Doing it under state_mtx_ stalls the dataset reader,
-    // IMU worker, and executor threads for the whole call once the local map
-    // gets large, so state_mtx_ is temporarily released here and the map
-    // contents are guarded by the finer-grained local_map_content_mtx_ instead.
-    // Note the strict order: state_mtx_ is released *before* acquiring the
-    // contents mutex, since holders of the latter may be waiting for the
-    // former (see the lock order documented in the class declaration).
-    mrpt::opengl::CSetOfObjects::Ptr glMap;
-    {
-      // Keep the map alive even if state_ is reset while unlocked:
-      const auto localMap = state_.local_map;
+    // its eviction cube), and it used to run right here, on the LiDAR worker
+    // thread: measured at ~55 ms mean / ~120 ms max on a GrandTour mission,
+    // which is what turned one onLidar in ~18 into a >100 ms spike and backed
+    // up the scan queue. So it is handed to a worker instead, where it takes
+    // only the finer-grained local_map_content_mtx_ (never state_mtx_, hence
+    // no inversion of the lock order documented in the class declaration).
+    //
+    // Snapshot all values the worker will need. Avoid any access to state_ or
+    // params_ from the lambda; keeping a shared_ptr to the map also means a
+    // concurrent reset() cannot drop the last reference mid-render.
+    const auto localMap = state_.local_map;
+    auto viz = visualizer_;
+    const auto * profilerPtr = &profiler_;
+    auto * mapContentsMtx = &local_map_content_mtx_;
 
-      const ScopedUnlock unlockState(lckState);
-      auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
+    (void)worker_viz_local_map_.enqueue([=]() {
+      const ProfilerEntry tle3(*profilerPtr, "updateVisualization.update_local_map_thread");
 
-      glMap = localMap->get_visualization(rp);
-    }
-
-    updateTasks.emplace_back([visualizer = visualizer_, glMap, vizFrame]() {
-      vizUpsert3D(visualizer, "liodom/localmap", glMap, vizFrame);
+      mrpt::opengl::CSetOfObjects::Ptr glMap;
+      {
+        auto lckMapContents = mrpt::lockHelper(*mapContentsMtx);
+        glMap = localMap->get_visualization(rp);
+      }
+      vizUpsert3D(viz, "liodom/localmap", glMap, vizFrame);
     });
   }
 
   // Clear the local map if the user clicks on "hide it" at runtime:
   if (!params_.visualization.show_localmap) {
-    auto glMap = mrpt::opengl::CSetOfObjects::Create();
-    updateTasks.emplace_back([visualizer = visualizer_, glMap, vizFrame]() {
-      vizUpsert3D(visualizer, "liodom/localmap", glMap, vizFrame);
+    // Routed through the same worker so it is ordered after any render already
+    // enqueued above and cannot be overwritten by it.
+    auto viz = visualizer_;
+    (void)worker_viz_local_map_.enqueue([=]() {
+      auto glMap = mrpt::opengl::CSetOfObjects::Create();
+      vizUpsert3D(viz, "liodom/localmap", glMap, vizFrame);
     });
 
     // Force an immediate redraw the next time the local map is shown again,

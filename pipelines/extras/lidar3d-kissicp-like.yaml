@@ -46,7 +46,7 @@ params:
   # If run within a mola-cli container, and mola_viz is present, use these options
   # to show live progress:
   visualization:
-    map_update_decimation: 20
+    map_update_decimation: ${MOLA_GUI_MAP_UPDATE_DECIMATION|20}
     show_trajectory: true
 
   # Profile the main steps of the odometry pipeline:

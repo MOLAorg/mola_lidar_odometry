@@ -1275,6 +1275,14 @@ private:
   // serial ordering so a newer clear cannot be overwritten by an older frame's lambda.
   mrpt::WorkerThreadsPool worker_viz_{1, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_viz"};
 
+  /** Renders the local map for the gui. Same 1-thread POLICY_DROP_OLD rationale
+   *  as worker_viz_, but a pool of its own: with one thread, POLICY_DROP_OLD
+   *  caps the queue at a single pending task, so sharing worker_viz_ would let
+   *  the per-scan current-observation frames drop the (much rarer) local map
+   *  render before it ever runs, and would serialize the two renders. */
+  mrpt::WorkerThreadsPool worker_viz_local_map_{
+    1, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_viz_map"};
+
   MethodState state_;
   const MethodState & state() const { return state_; }
   MethodState stateCopy() const { return state_; }
@@ -1324,9 +1332,9 @@ private:
   /// Guards the *contents* (layers) of MethodState::local_map.
   /// Rendering the map is O(map size) and would stall every other user of
   /// state_mtx_ (dataset reader, IMU worker, executor thread) if done under it,
-  /// so updateVisualizationLocalMap() temporarily releases state_mtx_ and takes
-  /// this one instead. Lock order: a thread that needs both must take
-  /// state_mtx_ first; it must never be held while acquiring state_mtx_.
+  /// so the render runs on worker_viz_local_map_ and takes only this one.
+  /// Lock order: a thread that needs both must take state_mtx_ first; it must
+  /// never be held while acquiring state_mtx_.
   mutable std::mutex local_map_content_mtx_;
 
   mutable std::mutex state_trajectory_mtx_;
@@ -1385,8 +1393,7 @@ private:
   void updatePipelineDynamicVariablesRobotPoseOnly();
 
   /// All these methods read state_, so the caller must own state_mtx_ and pass
-  /// its lock object down: it is momentarily released while rendering the
-  /// local map (see local_map_content_mtx_).
+  /// its lock object down, which they assert on entry.
   void updateVisualization(
     const mp2p_icp::metric_map_t & currentObservation,
     const mrpt::maps::CPointsMap::Ptr & deskewedCloud, std::unique_lock<std::mutex> & lckState);
@@ -1395,8 +1402,10 @@ private:
   void updateVisualizationCurrentObservation(
     const mp2p_icp::metric_map_t & currentObservation,
     const mrpt::maps::CPointsMap::Ptr & deskewedCloud);
-  void updateVisualizationLocalMap(
-    std::vector<std::function<void()>> & updateTasks, std::unique_lock<std::mutex> & lckState);
+  /// Only decides *whether* to refresh the local map view and snapshots what
+  /// that takes; the O(map size) render itself is enqueued on
+  /// worker_viz_local_map_ (see local_map_content_mtx_).
+  void updateVisualizationLocalMap();
   void updateVisualizationPath(std::vector<std::function<void()>> & updateTasks);
 
   /// Renders the /tf subtree below the configured root frame, as a child of

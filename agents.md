@@ -225,18 +225,31 @@ instead of a brief quality dip that recovers to the true pose).
 
 ## Local-map locking: `state_mtx_` vs `local_map_content_mtx_`
 
-Rendering the local map (`updateVisualizationLocalMap()`) is O(map size) and
-must not run under `state_mtx_`, or it stalls the dataset reader, IMU worker
-and executor threads once the map is large. So it releases `state_mtx_` (via
-the caller's `std::unique_lock`, passed down through
-`updateVisualization*()`) and takes the finer-grained `local_map_content_mtx_`
-instead, which every mutation of `state_.local_map` contents (insert, `clear()`,
-`load_from_file()`) must also hold.
+Rendering the local map is O(map size) and must not run on the LiDAR worker
+thread, nor under `state_mtx_`: under `mola::IncrementalPointCloud` it measured
+~55 ms mean / ~120 ms max on a GrandTour mission, which turned roughly one
+`onLidar` in 18 into a >100 ms spike and backed the scan queue up to 18 entries.
+So `updateVisualizationLocalMap()` only makes the decimation decision and
+snapshots what the render needs (map `shared_ptr`, `render_params_t`, viz frame),
+then enqueues the render on `worker_viz_local_map_`. There it takes only the
+finer-grained `local_map_content_mtx_`, which every mutation of
+`state_.local_map` contents (insert, `clear()`, `load_from_file()`) must also
+hold. Effect on the same run: the inline cost drops to ~5 us and `onLidar`'s max
+from 155 ms to 66 ms, with the same number of renders.
+
+`worker_viz_local_map_` is deliberately a **separate** 1-thread
+`POLICY_DROP_OLD` pool from `worker_viz_`: with one thread that policy caps the
+queue at a single pending task, so sharing the pool would let the per-scan
+current-observation frames drop the much rarer local-map render before it ever
+ran. The "hide the local map" clear is routed through the same pool so it cannot
+be overtaken by a render already in flight.
 
 Lock order: take `state_mtx_` first, then `local_map_content_mtx_`; never hold
-the latter while acquiring the former. Note the renderer therefore *releases*
-`state_mtx_` before taking the contents mutex, and releases the contents mutex
-before re-acquiring `state_mtx_`.
+the latter while acquiring the former. The render thread takes only the contents
+mutex and never `state_mtx_`, so it cannot invert the order.
+
+`visualization.map_update_decimation` (`MOLA_GUI_MAP_UPDATE_DECIMATION`,
+default 10 in most pipelines) bounds how often that render is even requested.
 
 
 ## Keyframe-creation policy (shared by local map and simplemap)
