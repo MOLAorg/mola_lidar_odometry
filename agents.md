@@ -38,6 +38,42 @@ its siblings by the `<mission>_<topic>.bag` naming: LiDAR (required), the
   back to a fixed pose at the origin.
 - The LiDAR topic used is the already-undistorted one, so deskewing defaults
   to `MotionCompensationMethod::None` to avoid over-compensating motion.
+- The /tf tree view is ON by default here (this is a legged robot with a full
+  joint tree, which is the point), skipping the four frames that are not
+  physically on the body: `odom` (world-fixed, published inverted as a child
+  of `base`), `enu_origin` (geodetic, under `cpt7_imu`) and `dlio_odom` /
+  `dlio_map` (the onboard SLAM's frames, under `hesai_lidar`). Everything
+  else in the tree is real hardware, including the total-station `prism`.
+
+## Robot /tf tree visualization (opt-in)
+
+`visualization.show_tf_tree` draws the subtree of coordinate frames below
+`tf_tree_root_frame` (empty = ask the data source for its `base_link` frame),
+which on a legged robot is its joint tree. Off by default; every knob is also
+live in the GUI's "View" tab.
+
+The frames come from `mola::TransformTreeSource`, detected at init via
+`findService<>()` and guarded by `__has_include`
+(`MOLA_HAS_TRANSFORM_TREE_SOURCE`), so this still builds against an older
+`mola_kernel`. The source resolves the poses against the root and does the
+subtree filtering itself (see `mola`'s agents.md); LO only draws.
+
+Snapshots are pulled once per visualization update, at the current scan's
+timestamp, so the joints match the rendered cloud rather than the wall clock.
+The result is drawn at the vehicle pose, since the poses are body-relative.
+
+`tf_tree_exclude_frames` (comma-separated) drops a frame together with its
+subtree. It is needed in practice because datasets publish *inverted* edges:
+GrandTour has `base -> odom` and `hesai_lidar -> dlio_odom`, so without
+excluding them a ~130 m translation drags an unrelated subtree into the
+robot's own tree.
+
+Links (`tf_tree_show_links`) render as thin `CCylinder`s, not GL lines: MRPT
+cannot draw lines with a configurable thickness, so they are barely visible.
+Radius is `tf_tree_link_radius` (`MOLA_LO_TF_TREE_LINK_RADIUS`, default 0.02 m),
+also live in the GUI. Orientation is derived from the two endpoints (pitch =
+`acos(nz)`, yaw = `atan2(ny, nx)` of the unit direction), the same approach
+used for `mola_mapper`'s graph-edge cylinders.
 
 ## `ros2-lidar-odometry.launch.py`: `initial_pose` argument
 

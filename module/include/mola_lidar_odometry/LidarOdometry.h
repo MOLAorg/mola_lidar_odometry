@@ -36,6 +36,12 @@
 #include <mola_kernel/interfaces/SharedKeyframeMap.h>
 #define MOLA_HAS_SHARED_KEYFRAME_MAP_SINK 1
 #endif
+#if __has_include(<mola_kernel/interfaces/TransformTreeSource.h>)
+#include <mola_kernel/interfaces/TransformTreeSource.h>
+/** Feature macro: mola_kernel provides mola::TransformTreeSource, enabling
+ *  the optional /tf tree visualization. */
+#define MOLA_HAS_TRANSFORM_TREE_SOURCE 1
+#endif
 #include <mola_kernel/version.h>
 
 // Other packages:
@@ -297,6 +303,36 @@ public:
              * setCurrentPoseCornerVisualization().
              */
       bool show_current_pose_corner = true;
+
+      // --- Robot /tf tree ---
+      /** Draws the subtree of coordinate frames below tf_tree_root_frame
+       * (e.g. a legged robot's joints) as it moves. Opt-in: it requires the
+       * data source to implement mola::TransformTreeSource, and costs one
+       * subtree snapshot per visualization update. */
+      bool show_tf_tree = false;
+
+      /** Subtree root. Empty (default) means "ask the data source" (its
+       * base_link_frame_id, via TransformTreeSource). */
+      std::string tf_tree_root_frame;
+
+      float tf_tree_corner_size = 0.1f;  //! [m]
+
+      /** Draws a link from each frame to its parent. Rendered as thin
+       * cylinders rather than GL lines, which MRPT cannot draw with a
+       * configurable thickness and are barely visible. */
+      bool tf_tree_show_links = true;
+
+      /** Radius of the tf_tree_show_links cylinders. */
+      float tf_tree_link_radius = 0.02f;  //! [m]
+
+      /** Draws each frame's name next to it. */
+      bool tf_tree_show_names = false;
+
+      /** Comma-separated frame names to leave out, together with their own
+       * subtrees. Datasets do publish inverted edges (e.g. "base -> odom"
+       * instead of "odom -> base"), which would otherwise drag a whole
+       * unrelated, far-away subtree into the robot's own tree. */
+      std::string tf_tree_exclude_frames;
 
       // --- Ground grid ---
       bool show_ground_grid = true;
@@ -1028,6 +1064,13 @@ private:
     std::shared_ptr<mola::SharedKeyframeMap> shared_keyframe_map_sink;
 #endif
 
+#if defined(MOLA_HAS_TRANSFORM_TREE_SOURCE)
+    // Data source exposing a /tf tree (dataset reader or live ROS bridge), if
+    // any is present in the running MOLA system. Optional: nullptr if none is
+    // found, in which case the /tf tree visualization stays empty.
+    std::shared_ptr<mola::TransformTreeSource> transform_tree_source;
+#endif
+
     std::optional<NavState> last_motion_model_output;
 
     /// The source of "dynamic variables" in ICP pipelines:
@@ -1355,6 +1398,12 @@ private:
   void updateVisualizationLocalMap(
     std::vector<std::function<void()>> & updateTasks, std::unique_lock<std::mutex> & lckState);
   void updateVisualizationPath(std::vector<std::function<void()>> & updateTasks);
+
+  /// Renders the /tf subtree below the configured root frame, as a child of
+  /// the vehicle frame (its poses are relative to the robot body). A no-op
+  /// unless enabled AND a mola::TransformTreeSource was found at init.
+  void updateVisualizationTfTree(
+    std::vector<std::function<void()>> & updateTasks, const std::string & vizFrame);
   void updateVisualizationGravityVector(std::vector<std::function<void()>> & updateTasks);
   void updateVisualizationTextLabels();
   void updateVisualizationAlways(std::unique_lock<std::mutex> & lckState);

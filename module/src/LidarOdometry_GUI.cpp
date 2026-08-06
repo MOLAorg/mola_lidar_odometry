@@ -31,18 +31,25 @@
 #include <mrpt/obs/customizable_obs_viz.h>
 #include <mrpt/opengl/CArrow.h>
 #include <mrpt/opengl/CAssimpModel.h>
+#include <mrpt/opengl/CCylinder.h>
 #include <mrpt/opengl/CGridPlaneXY.h>
 #include <mrpt/opengl/COpenGLScene.h>
 #include <mrpt/opengl/CPointCloudColoured.h>
+#include <mrpt/opengl/CSetOfLines.h>
 #include <mrpt/opengl/CText.h>
 #include <mrpt/opengl/stock_objects.h>
 #include <mrpt/system/filesystem.h>
+#include <mrpt/system/string_utils.h>
 #include <mrpt/version.h>
 
 // STD:
 #include <algorithm>
+#include <cmath>
 #include <limits>
+#include <map>
 #include <mutex>
+#include <set>
+#include <sstream>
 
 namespace mola
 {
@@ -64,6 +71,113 @@ public:
 private:
   std::unique_lock<std::mutex> & lck_;
 };
+#if defined(MOLA_HAS_TRANSFORM_TREE_SOURCE)
+/** Splits "a, b ,c" into {"a","b","c"}, ignoring empty items. */
+std::set<std::string> splitCommaSeparated(const std::string & s)
+{
+  std::set<std::string> out;
+  std::stringstream ss(s);
+  std::string item;
+  while (std::getline(ss, item, ',')) {
+    item = mrpt::system::trim(item);
+    if (!item.empty()) {
+      out.insert(item);
+    }
+  }
+  return out;
+}
+
+// tf links render as CCylinder (thin tubes), visible even at a distance,
+// unlike GL lines, which MRPT cannot draw with a configurable thickness.
+// Few radial slices and no end caps keep the per-link triangle count low.
+constexpr uint32_t kTfLinkCylinderSlices = 6;
+
+// A CCylinder's local Z axis runs from its base (at the object's origin) to
+// its top (at height `len`). Orient it so that axis points from `a` to `b`:
+// pitch = acos(nz), yaw = atan2(ny, nx) for the unit direction (nx,ny,nz),
+// derived from MRPT's R = Rz(yaw)*Ry(pitch)*Rx(roll) convention applied to
+// local Z (roll is a free rotation about the cylinder's own axis, so 0 is
+// fine). Returns nullptr for a degenerate (near-zero-length) link.
+mrpt::opengl::CCylinder::Ptr makeTfLinkCylinder(
+  const mrpt::math::TPoint3D & a, const mrpt::math::TPoint3D & b, float radius)
+{
+  const mrpt::math::TPoint3D d = b - a;
+  const double len = d.norm();
+  if (len < 1e-6) {
+    return {};
+  }
+  const double pitch = std::acos(std::clamp(d.z / len, -1.0, 1.0));
+  const double yaw = std::atan2(d.y, d.x);
+
+  auto glCyl =
+    mrpt::opengl::CCylinder::Create(radius, radius, static_cast<float>(len), kTfLinkCylinderSlices);
+  glCyl->setHasBases(false, false);
+  glCyl->setColor_u8(0x80, 0x80, 0x80, 0xff);
+  glCyl->setPose(mrpt::poses::CPose3D(a.x, a.y, a.z, yaw, pitch, 0.0));
+  return glCyl;
+}
+
+/** Fills `out` with one XYZ corner per frame of `tree` (plus, optionally, the
+ *  parent->child links and the frame names), keeping the poses exactly as
+ *  given, i.e. relative to the tree's own root.
+ *
+ *  `subtreeRoot` (empty = the whole tree) selects which subtree to draw;
+ *  `excluded` frames are dropped together with their own subtrees.
+ *
+ *  \return how many frames were actually drawn.
+ */
+size_t renderTfTree(
+  const mola::TransformTree & tree, const std::string & subtreeRoot,
+  const std::set<std::string> & excluded, float cornerSize, bool showLinks, float linkRadius,
+  bool showNames, mrpt::opengl::CSetOfObjects & out)
+{
+  // Nodes come ordered parents-before-children, so both the "keep only this
+  // subtree" and the "drop this frame" tests propagate down in a single pass:
+  const bool wholeTree = subtreeRoot.empty() || subtreeRoot == tree.root;
+  std::set<std::string> kept;
+  std::set<std::string> dropped;
+  std::map<std::string, mrpt::poses::CPose3D> posesByFrame;
+  size_t nDrawn = 0;
+
+  for (const auto & node : tree.nodes) {
+    if (!wholeTree && node.frame != subtreeRoot && kept.count(node.parent) == 0) {
+      continue;
+    }
+    if (excluded.count(node.frame) != 0 || dropped.count(node.parent) != 0) {
+      dropped.insert(node.frame);
+      continue;
+    }
+    kept.insert(node.frame);
+    nDrawn++;
+    posesByFrame[node.frame] = node.pose_in_root;
+
+    if (cornerSize > 0) {
+      auto corner = mrpt::opengl::stock_objects::CornerXYZSimple(cornerSize);
+      corner->setPose(node.pose_in_root);
+      out.insert(corner);
+    }
+
+    if (showNames) {
+      auto label = mrpt::opengl::CText::Create(node.frame);
+      label->setLocation(node.pose_in_root.translation());
+      out.insert(label);
+    }
+
+    if (showLinks && !node.parent.empty()) {
+      if (const auto it = posesByFrame.find(node.parent); it != posesByFrame.end()) {
+        if (auto glCyl = makeTfLinkCylinder(
+              it->second.translation(), node.pose_in_root.translation(), linkRadius);
+            glCyl) {
+          out.insert(glCyl);
+        }
+      }
+    }
+  }
+
+  return nDrawn;
+}
+#endif
+
 }  // namespace
 
 mola::gui::Tab LidarOdometry::buildTabStatus()
@@ -216,6 +330,76 @@ mola::gui::Tab LidarOdometry::buildTabView()
       this->enqueue_request(
         [this, checked]() { params_.visualization.show_gravity_align_vector = checked; });
     }});
+
+  {
+    Row row;
+    row.widgets.emplace_back(CheckBox{
+      "Show /tf tree", params_.visualization.show_tf_tree, [this](bool checked) {
+        this->enqueue_request([this, checked]() { params_.visualization.show_tf_tree = checked; });
+      }});
+    row.widgets.emplace_back(TextBox{
+      "size", std::to_string(params_.visualization.tf_tree_corner_size), 5,
+      [this](std::string s) {  // NOLINT
+        float v = 0;
+        try {
+          v = std::stof(s);
+        } catch (const std::exception &) {
+          return false;
+        }
+        if (v < 0) {
+          return false;
+        }
+        this->enqueue_request([this, v]() { params_.visualization.tf_tree_corner_size = v; });
+        return true;
+      }});
+    tab.widgets.emplace_back(std::move(row));
+  }
+
+  {
+    Row row;
+    row.widgets.emplace_back(
+      CheckBox{"tf links", params_.visualization.tf_tree_show_links, [this](bool checked) {
+                 this->enqueue_request(
+                   [this, checked]() { params_.visualization.tf_tree_show_links = checked; });
+               }});
+    row.widgets.emplace_back(
+      CheckBox{"tf names", params_.visualization.tf_tree_show_names, [this](bool checked) {
+                 this->enqueue_request(
+                   [this, checked]() { params_.visualization.tf_tree_show_names = checked; });
+               }});
+    row.widgets.emplace_back(TextBox{
+      "link radius", std::to_string(params_.visualization.tf_tree_link_radius), 5,
+      [this](std::string s) {  // NOLINT
+        float v = 0;
+        try {
+          v = std::stof(s);
+        } catch (const std::exception &) {
+          return false;
+        }
+        if (v < 0) {
+          return false;
+        }
+        this->enqueue_request([this, v]() { params_.visualization.tf_tree_link_radius = v; });
+        return true;
+      }});
+    tab.widgets.emplace_back(std::move(row));
+  }
+
+  {
+    Row row;
+    row.widgets.emplace_back(TextBox{
+      "tf root", params_.visualization.tf_tree_root_frame, 13, [this](std::string f) {  // NOLINT
+        this->enqueue_request([this, f]() { params_.visualization.tf_tree_root_frame = f; });
+        return true;
+      }});
+    row.widgets.emplace_back(TextBox{
+      "exclude", params_.visualization.tf_tree_exclude_frames, 13,
+      [this](std::string f) {  // NOLINT
+        this->enqueue_request([this, f]() { params_.visualization.tf_tree_exclude_frames = f; });
+        return true;
+      }});
+    tab.widgets.emplace_back(std::move(row));
+  }
 
   const float sensorPosesSize = params_.visualization.sensor_poses_corner_size > 0.0f
                                   ? params_.visualization.sensor_poses_corner_size
@@ -460,6 +644,10 @@ void LidarOdometry::updateVisualization(
   updateTasks.emplace_back([visualizer = visualizer_, glVehicle, vizFrame]() {
     vizUpsert3D(visualizer, "liodom/vehicle", glVehicle, vizFrame);
   });
+
+  // Robot /tf tree (opt-in):
+  // ---------------------------
+  updateVisualizationTfTree(updateTasks, vizFrame);
 
   // Update current observation
   // ----------------------------
@@ -809,6 +997,56 @@ void LidarOdometry::updateVisualizationLocalMap(
     state_.local_map_needs_viz_update = true;
     state_.mapUpdateCnt = std::numeric_limits<unsigned int>::max();
   }
+}
+
+void LidarOdometry::updateVisualizationTfTree(
+  std::vector<std::function<void()>> & updateTasks, const std::string & vizFrame)
+{
+#if defined(MOLA_HAS_TRANSFORM_TREE_SOURCE)
+  const auto & vp = params_.visualization;
+
+  auto glTree = mrpt::opengl::CSetOfObjects::Create();
+
+  if (vp.show_tf_tree && state_.transform_tree_source) {
+    // ALWAYS query from the robot body frame, whatever subtree is to be shown:
+    // the returned poses are relative to the queried root, and the result is
+    // drawn at the vehicle pose below, so querying from any other frame would
+    // offset the whole tree by the (unknown here) body -> root transform.
+    // tf_tree_root_frame then only selects which subtree of it to draw.
+    std::string queryRoot = state_.transform_tree_source->transform_tree_default_root();
+    if (queryRoot.empty()) {
+      queryRoot = vp.tf_tree_root_frame;
+    }
+
+    // Query at the scan time, so the joints match the rendered cloud rather
+    // than the wall clock (the source falls back to its latest data itself).
+    if (const auto tree =
+          state_.transform_tree_source->transform_tree(queryRoot, state_.last_obs_timestamp);
+        tree) {
+      const size_t n = renderTfTree(
+        *tree, vp.tf_tree_root_frame, splitCommaSeparated(vp.tf_tree_exclude_frames),
+        vp.tf_tree_corner_size, vp.tf_tree_show_links, vp.tf_tree_link_radius,
+        vp.tf_tree_show_names, *glTree);
+
+      MRPT_LOG_THROTTLE_DEBUG_FMT(
+        5.0, "[tf tree] Rendering %zu of %zu frame(s) under '%s'.", n, tree->nodes.size(),
+        queryRoot.c_str());
+    } else {
+      MRPT_LOG_THROTTLE_WARN_FMT(
+        5.0, "[tf tree] Root frame '%s' is not known to the data source.", queryRoot.c_str());
+    }
+  }
+
+  // The tree poses are relative to the robot body, so draw it at the same
+  // pose as the vehicle model:
+  glTree->setPose(state_.last_lidar_pose.mean);
+  updateTasks.emplace_back([visualizer = visualizer_, glTree, vizFrame]() {
+    vizUpsert3D(visualizer, "liodom/tf_tree", glTree, vizFrame);
+  });
+#else
+  (void)updateTasks;
+  (void)vizFrame;
+#endif
 }
 
 void LidarOdometry::updateVisualizationPath(std::vector<std::function<void()>> & updateTasks)
