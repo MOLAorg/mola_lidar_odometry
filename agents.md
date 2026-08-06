@@ -17,6 +17,27 @@ assumed to be a ROS 1 bag and uses `lidar_odometry_from_rosbag1.yaml`
 (`MOLA_INPUT_ROSBAG1`), matching how `mola-lo-gui-rosbag1`/`mola-lo-gui-rosbag2`
 pick their launch file.
 
+## `lidar_odometry_from_rosbag1.yaml`: up to 3 bags replayed jointly
+
+`rosbag_filename` is a sequence fed from `MOLA_INPUT_ROSBAG1` plus two
+optional slots, `MOLA_INPUT_ROSBAG1_2` / `_3` (empty entries are dropped by
+`Rosbag1Dataset`). Per-topic datasets that ship `/tf`, the IMU or the odometry
+in separate bag files therefore need no launch file of their own.
+
+## `scripts/mola-lo-gui-grandtour`
+
+GrandTour (ANYmal-D + "Boxi" payload) publishes one bag per topic, so the
+wrapper takes a *mission directory* (or its `*_hesai_undist.bag`) and resolves
+its siblings by the `<mission>_<topic>.bag` naming: LiDAR (required), the
+`tf_minimal` and `adis` bags (optional). Notes specific to this dataset:
+
+- The robot body frame is `base`, not `base_link` (`MOLA_TF_BASE_LINK`).
+- Extrinsics come from the dataset's own `/tf_static`
+  (`base -> box_base -> hesai_lidar` / `adis16475_imu`), so no fixed sensor
+  poses are needed when the tf bag is present; without it the LiDAR falls
+  back to a fixed pose at the origin.
+- The LiDAR topic used is the already-undistorted one, so deskewing defaults
+  to `MotionCompensationMethod::None` to avoid over-compensating motion.
 ## Robot /tf tree visualization (opt-in)
 
 `visualization.show_tf_tree` draws the subtree of coordinate frames below
