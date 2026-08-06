@@ -77,7 +77,9 @@ bool LidarOdometry::isPipelineUsingIMU_locked() const
 void LidarOdometry::closeMapGravityInterval(
   double timestamp, const mrpt::poses::CPose3D & pose, const mrpt::math::TTwist3D & twistLocal)
 {
-  // Caller holds state_mtx_.
+  // Caller holds state_mtx_; map_gravity is fed by the IMU thread too:
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+
   auto & mg = state_.map_gravity;
 
   // Velocity in the MAP frame, which is the frame the estimator works in.
@@ -143,7 +145,11 @@ void LidarOdometry::closeMapGravityInterval(
 #if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
 std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
 {
-  // Caller holds state_mtx_.
+  // Caller holds state_mtx_; gravity_estimator and map_gravity are fed by the
+  // IMU thread. Held across the whole body so the reading and the map-frame
+  // reference it is combined with come from one consistent snapshot:
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+
   const auto pr = state_.gravity_estimator.estimatedPitchRoll(
     params_.imu_gravity_correction.averaging_samples,
     params_.imu_gravity_correction.max_age_seconds);
@@ -214,7 +220,9 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
 
 void LidarOdometry::captureMapOriginVerticality(const mrpt::poses::CPose3D & poseAtCapture)
 {
-  // Caller holds state_mtx_.
+  // Caller holds state_mtx_; gravity_estimator is fed by the IMU thread:
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+
   if (!params_.imu_gravity_correction.enabled || state_.gravity_calib_pitch_roll.has_value()) {
     return;
   }
@@ -245,7 +253,9 @@ void LidarOdometry::captureMapOriginVerticality(const mrpt::poses::CPose3D & pos
 
 double LidarOdometry::effectiveGravitySigmaRad() const
 {
-  // Caller holds state_mtx_.
+  // Caller holds state_mtx_; gravity_estimator is fed by the IMU thread:
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+
   const double sigma0 = mrpt::DEG2RAD(params_.imu_gravity_correction.sigma_deg);
   if (!params_.imu_gravity_correction.adaptive_sigma) {
     return sigma0;
@@ -374,7 +384,10 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   // Refresh dyn. variables used in the mp2p_icp pipelines:
   updatePipelineDynamicVariables(this_obs_tim);
 
-  MRPT_LOG_DEBUG_STREAM("Dynamic variables: " << state_.parameter_source.printVariableValues());
+  if (isLoggingLevelVisible(mrpt::system::LVL_DEBUG)) {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    MRPT_LOG_DEBUG_STREAM("Dynamic variables: " << state_.parameter_source.printVariableValues());
+  }
 
   // Extract points from observation:
   auto observation = observationFromRawSensor(sf);
@@ -398,7 +411,14 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
   if (use_early_deskew) {
     ProfilerEntry tle1(profiler_, "onLidar.1.deskew_early");
-    mp2p_icp_filters::apply_filter_pipeline(state_.pc_deskew, *observation, profiler_);
+    {
+      // FilterDeskew snapshots the localVelocityBuffer that the IMU thread
+      // appends to (one collect_samples_around_reference_time() call; the
+      // per-point work afterwards runs on that private copy). The lock spans
+      // the pipeline because the snapshot happens inside the filter:
+      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+      mp2p_icp_filters::apply_filter_pipeline(state_.pc_deskew, *observation, profiler_);
+    }
     // Now observation has a "deskewed" layer with the full cloud deskewed.
   } else {
     // Fallback:
@@ -462,8 +482,10 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   // configured, e.g. MiddleIsZero -> mid-scan). Use it consistently for any
   // pose-time semantics (state fusion, trajectory, published stamps).
   // With no per-point time adjustment configured this equals obs->timestamp.
-  const double scan_ref_time_s =
-    state_.parameter_source.localVelocityBuffer.get_reference_zero_time();
+  const double scan_ref_time_s = [this]() {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    return state_.parameter_source.localVelocityBuffer.get_reference_zero_time();
+  }();
   const auto scan_ref_time =
     scan_ref_time_s > 0 ? mrpt::Clock::fromDouble(scan_ref_time_s) : this_obs_tim;
 
@@ -646,6 +668,10 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
     // Legacy path: fold the gravity-derived pitch/roll into the SE(3) prior.
     if (params_.imu_gravity_correction.enabled && !params_.imu_gravity_correction.use_rank2_prior) {
+      // gravity_estimator is fed by the IMU thread; one consistent snapshot for
+      // the reading, its dispersion and the buffer size logged below:
+      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+
       const auto gravityPR = state_.gravity_estimator.estimatedPitchRoll(
         params_.imu_gravity_correction.averaging_samples,
         params_.imu_gravity_correction.max_age_seconds);
@@ -865,7 +891,10 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
         // Update twist dynamic variables, then re-run pipelines:
         updatePipelineTwistVariables(tw);
         // Make all changes effective and evaluate the variables now:
-        state_.parameter_source.realize();
+        {
+          auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+          state_.parameter_source.realize();
+        }
 
         // and re-apply 2nd pass:
         ProfilerEntry tle1c(profiler_, "onLidar.1.filter_2nd");
@@ -978,10 +1007,13 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 #endif
 
     // Update for stats in CSV format:
-    state_.parameter_source.updateVariable("icp_iterations", out.icp_iterations);
-    state_.parameter_source.updateVariable(
-      "twistCorrectionCount", static_cast<double>(twistCorrectionCount));
-    state_.parameter_source.updateVariable("icp_quality", state_.last_icp_quality);
+    {
+      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+      state_.parameter_source.updateVariable("icp_iterations", out.icp_iterations);
+      state_.parameter_source.updateVariable(
+        "twistCorrectionCount", static_cast<double>(twistCorrectionCount));
+      state_.parameter_source.updateVariable("icp_quality", state_.last_icp_quality);
+    }
 
     // Adaptive threshold method:
     // Only update on good ICP: a bad ICP may have converged to a local minimum
@@ -1222,7 +1254,10 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
     // in particular, [robot_x, ..., robot_roll]:
     updatePipelineDynamicVariablesRobotPoseOnly();
     // Make all changes effective and evaluate the variables now:
-    state_.parameter_source.realize();
+    {
+      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+      state_.parameter_source.realize();
+    }
 
     // 3/4: Apply pipeline
     mp2p_icp_filters::apply_filter_pipeline(state_.obs2map_merge, *state_.local_map, profiler_);
@@ -1376,14 +1411,21 @@ mp2p_icp::metric_map_t::Ptr LidarOdometry::observationFromRawSensor(
     mp2p_icp::metric_map_t thisObs;
     mp2p_icp::metric_map_t * obsTrg = sf.size() == 1 ? observation.get() : &thisObs;
 
-    mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *obsTrg);
+    {
+      // Shares obs_generators (and, through them, the localVelocityBuffer whose
+      // reference-zero time they set) with the IMU thread's own
+      // apply_generators() call, plus the realize() flags that thread reads:
+      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
 
-    // Update relative timestamps for multiple lidars:
-    const double dt = mrpt::system::timeDifference(timeOfFirstSFObs, o->timestamp);
+      mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *obsTrg);
 
-    state_.parameter_source.updateVariable("SENSOR_TIME_OFFSET", dt);
-    // Make all changes effective and evaluate the variables now:
-    state_.parameter_source.realize();
+      // Update relative timestamps for multiple lidars:
+      const double dt = mrpt::system::timeDifference(timeOfFirstSFObs, o->timestamp);
+
+      state_.parameter_source.updateVariable("SENSOR_TIME_OFFSET", dt);
+      // Make all changes effective and evaluate the variables now:
+      state_.parameter_source.realize();
+    }
 
     mp2p_icp_filters::apply_filter_pipeline(state_.pc_filterAdjustTimes, *obsTrg, profiler_);
 
@@ -1551,7 +1593,10 @@ void LidarOdometry::appendKeyframeMetadataObs(
 
   // Store local velocity buffer in the KF metadata so it is possible to deskew
   // the scan later on with precision.
-  kf_metadata["local_velocity_buffer"] = state_.parameter_source.localVelocityBuffer.toYAML();
+  kf_metadata["local_velocity_buffer"] = [this]() {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    return state_.parameter_source.localVelocityBuffer.toYAML();
+  }();
 
   // convert yaml to string:
   std::stringstream ss;

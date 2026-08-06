@@ -1088,9 +1088,12 @@ void LidarOdometry::updateVisualizationGravityVector(
 
   const ProfilerEntry tle2(profiler_, "updateVisualization.update_gravity");
 
-  const auto gravityPR = state_.gravity_estimator.estimatedPitchRoll(
-    params_.imu_gravity_correction.averaging_samples,
-    params_.imu_gravity_correction.max_age_seconds);
+  const auto gravityPR = [this]() {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    return state_.gravity_estimator.estimatedPitchRoll(
+      params_.imu_gravity_correction.averaging_samples,
+      params_.imu_gravity_correction.max_age_seconds);
+  }();
 
   if (!gravityPR.has_value()) {
     return;
@@ -1126,6 +1129,8 @@ void LidarOdometry::updateVisualizationTextLabels()
     state_.adapt_thres_sigma, state_.last_icp_iterations));
 
   {
+    // recent_imu_stamps is appended by the IMU worker thread:
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     const auto [rate_lidar, rate_imu, rate_gnss] = state_.get_sensor_rates();
     gui_.lbSensorRates->set(mrpt::format(
       "LiDAR=%6.02f Hz | IMU=%6.02f Hz | GNSS=%5.02f Hz", rate_lidar, rate_imu, rate_gnss));

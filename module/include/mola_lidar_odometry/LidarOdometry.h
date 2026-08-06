@@ -937,12 +937,15 @@ private:
     std::size_t drop_frames_stats_next_index = 0;
     // ------ ^^^ end of these flags are protected ^^^^      ---------
 
-    // All other fields are protected by state_mtx_
+    // All other fields are protected by state_mtx_, EXCEPT the ones marked
+    // below as protected by imu_state_mtx_ (the state the IMU worker thread
+    // feeds; see that mutex's docs for the full list and the lock order).
 
     // will be true after the first incoming LiDAR frame and re-localization is enabled and run
     bool initial_localization_done = false;
 
-    /// Used for pitch & roll initialization
+    /// Used for pitch & roll initialization.
+    /// Protected by imu_state_mtx_.
     std::optional<mola::imu::ImuInitialCalibrator> imu_initializer;
 
     /// Accumulates recent accelerometer readings and provides
@@ -982,6 +985,7 @@ private:
       std::optional<double> directionDispersionSigma(double max_age_seconds) const;
     };
 
+    /// Protected by imu_state_mtx_.
     GravityEstimator gravity_estimator;
 
 #if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
@@ -1006,6 +1010,7 @@ private:
       uint32_t intervals_since_solve = 0;
     };
 
+    /// Protected by imu_state_mtx_.
     MapGravityState map_gravity;
 #endif
 
@@ -1073,7 +1078,10 @@ private:
 
     std::optional<NavState> last_motion_model_output;
 
-    /// The source of "dynamic variables" in ICP pipelines:
+    /// The source of "dynamic variables" in ICP pipelines.
+    /// Protected by imu_state_mtx_: besides the variable map and the realize()
+    /// flags, it owns the localVelocityBuffer that IMU samples write and the
+    /// LiDAR deskew stage reads.
     mp2p_icp::ParameterSource parameter_source;
 
     // KISS-ICP-like adaptive threshold method:
@@ -1088,6 +1096,8 @@ private:
     std::optional<double> estimated_observation_radius;
     std::optional<double> instantaneous_observation_radius;
 
+    /// Invocations are protected by imu_state_mtx_: apply_generators() on an
+    /// IMU observation appends to parameter_source.localVelocityBuffer.
     mp2p_icp_filters::GeneratorSet obs_generators;
     mp2p_icp_filters::FilterPipeline pc_filterAdjustTimes;
     mp2p_icp_filters::FilterPipeline pc_prefilter;
@@ -1176,6 +1186,7 @@ private:
     std::map<std::string, mrpt::containers::circular_buffer<double>> recent_lidar_stamps;
 
     /// Used to estimate sensor rate
+    /// Protected by imu_state_mtx_.
     mrpt::containers::circular_buffer<double> recent_imu_stamps{1500};
 
     /// Used to estimate GNSS sensor rate
@@ -1328,6 +1339,30 @@ private:
   mutable std::mutex drop_stats_mtx_;
   mutable std::mutex state_flags_mtx_;
   mutable std::mutex state_mtx_;
+
+  /// Guards the state shared between the IMU worker thread and the LiDAR
+  /// worker thread, so the former no longer has to wait on state_mtx_, which
+  /// processLidarScan() holds for its whole body (filters, ICP, map update,
+  /// visualization). At 200 Hz IMU / 10 Hz LiDAR that made the IMU thread block
+  /// for essentially the entire duration of every scan, and since
+  /// releaseReadyLidarScansToWorker() runs at the end of onIMU(), that wait fed
+  /// straight back into scan submission latency.
+  ///
+  /// Covers, in MethodState: imu_initializer, gravity_estimator, map_gravity,
+  /// recent_imu_stamps, parameter_source (its variable map, the realize()
+  /// "evaluated" flags, and localVelocityBuffer), and any *invocation* of
+  /// obs_generators (which writes the velocity buffer and reads those flags).
+  ///
+  /// Lock order: state_mtx_ -> local_map_content_mtx_ -> imu_state_mtx_; never
+  /// the reverse. The IMU worker takes only this one (and never the local map),
+  /// so it cannot invert the order.
+  ///
+  /// Recursive because the accessors that take it compose (e.g.
+  /// updatePipelineDynamicVariables() -> updatePipelineTwistVariables(),
+  /// buildGravityPrior() -> effectiveGravitySigmaRad()); locking at accessor
+  /// granularity is what keeps the ownership rule above reviewable, rather than
+  /// threading a lock object through a dozen signatures.
+  mutable std::recursive_mutex imu_state_mtx_;
 
   /// Guards the *contents* (layers) of MethodState::local_map.
   /// Rendering the map is O(map size) and would stall every other user of
