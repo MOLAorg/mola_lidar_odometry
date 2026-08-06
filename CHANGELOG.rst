@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+3.1.0 (2026-08-06)
+------------------
 * fix: keep the local-map render and the IMU worker off the LiDAR critical path (`#126 <https://github.com/MOLAorg/mola_lidar_odometry/issues/126>`_)
 
   Moves the local-map render off the LiDAR thread onto its own worker, and
