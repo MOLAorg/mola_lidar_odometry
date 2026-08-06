@@ -129,6 +129,7 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(tf_tree_root_frame, std::string);
   YAML_LOAD_OPT(tf_tree_corner_size, float);
   YAML_LOAD_OPT(tf_tree_show_links, bool);
+  YAML_LOAD_OPT(tf_tree_link_radius, float);
   YAML_LOAD_OPT(tf_tree_show_names, bool);
   YAML_LOAD_OPT(tf_tree_exclude_frames, std::string);
   YAML_LOAD_OPT(local_map_point_size, float);

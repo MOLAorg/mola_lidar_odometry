@@ -257,6 +257,7 @@ params:
     tf_tree_root_frame: ${MOLA_LO_TF_TREE_ROOT|''} # empty: use the data source's base_link frame
     tf_tree_corner_size: ${MOLA_LO_TF_TREE_CORNER_SIZE|0.1} # [m]
     tf_tree_show_links: ${MOLA_LO_TF_TREE_SHOW_LINKS|true}
+    tf_tree_link_radius: ${MOLA_LO_TF_TREE_LINK_RADIUS|0.02} # [m], cylinder radius for tf links
     tf_tree_show_names: ${MOLA_LO_TF_TREE_SHOW_NAMES|false}
     tf_tree_exclude_frames: ${MOLA_LO_TF_TREE_EXCLUDE|''} # comma-separated; drops each frame and its subtree
 

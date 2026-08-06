@@ -61,6 +61,13 @@ GrandTour has `base -> odom` and `hesai_lidar -> dlio_odom`, so without
 excluding them a ~130 m translation drags an unrelated subtree into the
 robot's own tree.
 
+Links (`tf_tree_show_links`) render as thin `CCylinder`s, not GL lines: MRPT
+cannot draw lines with a configurable thickness, so they are barely visible.
+Radius is `tf_tree_link_radius` (`MOLA_LO_TF_TREE_LINK_RADIUS`, default 0.02 m),
+also live in the GUI. Orientation is derived from the two endpoints (pitch =
+`acos(nz)`, yaw = `atan2(ny, nx)` of the unit direction), the same approach
+used for `mola_mapper`'s graph-edge cylinders.
+
 ## `ros2-lidar-odometry.launch.py`: `initial_pose` argument
 
 Added because it was missing: `InitLocalization::FixedPose` has always

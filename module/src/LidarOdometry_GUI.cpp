@@ -31,6 +31,7 @@
 #include <mrpt/obs/customizable_obs_viz.h>
 #include <mrpt/opengl/CArrow.h>
 #include <mrpt/opengl/CAssimpModel.h>
+#include <mrpt/opengl/CCylinder.h>
 #include <mrpt/opengl/CGridPlaneXY.h>
 #include <mrpt/opengl/COpenGLScene.h>
 #include <mrpt/opengl/CPointCloudColoured.h>
@@ -43,6 +44,7 @@
 
 // STD:
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <map>
 #include <mutex>
@@ -85,6 +87,36 @@ std::set<std::string> splitCommaSeparated(const std::string & s)
   return out;
 }
 
+// tf links render as CCylinder (thin tubes), visible even at a distance,
+// unlike GL lines, which MRPT cannot draw with a configurable thickness.
+// Few radial slices and no end caps keep the per-link triangle count low.
+constexpr uint32_t kTfLinkCylinderSlices = 6;
+
+// A CCylinder's local Z axis runs from its base (at the object's origin) to
+// its top (at height `len`). Orient it so that axis points from `a` to `b`:
+// pitch = acos(nz), yaw = atan2(ny, nx) for the unit direction (nx,ny,nz),
+// derived from MRPT's R = Rz(yaw)*Ry(pitch)*Rx(roll) convention applied to
+// local Z (roll is a free rotation about the cylinder's own axis, so 0 is
+// fine). Returns nullptr for a degenerate (near-zero-length) link.
+mrpt::opengl::CCylinder::Ptr makeTfLinkCylinder(
+  const mrpt::math::TPoint3D & a, const mrpt::math::TPoint3D & b, float radius)
+{
+  const mrpt::math::TPoint3D d = b - a;
+  const double len = d.norm();
+  if (len < 1e-6) {
+    return {};
+  }
+  const double pitch = std::acos(std::clamp(d.z / len, -1.0, 1.0));
+  const double yaw = std::atan2(d.y, d.x);
+
+  auto glCyl =
+    mrpt::opengl::CCylinder::Create(radius, radius, static_cast<float>(len), kTfLinkCylinderSlices);
+  glCyl->setHasBases(false, false);
+  glCyl->setColor_u8(0x80, 0x80, 0x80, 0xff);
+  glCyl->setPose(mrpt::poses::CPose3D(a.x, a.y, a.z, yaw, pitch, 0.0));
+  return glCyl;
+}
+
 /** Fills `out` with one XYZ corner per frame of `tree` (plus, optionally, the
  *  parent->child links and the frame names), keeping the poses exactly as
  *  given, i.e. relative to the tree's own root.
@@ -96,12 +128,9 @@ std::set<std::string> splitCommaSeparated(const std::string & s)
  */
 size_t renderTfTree(
   const mola::TransformTree & tree, const std::string & subtreeRoot,
-  const std::set<std::string> & excluded, float cornerSize, bool showLinks, bool showNames,
-  mrpt::opengl::CSetOfObjects & out)
+  const std::set<std::string> & excluded, float cornerSize, bool showLinks, float linkRadius,
+  bool showNames, mrpt::opengl::CSetOfObjects & out)
 {
-  auto glLinks = mrpt::opengl::CSetOfLines::Create();
-  glLinks->setColor_u8(0x80, 0x80, 0x80, 0xff);
-
   // Nodes come ordered parents-before-children, so both the "keep only this
   // subtree" and the "drop this frame" tests propagate down in a single pass:
   const bool wholeTree = subtreeRoot.empty() || subtreeRoot == tree.root;
@@ -136,13 +165,13 @@ size_t renderTfTree(
 
     if (showLinks && !node.parent.empty()) {
       if (const auto it = posesByFrame.find(node.parent); it != posesByFrame.end()) {
-        glLinks->appendLine(it->second.translation(), node.pose_in_root.translation());
+        if (auto glCyl = makeTfLinkCylinder(
+              it->second.translation(), node.pose_in_root.translation(), linkRadius);
+            glCyl) {
+          out.insert(glCyl);
+        }
       }
     }
-  }
-
-  if (showLinks) {
-    out.insert(glLinks);
   }
 
   return nDrawn;
@@ -338,6 +367,21 @@ mola::gui::Tab LidarOdometry::buildTabView()
                  this->enqueue_request(
                    [this, checked]() { params_.visualization.tf_tree_show_names = checked; });
                }});
+    row.widgets.emplace_back(TextBox{
+      "link radius", std::to_string(params_.visualization.tf_tree_link_radius), 5,
+      [this](std::string s) {  // NOLINT
+        float v = 0;
+        try {
+          v = std::stof(s);
+        } catch (const std::exception &) {
+          return false;
+        }
+        if (v < 0) {
+          return false;
+        }
+        this->enqueue_request([this, v]() { params_.visualization.tf_tree_link_radius = v; });
+        return true;
+      }});
     tab.widgets.emplace_back(std::move(row));
   }
 
@@ -981,7 +1025,8 @@ void LidarOdometry::updateVisualizationTfTree(
         tree) {
       const size_t n = renderTfTree(
         *tree, vp.tf_tree_root_frame, splitCommaSeparated(vp.tf_tree_exclude_frames),
-        vp.tf_tree_corner_size, vp.tf_tree_show_links, vp.tf_tree_show_names, *glTree);
+        vp.tf_tree_corner_size, vp.tf_tree_show_links, vp.tf_tree_link_radius,
+        vp.tf_tree_show_names, *glTree);
 
       MRPT_LOG_THROTTLE_DEBUG_FMT(
         5.0, "[tf tree] Rendering %zu of %zu frame(s) under '%s'.", n, tree->nodes.size(),

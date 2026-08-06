@@ -317,8 +317,13 @@ public:
 
       float tf_tree_corner_size = 0.1f;  //! [m]
 
-      /** Draws a line from each frame to its parent. */
+      /** Draws a link from each frame to its parent. Rendered as thin
+       * cylinders rather than GL lines, which MRPT cannot draw with a
+       * configurable thickness and are barely visible. */
       bool tf_tree_show_links = true;
+
+      /** Radius of the tf_tree_show_links cylinders. */
+      float tf_tree_link_radius = 0.02f;  //! [m]
 
       /** Draws each frame's name next to it. */
       bool tf_tree_show_names = false;
