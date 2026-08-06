@@ -106,7 +106,7 @@ params:
   # If run within a mola-cli container, and mola_viz is present, use these options
   # to show live progress:
   visualization:
-    map_update_decimation: 20
+    map_update_decimation: ${MOLA_GUI_MAP_UPDATE_DECIMATION|20}
     show_trajectory: true
     #current_pose_corner_size: 1.5
     #sensor_poses_corner_size: 0.5  # XYZ corner for each LiDAR sensor pose; 0 to disable

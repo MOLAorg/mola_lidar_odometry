@@ -153,7 +153,7 @@ params:
     output_file: ${MOLA_TUM_TRAJECTORY_OUTPUT|'estimated_trajectory.tum'}
 
   visualization:
-    map_update_decimation: 10
+    map_update_decimation: ${MOLA_GUI_MAP_UPDATE_DECIMATION|10}
     show_trajectory: ${MOLA_GUI_SHOW_TRAJECTORY|true}
     trajectory_rgba: [0.1, 0.1, 0.1, 1.0]
     camera_follows_vehicle: ${MOLA_GUI_CAMERA_FOLLOWS_VEHICLE|true}

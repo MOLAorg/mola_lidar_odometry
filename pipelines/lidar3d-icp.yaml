@@ -142,7 +142,7 @@ params:
   # If run within a mola-cli container, and mola_viz is present, use these options
   # to show live progress:
   visualization:
-    map_update_decimation: 10
+    map_update_decimation: ${MOLA_GUI_MAP_UPDATE_DECIMATION|10}
     show_trajectory: true
     show_current_observation: false # shows "live deskewed" LiDAR points
     show_last_deskewed_observations_decay: true # shows "live deskewed" LiDAR points over time

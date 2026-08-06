@@ -59,6 +59,10 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
 
   {
     auto lckState = mrpt::lockHelper(state_mtx_);
+    // This block builds the generators/pipelines and attaches them to the
+    // parameter source, all of which the IMU worker thread reaches without
+    // state_mtx_ (sensors may already be feeding by now):
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
 
     // One-shot deprecation warning for the legacy *_sensor_* names. Aliases
     // are still honored (dynamic variables are double-published; the *_sensor_*

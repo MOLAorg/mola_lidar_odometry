@@ -314,9 +314,15 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
   // 1) During special initialization to compensate for pitch/roll;
   // 2) Improved scan de-skewing.
 
+  // Everything this callback touches lives under imu_state_mtx_, NOT under
+  // state_mtx_: the latter is held by processLidarScan() for its whole body, so
+  // taking it here blocked this thread for the duration of every scan (see the
+  // mutex's docs). Only the fine-grained one is needed, and it is held by the
+  // LiDAR thread for short, well-defined windows.
+
   // 1) Initial pitch/roll estimation:
   {
-    auto lckState = mrpt::lockHelper(state_mtx_);
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     if (state_.imu_initializer.has_value()) {
       state_.imu_initializer->add(imu);
     }
@@ -330,7 +336,7 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
   //    The LocalVelocityBuffer also needs velocity and orientation estimations, which are sent out
   //    in updatePipelineDynamicVariables()
   {
-    auto lckState = mrpt::lockHelper(state_mtx_);
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     mp2p_icp::metric_map_t dummy_map;
     mp2p_icp_filters::apply_generators(state_.obs_generators, *imu, dummy_map);
   }
@@ -347,7 +353,7 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
 
   // 3) Gravity estimation for ICP verticality correction:
   if (params_.imu_gravity_correction.enabled) {
-    auto lckState2 = mrpt::lockHelper(state_mtx_);
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     state_.gravity_estimator.add(*imu, params_.imu_gravity_correction.averaging_samples);
 
 #if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
@@ -587,7 +593,7 @@ void LidarOdometry::MethodState::GravityEstimator::add(
 #if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
 void LidarOdometry::accumulateImuForMapGravity(const mrpt::obs::CObservationIMU & imu)
 {
-  // Caller holds state_mtx_.
+  // Caller holds imu_state_mtx_ (state_.map_gravity).
   using namespace mrpt::obs;
 
   if (

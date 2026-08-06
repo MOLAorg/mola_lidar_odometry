@@ -225,18 +225,80 @@ instead of a brief quality dip that recovers to the true pose).
 
 ## Local-map locking: `state_mtx_` vs `local_map_content_mtx_`
 
-Rendering the local map (`updateVisualizationLocalMap()`) is O(map size) and
-must not run under `state_mtx_`, or it stalls the dataset reader, IMU worker
-and executor threads once the map is large. So it releases `state_mtx_` (via
-the caller's `std::unique_lock`, passed down through
-`updateVisualization*()`) and takes the finer-grained `local_map_content_mtx_`
-instead, which every mutation of `state_.local_map` contents (insert, `clear()`,
-`load_from_file()`) must also hold.
+Rendering the local map is O(map size) and must not run on the LiDAR worker
+thread, nor under `state_mtx_`: under `mola::IncrementalPointCloud` it measured
+~55 ms mean / ~120 ms max on a GrandTour mission, which turned roughly one
+`onLidar` in 18 into a >100 ms spike and backed the scan queue up to 18 entries.
+So `updateVisualizationLocalMap()` only makes the decimation decision and
+snapshots what the render needs (map `shared_ptr`, `render_params_t`, viz frame),
+then enqueues the render on `worker_viz_local_map_`. There it takes only the
+finer-grained `local_map_content_mtx_`, which every mutation of
+`state_.local_map` contents (insert, `clear()`, `load_from_file()`) must also
+hold. Effect on the same run: the inline cost drops to ~5 us and `onLidar`'s max
+from 155 ms to 66 ms, with the same number of renders.
 
-Lock order: take `state_mtx_` first, then `local_map_content_mtx_`; never hold
-the latter while acquiring the former. Note the renderer therefore *releases*
-`state_mtx_` before taking the contents mutex, and releases the contents mutex
-before re-acquiring `state_mtx_`.
+`worker_viz_local_map_` is deliberately a **separate** 1-thread
+`POLICY_DROP_OLD` pool from `worker_viz_`: with one thread that policy caps the
+queue at a single pending task, so sharing the pool would let the per-scan
+current-observation frames drop the much rarer local-map render before it ever
+ran. The "hide the local map" clear is routed through the same pool so it cannot
+be overtaken by a render already in flight.
+
+`visualization.map_update_decimation` (`MOLA_GUI_MAP_UPDATE_DECIMATION`,
+default 10 in most pipelines) bounds how often that render is even requested.
+The render itself no longer holds `local_map_content_mtx_` for its whole
+duration: `cheapLayerSnapshot()` deep-copies the layers under the mutex and the
+O(map size) recolorize/OpenGL build then runs on that private copy, unlocked.
+The copy is ~6x cheaper than the render it replaces in the critical section
+(27 ms vs 182 ms mean on Oxford Spires), which takes `onLidar`'s max from
+216 ms to 107 ms and makes `onLidar.4.update_local_map` equal to the insertion
+it wraps, i.e. zero lock wait.
+
+Point layers are copied into a plain `CGenericPointsMap` rather than cloned
+through their own type: `insertAnotherMap()` calls `registerPointFieldsFrom()`
+(so every per-point field survives) and skips non-finite points (so the slots
+`IncrementalPointCloud` blanks on eviction are dropped), while the target has no
+spatial index to build. Cloning an `IncrementalPointCloud` through its own copy
+constructor would instead `resetIndex()`, an O(N log N) k-d tree bulk build the
+renderer never queries. The copy does pick up the storage slots that are
+tombstoned but not reclaimed yet; that measured under 2% of storage
+(`MOLA_INCREMENTAL_MAP_DEBUG_STATS`: live/storage 0.999 mean, 0.982 worst), and
+it is the same trade-off `doPublishUpdatedLocalMap()` already makes.
+
+The render worker pays ~20 ms more per render for the extra copy step, which is
+fine: it is off the critical path by construction.
+
+## `imu_state_mtx_`: the IMU worker no longer waits on the LiDAR worker
+
+`processLidarScan()` holds `state_mtx_` for its whole body, so an `onIMU()` that
+also took `state_mtx_` blocked for the duration of every scan. At 200-400 Hz IMU
+vs 10 Hz LiDAR that meant the IMU worker's total time tracked `onLidar`'s almost
+exactly (33.1 s vs 32.7 s on Oxford Spires), and since
+`releaseReadyLidarScansToWorker()` is the last thing `onIMU()` does, the wait fed
+straight back into scan-submission latency.
+
+`imu_state_mtx_` (recursive) now guards exactly the state the two threads share:
+`imu_initializer`, `gravity_estimator`, `map_gravity`, `recent_imu_stamps`,
+`parameter_source` (variable map, `realize()` flags, and the
+`localVelocityBuffer` that IMU samples write and the deskew stage reads), and
+any *invocation* of `obs_generators`. `onIMU()` takes only this mutex; the LiDAR
+thread takes it in short windows on top of `state_mtx_`. Result on the same
+sequence: `onIMU` mean 957 -> 349 us, max 138.6 -> 9.7 ms, total 33.1 -> 12.4 s,
+with `onLidar` unchanged.
+
+The residual 12.4 s is accounted for exactly by the two stages that genuinely
+share those objects, `onLidar.0.apply_generators` (3.0 ms/scan) and
+`onLidar.1.deskew_early` (3.8 ms/scan), plus the ~176 us of real per-sample work.
+Removing it means making `mola::imu::LocalVelocityBuffer` internally thread-safe
+(it has no mutex today) so `FilterDeskew`'s single
+`collect_samples_around_reference_time()` snapshot can run concurrently with IMU
+appends; that is a `mola_imu_preintegration` change, not one for this repo.
+
+Full lock order: `state_mtx_` -> `local_map_content_mtx_` -> `imu_state_mtx_`.
+Never the reverse. The IMU worker takes only `imu_state_mtx_` and the local-map
+render worker only `local_map_content_mtx_`, so neither can invert it. Anything
+that replaces `state_` wholesale (`reset()`) or rebuilds the pipelines
+(`initialize()`) must hold `state_mtx_` **and** `imu_state_mtx_`.
 
 
 ## Keyframe-creation policy (shared by local map and simplemap)

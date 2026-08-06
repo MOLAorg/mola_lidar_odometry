@@ -56,21 +56,6 @@ namespace mola
 
 namespace
 {
-/** Temporarily releases an already-held lock, re-acquiring it on scope exit
- *  (including if the guarded code throws).
- */
-class ScopedUnlock
-{
-public:
-  explicit ScopedUnlock(std::unique_lock<std::mutex> & lck) : lck_(lck) { lck_.unlock(); }
-  ~ScopedUnlock() { lck_.lock(); }
-
-  ScopedUnlock(const ScopedUnlock &) = delete;
-  ScopedUnlock & operator=(const ScopedUnlock &) = delete;
-
-private:
-  std::unique_lock<std::mutex> & lck_;
-};
 #if defined(MOLA_HAS_TRANSFORM_TREE_SOURCE)
 /** Splits "a, b ,c" into {"a","b","c"}, ignoring empty items. */
 std::set<std::string> splitCommaSeparated(const std::string & s)
@@ -529,6 +514,50 @@ void doRecolorize(
   mrpt::obs::recolorize3Dpc(cloud, org_cloud, rp);
 };
 
+// A deep copy of `m`, cheap enough to make while holding
+// local_map_content_mtx_. It exists to keep that mutex OUT of the render:
+// get_visualization() costs ~6x this copy (167.9 ms vs 28.1 ms mean on an
+// Oxford Spires local map) and touches nothing but the copy, so holding the
+// map mutex across it stalled the LiDAR worker's own map insertion for
+// ~110 ms at a time.
+//
+// Point layers are copied into a plain CGenericPointsMap rather than cloned
+// through their own type: insertAnotherMap() carries every per-point field
+// over and skips non-finite slots, while the target has no spatial index to
+// build. Cloning e.g. mola::IncrementalPointCloud via its copy constructor
+// would instead bulk-build a k-d tree that the renderer never queries.
+// The copy sees, in addition to the live points, the storage slots that are
+// tombstoned but not reclaimed yet; that population measured <2% of storage
+// on Oxford Spires (live/storage 0.999 mean, 0.982 worst), i.e. visually
+// irrelevant, and it is the same trade-off doPublishUpdatedLocalMap() already
+// makes when copying layers out for ROS.
+mp2p_icp::metric_map_t cheapLayerSnapshot(const mp2p_icp::metric_map_t & m)
+{
+  // Shallow copy first, so any metadata this struct grows (id, label, lines,
+  // planes, georeferencing, ...) is carried over without enumerating it here:
+  mp2p_icp::metric_map_t out = m;
+
+  for (auto & [name, layer] : out.layers) {
+    if (!layer) {
+      continue;
+    }
+
+    if (const auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layer); pts) {
+      auto copy = mrpt::maps::CGenericPointsMap::Create();
+      copy->insertAnotherMap(pts.get(), mrpt::poses::CPose3D::Identity());
+      // The renderer reads both of these off the layer:
+      copy->renderOptions = pts->renderOptions;
+      copy->genericMapParams = pts->genericMapParams;
+      layer = copy;
+    } else {
+      // Voxel maps and friends: the RTTI copy is what they support.
+      layer = std::dynamic_pointer_cast<mrpt::maps::CMetricMap>(layer->duplicateGetSmartPtr());
+    }
+  }
+
+  return out;
+}
+
 // Upserts a 3D object, optionally as a child of a movable scene frame node
 // (parentFrame). Falls back to a root insert when built against an older
 // mola_kernel that lacks the movable-frame API.
@@ -750,13 +779,7 @@ void LidarOdometry::updateVisualizationAlways(std::unique_lock<std::mutex> & lck
   ASSERT_(lckState.owns_lock());
 
   // Local map: update whenever map content changed, independent of ICP quality.
-  {
-    std::vector<std::function<void()>> updateTasks;
-    updateVisualizationLocalMap(updateTasks, lckState);
-    for (const auto & ut : updateTasks) {
-      ut();
-    }
-  }
+  updateVisualizationLocalMap();
 
   // Sub-window with custom UI
   // -------------------------------------
@@ -923,11 +946,8 @@ void LidarOdometry::updateVisualizationCurrentObservation(
   (void)fut;
 }
 
-void LidarOdometry::updateVisualizationLocalMap(
-  std::vector<std::function<void()>> & updateTasks, std::unique_lock<std::mutex> & lckState)
+void LidarOdometry::updateVisualizationLocalMap()
 {
-  ASSERT_(lckState.owns_lock());
-
   const std::string vizFrame = vizParentFrame();
 
   bool decimationReached = false;
@@ -962,34 +982,45 @@ void LidarOdometry::updateVisualizationLocalMap(
     // local map: this recolors/renders every point currently in the map, an
     // O(map size) cost that keeps growing with it (e.g. under
     // mola::IncrementalPointCloud, whose local map never shrinks back below
-    // its eviction cube). Doing it under state_mtx_ stalls the dataset reader,
-    // IMU worker, and executor threads for the whole call once the local map
-    // gets large, so state_mtx_ is temporarily released here and the map
-    // contents are guarded by the finer-grained local_map_content_mtx_ instead.
-    // Note the strict order: state_mtx_ is released *before* acquiring the
-    // contents mutex, since holders of the latter may be waiting for the
-    // former (see the lock order documented in the class declaration).
-    mrpt::opengl::CSetOfObjects::Ptr glMap;
-    {
-      // Keep the map alive even if state_ is reset while unlocked:
-      const auto localMap = state_.local_map;
+    // its eviction cube), and it used to run right here, on the LiDAR worker
+    // thread: measured at ~55 ms mean / ~120 ms max on a GrandTour mission,
+    // which is what turned one onLidar in ~18 into a >100 ms spike and backed
+    // up the scan queue. So it is handed to a worker instead, where it takes
+    // only the finer-grained local_map_content_mtx_ (never state_mtx_, hence
+    // no inversion of the lock order documented in the class declaration).
+    //
+    // Snapshot all values the worker will need. Avoid any access to state_ or
+    // params_ from the lambda; keeping a shared_ptr to the map also means a
+    // concurrent reset() cannot drop the last reference mid-render.
+    const auto localMap = state_.local_map;
+    auto viz = visualizer_;
+    const auto * profilerPtr = &profiler_;
+    auto * mapContentsMtx = &local_map_content_mtx_;
 
-      const ScopedUnlock unlockState(lckState);
-      auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
+    (void)worker_viz_local_map_.enqueue([=]() {
+      const ProfilerEntry tle3(*profilerPtr, "updateVisualization.update_local_map_thread");
 
-      glMap = localMap->get_visualization(rp);
-    }
+      // Copy under the map mutex, render outside it: see cheapLayerSnapshot().
+      mp2p_icp::metric_map_t snapshot;
+      {
+        const ProfilerEntry tleCopy(*profilerPtr, "updateVisualization.update_local_map_copy");
+        auto lckMapContents = mrpt::lockHelper(*mapContentsMtx);
+        snapshot = cheapLayerSnapshot(*localMap);
+      }
 
-    updateTasks.emplace_back([visualizer = visualizer_, glMap, vizFrame]() {
-      vizUpsert3D(visualizer, "liodom/localmap", glMap, vizFrame);
+      const auto glMap = snapshot.get_visualization(rp);
+      vizUpsert3D(viz, "liodom/localmap", glMap, vizFrame);
     });
   }
 
   // Clear the local map if the user clicks on "hide it" at runtime:
   if (!params_.visualization.show_localmap) {
-    auto glMap = mrpt::opengl::CSetOfObjects::Create();
-    updateTasks.emplace_back([visualizer = visualizer_, glMap, vizFrame]() {
-      vizUpsert3D(visualizer, "liodom/localmap", glMap, vizFrame);
+    // Routed through the same worker so it is ordered after any render already
+    // enqueued above and cannot be overwritten by it.
+    auto viz = visualizer_;
+    (void)worker_viz_local_map_.enqueue([=]() {
+      auto glMap = mrpt::opengl::CSetOfObjects::Create();
+      vizUpsert3D(viz, "liodom/localmap", glMap, vizFrame);
     });
 
     // Force an immediate redraw the next time the local map is shown again,
@@ -1105,9 +1136,12 @@ void LidarOdometry::updateVisualizationGravityVector(
 
   const ProfilerEntry tle2(profiler_, "updateVisualization.update_gravity");
 
-  const auto gravityPR = state_.gravity_estimator.estimatedPitchRoll(
-    params_.imu_gravity_correction.averaging_samples,
-    params_.imu_gravity_correction.max_age_seconds);
+  const auto gravityPR = [this]() {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    return state_.gravity_estimator.estimatedPitchRoll(
+      params_.imu_gravity_correction.averaging_samples,
+      params_.imu_gravity_correction.max_age_seconds);
+  }();
 
   if (!gravityPR.has_value()) {
     return;
@@ -1143,6 +1177,8 @@ void LidarOdometry::updateVisualizationTextLabels()
     state_.adapt_thres_sigma, state_.last_icp_iterations));
 
   {
+    // recent_imu_stamps is appended by the IMU worker thread:
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     const auto [rate_lidar, rate_imu, rate_gnss] = state_.get_sensor_rates();
     gui_.lbSensorRates->set(mrpt::format(
       "LiDAR=%6.02f Hz | IMU=%6.02f Hz | GNSS=%5.02f Hz", rate_lidar, rate_imu, rate_gnss));

@@ -217,7 +217,7 @@ params:
   # If run within a mola-cli container, and mola_viz is present, use these options
   # to show live progress:
   visualization:
-    map_update_decimation: 10
+    map_update_decimation: ${MOLA_GUI_MAP_UPDATE_DECIMATION|10}
     show_trajectory: ${MOLA_GUI_SHOW_TRAJECTORY|true}
     trajectory_rgba: [0.1, 0.1, 0.1, 1.0]
 

@@ -91,6 +91,9 @@ void LidarOdometry::handleInitialLocalization()
       // INITIALIZATION FROM IMU FOR PITCH & ROLL ONLY
       // ---------------------------------------------------
     case mola::InitLocalization::PitchAndRollFromIMU: {
+      // imu_initializer is created here but fed by the IMU worker thread:
+      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+
       // Construct the IMU averager object:
       if (!state_.imu_initializer) {
         state_.imu_initializer = mola::imu::ImuInitialCalibrator();

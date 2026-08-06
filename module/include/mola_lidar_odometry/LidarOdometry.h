@@ -937,12 +937,15 @@ private:
     std::size_t drop_frames_stats_next_index = 0;
     // ------ ^^^ end of these flags are protected ^^^^      ---------
 
-    // All other fields are protected by state_mtx_
+    // All other fields are protected by state_mtx_, EXCEPT the ones marked
+    // below as protected by imu_state_mtx_ (the state the IMU worker thread
+    // feeds; see that mutex's docs for the full list and the lock order).
 
     // will be true after the first incoming LiDAR frame and re-localization is enabled and run
     bool initial_localization_done = false;
 
-    /// Used for pitch & roll initialization
+    /// Used for pitch & roll initialization.
+    /// Protected by imu_state_mtx_.
     std::optional<mola::imu::ImuInitialCalibrator> imu_initializer;
 
     /// Accumulates recent accelerometer readings and provides
@@ -982,6 +985,7 @@ private:
       std::optional<double> directionDispersionSigma(double max_age_seconds) const;
     };
 
+    /// Protected by imu_state_mtx_.
     GravityEstimator gravity_estimator;
 
 #if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
@@ -1006,6 +1010,7 @@ private:
       uint32_t intervals_since_solve = 0;
     };
 
+    /// Protected by imu_state_mtx_.
     MapGravityState map_gravity;
 #endif
 
@@ -1073,7 +1078,10 @@ private:
 
     std::optional<NavState> last_motion_model_output;
 
-    /// The source of "dynamic variables" in ICP pipelines:
+    /// The source of "dynamic variables" in ICP pipelines.
+    /// Protected by imu_state_mtx_: besides the variable map and the realize()
+    /// flags, it owns the localVelocityBuffer that IMU samples write and the
+    /// LiDAR deskew stage reads.
     mp2p_icp::ParameterSource parameter_source;
 
     // KISS-ICP-like adaptive threshold method:
@@ -1088,6 +1096,8 @@ private:
     std::optional<double> estimated_observation_radius;
     std::optional<double> instantaneous_observation_radius;
 
+    /// Invocations are protected by imu_state_mtx_: apply_generators() on an
+    /// IMU observation appends to parameter_source.localVelocityBuffer.
     mp2p_icp_filters::GeneratorSet obs_generators;
     mp2p_icp_filters::FilterPipeline pc_filterAdjustTimes;
     mp2p_icp_filters::FilterPipeline pc_prefilter;
@@ -1176,6 +1186,7 @@ private:
     std::map<std::string, mrpt::containers::circular_buffer<double>> recent_lidar_stamps;
 
     /// Used to estimate sensor rate
+    /// Protected by imu_state_mtx_.
     mrpt::containers::circular_buffer<double> recent_imu_stamps{1500};
 
     /// Used to estimate GNSS sensor rate
@@ -1275,6 +1286,23 @@ private:
   // serial ordering so a newer clear cannot be overwritten by an older frame's lambda.
   mrpt::WorkerThreadsPool worker_viz_{1, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_viz"};
 
+  /** Renders the local map for the gui. Same 1-thread POLICY_DROP_OLD rationale
+   *  as worker_viz_, but a pool of its own: with one thread, POLICY_DROP_OLD
+   *  caps the queue at a single pending task, so sharing worker_viz_ would let
+   *  the per-scan current-observation frames drop the (much rarer) local map
+   *  render before it ever runs, and would serialize the two renders.
+   *
+   *  Its task holds raw pointers into `*this` (the profiler and
+   *  local_map_content_mtx_, both declared *after* this pool and therefore
+   *  destroyed *before* it). That is safe only because shutdownCleanup() calls
+   *  clear() on this pool, which joins its thread, and shutdownCleanup() runs
+   *  from the destructor body, i.e. before any member is destroyed. Keep it in
+   *  that list if the shutdown path is ever reworked.
+   *  A still-*pending* render is dropped there rather than waited for: it would
+   *  delay shutdown by a full render to draw a frame nobody will see. */
+  mrpt::WorkerThreadsPool worker_viz_local_map_{
+    1, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_viz_map"};
+
   MethodState state_;
   const MethodState & state() const { return state_; }
   MethodState stateCopy() const { return state_; }
@@ -1321,12 +1349,36 @@ private:
   mutable std::mutex state_flags_mtx_;
   mutable std::mutex state_mtx_;
 
+  /// Guards the state shared between the IMU worker thread and the LiDAR
+  /// worker thread, so the former no longer has to wait on state_mtx_, which
+  /// processLidarScan() holds for its whole body (filters, ICP, map update,
+  /// visualization). At 200 Hz IMU / 10 Hz LiDAR that made the IMU thread block
+  /// for essentially the entire duration of every scan, and since
+  /// releaseReadyLidarScansToWorker() runs at the end of onIMU(), that wait fed
+  /// straight back into scan submission latency.
+  ///
+  /// Covers, in MethodState: imu_initializer, gravity_estimator, map_gravity,
+  /// recent_imu_stamps, parameter_source (its variable map, the realize()
+  /// "evaluated" flags, and localVelocityBuffer), and any *invocation* of
+  /// obs_generators (which writes the velocity buffer and reads those flags).
+  ///
+  /// Lock order: state_mtx_ -> local_map_content_mtx_ -> imu_state_mtx_; never
+  /// the reverse. The IMU worker takes only this one (and never the local map),
+  /// so it cannot invert the order.
+  ///
+  /// Recursive because the accessors that take it compose (e.g.
+  /// updatePipelineDynamicVariables() -> updatePipelineTwistVariables(),
+  /// buildGravityPrior() -> effectiveGravitySigmaRad()); locking at accessor
+  /// granularity is what keeps the ownership rule above reviewable, rather than
+  /// threading a lock object through a dozen signatures.
+  mutable std::recursive_mutex imu_state_mtx_;
+
   /// Guards the *contents* (layers) of MethodState::local_map.
   /// Rendering the map is O(map size) and would stall every other user of
   /// state_mtx_ (dataset reader, IMU worker, executor thread) if done under it,
-  /// so updateVisualizationLocalMap() temporarily releases state_mtx_ and takes
-  /// this one instead. Lock order: a thread that needs both must take
-  /// state_mtx_ first; it must never be held while acquiring state_mtx_.
+  /// so the render runs on worker_viz_local_map_ and takes only this one.
+  /// Lock order: a thread that needs both must take state_mtx_ first; it must
+  /// never be held while acquiring state_mtx_.
   mutable std::mutex local_map_content_mtx_;
 
   mutable std::mutex state_trajectory_mtx_;
@@ -1385,8 +1437,7 @@ private:
   void updatePipelineDynamicVariablesRobotPoseOnly();
 
   /// All these methods read state_, so the caller must own state_mtx_ and pass
-  /// its lock object down: it is momentarily released while rendering the
-  /// local map (see local_map_content_mtx_).
+  /// its lock object down, which they assert on entry.
   void updateVisualization(
     const mp2p_icp::metric_map_t & currentObservation,
     const mrpt::maps::CPointsMap::Ptr & deskewedCloud, std::unique_lock<std::mutex> & lckState);
@@ -1395,8 +1446,10 @@ private:
   void updateVisualizationCurrentObservation(
     const mp2p_icp::metric_map_t & currentObservation,
     const mrpt::maps::CPointsMap::Ptr & deskewedCloud);
-  void updateVisualizationLocalMap(
-    std::vector<std::function<void()>> & updateTasks, std::unique_lock<std::mutex> & lckState);
+  /// Only decides *whether* to refresh the local map view and snapshots what
+  /// that takes; the O(map size) render itself is enqueued on
+  /// worker_viz_local_map_ (see local_map_content_mtx_).
+  void updateVisualizationLocalMap();
   void updateVisualizationPath(std::vector<std::function<void()>> & updateTasks);
 
   /// Renders the /tf subtree below the configured root frame, as a child of

@@ -54,6 +54,8 @@ namespace mola
 
 void LidarOdometry::updatePipelineDynamicVariablesRobotPoseOnly()
 {
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+
   const auto & p = state_.last_lidar_pose.mean;
   state_.parameter_source.updateVariable("robot_x", p.x());
   state_.parameter_source.updateVariable("robot_y", p.y());
@@ -65,6 +67,10 @@ void LidarOdometry::updatePipelineDynamicVariablesRobotPoseOnly()
 
 void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point & stamp)
 {
+  // Writes the localVelocityBuffer the IMU thread also appends to, and ends
+  // with realize(), which flips the "evaluated" flags that thread reads:
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+
   const auto stamp_s = mrpt::Clock::toDouble(stamp);
 
   // Set dynamic variables for twist usage within ICP pipelines
@@ -250,6 +256,8 @@ void LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_ma
 
 void LidarOdometry::updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw)
 {
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+
   state_.parameter_source.updateVariable("vx", tw.vx);
   state_.parameter_source.updateVariable("vy", tw.vy);
   state_.parameter_source.updateVariable("vz", tw.vz);
