@@ -528,7 +528,11 @@ We use colcon, the ROS2 build tool, and mola_common with utility cmake helpers.
 
 - **Framework**: CMake + GTest
 - Each package has `tests/` with its own `CMakeLists.txt`
-- CI/CD: `.github/workflows/` — builds on ROS 2 Humble, Jazzy, Kilted, Rolling
+- CI/CD: `.github/workflows/build-ros.yml` — builds on ROS 2 Humble, Jazzy, Rolling,
+  Lyrical (stable channel; "testing" variants exist commented-out per distro).
+  "Stable" entries on GitHub-hosted runners need a prebuilt `ros:<distro>` image
+  (or the manual `ubuntu:resolute` setup for pre-buildfarm distros like Lyrical):
+  the `setup ROS environment` step only runs when `use_ros_testing: true`.
 - Style: enforced with `.clang-format` and `.clang-tidy`
 
 ## Code style
