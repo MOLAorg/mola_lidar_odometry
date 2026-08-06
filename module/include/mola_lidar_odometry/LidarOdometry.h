@@ -1290,7 +1290,16 @@ private:
    *  as worker_viz_, but a pool of its own: with one thread, POLICY_DROP_OLD
    *  caps the queue at a single pending task, so sharing worker_viz_ would let
    *  the per-scan current-observation frames drop the (much rarer) local map
-   *  render before it ever runs, and would serialize the two renders. */
+   *  render before it ever runs, and would serialize the two renders.
+   *
+   *  Its task holds raw pointers into `*this` (the profiler and
+   *  local_map_content_mtx_, both declared *after* this pool and therefore
+   *  destroyed *before* it). That is safe only because shutdownCleanup() calls
+   *  clear() on this pool, which joins its thread, and shutdownCleanup() runs
+   *  from the destructor body, i.e. before any member is destroyed. Keep it in
+   *  that list if the shutdown path is ever reworked.
+   *  A still-*pending* render is dropped there rather than waited for: it would
+   *  delay shutdown by a full render to draw a frame nobody will see. */
   mrpt::WorkerThreadsPool worker_viz_local_map_{
     1, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_viz_map"};
 

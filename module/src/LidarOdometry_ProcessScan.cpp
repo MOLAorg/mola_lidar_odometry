@@ -888,11 +888,15 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
                          << "old estimated twist:"
                          << state_.last_motion_model_output->twist.asString() << "\n");
 
-        // Update twist dynamic variables, then re-run pipelines:
-        updatePipelineTwistVariables(tw);
-        // Make all changes effective and evaluate the variables now:
+        // Update twist dynamic variables, then re-run pipelines.
+        // One lock for the update AND the realize(): the accessor takes
+        // imu_state_mtx_ itself (recursively), but releasing it in between
+        // would let the IMU thread run apply_generators() on variables that
+        // are updated but not realized yet.
         {
           auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+          updatePipelineTwistVariables(tw);
+          // Make all changes effective and evaluate the variables now:
           state_.parameter_source.realize();
         }
 
@@ -1252,10 +1256,11 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
 
     // 2/4: Make sure dynamic variables are up-to-date,
     // in particular, [robot_x, ..., robot_roll]:
-    updatePipelineDynamicVariablesRobotPoseOnly();
-    // Make all changes effective and evaluate the variables now:
+    // One lock for the update AND the realize(), see the twist update above:
     {
       auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+      updatePipelineDynamicVariablesRobotPoseOnly();
+      // Make all changes effective and evaluate the variables now:
       state_.parameter_source.realize();
     }
 
