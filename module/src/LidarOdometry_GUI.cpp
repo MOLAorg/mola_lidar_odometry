@@ -514,6 +514,50 @@ void doRecolorize(
   mrpt::obs::recolorize3Dpc(cloud, org_cloud, rp);
 };
 
+// A deep copy of `m`, cheap enough to make while holding
+// local_map_content_mtx_. It exists to keep that mutex OUT of the render:
+// get_visualization() costs ~6x this copy (167.9 ms vs 28.1 ms mean on an
+// Oxford Spires local map) and touches nothing but the copy, so holding the
+// map mutex across it stalled the LiDAR worker's own map insertion for
+// ~110 ms at a time.
+//
+// Point layers are copied into a plain CGenericPointsMap rather than cloned
+// through their own type: insertAnotherMap() carries every per-point field
+// over and skips non-finite slots, while the target has no spatial index to
+// build. Cloning e.g. mola::IncrementalPointCloud via its copy constructor
+// would instead bulk-build a k-d tree that the renderer never queries.
+// The copy sees, in addition to the live points, the storage slots that are
+// tombstoned but not reclaimed yet; that population measured <2% of storage
+// on Oxford Spires (live/storage 0.999 mean, 0.982 worst), i.e. visually
+// irrelevant, and it is the same trade-off doPublishUpdatedLocalMap() already
+// makes when copying layers out for ROS.
+mp2p_icp::metric_map_t cheapLayerSnapshot(const mp2p_icp::metric_map_t & m)
+{
+  // Shallow copy first, so any metadata this struct grows (id, label, lines,
+  // planes, georeferencing, ...) is carried over without enumerating it here:
+  mp2p_icp::metric_map_t out = m;
+
+  for (auto & [name, layer] : out.layers) {
+    if (!layer) {
+      continue;
+    }
+
+    if (const auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layer); pts) {
+      auto copy = mrpt::maps::CGenericPointsMap::Create();
+      copy->insertAnotherMap(pts.get(), mrpt::poses::CPose3D::Identity());
+      // The renderer reads both of these off the layer:
+      copy->renderOptions = pts->renderOptions;
+      copy->genericMapParams = pts->genericMapParams;
+      layer = copy;
+    } else {
+      // Voxel maps and friends: the RTTI copy is what they support.
+      layer = std::dynamic_pointer_cast<mrpt::maps::CMetricMap>(layer->duplicateGetSmartPtr());
+    }
+  }
+
+  return out;
+}
+
 // Upserts a 3D object, optionally as a child of a movable scene frame node
 // (parentFrame). Falls back to a root insert when built against an older
 // mola_kernel that lacks the movable-frame API.
@@ -956,11 +1000,15 @@ void LidarOdometry::updateVisualizationLocalMap()
     (void)worker_viz_local_map_.enqueue([=]() {
       const ProfilerEntry tle3(*profilerPtr, "updateVisualization.update_local_map_thread");
 
-      mrpt::opengl::CSetOfObjects::Ptr glMap;
+      // Copy under the map mutex, render outside it: see cheapLayerSnapshot().
+      mp2p_icp::metric_map_t snapshot;
       {
+        const ProfilerEntry tleCopy(*profilerPtr, "updateVisualization.update_local_map_copy");
         auto lckMapContents = mrpt::lockHelper(*mapContentsMtx);
-        glMap = localMap->get_visualization(rp);
+        snapshot = cheapLayerSnapshot(*localMap);
       }
+
+      const auto glMap = snapshot.get_visualization(rp);
       vizUpsert3D(viz, "liodom/localmap", glMap, vizFrame);
     });
   }

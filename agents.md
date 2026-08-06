@@ -246,10 +246,27 @@ be overtaken by a render already in flight.
 
 `visualization.map_update_decimation` (`MOLA_GUI_MAP_UPDATE_DECIMATION`,
 default 10 in most pipelines) bounds how often that render is even requested.
-It is the knob that matters on large maps: the render holds
-`local_map_content_mtx_` for its whole duration (161 ms mean / 290 ms max on
-Oxford Spires), so a scan that needs to insert into the map meanwhile waits for
-it. That wait, not the insertion itself, is what now sets `onLidar`'s max there.
+The render itself no longer holds `local_map_content_mtx_` for its whole
+duration: `cheapLayerSnapshot()` deep-copies the layers under the mutex and the
+O(map size) recolorize/OpenGL build then runs on that private copy, unlocked.
+The copy is ~6x cheaper than the render it replaces in the critical section
+(27 ms vs 182 ms mean on Oxford Spires), which takes `onLidar`'s max from
+216 ms to 107 ms and makes `onLidar.4.update_local_map` equal to the insertion
+it wraps, i.e. zero lock wait.
+
+Point layers are copied into a plain `CGenericPointsMap` rather than cloned
+through their own type: `insertAnotherMap()` calls `registerPointFieldsFrom()`
+(so every per-point field survives) and skips non-finite points (so the slots
+`IncrementalPointCloud` blanks on eviction are dropped), while the target has no
+spatial index to build. Cloning an `IncrementalPointCloud` through its own copy
+constructor would instead `resetIndex()`, an O(N log N) k-d tree bulk build the
+renderer never queries. The copy does pick up the storage slots that are
+tombstoned but not reclaimed yet; that measured under 2% of storage
+(`MOLA_INCREMENTAL_MAP_DEBUG_STATS`: live/storage 0.999 mean, 0.982 worst), and
+it is the same trade-off `doPublishUpdatedLocalMap()` already makes.
+
+The render worker pays ~20 ms more per render for the extra copy step, which is
+fine: it is off the critical path by construction.
 
 ## `imu_state_mtx_`: the IMU worker no longer waits on the LiDAR worker
 
