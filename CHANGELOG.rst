@@ -2,6 +2,144 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* fix: keep the local-map render and the IMU worker off the LiDAR critical path (`#126 <https://github.com/MOLAorg/mola_lidar_odometry/issues/126>`_)
+
+  Moves the local-map render off the LiDAR thread onto its own worker, and
+  introduces a dedicated ``imu_state_mtx_`` so the IMU handler no longer
+  serializes behind every LiDAR scan via ``state_mtx_``. The render worker now
+  deep-copies the map layers under the map mutex and does the expensive
+  recolorize/OpenGL build on that private copy, unlocked. On Oxford
+  Spires/GrandTour benchmarks this cut ``onLidar`` max latency roughly in
+  half (up to ~216 ms -> ~107 ms) and the IMU thread's total blocked time by
+  more than half, eliminating the scan-queue backlog. Also exposes
+  ``map_update_decimation`` as ``MOLA_GUI_MAP_UPDATE_DECIMATION``.
+
+* Visualize the robot /tf tree in the LO viewer (opt-in) (`#125 <https://github.com/MOLAorg/mola_lidar_odometry/issues/125>`_)
+
+  Draws the subtree of coordinate frames below a configurable root frame as
+  the robot moves (e.g. a legged robot's joint tree), via the new
+  ``mola::TransformTreeSource``. Supports excluding frames/subtrees
+  (``tf_tree_exclude_frames``), is toggled live from the GUI's View tab, and
+  is enabled by default for the GrandTour dataset with its non-body frames
+  excluded.
+
+* Add mola-lo-gui-grandtour launch script for the GrandTour dataset (`#124 <https://github.com/MOLAorg/mola_lidar_odometry/issues/124>`_)
+
+  GrandTour publishes one ROS1 bag per topic, so
+  ``lidar_odometry_from_rosbag1.yaml`` now accepts up to three bags replayed
+  jointly. The wrapper locates sibling bags from a mission directory and uses
+  the dataset's own ``/tf_static`` for sensor extrinsics.
+
+* Gate ``gui_preview_sensors`` entries behind ``MOLA_WITH_GUI`` consistently
+  across all launch YAMLs, removing noisy "no running MolaViz module"
+  warnings in headless CI runs. Also adds the ``MOLA_WITH_GUI`` headless
+  toggle to the remaining ``mola-cli`` launch files.
+
+* Launch scripts for the citrus farm dataset; conslam dataset now also
+  accepts ROS2 bags.
+
+* CLI: reduce/disable the batch progress bar; port CLI argument parsing from
+  mrpt-tclap to CLI11 (`#123 <https://github.com/MOLAorg/mola_lidar_odometry/issues/123>`_)
+
+  Adds ``--progress-bar-period`` to control per-scan progress logging (useful
+  for Jenkins batch runs), and replaces the legacy TCLAP parser with CLI11,
+  preserving all existing flags/defaults while fixing several ``--help``/docs
+  discrepancies along the way.
+
+* CI: don't let ``rosdep`` failures on unresolvable packages abort the job
+  before the build/test steps run; ``mola-lidar-odometry-cli`` gains
+  ``--input-rosbag1`` support (`#122 <https://github.com/MOLAorg/mola_lidar_odometry/issues/122>`_)
+  and now accepts a comma-separated bag list for multi-part recordings.
+
+* Add ``lidar3d-gicp-single-filter.yaml``: one decimation filter feeding both
+  map and ICP layers instead of two chained ones
+  (`#121 <https://github.com/MOLAorg/mola_lidar_odometry/issues/121>`_), plus
+  a DLIO-like pipeline, VoxelAverage/forward-alone decimation-axis variants,
+  and map-policy leave-one-out/decimation-method ablation pipelines from the
+  809 investigation.
+
+* Add ``log_only`` mode for the map-gravity estimator (validate against
+  ground truth without feeding back into the map frame) and retry the
+  one-shot accelerometer verticality capture on later scans instead of
+  giving up permanently.
+
+* fix: deadlock rendering the local map without owning ``state_mtx_``, and a
+  related potential deadlock for large maps under the incremental map class
+  (`#120 <https://github.com/MOLAorg/mola_lidar_odometry/issues/120>`_).
+  Declare ``mola_yaml`` as an explicit dependency (`#109 <https://github.com/MOLAorg/mola_lidar_odometry/issues/109>`_).
+
+* Estimate the map-frame gravity direction online, default off
+  (`#116 <https://github.com/MOLAorg/mola_lidar_odometry/issues/116>`_)
+
+  The verticality reference used by the ICP gravity prior was captured once
+  from a single 50 ms accelerometer average and never updated, biasing the
+  map frame by up to several degrees. Wires in
+  ``mola::imu::MapGravityEstimator``, which continuously solves for gravity
+  in the map frame from preintegrated IMU and the odometry's own relative
+  attitudes/velocities, and uses it as the prior's ``up_map`` reference. The
+  one-shot rigid re-levelling half of this feature was found unsafe on some
+  sequences and deferred to a separate experimental branch.
+
+* Add option to hide the current-pose XYZ corner OpenGL object
+  (`#117 <https://github.com/MOLAorg/mola_lidar_odometry/issues/117>`_);
+  expose the max-range filter as ``MOLA_MAXIMUM_RANGE_FILTER`` and add a
+  hybrid cov-to-cov/point-to-point reference pipeline.
+
+* fix: silently-ignored IMU label filter in ``state-estimation-simple.yaml``
+  (wrong YAML key), yaw-free rank-2 gravity constraint with self-silencing
+  sigma for the ICP solver, removal of the unused trajectory-rebake research
+  scaffold, and a CI fix so one broken distro no longer cancels the sibling
+  x86_64 jobs (`#112 <https://github.com/MOLAorg/mola_lidar_odometry/issues/112>`_,
+  `#114 <https://github.com/MOLAorg/mola_lidar_odometry/issues/114>`_,
+  `#113 <https://github.com/MOLAorg/mola_lidar_odometry/issues/113>`_,
+  `#115 <https://github.com/MOLAorg/mola_lidar_odometry/issues/115>`_).
+
+* feat: make the GICP local-map class selectable via
+  ``${MOLA_LOCALMAP_CLASS}`` between the existing keyframe map and the new
+  ``mola::IncrementalPointCloud`` (async k-d tree rebuild off the mapping
+  thread) (`#111 <https://github.com/MOLAorg/mola_lidar_odometry/issues/111>`_).
+  Expose local-map update time as a plottable metric.
+
+* fix: ICP prior information matrix used MRPT's Euler tangent-index ordering
+  instead of the SE(3) Lie tangent mp2p_icp's solver expects, swapping roll
+  and yaw in the IMU gravity correction and 2D-lidar constraints
+  (`#110 <https://github.com/MOLAorg/mola_lidar_odometry/issues/110>`_).
+
+* fix: honor ``MOLA_WITH_GUI`` for headless runs in the MulRan launcher
+  (`#108 <https://github.com/MOLAorg/mola_lidar_odometry/issues/108>`_); six
+  launchers were missing ``raw_data_source`` on the state estimator, silently
+  disabling every IMU-based factor
+  (`#107 <https://github.com/MOLAorg/mola_lidar_odometry/issues/107>`_).
+
+* fix: an ICP debug-file functor was installed unconditionally and took
+  priority over ``mp2p_icp``'s own ``MP2P_ICP_GENERATE_DEBUG_FILES`` switch,
+  silently disabling native debug-file generation; now only installed when
+  one of its own triggers is actually configured
+  (`#105 <https://github.com/MOLAorg/mola_lidar_odometry/issues/105>`_).
+
+* Share the keyframe-creation policy between the local map and the simplemap,
+  and let it optionally consider a time window instead of pure spatial
+  distance, so revisiting an already-mapped area can still spawn the
+  keyframes loop closure needs
+  (`#104 <https://github.com/MOLAorg/mola_lidar_odometry/issues/104>`_).
+
+* feat: add ``mola-lo-gui-oxford-spires`` helper for the Oxford Spires
+  dataset (multi-part rosbag2 stitching, calibration-derived extrinsics)
+  (`#103 <https://github.com/MOLAorg/mola_lidar_odometry/issues/103>`_); add
+  ``mola-lo-gui-conslam``/``mola-lo-gui-botanicgarden`` helpers with the
+  smoother state estimator enabled; expose ``camera_follows_vehicle`` and a
+  ``--headless``/``--no-gui`` flag.
+
+* feat(launch): make the localization ``/tf`` publish source overridable
+  (``localization_publish_tf_source``), enabling ``map->odom`` to be
+  published directly from the state-estimation smoother instead of being
+  composed by the bridge from a mismatched-timestamp odom lookup
+  (`#102 <https://github.com/MOLAorg/mola_lidar_odometry/issues/102>`_).
+
+* Contributors: Jose Luis Blanco-Claraco
+
 3.0.0 (2026-07-17)
 ------------------
 * Merge pull request `#101 <https://github.com/MOLAorg/mola_lidar_odometry/issues/101>`_ from MOLAorg/fix/relocalize-tf-source-and-sigma-recovery
