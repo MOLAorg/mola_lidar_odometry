@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# For usage instructions, see: https://docs.mola-slam.org/latest/
+#
+# Convenience wrapper around mola-cli for the GrandTour dataset
+# (https://grand-tour.leggedrobotics.com): an ANYbotics ANYmal-D quadruped
+# carrying the open-source "Boxi" sensor payload.
+#
+# Each mission is published as a set of per-topic ROS 1 bags, so the LiDAR,
+# the IMU and /tf live in SEPARATE files. This script locates them by their
+# "<mission>_<topic>.bag" naming and replays them jointly through the generic
+# lidar_odometry_from_rosbag1.yaml launch file (which accepts up to three bags
+# via MOLA_INPUT_ROSBAG1{,_2,_3}), so no dataset-specific launch file is needed.
+#
+# Usage:
+#   mola-lo-gui-grandtour /path/to/<mission-dir>/ [additional flags for mola-cli]
+#   mola-lo-gui-grandtour /path/to/<mission>_hesai_undist.bag [additional flags for mola-cli]
+#
+# Example:
+#   mola-lo-gui-grandtour ~/datasets/grand-tour-legged/2024-10-01-11-29-55/
+#
+# Sensors used (the rest of each mission's bags are ignored):
+#   <mission>_hesai_undist.bag  /boxi/hesai/points_undistorted  PointCloud2, 10 Hz  (required)
+#   <mission>_tf_minimal.bag    /tf, /tf_static                                     (optional)
+#   <mission>_adis.bag          /boxi/adis/imu                  Imu, 200 Hz         (optional)
+#
+# Sensor extrinsics come from the dataset's own /tf_static (base -> box_base ->
+# hesai_lidar / adis16475_imu), so no fixed sensor poses are needed as long as
+# the tf bag is present. Without it, the LiDAR falls back to a fixed pose at
+# the origin (the payload extrinsics are then simply unknown).
+
+if [ "$#" -eq 0 ]; then
+    echo "Error: A GrandTour mission directory (or its '*_hesai_undist.bag') is required."
+    echo "Usage: $0 /path/to/<mission-dir>/ [additional flags for mola-cli]"
+    echo "       $0 /path/to/<mission>_hesai_undist.bag [additional flags for mola-cli]"
+    exit 1
+fi
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+MOLA_LAUNCHS_DIR="$SCRIPT_DIR/../mola-cli-launchs/"
+if [ -d "$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs" ]; then
+  MOLA_LAUNCHS_DIR="$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs"
+fi
+
+ARG=$1
+shift 1
+
+# Resolve the "<dir>/<mission>" prefix shared by all of a mission's bags, from
+# either a mission directory or any one of its bag files:
+if [ -d "$ARG" ]; then
+    LIDAR_BAG=$(ls "${ARG%/}"/*_hesai_undist.bag 2>/dev/null | head -n 1)
+    if [ -z "$LIDAR_BAG" ]; then
+        echo "Error: no '*_hesai_undist.bag' found in directory '$ARG'."
+        exit 1
+    fi
+elif [ -f "$ARG" ]; then
+    LIDAR_BAG=$ARG
+else
+    echo "Error: '$ARG' is neither a directory nor a file."
+    exit 1
+fi
+
+PREFIX=${LIDAR_BAG%_hesai_undist.bag}
+if [ "$PREFIX" = "$LIDAR_BAG" ]; then
+    echo "Error: '$LIDAR_BAG' does not follow the expected '<mission>_hesai_undist.bag' naming."
+    exit 1
+fi
+
+TF_BAG=${PREFIX}_tf_minimal.bag
+IMU_BAG=${PREFIX}_adis.bag
+
+echo "GrandTour mission '$(basename "$PREFIX")':"
+echo "  LiDAR bag: $LIDAR_BAG"
+
+# GrandTour topic names and /tf frames:
+: "${MOLA_LIDAR_TOPIC:=/boxi/hesai/points_undistorted}"
+: "${MOLA_TF_BASE_LINK:=base}"   # the ANYmal body frame; NOT named 'base_link'
+export MOLA_LIDAR_TOPIC
+export MOLA_TF_BASE_LINK
+
+if [ -f "$TF_BAG" ]; then
+    echo "  TF bag   : $TF_BAG"
+    MOLA_INPUT_ROSBAG1_2=$TF_BAG
+else
+    echo "  TF bag   : (not found: '$TF_BAG'; using a fixed LiDAR pose at the origin)"
+    MOLA_INPUT_ROSBAG1_2=
+    : "${MOLA_USE_FIXED_LIDAR_POSE:=1}"
+    export MOLA_USE_FIXED_LIDAR_POSE
+fi
+
+if [ -f "$IMU_BAG" ]; then
+    echo "  IMU bag  : $IMU_BAG"
+    MOLA_INPUT_ROSBAG1_3=$IMU_BAG
+    : "${MOLA_IMU_TOPIC:=/boxi/adis/imu}"
+    # A legged robot pitches and rolls constantly from the very first scan, so
+    # level the initial pose from the IMU instead of assuming a flat start:
+    : "${MOLA_LO_INITIAL_LOCALIZATION_METHOD:=InitLocalization::PitchAndRollFromIMU}"
+else
+    echo "  IMU bag  : (not found: '$IMU_BAG'; running LiDAR-only odometry)"
+    MOLA_INPUT_ROSBAG1_3=
+    : "${MOLA_IMU_TOPIC:=}"
+fi
+export MOLA_IMU_TOPIC
+export MOLA_INPUT_ROSBAG1_2
+export MOLA_INPUT_ROSBAG1_3
+[ -n "${MOLA_LO_INITIAL_LOCALIZATION_METHOD:-}" ] && export MOLA_LO_INITIAL_LOCALIZATION_METHOD
+
+# The LiDAR stream used here is the dataset's already-undistorted one, so
+# deskewing it a second time would over-compensate the motion:
+: "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::None}"
+export MOLA_DESKEW_METHOD
+
+MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
+MOLA_INPUT_ROSBAG1="$LIDAR_BAG" \
+  mola-cli \
+    "$MOLA_LAUNCHS_DIR/lidar_odometry_from_rosbag1.yaml" \
+    "$@"
