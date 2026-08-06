@@ -38,6 +38,13 @@ its siblings by the `<mission>_<topic>.bag` naming: LiDAR (required), the
   back to a fixed pose at the origin.
 - The LiDAR topic used is the already-undistorted one, so deskewing defaults
   to `MotionCompensationMethod::None` to avoid over-compensating motion.
+- The /tf tree view is ON by default here (this is a legged robot with a full
+  joint tree, which is the point), skipping the four frames that are not
+  physically on the body: `odom` (world-fixed, published inverted as a child
+  of `base`), `enu_origin` (geodetic, under `cpt7_imu`) and `dlio_odom` /
+  `dlio_map` (the onboard SLAM's frames, under `hesai_lidar`). Everything
+  else in the tree is real hardware, including the total-station `prism`.
+
 ## Robot /tf tree visualization (opt-in)
 
 `visualization.show_tf_tree` draws the subtree of coordinate frames below
