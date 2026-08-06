@@ -66,8 +66,14 @@ modules:
         win_pos: 5 370 600 200
 
     params:
-      # We use an environment variable to force the user to specify a bag file:
-      rosbag_filename: ${MOLA_INPUT_ROSBAG1}
+      # We use an environment variable to force the user to specify a bag file.
+      # Optionally, up to two additional bags can be replayed jointly with the
+      # first one, as a single merged stream: some datasets split /tf, the IMU
+      # or the odometry into their own bag files. Empty slots are ignored.
+      rosbag_filename:
+        - ${MOLA_INPUT_ROSBAG1}
+        - ${MOLA_INPUT_ROSBAG1_2|}
+        - ${MOLA_INPUT_ROSBAG1_3|}
       time_warp_scale: ${MOLA_TIME_WARP|1.0}
       start_paused: ${MOLA_DATASET_START_PAUSED|false}
 

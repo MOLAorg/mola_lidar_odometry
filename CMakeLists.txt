@@ -211,6 +211,7 @@ install(
     scripts/mola-lo-gui-oxford-spires
     scripts/mola-lo-gui-botanicgarden
     scripts/mola-lo-gui-citrusfarm
+    scripts/mola-lo-gui-grandtour
   DESTINATION
     bin
 )
