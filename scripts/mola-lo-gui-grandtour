@@ -110,6 +110,10 @@ export MOLA_INPUT_ROSBAG1_3
 : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::None}"
 export MOLA_DESKEW_METHOD
 
+# Use a shorter minimum range since the robot body is small in this dataset:
+: "${MOLA_MINIMUM_RANGE_FILTER:=1.5}"
+export MOLA_MINIMUM_RANGE_FILTER
+
 # This is a legged robot with a full joint tree in /tf, which is the whole
 # point of showing it here, so turn the tf tree view on by default.
 # The four frames skipped below are the ones that are NOT physically part of
