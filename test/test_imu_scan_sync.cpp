@@ -96,6 +96,20 @@ TEST(PendingImuBuffer, ConsumesEachSampleOnce)
   EXPECT_EQ(buf.size(), 0U);
 }
 
+// Two readings sharing a timestamp are both kept: dropping one would silently
+// discard data that used to be fused.
+TEST(PendingImuBuffer, KeepsReadingsSharingATimestamp)
+{
+  mola::PendingImuBuffer buf;
+  buf.add(1.0, makeImu(1.0), 10.0);
+  buf.add(1.0, makeImu(1.0), 10.0);
+  buf.add(1.1, makeImu(1.1), 10.0);
+
+  EXPECT_EQ(buf.size(), 3U);
+  EXPECT_EQ(valuesOf(buf.take_up_to(1.0)), (std::vector<double>{1.0, 1.0}));
+  EXPECT_EQ(buf.size(), 1U);
+}
+
 TEST(PendingImuBuffer, DropsSamplesOlderThanMaxAge)
 {
   mola::PendingImuBuffer buf;

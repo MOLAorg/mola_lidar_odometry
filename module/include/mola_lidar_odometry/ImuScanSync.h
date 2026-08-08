@@ -40,10 +40,13 @@ public:
   PendingImuBuffer() = default;
 
   /** Stores one observation, then drops everything older than `maxAge` seconds
-   *  relative to the newest sample held. */
+   *  relative to the newest sample held.
+   *  A multimap, so that two readings sharing a timestamp are both kept: which
+   *  of them is "the" reading for that instant is undecidable, and dropping one
+   *  would silently discard data the previous code did use. */
   void add(double timestamp, const mrpt::obs::CObservationIMU::ConstPtr & imu, double maxAge)
   {
-    samples_[timestamp] = imu;
+    samples_.emplace(timestamp, imu);
 
     const double oldestToKeep = samples_.rbegin()->first - maxAge;
     samples_.erase(samples_.begin(), samples_.lower_bound(oldestToKeep));
@@ -69,7 +72,7 @@ public:
   std::size_t size() const { return samples_.size(); }
 
 private:
-  std::map<double /*timestamp*/, mrpt::obs::CObservationIMU::ConstPtr> samples_;
+  std::multimap<double /*timestamp*/, mrpt::obs::CObservationIMU::ConstPtr> samples_;
 };
 
 /** Holds LiDAR scans back until the IMU covering their whole time span has been

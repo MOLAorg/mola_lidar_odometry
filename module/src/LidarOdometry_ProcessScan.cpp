@@ -287,6 +287,11 @@ void LidarOdometry::processLidarScan(  // NOLINT
   // entry for this scan.
   struct OnLidarTimeMetricReporter
   {
+    // Deleting the copy/move members below makes this a non-aggregate, so it
+    // needs an explicit constructor for the brace initialization used at the
+    // end of the struct.
+    explicit OnLidarTimeMetricReporter(LidarOdometry * s) : self(s) {}
+
     OnLidarTimeMetricReporter(const OnLidarTimeMetricReporter &) = delete;
     OnLidarTimeMetricReporter & operator=(const OnLidarTimeMetricReporter &) = delete;
     OnLidarTimeMetricReporter(OnLidarTimeMetricReporter &&) = delete;
