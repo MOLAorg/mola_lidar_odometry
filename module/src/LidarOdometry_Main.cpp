@@ -213,10 +213,12 @@ void LidarOdometry::reset()
   {
     auto lck = mrpt::lockHelper(state_mtx_);
     // Replacing state_ wholesale also destroys the parameter source, the
-    // gravity estimator and the rest of the IMU-fed state, which the IMU worker
+    // gravity estimator and the rest of the IMU-derived state, which the input
     // thread reaches without state_mtx_:
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     state_ = MethodState();
+    pending_imu_.clear();
+    latest_imu_time_ = 0;
   }
   initialize(lastInitConfig_);
 }

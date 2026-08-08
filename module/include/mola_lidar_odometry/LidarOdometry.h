@@ -53,6 +53,7 @@
  *  freezing it from a single accelerometer average at the first keyframe. */
 #define MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR 1
 #endif
+#include <mola_lidar_odometry/ImuScanSync.h>
 #include <mola_lidar_odometry/KeyframeDecider.h>
 
 // MP2P_ICP
@@ -938,8 +939,8 @@ private:
     // ------ ^^^ end of these flags are protected ^^^^      ---------
 
     // All other fields are protected by state_mtx_, EXCEPT the ones marked
-    // below as protected by imu_state_mtx_ (the state the IMU worker thread
-    // feeds; see that mutex's docs for the full list and the lock order).
+    // below as protected by imu_state_mtx_ (the IMU-derived state; see that
+    // mutex's docs for the full list and the lock order).
 
     // will be true after the first incoming LiDAR frame and re-localization is enabled and run
     bool initial_localization_done = false;
@@ -1215,19 +1216,23 @@ private:
   mrpt::WorkerThreadsPool worker_lidar_{
     1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_lidar"};
 
-  std::multimap<double /*timestamp*/, CObservation::ConstPtr> worker_lidar_wait_for_imu_list_;
+  ScanImuWaitList worker_lidar_wait_for_imu_list_;
   std::mutex worker_lidar_wait_for_imu_list_mtx_;
 
-  /// Timestamp (seconds, sensor clock) up to which IMU data has actually been
-  /// *fed* into the de-skew LocalVelocityBuffer (updated at the end of the IMU
-  /// feeding in onIMUImpl). A waiting scan may only be released to the worker
-  /// once this passes its own timestamp by one scan period, i.e. once the IMU
-  /// covering the scan's whole span is available for de-skew. Kept as an atomic
-  /// so the wait-list can be drained (see releaseReadyLidarScansToWorker) from
-  /// the sensor-input thread too, without waiting for the (FIFO, possibly
-  /// backed-up) IMU worker to run its own drain -- decoupling scan release from
-  /// IMU-processing latency.
-  std::atomic<double> latest_fed_imu_time_{0};
+  /// Newest timestamp (seconds, sensor clock) present in pending_imu_. A
+  /// waiting scan may only be released to the worker once this reaches the
+  /// scan's own IMU coverage end time, i.e. once every IMU sample the scan will
+  /// consume has actually been received. Kept as an atomic so the wait list can
+  /// be drained (see releaseReadyLidarScansToWorker) from the sensor-input
+  /// thread too, without waiting for the LiDAR worker to become free.
+  std::atomic<double> latest_imu_time_{0};
+
+  /// IMU observations received but not consumed yet. They are consumed by
+  /// consumePendingImu(), from the LiDAR worker thread, right before the scan
+  /// that needs them is processed, so which samples enter the IMU-derived state
+  /// depends on timestamps only and not on how the sensor callbacks interleave.
+  /// Protected by imu_state_mtx_.
+  PendingImuBuffer pending_imu_;
 
   /// Cached estimate of the LiDAR scan period [s], read lock-free by
   /// releaseReadyLidarScansToWorker(). Estimated from consecutive scan *arrival*
@@ -1349,22 +1354,24 @@ private:
   mutable std::mutex state_flags_mtx_;
   mutable std::mutex state_mtx_;
 
-  /// Guards the state shared between the IMU worker thread and the LiDAR
-  /// worker thread, so the former no longer has to wait on state_mtx_, which
+  /// Guards the IMU-derived state, which the sensor-input thread appends to
+  /// (pending_imu_, recent_imu_stamps) while the LiDAR worker thread consumes
+  /// it, so the former no longer has to wait on state_mtx_, which
   /// processLidarScan() holds for its whole body (filters, ICP, map update,
-  /// visualization). At 200 Hz IMU / 10 Hz LiDAR that made the IMU thread block
-  /// for essentially the entire duration of every scan, and since
+  /// visualization). At 200 Hz IMU / 10 Hz LiDAR that made the input thread
+  /// block for essentially the entire duration of every scan, and since
   /// releaseReadyLidarScansToWorker() runs at the end of onIMU(), that wait fed
   /// straight back into scan submission latency.
   ///
-  /// Covers, in MethodState: imu_initializer, gravity_estimator, map_gravity,
-  /// recent_imu_stamps, parameter_source (its variable map, the realize()
-  /// "evaluated" flags, and localVelocityBuffer), and any *invocation* of
-  /// obs_generators (which writes the velocity buffer and reads those flags).
+  /// Covers pending_imu_ and, in MethodState: imu_initializer,
+  /// gravity_estimator, map_gravity, recent_imu_stamps, parameter_source (its
+  /// variable map, the realize() "evaluated" flags, and localVelocityBuffer),
+  /// and any *invocation* of obs_generators (which writes the velocity buffer
+  /// and reads those flags).
   ///
   /// Lock order: state_mtx_ -> local_map_content_mtx_ -> imu_state_mtx_; never
-  /// the reverse. The IMU worker takes only this one (and never the local map),
-  /// so it cannot invert the order.
+  /// the reverse. The sensor-input thread takes only this one (and never the
+  /// local map), so it cannot invert the order.
   ///
   /// Recursive because the accessors that take it compose (e.g.
   /// updatePipelineDynamicVariables() -> updatePipelineTwistVariables(),
@@ -1375,7 +1382,7 @@ private:
 
   /// Guards the *contents* (layers) of MethodState::local_map.
   /// Rendering the map is O(map size) and would stall every other user of
-  /// state_mtx_ (dataset reader, IMU worker, executor thread) if done under it,
+  /// state_mtx_ (dataset reader, sensor input, executor thread) if done under it,
   /// so the render runs on worker_viz_local_map_ and takes only this one.
   /// Lock order: a thread that needs both must take state_mtx_ first; it must
   /// never be held while acquiring state_mtx_.
@@ -1414,11 +1421,21 @@ private:
   /// report the "delay_onNewObs_to_process" queueing-delay metric); it cannot
   /// be measured via profiler_.enter()/leave() here since worker_lidar_'s
   /// POLICY_DROP_OLD may discard a queued scan before it ever runs onLidar().
-  void onLidar(const CObservation::ConstPtr & o, double readyTimestamp);
-  void processLidarScan(const CObservation::ConstPtr & obs);
+  void onLidar(
+    const CObservation::ConstPtr & o, double readyTimestamp,
+    std::optional<double> imuCoverageEndTime);
+  void processLidarScan(
+    const CObservation::ConstPtr & obs, std::optional<double> imuCoverageEndTime);
 
   void onIMU(const CObservation::ConstPtr & o);
   void onIMUImpl(const CObservation::ConstPtr & o);
+
+  /** Feeds every pending IMU observation with a timestamp not newer than
+   *  `upToTime` into the IMU-derived state (de-skew velocity buffer, initial
+   *  pitch/roll calibrator, gravity estimators), in timestamp order, and drops
+   *  them from pending_imu_.
+   *  Caller must hold state_mtx_. */
+  void consumePendingImu(double upToTime);
 
   void onGPS(const CObservation::ConstPtr & o);
   void onGPSImpl(const CObservation::ConstPtr & o);
@@ -1512,14 +1529,15 @@ private:
    *  busy, this call replaces any older not-yet-started scan still queued
    *  behind it. This method only adds the drop-stats bookkeeping the pool
    *  itself doesn't provide. Safe to call from any thread. */
-  void submitReadyLidarScanToWorker(const CObservation::ConstPtr & o);
+  void submitReadyLidarScanToWorker(
+    const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime);
   /// Number of LiDAR scans currently running or queued on worker_lidar_ (0, 1, or 2).
   int pendingLidarScanCount() const;
 
   /** Releases to the worker every LiDAR scan on worker_lidar_wait_for_imu_list_
-   *  whose whole time span is already covered by IMU data fed into the de-skew
-   *  buffer (i.e. latest_fed_imu_time_ is more than one scan period past the
-   *  scan timestamp). On an IMU catch-up burst several scans can qualify at
+   *  whose whole time span is already covered by received IMU data (i.e.
+   *  latest_imu_time_ has reached the scan's own IMU coverage end time).
+   *  On an IMU catch-up burst several scans can qualify at
    *  once; only the freshest is submitted (the pool would drop the rest anyway).
    *  Takes no heavy locks (only the wait-list mutex + atomics), so it can run on
    *  the sensor-input thread while onLidar holds state_mtx_; this decouples scan

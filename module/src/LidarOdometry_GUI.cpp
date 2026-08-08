@@ -1177,7 +1177,7 @@ void LidarOdometry::updateVisualizationTextLabels()
     state_.adapt_thres_sigma, state_.last_icp_iterations));
 
   {
-    // recent_imu_stamps is appended by the IMU worker thread:
+    // recent_imu_stamps is appended by the sensor-input thread:
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     const auto [rate_lidar, rate_imu, rate_gnss] = state_.get_sensor_rates();
     gui_.lbSensorRates->set(mrpt::format(

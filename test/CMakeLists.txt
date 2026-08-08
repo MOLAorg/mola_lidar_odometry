@@ -9,6 +9,9 @@ target_link_libraries(test_gravity_map_aligner mola::mola_lidar_odometry)
 ament_add_gtest(test_keyframe_decider test_keyframe_decider.cpp)
 target_link_libraries(test_keyframe_decider mola::mola_lidar_odometry)
 
+ament_add_gtest(test_imu_scan_sync test_imu_scan_sync.cpp)
+target_link_libraries(test_imu_scan_sync mola::mola_lidar_odometry mrpt::obs)
+
 # -----------------------------------------------------------------------
 # Data-dependent integration tests (require optional packages):
 # -----------------------------------------------------------------------
@@ -82,6 +85,7 @@ target_link_libraries(test_lidar_odometry_mulran
   mola::mola_lidar_odometry
   mola::mola_state_estimation_simple
 )
+
 endif()
 
 # Test: from rosbag2 file, RSLIDAR data with XYZIRT channels
