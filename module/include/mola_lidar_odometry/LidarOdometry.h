@@ -88,6 +88,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <future>
 #include <limits>
 #include <map>
 #include <memory>
@@ -1541,8 +1542,11 @@ private:
    *  policy itself: if the worker is idle the scan starts right away; if it is
    *  busy, this call replaces any older not-yet-started scan still queued
    *  behind it. This method only adds the drop-stats bookkeeping the pool
-   *  itself doesn't provide. Safe to call from any thread. */
-  void submitReadyLidarScanToWorker(
+   *  itself doesn't provide. Safe to call from any thread.
+   *  \return The enqueued task's future, so a caller that must not race the
+   *          worker (flushPendingLidarScans) can wait on this very scan rather
+   *          than on sampled busy counters. */
+  std::future<void> submitReadyLidarScanToWorker(
     const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime);
   /// Number of LiDAR scans currently running or queued on worker_lidar_ (0, 1, or 2).
   int pendingLidarScanCount() const;
@@ -1560,8 +1564,9 @@ private:
   /** Common implementation of releaseReadyLidarScansToWorker() and
    *  flushPendingLidarScans(): releases every waiting scan whose IMU coverage
    *  end time is not beyond \a upToImuTime. Passing infinity releases them all,
-   *  which is what "no more input is coming" means. */
-  void releaseLidarScansToWorker(double upToImuTime);
+   *  which is what "no more input is coming" means.
+   *  \return The submitted scan's future, or an invalid future if none was. */
+  std::future<void> releaseLidarScansToWorker(double upToImuTime);
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
 

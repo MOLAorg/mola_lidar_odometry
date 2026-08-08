@@ -777,6 +777,9 @@ int main_odometry(Cli & cli)
   if (cli.arg_outTwist.isSet()) {
     outTwist.emplace();
   }
+  /// Timestamp of the last observation fed, to stamp the twist of the state the
+  /// end-of-input flush may still produce:
+  std::optional<mrpt::Clock::time_point> lastObsTimestamp;
 
   // Save GT, if available:
   if (cli.arg_outPath.isSet() && dataset->hasGroundTruthTrajectory()) {
@@ -933,6 +936,7 @@ int main_odometry(Cli & cli)
         outTwist->insert(
           obs->timestamp, mrpt::math::TPose3D(tw.vx, tw.vy, tw.vz, tw.wz, tw.wy, tw.wx));
       }
+      lastObsTimestamp = obs->timestamp;
     }
   }
 
@@ -940,6 +944,16 @@ int main_odometry(Cli & cli)
   // time span will never get it. Process them now, before reading the results
   // below, or the tail of the trajectory is lost:
   liodom->flushPendingLidarScans();
+
+  // The flush may have produced one more state, after the loop wrote its last
+  // twist entry:
+  if (outTwist && lastObsTimestamp) {
+    if (const auto optPoseAndTwist = liodom->lastEstimatedState(); optPoseAndTwist) {
+      const auto & [pose, tw] = optPoseAndTwist.value();
+      outTwist->insert(
+        *lastObsTimestamp, mrpt::math::TPose3D(tw.vx, tw.vy, tw.vz, tw.wz, tw.wy, tw.wx));
+    }
+  }
 
   if (cli.arg_outPath.isSet()) {
     const auto fil = cli.arg_outPath.getValue();

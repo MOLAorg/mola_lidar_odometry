@@ -203,7 +203,7 @@ void LidarOdometry::releaseReadyLidarScansToWorker()
   releaseLidarScansToWorker(imuTime);
 }
 
-void LidarOdometry::releaseLidarScansToWorker(const double upToImuTime)
+std::future<void> LidarOdometry::releaseLidarScansToWorker(const double upToImuTime)
 {
   // Collect every waiting scan whose whole span is already covered by received
   // IMU data, in chronological order, then submit outside the wait-list lock:
@@ -215,16 +215,19 @@ void LidarOdometry::releaseLidarScansToWorker(const double upToImuTime)
   // On an IMU catch-up burst several scans can qualify at once, but only the
   // newest matters ("keep freshest"): drop-account the older ones directly
   // instead of submitting each only to have it superseded by the next.
-  if (!readyScans.empty()) {
-    for (std::size_t i = 0; i + 1 < readyScans.size(); i++) {
-      addDropStats(true);
-      profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
-    }
-    submitReadyLidarScanToWorker(readyScans.back().obs, readyScans.back().imu_coverage_end_time);
+  if (readyScans.empty()) {
+    return {};  // an invalid future: nothing was submitted
   }
+
+  for (std::size_t i = 0; i + 1 < readyScans.size(); i++) {
+    addDropStats(true);
+    profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
+  }
+  return submitReadyLidarScanToWorker(
+    readyScans.back().obs, readyScans.back().imu_coverage_end_time);
 }
 
-void LidarOdometry::submitReadyLidarScanToWorker(
+std::future<void> LidarOdometry::submitReadyLidarScanToWorker(
   const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime)
 {
   // worker_lidar_ uses POLICY_DROP_OLD: with a single worker thread, enqueue()
@@ -241,9 +244,8 @@ void LidarOdometry::submitReadyLidarScanToWorker(
       getDropStats() * 100.0);
   }
 
-  auto fut = worker_lidar_.enqueue(
+  return worker_lidar_.enqueue(
     &LidarOdometry::onLidar, this, o, mrpt::Clock::nowDouble(), imuCoverageEndTime);
-  (void)fut;
 }
 
 void LidarOdometry::onLidar(

@@ -239,8 +239,22 @@ void LidarOdometry::flushPendingLidarScans()
 
   // Infinity: release regardless of IMU coverage. The scans are waiting for
   // data that will never arrive, so the alternative is to discard them.
-  releaseLidarScansToWorker(std::numeric_limits<double>::infinity());
+  auto fut = releaseLidarScansToWorker(std::numeric_limits<double>::infinity());
 
+  // Wait on the scan's own task, not on the busy counters: onLidar() only
+  // raises worker_tasks_lidar once it is already running, so there is a window
+  // in which the task is dequeued but no counter shows it, and the caller could
+  // move on (and shutdownCleanup() set destructor_called_) before it starts.
+  if (fut.valid()) {
+    try {
+      fut.get();
+    } catch (const std::future_error &) {
+      // The pool discarded the task under its "keep freshest" policy, which
+      // breaks the promise. Nothing to wait for then.
+    }
+  }
+
+  // Anything else still in flight (e.g. a GNSS task) is covered by the counters:
   while (isBusy()) {
     std::this_thread::sleep_for(1ms);
   }
