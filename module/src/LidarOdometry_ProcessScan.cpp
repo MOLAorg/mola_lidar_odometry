@@ -275,7 +275,8 @@ double LidarOdometry::effectiveGravitySigmaRad() const
 }
 
 // here happens the main stuff:
-void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOLINT
+void LidarOdometry::processLidarScan(  // NOLINT
+  const CObservation::ConstPtr & obs, const std::optional<double> imuCoverageEndTime)
 {
   using namespace std::string_literals;
 
@@ -286,6 +287,11 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   // entry for this scan.
   struct OnLidarTimeMetricReporter
   {
+    // Deleting the copy/move members below makes this a non-aggregate, so it
+    // needs an explicit constructor for the brace initialization used at the
+    // end of the struct.
+    explicit OnLidarTimeMetricReporter(LidarOdometry * s) : self(s) {}
+
     OnLidarTimeMetricReporter(const OnLidarTimeMetricReporter &) = delete;
     OnLidarTimeMetricReporter & operator=(const OnLidarTimeMetricReporter &) = delete;
     OnLidarTimeMetricReporter(OnLidarTimeMetricReporter &&) = delete;
@@ -320,6 +326,15 @@ void LidarOdometry::processLidarScan(const CObservation::ConstPtr & obs)  // NOL
   const auto this_obs_tim = obs->timestamp;
 
   std::unique_lock<std::mutex> lckState(state_mtx_);
+
+  // Feed all the IMU data belonging to this scan's time span into the
+  // IMU-derived state, in timestamp order, before anything reads it. The scan
+  // was held back until that data existed (see sendLidarScanToProcessQueue),
+  // so the set of samples consumed here is fixed by the timestamps alone:
+  if (imuCoverageEndTime) {
+    const ProfilerEntry tleImu(profiler_, "onLidar.0.consume_imu");
+    consumePendingImu(*imuCoverageEndTime);
+  }
 
   // for rate stats:
   state_.append_lidar_stamp(obs->sensorLabel, obs->timestamp, *this);

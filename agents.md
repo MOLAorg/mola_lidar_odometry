@@ -177,11 +177,12 @@ Incoming LiDAR scans reach a single worker thread (`worker_lidar_`) via
 `onNewObservation` -> `sendLidarScanToProcessQueue`
 (`LidarOdometry_SensorCallbacks.cpp`). Two routes:
 
-- **LO (no IMU de-skew):** the scan is ready immediately and goes straight to
+- **No IMU received (yet):** the scan is ready immediately and goes straight to
   `submitReadyLidarScanToWorker()`.
-- **LIO (IMU de-skew):** the scan is parked on `worker_lidar_wait_for_imu_list_`
-  until IMU data covering its whole time span has arrived; `onIMUImpl` then
-  submits the now-ready scans via the same `submitReadyLidarScanToWorker()`.
+- **With IMU:** the scan is parked on `worker_lidar_wait_for_imu_list_` until IMU
+  data covering its whole time span has arrived; `onIMUImpl` then submits the
+  now-ready scans via the same `submitReadyLidarScanToWorker()`. See
+  "Timestamp-driven LiDAR/IMU synchronization" below.
 
 `submitReadyLidarScanToWorker()` implements a **"drop stale, keep freshest"**
 policy against a single pending slot (`worker_lidar_pending_fresh_scan_`): if the
@@ -268,7 +269,29 @@ it is the same trade-off `doPublishUpdatedLocalMap()` already makes.
 The render worker pays ~20 ms more per render for the extra copy step, which is
 fine: it is off the critical path by construction.
 
-## `imu_state_mtx_`: the IMU worker no longer waits on the LiDAR worker
+## Timestamp-driven LiDAR/IMU synchronization
+
+IMU readings are **not** consumed when they arrive. `onIMUImpl()` only appends
+them to `pending_imu_` (`PendingImuBuffer`, `ImuScanSync.h`) and updates
+`latest_imu_time_`, inline on the sensor-input thread. A scan is held on
+`worker_lidar_wait_for_imu_list_` (`ScanImuWaitList`) until `latest_imu_time_`
+reaches the scan's own coverage end (its timestamp plus the estimated scan
+period, frozen when the scan is parked). `processLidarScan()` then calls
+`consumePendingImu()`, which feeds every buffered sample up to that same time,
+in timestamp order, into the de-skew velocity buffer, the pitch/roll
+calibrator and the gravity estimators.
+
+The IMU samples a scan sees are therefore a function of the timestamps alone,
+never of how the sensor callbacks interleaved, which is what makes two identical
+offline runs produce identical trajectories. `mola_state_estimation_simple`
+buffers IMU readings the same way for the same reason.
+
+Limits: the gate only engages after the first IMU reading, so scans preceding it
+are processed straight away; and if the IMU stops, waiting scans are dropped by
+`params_.max_lidar_queue_before_drop` as before. Reproducibility also assumes no
+scan is dropped for overload, which is the offline case.
+
+## `imu_state_mtx_`: the sensor input no longer waits on the LiDAR worker
 
 `processLidarScan()` holds `state_mtx_` for its whole body, so an `onIMU()` that
 also took `state_mtx_` blocked for the duration of every scan. At 200-400 Hz IMU
@@ -278,8 +301,8 @@ exactly (33.1 s vs 32.7 s on Oxford Spires), and since
 straight back into scan-submission latency.
 
 `imu_state_mtx_` (recursive) now guards exactly the state the two threads share:
-`imu_initializer`, `gravity_estimator`, `map_gravity`, `recent_imu_stamps`,
-`parameter_source` (variable map, `realize()` flags, and the
+`pending_imu_`, `imu_initializer`, `gravity_estimator`, `map_gravity`,
+`recent_imu_stamps`, `parameter_source` (variable map, `realize()` flags, and the
 `localVelocityBuffer` that IMU samples write and the deskew stage reads), and
 any *invocation* of `obs_generators`. `onIMU()` takes only this mutex; the LiDAR
 thread takes it in short windows on top of `state_mtx_`. Result on the same
@@ -295,7 +318,7 @@ Removing it means making `mola::imu::LocalVelocityBuffer` internally thread-safe
 appends; that is a `mola_imu_preintegration` change, not one for this repo.
 
 Full lock order: `state_mtx_` -> `local_map_content_mtx_` -> `imu_state_mtx_`.
-Never the reverse. The IMU worker takes only `imu_state_mtx_` and the local-map
+Never the reverse. The sensor input takes only `imu_state_mtx_` and the local-map
 render worker only `local_map_content_mtx_`, so neither can invert it. Anything
 that replaces `state_` wholesale (`reset()`) or rebuilds the pipelines
 (`initialize()`) must hold `state_mtx_` **and** `imu_state_mtx_`.
