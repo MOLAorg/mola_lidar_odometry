@@ -936,6 +936,11 @@ int main_odometry(Cli & cli)
     }
   }
 
+  // The dataset is over, so scans still waiting for IMU data covering their
+  // time span will never get it. Process them now, before reading the results
+  // below, or the tail of the trajectory is lost:
+  liodom->flushPendingLidarScans();
+
   if (cli.arg_outPath.isSet()) {
     const auto fil = cli.arg_outPath.getValue();
     std::cout << "\nSaving estimated path in TUM format to: " << fil

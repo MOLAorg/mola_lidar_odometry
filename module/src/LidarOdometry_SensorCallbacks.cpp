@@ -200,11 +200,16 @@ void LidarOdometry::releaseReadyLidarScansToWorker()
     return;  // no IMU received yet: nothing can be released
   }
 
+  releaseLidarScansToWorker(imuTime);
+}
+
+void LidarOdometry::releaseLidarScansToWorker(const double upToImuTime)
+{
   // Collect every waiting scan whose whole span is already covered by received
   // IMU data, in chronological order, then submit outside the wait-list lock:
   const std::vector<ScanImuWaitList::Entry> readyScans = [&]() {
     auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
-    return worker_lidar_wait_for_imu_list_.take_ready(imuTime);
+    return worker_lidar_wait_for_imu_list_.take_ready(upToImuTime);
   }();
 
   // On an IMU catch-up burst several scans can qualify at once, but only the

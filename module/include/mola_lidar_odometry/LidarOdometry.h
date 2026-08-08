@@ -155,6 +155,19 @@ public:
      */
   void reset();
 
+  /** Processes the LiDAR scans still held back waiting for IMU data, using
+     *  whatever IMU samples did arrive, and blocks until the worker is idle.
+     *
+     *  Call it once the input is known to be over (end of a dataset, end of a
+     *  rosbag replay): those scans wait for IMU that will never arrive, and
+     *  without this they are silently discarded, losing the tail of the
+     *  estimated trajectory. shutdownCleanup() calls it as well, so pipelines
+     *  going through onQuit() need no explicit call.
+     *  As during normal operation, only the freshest pending scan is actually
+     *  processed; the older ones are accounted as dropped.
+     */
+  void flushPendingLidarScans();
+
   enum class AlignKind : uint8_t
   {
     RegularOdometry = 0,
@@ -1543,6 +1556,12 @@ private:
    *  the sensor-input thread while onLidar holds state_mtx_; this decouples scan
    *  release from IMU-worker processing latency. No-op for LO (empty wait list). */
   void releaseReadyLidarScansToWorker();
+
+  /** Common implementation of releaseReadyLidarScansToWorker() and
+   *  flushPendingLidarScans(): releases every waiting scan whose IMU coverage
+   *  end time is not beyond \a upToImuTime. Passing infinity releases them all,
+   *  which is what "no more input is coming" means. */
+  void releaseLidarScansToWorker(double upToImuTime);
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
 
