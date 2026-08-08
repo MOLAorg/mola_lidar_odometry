@@ -287,9 +287,30 @@ offline runs produce identical trajectories. `mola_state_estimation_simple`
 buffers IMU readings the same way for the same reason.
 
 Limits: the gate only engages after the first IMU reading, so scans preceding it
-are processed straight away; and if the IMU stops, waiting scans are dropped by
-`params_.max_lidar_queue_before_drop` as before. Reproducibility also assumes no
-scan is dropped for overload, which is the offline case.
+are processed straight away. Reproducibility also assumes no scan is dropped for
+overload, which is the offline case.
+
+**The wait is bounded** (`params_.max_time_to_wait_for_imu`, default 0.5 s). An
+IMU that stops mid-run freezes `latest_imu_time_`, so without a bound every later
+scan waits for data that never comes and the odometry stalls permanently and
+silently (`max_lidar_queue_before_drop` then merely recycles the wait list).
+`imu_scan_release_time()` (`ImuScanSync.h`) therefore also releases scans whose
+coverage end is older than `latest_obs_time_ - max_time_to_wait_for_imu`: the
+odometry degrades to LiDAR-only and picks the IMU back up by itself when it
+returns. Set the parameter to 0 to wait indefinitely.
+
+The bound is in **sensor time** (`latest_obs_time_`, the newest timestamp on any
+input), never the wall clock. That is what keeps it reproducible: a wall-clock
+timeout would make the released set depend on machine load, reintroducing the
+nondeterminism this design exists to remove, and it would buy nothing, since a
+run whose inputs have all gone silent has nothing to process anyway.
+
+Releasing a scan without its IMU means the pipeline moves past instants whose
+readings may still arrive (also possible when an input interleaves the two
+streams out of order). `PendingImuBuffer` keeps a watermark of the newest
+consumed instant and rejects anything at or below it, so IMU data is never
+applied out of chronological order; `clear()` resets it, a reset being a new
+session.
 
 **End of input.** The last scans of a run are parked waiting for IMU that the
 dataset no longer contains, so they must be flushed explicitly or they are lost:
