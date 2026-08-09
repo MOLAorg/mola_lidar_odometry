@@ -224,6 +224,7 @@ void LidarOdometry::reset()
     state_ = MethodState();
     pending_imu_.clear();
     latest_imu_time_ = 0;
+    latest_obs_time_ = 0;
   }
   {
     // Scans still waiting for IMU belong to the pre-reset session:

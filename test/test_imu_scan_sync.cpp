@@ -189,6 +189,54 @@ TEST(ScanImuWaitList, InfiniteCoverageReleasesEverything)
   EXPECT_EQ(list.size(), 0U);
 }
 
+// Once a scan has consumed up to some instant, a reading for an earlier one is
+// of no use: applying it would feed IMU data out of chronological order. This
+// is what a scan released without its IMU (a stalled IMU that later resumes)
+// would otherwise cause.
+TEST(PendingImuBuffer, RejectsReadingsAlreadyConsumed)
+{
+  mola::PendingImuBuffer buf;
+
+  EXPECT_TRUE(buf.add(1.0, makeImu(1.0), 10.0));
+  EXPECT_TRUE(buf.add(1.1, makeImu(1.1), 10.0));
+
+  EXPECT_EQ(valuesOf(buf.take_up_to(1.2)), (std::vector<double>{1.0, 1.1}));
+
+  // Late arrivals for instants already passed:
+  EXPECT_FALSE(buf.add(1.05, makeImu(1.05), 10.0));
+  EXPECT_FALSE(buf.add(1.2, makeImu(1.2), 10.0));
+  EXPECT_EQ(buf.size(), 0U);
+
+  // Anything newer is still accepted as usual:
+  EXPECT_TRUE(buf.add(1.3, makeImu(1.3), 10.0));
+  EXPECT_EQ(valuesOf(buf.take_up_to(2.0)), (std::vector<double>{1.3}));
+
+  // clear() starts a fresh session, so the watermark must go with it:
+  buf.clear();
+  EXPECT_TRUE(buf.add(1.0, makeImu(1.0), 10.0));
+}
+
+// A healthy IMU decides the release time on its own; a stalled one hands over
+// to the bound, so scans keep flowing instead of the odometry stalling for good.
+TEST(ImuScanReleaseTime, BoundsTheWaitOnlyWhenTheImuFallsBehind)
+{
+  constexpr double maxWait = 0.5;
+
+  // IMU keeping up with the rest of the inputs: it alone decides.
+  EXPECT_EQ(mola::imu_scan_release_time(10.0, 10.02, maxWait), 10.0);
+  // Still within the tolerated lag:
+  EXPECT_EQ(mola::imu_scan_release_time(10.0, 10.4, maxWait), 10.0);
+  // Stopped: sensor time has moved on, so scans up to (now - maxWait) run
+  // without it. The released window keeps advancing as sensor time does.
+  EXPECT_EQ(mola::imu_scan_release_time(10.0, 11.0, maxWait), 10.5);
+  EXPECT_EQ(mola::imu_scan_release_time(10.0, 20.0, maxWait), 19.5);
+  // ...and the IMU coming back takes over again:
+  EXPECT_EQ(mola::imu_scan_release_time(21.0, 20.0, maxWait), 21.0);
+
+  // Disabled: wait indefinitely, whatever sensor time says.
+  EXPECT_EQ(mola::imu_scan_release_time(10.0, 99.0, 0.0), 10.0);
+}
+
 int main([[maybe_unused]] int argc, [[maybe_unused]] char ** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);

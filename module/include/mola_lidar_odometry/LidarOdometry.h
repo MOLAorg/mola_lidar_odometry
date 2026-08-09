@@ -734,6 +734,18 @@ public:
      *  the oldest are dropped. */
     uint32_t max_lidar_queue_before_drop = 15;
 
+    /** How long [s] a LiDAR scan may be held waiting for the IMU data covering
+     *  its time span before it is processed without it. Measured in *sensor*
+     *  time: the newest timestamp received on any input, not the wall clock,
+     *  so a given input always yields the same trajectory whatever the machine
+     *  load, offline or online.
+     *
+     *  Without this bound, an IMU that stops mid-run stalls the odometry
+     *  permanently, since the scans behind it never become ready. With it, the
+     *  odometry degrades to LiDAR-only after the timeout and recovers by itself
+     *  when IMU data comes back. Set to 0 to disable and wait indefinitely. */
+    double max_time_to_wait_for_imu = 0.5;
+
     uint32_t gnss_queue_max_size = 100;
 
     ///  Minimum inverse covariance in (X,Y,Z) for a valid motion model
@@ -1240,6 +1252,13 @@ private:
   /// be drained (see releaseReadyLidarScansToWorker) from the sensor-input
   /// thread too, without waiting for the LiDAR worker to become free.
   std::atomic<double> latest_imu_time_{0};
+
+  /// Newest timestamp (seconds, sensor clock) seen on *any* input: the system's
+  /// notion of "now" in sensor time. It is what bounds how long a scan may wait
+  /// for IMU data (params_.max_time_to_wait_for_imu). Taking it from the
+  /// observation stream instead of the wall clock is what keeps the outcome
+  /// reproducible: the same input always leads to the same decisions.
+  std::atomic<double> latest_obs_time_{0};
 
   /// IMU observations received but not consumed yet. They are consumed by
   /// consumePendingImu(), from the LiDAR worker thread, right before the scan

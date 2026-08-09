@@ -78,6 +78,17 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
     }
   }
 
+  // Advance the notion of "now" in sensor time. It bounds how long a scan may
+  // wait for IMU data, and it must be updated from every input so that a stalled
+  // IMU is detected by the data itself rather than by the wall clock.
+  // Monotonic, to be robust against out-of-order deliveries between sensors:
+  {
+    const double obsTim = mrpt::Clock::toDouble(o->getTimeStamp());
+    double prev = latest_obs_time_.load();
+    while (obsTim > prev && !latest_obs_time_.compare_exchange_weak(prev, obsTim)) {
+    }
+  }
+
   // Is it an IMU obs?
   if (
     params_.imu_sensor_label &&
@@ -200,7 +211,22 @@ void LidarOdometry::releaseReadyLidarScansToWorker()
     return;  // no IMU received yet: nothing can be released
   }
 
-  releaseLidarScansToWorker(imuTime);
+  // A scan is normally released once IMU data reaches its coverage end. If the
+  // IMU stops, that never happens and the odometry would stall for good, so the
+  // wait is bounded in sensor time (see imu_scan_release_time):
+  const double obsTime = latest_obs_time_.load();
+  const double releaseUpTo =
+    imu_scan_release_time(imuTime, obsTime, params_.max_time_to_wait_for_imu);
+
+  if (releaseUpTo > imuTime) {
+    MRPT_LOG_THROTTLE_WARN_FMT(
+      2.0,
+      "No IMU data since t=%.03f while sensor time is %.03f: processing LiDAR scans without it "
+      "(LiDAR-only odometry). Check the IMU sensor and its 'imu_sensor_label'.",
+      imuTime, obsTime);
+  }
+
+  releaseLidarScansToWorker(releaseUpTo);
 }
 
 std::future<void> LidarOdometry::releaseLidarScansToWorker(const double upToImuTime)
@@ -324,13 +350,22 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
   // happened to finish first, which is wall-clock dependent.
 
   const double imuTim = mrpt::Clock::toDouble(imu->timestamp);
+  bool stored = false;
   {
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
-    pending_imu_.add(imuTim, imu, kPendingImuMaxAge);
+    stored = pending_imu_.add(imuTim, imu, kPendingImuMaxAge);
 
     // Rate stats are pure instrumentation, so they are updated on arrival: they
     // must keep reporting a live IMU even while no scan is being processed.
     state_.append_imu_stamp(imu->timestamp, *this);
+  }
+
+  if (!stored) {
+    // Its instant was already consumed by a scan, which happens when a scan is
+    // released without waiting (see releaseReadyLidarScansToWorker) or when the
+    // input interleaves the two streams out of order:
+    MRPT_LOG_THROTTLE_WARN_FMT(
+      2.0, "Discarding IMU reading at t=%.03f: already past the last consumed instant.", imuTim);
   }
 
   // Mark how far IMU data has now been received, so a waiting scan is only

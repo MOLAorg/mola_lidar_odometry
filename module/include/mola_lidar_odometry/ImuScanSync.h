@@ -22,6 +22,8 @@
 #include <mrpt/obs/CObservation.h>
 #include <mrpt/obs/CObservationIMU.h>
 
+#include <algorithm>
+#include <limits>
 #include <map>
 #include <vector>
 
@@ -43,17 +45,28 @@ public:
    *  relative to the newest sample held.
    *  A multimap, so that two readings sharing a timestamp are both kept: which
    *  of them is "the" reading for that instant is undecidable, and dropping one
-   *  would silently discard data the previous code did use. */
-  void add(double timestamp, const mrpt::obs::CObservationIMU::ConstPtr & imu, double maxAge)
+   *  would silently discard data the previous code did use.
+   *
+   *  A reading that is not newer than what has already been consumed is
+   *  discarded: the pipeline has moved past that instant, so feeding it now
+   *  would apply IMU data out of chronological order. \return whether it was
+   *  stored. */
+  bool add(double timestamp, const mrpt::obs::CObservationIMU::ConstPtr & imu, double maxAge)
   {
+    if (timestamp <= consumed_up_to_) {
+      return false;
+    }
+
     samples_.emplace(timestamp, imu);
 
     const double oldestToKeep = samples_.rbegin()->first - maxAge;
     samples_.erase(samples_.begin(), samples_.lower_bound(oldestToKeep));
+    return true;
   }
 
   /** Removes and returns every sample with a timestamp not newer than
-   *  `upToTime`, in timestamp order. */
+   *  `upToTime`, in timestamp order. Everything up to `upToTime` counts as
+   *  consumed afterwards, including samples that arrive later (see add()). */
   std::vector<mrpt::obs::CObservationIMU::ConstPtr> take_up_to(double upToTime)
   {
     const auto itEnd = samples_.upper_bound(upToTime);
@@ -64,15 +77,24 @@ public:
       ret.push_back(it->second);
     }
     samples_.erase(samples_.begin(), itEnd);
+
+    consumed_up_to_ = std::max(consumed_up_to_, upToTime);
     return ret;
   }
 
-  void clear() { samples_.clear(); }
+  void clear()
+  {
+    samples_.clear();
+    consumed_up_to_ = -std::numeric_limits<double>::infinity();
+  }
 
   std::size_t size() const { return samples_.size(); }
 
 private:
   std::multimap<double /*timestamp*/, mrpt::obs::CObservationIMU::ConstPtr> samples_;
+
+  /// Newest instant already handed out by take_up_to().
+  double consumed_up_to_ = -std::numeric_limits<double>::infinity();
 };
 
 /** Holds LiDAR scans back until the IMU covering their whole time span has been
@@ -131,5 +153,32 @@ public:
 private:
   std::multimap<double /*scan timestamp*/, Entry> list_;
 };
+
+/** Coverage time up to which waiting scans may be released.
+ *
+ *  Normally that is how far IMU data has been received, so a scan runs only
+ *  once every sample it will consume exists. If the IMU stops, that time stops
+ *  advancing and the scans behind it would wait for good, so the wait is
+ *  bounded: `maxWaitTime` seconds after a scan's coverage end has passed in
+ *  *sensor* time, the scan is released with whatever IMU data did arrive.
+ *
+ *  \param latestImuTime Newest IMU timestamp received [s].
+ *  \param latestObsTime Newest timestamp received on any input [s], i.e. "now"
+ *         in sensor time.
+ *  \param maxWaitTime Bound on the wait [s]; 0 disables it (wait forever).
+ *
+ *  Deliberately a function of timestamps only: using the wall clock here would
+ *  make the released set depend on machine load, which is what the whole
+ *  timestamp-driven synchronization exists to avoid.
+ *
+ * \ingroup mola_lidar_odometry_grp
+ */
+inline double imu_scan_release_time(double latestImuTime, double latestObsTime, double maxWaitTime)
+{
+  if (maxWaitTime <= 0) {
+    return latestImuTime;
+  }
+  return std::max(latestImuTime, latestObsTime - maxWaitTime);
+}
 
 }  // namespace mola
