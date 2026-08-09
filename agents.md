@@ -291,6 +291,16 @@ are processed straight away; and if the IMU stops, waiting scans are dropped by
 `params_.max_lidar_queue_before_drop` as before. Reproducibility also assumes no
 scan is dropped for overload, which is the offline case.
 
+**End of input.** The last scans of a run are parked waiting for IMU that the
+dataset no longer contains, so they must be flushed explicitly or they are lost:
+`flushPendingLidarScans()` releases them regardless of coverage and blocks until
+the worker is idle. `shutdownCleanup()` calls it, which covers everything going
+through `onQuit()`; `mola-lidar-odometry-cli` calls it directly after the replay
+loop, because it reads `estimatedTrajectory()` before that point. Note that
+`isBusy()` deliberately does **not** count the wait list: callers poll it between
+observations, and a parked scan is only released by a later observation, so
+counting it there would deadlock.
+
 ## `imu_state_mtx_`: the sensor input no longer waits on the LiDAR worker
 
 `processLidarScan()` holds `state_mtx_` for its whole body, so an `onIMU()` that

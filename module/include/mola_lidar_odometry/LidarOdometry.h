@@ -88,6 +88,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <future>
 #include <limits>
 #include <map>
 #include <memory>
@@ -154,6 +155,19 @@ public:
      *  once again with the same parameters that were used the first time.
      */
   void reset();
+
+  /** Processes the LiDAR scans still held back waiting for IMU data, using
+     *  whatever IMU samples did arrive, and blocks until the worker is idle.
+     *
+     *  Call it once the input is known to be over (end of a dataset, end of a
+     *  rosbag replay): those scans wait for IMU that will never arrive, and
+     *  without this they are silently discarded, losing the tail of the
+     *  estimated trajectory. shutdownCleanup() calls it as well, so pipelines
+     *  going through onQuit() need no explicit call.
+     *  As during normal operation, only the freshest pending scan is actually
+     *  processed; the older ones are accounted as dropped.
+     */
+  void flushPendingLidarScans();
 
   enum class AlignKind : uint8_t
   {
@@ -1528,8 +1542,11 @@ private:
    *  policy itself: if the worker is idle the scan starts right away; if it is
    *  busy, this call replaces any older not-yet-started scan still queued
    *  behind it. This method only adds the drop-stats bookkeeping the pool
-   *  itself doesn't provide. Safe to call from any thread. */
-  void submitReadyLidarScanToWorker(
+   *  itself doesn't provide. Safe to call from any thread.
+   *  \return The enqueued task's future, so a caller that must not race the
+   *          worker (flushPendingLidarScans) can wait on this very scan rather
+   *          than on sampled busy counters. */
+  std::future<void> submitReadyLidarScanToWorker(
     const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime);
   /// Number of LiDAR scans currently running or queued on worker_lidar_ (0, 1, or 2).
   int pendingLidarScanCount() const;
@@ -1543,6 +1560,13 @@ private:
    *  the sensor-input thread while onLidar holds state_mtx_; this decouples scan
    *  release from IMU-worker processing latency. No-op for LO (empty wait list). */
   void releaseReadyLidarScansToWorker();
+
+  /** Common implementation of releaseReadyLidarScansToWorker() and
+   *  flushPendingLidarScans(): releases every waiting scan whose IMU coverage
+   *  end time is not beyond \a upToImuTime. Passing infinity releases them all,
+   *  which is what "no more input is coming" means.
+   *  \return The submitted scan's future, or an invalid future if none was. */
+  std::future<void> releaseLidarScansToWorker(double upToImuTime);
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
 

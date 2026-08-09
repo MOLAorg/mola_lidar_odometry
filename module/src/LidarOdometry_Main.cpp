@@ -46,6 +46,7 @@
 
 // STD:
 #include <chrono>
+#include <limits>
 #include <mutex>
 #include <thread>
 
@@ -101,6 +102,10 @@ void LidarOdometry::shutdownCleanup()
 
   try  // must never throw
   {
+    // Before the workers are told to stop: no further input is coming, so any
+    // scan still waiting for IMU data must be processed now or be lost.
+    flushPendingLidarScans();
+
     {
       auto lck = mrpt::lockHelper(is_busy_mtx_);
       destructor_called_ = true;
@@ -226,6 +231,33 @@ void LidarOdometry::reset()
     worker_lidar_wait_for_imu_list_.trim_to(0);
   }
   initialize(lastInitConfig_);
+}
+
+void LidarOdometry::flushPendingLidarScans()
+{
+  using namespace std::chrono_literals;
+
+  // Infinity: release regardless of IMU coverage. The scans are waiting for
+  // data that will never arrive, so the alternative is to discard them.
+  auto fut = releaseLidarScansToWorker(std::numeric_limits<double>::infinity());
+
+  // Wait on the scan's own task, not on the busy counters: onLidar() only
+  // raises worker_tasks_lidar once it is already running, so there is a window
+  // in which the task is dequeued but no counter shows it, and the caller could
+  // move on (and shutdownCleanup() set destructor_called_) before it starts.
+  if (fut.valid()) {
+    try {
+      fut.get();
+    } catch (const std::future_error &) {
+      // The pool discarded the task under its "keep freshest" policy, which
+      // breaks the promise. Nothing to wait for then.
+    }
+  }
+
+  // Anything else still in flight (e.g. a GNSS task) is covered by the counters:
+  while (isBusy()) {
+    std::this_thread::sleep_for(1ms);
+  }
 }
 
 bool LidarOdometry::isBusy() const

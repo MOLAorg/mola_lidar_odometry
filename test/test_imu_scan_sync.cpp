@@ -23,6 +23,7 @@
 #include <mrpt/obs/CObservationPointCloud.h>
 
 #include <algorithm>
+#include <limits>
 #include <vector>
 
 namespace
@@ -167,6 +168,25 @@ TEST(ScanImuWaitList, TrimDropsTheOldest)
   EXPECT_NEAR(ready[1].imu_coverage_end_time, 1.5, 1e-9);
 
   EXPECT_EQ(list.trim_to(2), 0U);
+}
+
+// What flushPendingLidarScans() relies on at the end of the input: an infinite
+// coverage time releases every waiting scan, whatever IMU data did arrive.
+TEST(ScanImuWaitList, InfiniteCoverageReleasesEverything)
+{
+  mola::ScanImuWaitList list;
+  for (int i = 0; i < 4; i++) {
+    const double t = 1.0 + 0.1 * i;
+    list.add(t, {makeScan(t), t + 0.1});
+  }
+
+  // None of them is covered by the IMU data actually received:
+  EXPECT_TRUE(list.take_ready(0.5).empty());
+  EXPECT_EQ(list.size(), 4U);
+
+  const auto flushed = list.take_ready(std::numeric_limits<double>::infinity());
+  EXPECT_EQ(flushed.size(), 4U);
+  EXPECT_EQ(list.size(), 0U);
 }
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char ** argv)
