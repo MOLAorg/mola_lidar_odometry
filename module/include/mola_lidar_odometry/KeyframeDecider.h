@@ -148,8 +148,14 @@ public:
 
   /** Re-expresses every stored keyframe pose in a new reference frame, i.e.
    *  each stored `p` becomes `b + p`. Relative distances are preserved, so no
-   *  past decision changes; only the frame the poses live in moves. */
+   *  past decision changes; only the frame the poses live in moves.
+   *
+   *  Needs SearchablePoseList::transform_left_multiply(), so it is compiled
+   *  out against an older mola_pose_list. Callers must guard on
+   *  MOLA_POSE_LIST_HAS_TRANSFORM_LEFT_MULTIPLY. */
+#if defined(MOLA_POSE_LIST_HAS_TRANSFORM_LEFT_MULTIPLY)
   void transform_left_multiply(const mrpt::poses::CPose3D & b);
+#endif
 
   /** Number of keyframes created so far (minus those dropped by
    *  removeAllFartherThan). This is what the GUI reports: under the temporal

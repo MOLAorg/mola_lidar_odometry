@@ -144,6 +144,7 @@ void LidarOdometry::closeMapGravityInterval(
   }
 }
 
+#if defined(MOLA_LO_CAN_RELEVEL_MAP_FRAME)
 void LidarOdometry::evaluateMapFrameRelevel(const mola::imu::MapGravityEstimator::Result & r)
 {
   // Caller holds state_mtx_ and imu_state_mtx_.
@@ -300,6 +301,24 @@ void LidarOdometry::applyMapFrameRelevel()
     b.asString().c_str(),
     mrpt::RAD2DEG(mrpt::poses::Lie::SO<3>::log(b.getRotationMatrix()).norm()));
 }
+#else
+// Built against a mola/mola_pose_list/mola_kernel without the pieces the gauge
+// change needs. The feature stands down rather than rotating part of the state.
+void LidarOdometry::evaluateMapFrameRelevel(const mola::imu::MapGravityEstimator::Result &)
+{
+  auto & mg = state_.map_gravity;
+  if (!params_.imu_gravity_correction.map_gravity.relevel_map_frame || mg.relevel_decided) {
+    return;
+  }
+  mg.relevel_decided = true;
+  MRPT_LOG_WARN(
+    "map_gravity.relevel_map_frame is enabled but this build cannot apply it: it needs "
+    "SearchablePoseList::transform_left_multiply() and NavStateFilter::transform_frame(), "
+    "which this mola_pose_list / mola_kernel does not provide. Standing down; upgrade "
+    "those packages to use it.");
+}
+
+void LidarOdometry::applyMapFrameRelevel() {}
 #endif
 
 #if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
@@ -376,6 +395,7 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
   g.sigma_rad = std::sqrt(s * s + extraSigmaRad * extraSigmaRad);
   return g;
 }
+#endif
 #endif
 
 void LidarOdometry::captureMapOriginVerticality(const mrpt::poses::CPose3D & poseAtCapture)

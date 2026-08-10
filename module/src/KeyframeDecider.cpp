@@ -178,6 +178,7 @@ void KeyframeDecider::removeAllFartherThan(const mrpt::poses::CPose3D & pose, do
   recent_.swap(kept);
 }
 
+#if defined(MOLA_POSE_LIST_HAS_TRANSFORM_LEFT_MULTIPLY)
 void KeyframeDecider::transform_left_multiply(const mrpt::poses::CPose3D & b)
 {
   if (!temporal_) {
@@ -189,5 +190,6 @@ void KeyframeDecider::transform_left_multiply(const mrpt::poses::CPose3D & b)
     e.second = b + e.second;
   }
 }
+#endif
 
 }  // namespace mola

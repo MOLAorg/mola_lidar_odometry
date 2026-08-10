@@ -171,6 +171,9 @@ TEST(MapFrameRelevel, MetricMapRefusesGeoreferencedMaps)
   EXPECT_THROW(mola::transform_to_new_map_frame(mm, theCorrection()), std::exception);
 }
 
+// Exercises KeyframeDecider::transform_left_multiply(), which is itself only
+// compiled against a mola_pose_list that provides the underlying call.
+#if defined(MOLA_POSE_LIST_HAS_TRANSFORM_LEFT_MULTIPLY)
 TEST(MapFrameRelevel, KeyframeDeciderDecisionsAreUnchanged)
 {
   const auto poses = makeTrajectory();
@@ -200,6 +203,7 @@ TEST(MapFrameRelevel, KeyframeDeciderDecisionsAreUnchanged)
     EXPECT_NEAR(dOld.rotation, dNew.rotation, 1e-9);
   }
 }
+#endif
 
 TEST(MapFrameRelevel, MapFrameVelocitiesRotateWithTheFrame)
 {

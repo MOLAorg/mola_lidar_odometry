@@ -55,6 +55,25 @@
 #endif
 #include <mola_lidar_odometry/ImuScanSync.h>
 #include <mola_lidar_odometry/KeyframeDecider.h>
+#include <mola_lidar_odometry/MapFrameRelevel.h>
+
+/** Feature macro: the one-off map-frame gauge change is available.
+ *
+ *  It needs three things at once, from three different packages, so it is
+ *  gated on all of them rather than on this package alone: the local helpers
+ *  here, SearchablePoseList::transform_left_multiply() from mola_pose_list
+ *  (to carry the keyframe bookkeeping across the change) and
+ *  NavStateFilter::transform_frame() from mola_kernel (to carry the estimator
+ *  state). Against an older set the whole feature compiles out and enabling it
+ *  at runtime stands down with a warning, which is deliberate: applying the
+ *  rotation to only some of the state would leave the session inconsistent,
+ *  which is worse than not applying it at all.
+ */
+#if defined(MOLA_LO_HAS_MAP_FRAME_RELEVEL) &&            \
+  defined(MOLA_POSE_LIST_HAS_TRANSFORM_LEFT_MULTIPLY) && \
+  defined(MOLA_KERNEL_NAVSTATE_FILTER_HAS_TRANSFORM_FRAME)
+#define MOLA_LO_CAN_RELEVEL_MAP_FRAME 1
+#endif
 
 // MP2P_ICP
 #include <mp2p_icp/ICP.h>
