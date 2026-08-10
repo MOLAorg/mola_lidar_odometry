@@ -587,11 +587,42 @@ public:
       // becomes the max of the two when both are set).
       uint32_t additional_map_freeze_after_reloc_how_many_timesteps = 0;
 
-      /// Number of IMU (accelerometer) samples to accumulate while stationary to estimate Pitch & Roll:
+      /// Seconds of accelerometer data to average while stationary to estimate Pitch & Roll.
+      /// This is the knob that actually determines accuracy: the error is dominated by platform
+      /// motion during the window, not by sensor noise, so what matters is the DURATION and not
+      /// how many samples the sensor happens to deliver in it.
+      double imu_initial_calibration_window_seconds = 1.0;
+
+      /// Minimum number of samples inside the window above. A sanity floor to reject a
+      /// degenerate handful of samples; it is not what sets the averaging time.
+      uint32_t imu_initial_calibration_min_samples = 20;
+
+      /// Maximum RMS angular dispersion [deg] of the accelerometer directions in the window for
+      /// it to be accepted as measuring gravity. While it is exceeded, initialization is
+      /// deferred and retried with a fresher window, instead of freezing an attitude taken while
+      /// the platform was being jostled. 0 disables the gate.
+      double imu_initial_calibration_max_dispersion_deg = 1.5;
+
+      /// How long [s] the dispersion gate above may defer initialization before accepting the
+      /// most recent window anyway, so a permanently dynamic start still initializes.
+      /// 0 waits indefinitely for a quiet window.
+      double imu_initial_calibration_dispersion_timeout = 5.0;
+
+      /// DEPRECATED, use imu_initial_calibration_window_seconds instead.
+      /// Number of IMU (accelerometer) samples to accumulate to estimate Pitch & Roll. Couples
+      /// the averaging time to the sensor rate, and cannot be satisfied at all by a low-rate IMU
+      /// if the samples do not fit within imu_initial_calibration_max_age. Only honored when it
+      /// is set in the YAML and imu_initial_calibration_window_seconds is not.
       uint32_t imu_initial_calibration_sample_count = 50;
 
-      /// Maximum time span (in seconds) for the "imu_initial_calibration_sample_count" IMU samples:
+      /// Maximum time span (in seconds) for the "imu_initial_calibration_sample_count" IMU
+      /// samples. Only used by that deprecated path: in time-window mode the buffer horizon is
+      /// the window itself.
       double imu_initial_calibration_max_age = 0.75;
+
+      /// Set by initialize() when only the deprecated sample-count parameter is present in the
+      /// YAML, in which case the legacy readiness rule is preserved as-is.
+      bool imu_initial_calibration_legacy_mode = false;
 
       /// If provided by the IMU, prefer gravity-aligned orientation from the sensor instead of accelerometer data.
       bool use_imu_orientation = true;
@@ -667,6 +698,18 @@ public:
       /// Maximum age [seconds] for accelerometer samples used in averaging.
       /// Samples older than this are discarded. 0 = no age limit.
       double max_age_seconds = 2.0;
+
+      /// Maximum RMS angular dispersion [deg] of the buffered accelerometer directions for the
+      /// one-shot map-origin verticality capture to be accepted. The capture decides the map's
+      /// vertical reference for the whole run, so while this is exceeded it is deferred and
+      /// retried at the next scan rather than freezing a reading taken during a footfall.
+      /// 0 disables the gate.
+      double map_origin_max_dispersion_deg = 1.0;
+
+      /// How long [s] the capture may be deferred by the gate above before it is taken anyway.
+      /// Measured from the first scan at which accelerometer data was available.
+      /// 0 defers indefinitely until a quiet reading shows up.
+      double map_origin_capture_timeout = 3.0;
 
       /// Estimate the map-frame gravity direction online, instead of freezing
       /// it from one accelerometer average at the first keyframe.
@@ -1049,6 +1092,10 @@ private:
     /// offset is required to correctly re-express later absolute IMU tilt
     /// readings relative to the (possibly non-level) map frame.
     std::optional<std::pair<double, double>> gravity_calib_pitch_roll;
+
+    /// Sensor timestamp of the first scan at which an accelerometer average was available for
+    /// the map-origin verticality capture, so the dispersion gate's timeout can be measured.
+    std::optional<double> gravity_calib_first_available_time;
 
     /// Vehicle pose at the instant `gravity_calib_pitch_roll` was captured.
     /// The capture is attempted at the first keyframe, but the accelerometer

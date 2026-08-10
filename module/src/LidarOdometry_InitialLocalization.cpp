@@ -97,18 +97,66 @@ void LidarOdometry::handleInitialLocalization()
       // Construct the IMU averager object:
       if (!state_.imu_initializer) {
         state_.imu_initializer = mola::imu::ImuInitialCalibrator();
-        state_.imu_initializer->parameters.max_samples_age = il.imu_initial_calibration_max_age;
-        state_.imu_initializer->parameters.required_samples =
-          il.imu_initial_calibration_sample_count;
+        auto & ip = state_.imu_initializer->parameters;
+
+        ip.max_samples_age = il.imu_initial_calibration_max_age;
+        ip.required_samples = il.imu_initial_calibration_sample_count;
 #if defined(MOLA_IMU_PREINT_HAS_USE_IMU_ORIENT_PARAM)  // Remove in a few months from Dec 2025
-        state_.imu_initializer->parameters.use_imu_orientation = il.use_imu_orientation;
+        ip.use_imu_orientation = il.use_imu_orientation;
+#endif
+
+#if defined(MOLA_IMU_PREINT_HAS_INIT_TIME_WINDOW)
+        if (il.imu_initial_calibration_legacy_mode) {
+          MRPT_LOG_WARN_FMT(
+            "initial_localization.imu_initial_calibration_sample_count is deprecated: it ties the "
+            "averaging time to the IMU rate (%u samples is %.2f s at 400 Hz but %.2f s at 100 Hz) "
+            "and cannot be reached at all below ~%.0f Hz within "
+            "imu_initial_calibration_max_age=%.1f s. Use "
+            "imu_initial_calibration_window_seconds instead.",
+            static_cast<unsigned>(il.imu_initial_calibration_sample_count),
+            il.imu_initial_calibration_sample_count / 400.0,
+            il.imu_initial_calibration_sample_count / 100.0,
+            il.imu_initial_calibration_sample_count / il.imu_initial_calibration_max_age,
+            il.imu_initial_calibration_max_age);
+        } else {
+          ip.window_seconds = il.imu_initial_calibration_window_seconds;
+          ip.required_samples = il.imu_initial_calibration_min_samples;
+          ip.max_direction_dispersion =
+            mrpt::DEG2RAD(il.imu_initial_calibration_max_dispersion_deg);
+          ip.dispersion_timeout = il.imu_initial_calibration_dispersion_timeout;
+        }
+#else
+        if (!il.imu_initial_calibration_legacy_mode) {
+          MRPT_LOG_WARN_FMT(
+            "Built against a mola_imu_preintegration without time-window support: "
+            "imu_initial_calibration_window_seconds is ignored and %u samples are used instead.",
+            static_cast<unsigned>(il.imu_initial_calibration_sample_count));
+        }
 #endif
       }
+
+#if defined(MOLA_IMU_PREINT_HAS_INIT_TIME_WINDOW)
+      const auto imuReadiness = state_.imu_initializer->readiness();
+      const bool imuIsReady = imuReadiness.ready;
+#else
+      const bool imuIsReady = state_.imu_initializer->isReady();
+#endif
+
       // Already collected enough samples?
-      if (state_.imu_initializer->isReady()) {
+      if (imuIsReady) {
         // Get the average pitch & roll:
         const auto & imu_calib_opt = state_.imu_initializer->getCalibration();
         ASSERT_(imu_calib_opt);
+
+#if defined(MOLA_IMU_PREINT_HAS_INIT_TIME_WINDOW)
+        MRPT_LOG_INFO_FMT(
+          "IMU initial attitude averaged over %.3f s (%zu samples, dispersion %.2f deg)%s",
+          imuReadiness.span, imuReadiness.samples,
+          mrpt::RAD2DEG(imuReadiness.dispersion.value_or(0.0)),
+          imuReadiness.timed_out ? ", accepted on gate timeout: the platform never became still, "
+                                   "so this attitude includes its motion"
+                                 : "");
+#endif
 
         MRPT_LOG_INFO_STREAM("IMU automatic calibration done: " << imu_calib_opt->asString());
 
@@ -148,8 +196,17 @@ void LidarOdometry::handleInitialLocalization()
         state_.imu_initializer.reset();  // no longer needed
 
       } else {
+#if defined(MOLA_IMU_PREINT_HAS_INIT_TIME_WINDOW)
+        MRPT_LOG_THROTTLE_INFO_FMT(
+          5.0,
+          "Waiting to initialize pitch & roll from the IMU: %s (%zu samples spanning %.3f s, "
+          "dispersion %.2f deg, %.1f s elapsed)",
+          imuReadiness.reason.c_str(), imuReadiness.samples, imuReadiness.span,
+          mrpt::RAD2DEG(imuReadiness.dispersion.value_or(0.0)), imuReadiness.elapsed);
+#else
         MRPT_LOG_THROTTLE_INFO(
           5.0, "Waiting for enough IMU samples to initialize pitch & roll while stationary...");
+#endif
       }
     } break;
 

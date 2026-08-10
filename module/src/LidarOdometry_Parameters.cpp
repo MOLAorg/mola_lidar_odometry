@@ -304,8 +304,21 @@ void LidarOdometry::Parameters::InitialLocalizationOptions::initialize(const Yam
 
   YAML_LOAD_OPT(additional_uncertainty_after_reloc_how_many_timesteps, uint32_t);
   YAML_LOAD_OPT(additional_map_freeze_after_reloc_how_many_timesteps, uint32_t);
+  YAML_LOAD_OPT(imu_initial_calibration_window_seconds, double);
+  YAML_LOAD_OPT(imu_initial_calibration_min_samples, uint32_t);
+  YAML_LOAD_OPT(imu_initial_calibration_max_dispersion_deg, double);
+  YAML_LOAD_OPT(imu_initial_calibration_dispersion_timeout, double);
   YAML_LOAD_OPT(imu_initial_calibration_sample_count, uint32_t);
   YAML_LOAD_OPT(imu_initial_calibration_max_age, double);
+
+  // Backwards compatibility: a configuration written for the sample-count knob alone keeps its
+  // exact former behavior, so upgrading does not silently change what it averages. As soon as
+  // the time window is named in the YAML, it is the one in charge and the sample count is
+  // ignored (a fixed sample count cannot be met inside a fixed window at an arbitrary rate).
+  imu_initial_calibration_legacy_mode = cfg.has("imu_initial_calibration_sample_count") &&
+                                        !cfg.has("imu_initial_calibration_window_seconds");
+
+  ASSERT_(imu_initial_calibration_window_seconds > 0 || imu_initial_calibration_legacy_mode);
   YAML_LOAD_OPT(use_imu_orientation, bool);
   YAML_LOAD_OPT(from_state_estimator_max_position_sigma, double);
   YAML_LOAD_OPT(from_state_estimator_max_orientation_sigma_deg, double);
@@ -340,6 +353,8 @@ void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cf
   YAML_LOAD_OPT(sigma_deg, double);
   YAML_LOAD_OPT(averaging_samples, uint32_t);
   YAML_LOAD_OPT(max_age_seconds, double);
+  YAML_LOAD_OPT(map_origin_max_dispersion_deg, double);
+  YAML_LOAD_OPT(map_origin_capture_timeout, double);
 
   if (enabled) {
     ASSERTMSG_(
