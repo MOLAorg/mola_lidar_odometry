@@ -320,7 +320,14 @@ void LidarOdometry::evaluateMapFrameRelevel(const mola::imu::MapGravityEstimator
 
 void LidarOdometry::applyMapFrameRelevel() {}
 #endif
+#endif  // MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR
 
+// Deliberately NOT inside the map-gravity block above: the rank-2 prior is a
+// mp2p_icp feature and stands on its own, using the map-frame gravity estimate
+// only when there is one (see the inner guard below). Its declaration and its
+// call site are gated on MOLA_LO_HAS_MP2P_GRAVITY_PRIOR alone, so gating the
+// definition on both leaves the symbol undefined whenever a build has the
+// newer mp2p_icp but the older mola_imu_preintegration.
 #if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
 std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
 {
@@ -395,8 +402,7 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
   g.sigma_rad = std::sqrt(s * s + extraSigmaRad * extraSigmaRad);
   return g;
 }
-#endif
-#endif
+#endif  // MOLA_LO_HAS_MP2P_GRAVITY_PRIOR
 
 void LidarOdometry::captureMapOriginVerticality(const mrpt::poses::CPose3D & poseAtCapture)
 {

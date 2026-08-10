@@ -16,9 +16,14 @@
  */
 
 #include <gtest/gtest.h>
-#include <mola_imu_preintegration/MapGravityEstimator.h>
 #include <mola_lidar_odometry/KeyframeDecider.h>
 #include <mola_lidar_odometry/MapFrameRelevel.h>
+// Same optional-dependency probe LidarOdometry.h uses, so this test still
+// builds against a mola_imu_preintegration without the map-gravity estimator.
+#if __has_include(<mola_imu_preintegration/MapGravityEstimator.h>)
+#include <mola_imu_preintegration/MapGravityEstimator.h>
+#define TEST_HAS_MAP_GRAVITY_ESTIMATOR 1
+#endif
 #include <mrpt/maps/CSimplePointsMap.h>
 #include <mrpt/obs/CSensoryFrame.h>
 #include <mrpt/poses/Lie/SO.h>
@@ -222,6 +227,7 @@ TEST(MapFrameRelevel, MapFrameVelocitiesRotateWithTheFrame)
   EXPECT_NEAR(vMapNew.norm(), vMapOld.norm(), 1e-12);
 }
 
+#if defined(TEST_HAS_MAP_GRAVITY_ESTIMATOR)
 TEST(MapFrameRelevel, TheCorrectionLevelsTheMap)
 {
   // End-to-end on the actual quantity consumed: the estimator's `correction`
@@ -246,3 +252,4 @@ TEST(MapFrameRelevel, TheCorrectionLevelsTheMap)
   const double tiltBetween = std::acos(std::clamp(-gMap.z / gMap.norm(), -1.0, 1.0));
   EXPECT_NEAR(rotAngle(b), tiltBetween, 1e-9);
 }
+#endif
