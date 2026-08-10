@@ -77,6 +77,12 @@ params:
     sigma_deg: ${MOLA_IMU_GRAVITY_SIGMA_DEG|2.0}
     averaging_samples: ${MOLA_IMU_GRAVITY_AVG_SAMPLES|20}
     max_age_seconds: ${MOLA_IMU_GRAVITY_MAX_AGE|2.0}
+    # The one-shot map-origin verticality capture defines the map's vertical
+    # for the whole run, so it is deferred to a later scan while the buffered
+    # accelerometer directions disagree by more than this (i.e. the reading is
+    # motion, not gravity), and taken as-is after the timeout.
+    map_origin_max_dispersion_deg: ${MOLA_IMU_GRAVITY_MAP_ORIGIN_MAX_DISPERSION|1.0}
+    map_origin_capture_timeout: ${MOLA_IMU_GRAVITY_MAP_ORIGIN_TIMEOUT|3.0}
     # NOTE: averaging_samples must fit inside max_age_seconds at the actual IMU
     # rate, or estimatedPitchRoll() returns nothing and the constraint is
     # silently inactive (at 400 Hz, 2.0 s holds only ~800 samples).
@@ -309,8 +315,19 @@ initial_localization:
   # Format: x(m) y(m) z(m) yaw(deg) pitch(deg) roll(deg)
   fixed_initial_pose:
     ["${MOLA_INITIAL_X|0.0}", "${MOLA_INITIAL_Y|0.0}", "${MOLA_INITIAL_Z|0.0}", "${MOLA_INITIAL_YAW|0.0}", "${MOLA_INITIAL_PITCH|0.0}", "${MOLA_INITIAL_ROLL|0.0}"]
-  imu_initial_calibration_sample_count: "${MOLA_LO_INITIAL_IMU_SAMPLES|400}"
-  imu_initial_calibration_max_age: 5.0
+  # Seconds of accelerometer data to average for the initial pitch & roll.
+  # A duration, not a sample count: what limits accuracy is platform motion
+  # during the window, so the same setting must mean the same averaging time
+  # on a 100 Hz and on a 400 Hz IMU.
+  imu_initial_calibration_window_seconds: "${MOLA_LO_INITIAL_IMU_WINDOW|1.0}"
+  # Sanity floor only, to reject a degenerate handful of samples:
+  imu_initial_calibration_min_samples: "${MOLA_LO_INITIAL_IMU_MIN_SAMPLES|20}"
+  # Defer initialization while the accelerometer directions in the window
+  # disagree by more than this: such a window is measuring platform motion,
+  # not gravity. After the timeout it is accepted anyway, so a start that is
+  # never still still initializes.
+  imu_initial_calibration_max_dispersion_deg: "${MOLA_LO_INITIAL_IMU_MAX_DISPERSION|1.5}"
+  imu_initial_calibration_dispersion_timeout: "${MOLA_LO_INITIAL_IMU_DISPERSION_TIMEOUT|5.0}"
   use_imu_orientation: "${MOLA_LO_INITIAL_IMU_USE_ORIENTATION|true}"
   # Right after a re-localization (or initial localization), also hold off
   # local map / simplemap updates for this many timesteps (shares the same

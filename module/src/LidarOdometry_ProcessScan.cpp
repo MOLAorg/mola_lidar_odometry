@@ -236,6 +236,47 @@ void LidarOdometry::captureMapOriginVerticality(const mrpt::poses::CPose3D & pos
     return;
   }
 
+  // The data is there, but is it gravity? This one reading defines the map's vertical for the
+  // whole run, so defer it while the buffered directions disagree too much, the same way the
+  // capture is already retried when there is no data at all. Deferring forever is not an
+  // option either: a platform that is never still still needs a reference, so after a timeout
+  // the reading is taken as-is.
+  const double maxDisp =
+    mrpt::DEG2RAD(params_.imu_gravity_correction.map_origin_max_dispersion_deg);
+  bool takenOnTimeout = false;
+
+  if (maxDisp > 0) {
+    const auto disp = state_.gravity_estimator.directionDispersionSigma(
+      params_.imu_gravity_correction.max_age_seconds);
+
+    if (disp.has_value() && *disp > maxDisp) {
+      const double now = state_.last_obs_timestamp.has_value()
+                           ? mrpt::Clock::toDouble(*state_.last_obs_timestamp)
+                           : 0.0;
+
+      if (!state_.gravity_calib_first_available_time.has_value()) {
+        state_.gravity_calib_first_available_time = now;
+      }
+      const double waited = now - *state_.gravity_calib_first_available_time;
+      const double timeout = params_.imu_gravity_correction.map_origin_capture_timeout;
+
+      if (timeout <= 0 || waited < timeout) {
+        MRPT_LOG_THROTTLE_INFO_FMT(
+          2.0,
+          "Deferring the map-origin verticality capture: accelerometer dispersion %.2f deg > "
+          "%.2f deg (waited %.1f s)",
+          mrpt::RAD2DEG(*disp), mrpt::RAD2DEG(maxDisp), waited);
+        return;
+      }
+      takenOnTimeout = true;
+      MRPT_LOG_WARN_FMT(
+        "Taking the map-origin verticality reference after %.1f s with an accelerometer "
+        "dispersion of %.2f deg (> %.2f deg): the platform never became still, so the map's "
+        "vertical carries that motion.",
+        waited, mrpt::RAD2DEG(*disp), mrpt::RAD2DEG(maxDisp));
+    }
+  }
+
   state_.gravity_calib_pitch_roll = pr;
   state_.gravity_calib_pose = poseAtCapture;
 
@@ -244,9 +285,9 @@ void LidarOdometry::captureMapOriginVerticality(const mrpt::poses::CPose3D & pos
   // tilt behavior is questioned later starts here.
   const auto [p0, r0] = *pr;
   MRPT_LOG_INFO_FMT(
-    "Map-origin verticality reference captured from the accelerometer: "
+    "Map-origin verticality reference captured from the accelerometer%s: "
     "pitch=%.3f roll=%.3f deg (tilt %.3f deg), at pose [%s]",
-    mrpt::RAD2DEG(p0), mrpt::RAD2DEG(r0),
+    takenOnTimeout ? " (on dispersion-gate timeout)" : "", mrpt::RAD2DEG(p0), mrpt::RAD2DEG(r0),
     mrpt::RAD2DEG(std::acos(std::clamp(std::cos(p0) * std::cos(r0), -1.0, 1.0))),
     poseAtCapture.asString().c_str());
 }
@@ -1226,6 +1267,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
     state_.estimated_trajectory.clear();
     state_.gravity_calib_pitch_roll.reset();  // new map origin: recapture at next first KF
     state_.gravity_calib_pose.reset();
+    state_.gravity_calib_first_available_time.reset();
     updateLocalMap = false;
     state_.last_icp_was_good = true;
 

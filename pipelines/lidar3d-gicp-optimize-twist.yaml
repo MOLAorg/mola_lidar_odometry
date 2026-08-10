@@ -209,8 +209,19 @@ initial_localization:
   # Format: x(m) y(m) z(m) yaw(deg) pitch(deg) roll(deg)
   fixed_initial_pose:
     ["${MOLA_INITIAL_X|0.0}", "${MOLA_INITIAL_Y|0.0}", "${MOLA_INITIAL_Z|0.0}", "${MOLA_INITIAL_YAW|0.0}", "${MOLA_INITIAL_PITCH|0.0}", "${MOLA_INITIAL_ROLL|0.0}"]
-  imu_initial_calibration_sample_count: "${MOLA_LO_INITIAL_IMU_SAMPLES|400}"
-  imu_initial_calibration_max_age: 5.0
+  # Seconds of accelerometer data to average for the initial pitch & roll.
+  # A duration, not a sample count: what limits accuracy is platform motion
+  # during the window, so the same setting must mean the same averaging time
+  # on a 100 Hz and on a 400 Hz IMU.
+  imu_initial_calibration_window_seconds: "${MOLA_LO_INITIAL_IMU_WINDOW|1.0}"
+  # Sanity floor only, to reject a degenerate handful of samples:
+  imu_initial_calibration_min_samples: "${MOLA_LO_INITIAL_IMU_MIN_SAMPLES|20}"
+  # Defer initialization while the accelerometer directions in the window
+  # disagree by more than this: such a window is measuring platform motion,
+  # not gravity. After the timeout it is accepted anyway, so a start that is
+  # never still still initializes.
+  imu_initial_calibration_max_dispersion_deg: "${MOLA_LO_INITIAL_IMU_MAX_DISPERSION|1.5}"
+  imu_initial_calibration_dispersion_timeout: "${MOLA_LO_INITIAL_IMU_DISPERSION_TIMEOUT|5.0}"
   use_imu_orientation: "${MOLA_LO_INITIAL_IMU_USE_ORIENTATION|true}"
 
 # If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
