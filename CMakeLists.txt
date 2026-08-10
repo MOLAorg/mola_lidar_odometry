@@ -36,6 +36,7 @@ set(LIB_SRCS
   module/src/GravityMapAligner.cpp
   module/src/KeyframeDecider.cpp
   module/src/LidarOdometry_Main.cpp
+  module/src/MapFrameRelevel.cpp
   module/src/LidarOdometry_Relocalization.cpp
   module/src/LidarOdometry_Parameters.cpp
   module/src/LidarOdometry_Initialize.cpp
@@ -53,6 +54,7 @@ set(LIB_SRCS
 set(LIB_PUBLIC_HDRS
   module/include/mola_lidar_odometry/LidarOdometry.h
   module/include/mola_lidar_odometry/GravityMapAligner.h
+  module/include/mola_lidar_odometry/MapFrameRelevel.h
 )
 
 mola_add_library(

@@ -55,6 +55,25 @@
 #endif
 #include <mola_lidar_odometry/ImuScanSync.h>
 #include <mola_lidar_odometry/KeyframeDecider.h>
+#include <mola_lidar_odometry/MapFrameRelevel.h>
+
+/** Feature macro: the one-off map-frame gauge change is available.
+ *
+ *  It needs three things at once, from three different packages, so it is
+ *  gated on all of them rather than on this package alone: the local helpers
+ *  here, SearchablePoseList::transform_left_multiply() from mola_pose_list
+ *  (to carry the keyframe bookkeeping across the change) and
+ *  NavStateFilter::transform_frame() from mola_kernel (to carry the estimator
+ *  state). Against an older set the whole feature compiles out and enabling it
+ *  at runtime stands down with a warning, which is deliberate: applying the
+ *  rotation to only some of the state would leave the session inconsistent,
+ *  which is worse than not applying it at all.
+ */
+#if defined(MOLA_LO_HAS_MAP_FRAME_RELEVEL) &&            \
+  defined(MOLA_POSE_LIST_HAS_TRANSFORM_LEFT_MULTIPLY) && \
+  defined(MOLA_KERNEL_NAVSTATE_FILTER_HAS_TRANSFORM_FRAME)
+#define MOLA_LO_CAN_RELEVEL_MAP_FRAME 1
+#endif
 
 // MP2P_ICP
 #include <mp2p_icp/ICP.h>
@@ -749,6 +768,45 @@ public:
         /// it, and keep it OFF in production.
         bool log_only = false;
 
+        /// Rotate the MAP FRAME itself, once, so that it becomes
+        /// gravity-aligned, instead of only feeding the per-scan verticality
+        /// prior. The map frame is the initial body frame, so on a platform
+        /// that starts tilted the whole map leans by that tilt for the rest of
+        /// the run, and no later mechanism removes it.
+        ///
+        /// This is a GAUGE change, not a state update: the local map, the
+        /// simplemap, the trajectory, the state estimator and the published
+        /// `odom` frame are all rotated together about the map origin, so
+        /// every relative quantity is preserved exactly. It happens at most
+        /// once per session, and never after a map has been loaded or
+        /// geo-referenced.
+        ///
+        /// Off by default: it changes the frame every product of the run is
+        /// expressed in.
+        bool relevel_map_frame = false;
+
+        /// Number of intervals the estimator must hold before its estimate is
+        /// used to re-level the map frame. Deliberately NOT
+        /// `min_intervals_for_convergence` (which gates the per-scan prior, a
+        /// different consumer with different needs): for leveling the map once,
+        /// the estimate is at its best at the FIRST solve and slowly degrades
+        /// afterwards, so waiting is harmful. The default corresponds to that
+        /// first solve under the shipped `solve_every_n`.
+        uint32_t relevel_min_intervals = 5;
+
+        /// Minimum estimated tilt [deg] for the re-level to be worth doing.
+        /// Mandatory, and not a formality: the estimate carries an error of its
+        /// own, so correcting a map frame that is already level replaces a
+        /// small error with a larger one.
+        ///
+        /// The gate is applied to the ESTIMATE, but the quantity that has to be
+        /// large is the TRUE tilt, and the two differ by that same error. So
+        /// the threshold is set at about twice the measured p90 error of the
+        /// estimate at its firing point, not at one times it. Below the
+        /// threshold the correction is permanently stood down (and logged),
+        /// rather than retried later.
+        double relevel_min_tilt_deg = 3.0;
+
         /// Options forwarded verbatim to mola::imu::MapGravityEstimator, so its
         /// parameters do not have to be mirrored here. Note that its own
         /// defaults are tuned for a different use: `window_size` in particular
@@ -1078,6 +1136,21 @@ private:
       mrpt::math::TVector3D open_v_from{0, 0, 0};
 
       uint32_t intervals_since_solve = 0;
+
+      /// Correction awaiting application to the map frame, set by the solve
+      /// loop and consumed (once) by applyMapFrameRelevel(). The solve runs
+      /// under imu_state_mtx_, while rotating the map needs the local-map and
+      /// simplemap mutexes, which the lock order forbids taking from there.
+      std::optional<mrpt::poses::CPose3D> pending_relevel;
+
+      /// Set once the re-level decision has been taken, whichever way it went:
+      /// the map frame is a gauge, and changing it more than once per session
+      /// would make the run's own output non-comparable with itself.
+      bool relevel_decided = false;
+
+      /// The rotation actually applied to the map frame, if any. Recorded in
+      /// the map and keyframe metadata so a run stays auditable.
+      std::optional<mrpt::poses::CPose3D> applied_relevel;
     };
 
     /// Protected by imu_state_mtx_.
@@ -1355,6 +1428,19 @@ private:
   /// re-solves. Caller must hold state_mtx_.
   void closeMapGravityInterval(
     double timestamp, const mrpt::poses::CPose3D & pose, const mrpt::math::TTwist3D & twistLocal);
+
+  /// Decides, at most once per session, whether the latest map-gravity
+  /// estimate should re-level the map frame, and if so leaves the rotation in
+  /// `map_gravity.pending_relevel`. Caller must hold state_mtx_ and
+  /// imu_state_mtx_.
+  void evaluateMapFrameRelevel(const mola::imu::MapGravityEstimator::Result & r);
+
+  /// Applies a pending map-frame re-level: rotates the local map, the
+  /// simplemap, the trajectory, the keyframe deciders, the state estimator and
+  /// the cached poses about the map origin, then resets the verticality
+  /// reference and the map-gravity estimator. No-op if nothing is pending.
+  /// Caller must hold state_mtx_ and NO other state mutex.
+  void applyMapFrameRelevel();
 
 #endif
 

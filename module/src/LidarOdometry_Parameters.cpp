@@ -378,6 +378,15 @@ void LidarOdometry::Parameters::IMUGravityCorrection::MapGravity::initialize(con
   YAML_LOAD_OPT(solve_every_n, uint32_t);
   ASSERT_(solve_every_n >= 1);
   YAML_LOAD_OPT(log_only, bool);
+  YAML_LOAD_OPT(relevel_map_frame, bool);
+  YAML_LOAD_OPT(relevel_min_intervals, uint32_t);
+  ASSERT_(relevel_min_intervals >= 1);
+  YAML_LOAD_OPT(relevel_min_tilt_deg, double);
+  ASSERTMSG_(
+    relevel_min_tilt_deg > 0,
+    mrpt::format(
+      "imu_gravity_correction.map_gravity.relevel_min_tilt_deg=%.4f must be > 0",
+      relevel_min_tilt_deg));
   YAML_LOAD_OPT(min_interval_seconds, double);
   ASSERTMSG_(
     min_interval_seconds > 0,
@@ -392,7 +401,8 @@ void LidarOdometry::Parameters::IMUGravityCorrection::MapGravity::initialize(con
     const auto key = k.as<std::string>();
     if (
       key == "enabled" || key == "solve_every_n" || key == "min_interval_seconds" ||
-      key == "log_only") {
+      key == "log_only" || key == "relevel_map_frame" || key == "relevel_min_intervals" ||
+      key == "relevel_min_tilt_deg") {
       continue;
     }
     estimator_params[key] = v;
