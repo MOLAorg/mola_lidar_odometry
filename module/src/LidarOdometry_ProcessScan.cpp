@@ -1267,6 +1267,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
     state_.estimated_trajectory.clear();
     state_.gravity_calib_pitch_roll.reset();  // new map origin: recapture at next first KF
     state_.gravity_calib_pose.reset();
+    state_.gravity_calib_first_available_time.reset();
     updateLocalMap = false;
     state_.last_icp_was_good = true;
 

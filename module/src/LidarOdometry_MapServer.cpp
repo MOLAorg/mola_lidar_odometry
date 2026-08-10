@@ -97,6 +97,7 @@ MapServer::ReturnStatus LidarOdometry::map_load_impl(const std::string & path)
     state_.local_map->clear();
     state_.gravity_calib_pitch_roll.reset();  // new map origin: recapture at next first KF
     state_.gravity_calib_pose.reset();
+    state_.gravity_calib_first_available_time.reset();
 
     // Mark for GUI / publishing even if we fail to load (so the map is shown
     // as empty rather than stale):
