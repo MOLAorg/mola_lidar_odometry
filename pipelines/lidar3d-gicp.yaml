@@ -78,19 +78,54 @@ params:
       # without its own feedback contaminating the map frame it is estimating.
       log_only: ${MOLA_IMU_MAP_GRAVITY_LOG_ONLY|false}
       solve_every_n: ${MOLA_IMU_MAP_GRAVITY_SOLVE_EVERY_N|5}
+      # Rotate the MAP FRAME itself, once, so it becomes gravity-aligned,
+      # instead of only feeding the per-scan verticality prior. The map frame is
+      # the initial body frame, so a platform that starts tilted produces a map
+      # that leans by that tilt forever: measured on a handheld dataset, a
+      # median of 8.7 deg (max 20.7). This is a gauge change - local map,
+      # simplemap, trajectory, state estimator and the published `odom` frame
+      # all rotate together about the map origin - so no relative quantity
+      # moves. OFF by default: it changes the frame every product of the run is
+      # expressed in.
+      relevel_map_frame: ${MOLA_IMU_MAP_GRAVITY_RELEVEL|false}
+      # Readiness for the re-level, as an interval count. Note this is NOT
+      # min_intervals_for_convergence below: that one gates the per-scan prior,
+      # where the later, more settled estimate is what matters. For leveling the
+      # map once, the estimate is at its BEST at the first solve (measured 0.72
+      # deg at ~5.6 s) and slowly degrades from there, so waiting costs accuracy.
+      # 5 intervals is the first solve under solve_every_n above.
+      relevel_min_intervals: ${MOLA_IMU_MAP_GRAVITY_RELEVEL_MIN_INTERVALS|5}
+      # Magnitude gate: only re-level when there is enough tilt that removing it
+      # beats the error of the estimate doing the removing. Measured at the
+      # firing point on a handheld dataset, that error is 0.63 deg median,
+      # 1.43 deg p90, 1.75 deg worst. Note the gate tests the ESTIMATE while the
+      # quantity that must be large is the TRUE tilt, and the two differ by
+      # exactly that error, so the threshold is ~2x the p90 rather than 1x:
+      # gating at 2 deg let one near-level sequence through (estimate 2.8 deg
+      # against a true 1.1 deg) and made it 0.7 deg worse. Below the threshold
+      # the re-level stands down permanently (and says so in the log) instead of
+      # retrying, which is what keeps an already-level dataset untouched.
+      relevel_min_tilt_deg: ${MOLA_IMU_MAP_GRAVITY_RELEVEL_MIN_TILT|3.0}
       # NOTE: there is deliberately no ACCURACY threshold here. The estimator
       # reports every usable estimate with its earned pitch/roll sigma, which is
-      # added in quadrature to the gravity prior's sigma, so a weak estimate
-      # silences itself instead of being discarded wholesale.
+      # added in quadrature to the gravity prior's sigma.
+      #
+      # CAUTION: "a weak estimate silences itself" is NOT established. A later
+      # measurement on a handheld dataset put the error/sigma ratio at 8.4
+      # median and 19.0 worst case, i.e. the reported sigma is roughly an order
+      # of magnitude tighter than the estimate is accurate, and no better
+      # calibrated after the interval gate below than before it. Do not use
+      # those sigmas as a confidence gate until that is understood; the
+      # re-level trigger above deliberately does not.
       #
       # There IS a data-quantity precondition, which is a different thing. Until
       # the window holds enough intervals the solution is pulled by the |g|
       # constraint and the bias priors, and that pull is a BIAS the linearized
       # covariance cannot see, so the estimate is not merely uncertain, it is
-      # confidently wrong: measured on Oxford Spires, error/sigma runs ~3.6 over
-      # the first 100 s and settles at ~1.2 once ~130 intervals have
-      # accumulated. Until then the accelerometer capture is the better
-      # reference, and this keeps LO on it.
+      # confidently wrong. Until then the accelerometer capture is the better
+      # reference, and this keeps LO on it. This gates the PER-SCAN PRIOR only:
+      # the one-off map-frame re-level above has the opposite need (its estimate
+      # is best at the first solve) and uses its own, much shorter, gate.
       min_intervals_for_convergence: ${MOLA_IMU_MAP_GRAVITY_MIN_INTERVALS|130}
       # Sliding-window length. The whole point is that verticality information
       # ACCUMULATES, so this wants to be much longer than the estimator default.

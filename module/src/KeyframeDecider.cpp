@@ -178,4 +178,16 @@ void KeyframeDecider::removeAllFartherThan(const mrpt::poses::CPose3D & pose, do
   recent_.swap(kept);
 }
 
+void KeyframeDecider::transform_left_multiply(const mrpt::poses::CPose3D & b)
+{
+  if (!temporal_) {
+    poses_.transform_left_multiply(b);
+    return;
+  }
+
+  for (auto & e : recent_) {
+    e.second = b + e.second;
+  }
+}
+
 }  // namespace mola

@@ -21,6 +21,7 @@
 
 // This module:
 #include <mola_lidar_odometry/LidarOdometry.h>
+#include <mola_lidar_odometry/MapFrameRelevel.h>
 
 // mp2p_icp:
 #include <mp2p_icp_filters/FilterDeskew.h>
@@ -123,6 +124,8 @@ void LidarOdometry::closeMapGravityInterval(
             mrpt::RAD2DEG(r.roll_correction), mrpt::RAD2DEG(r.roll_sigma), r.bias_acc.x,
             r.bias_acc.y, r.bias_acc.z, r.bias_gyro.x, r.bias_gyro.y, r.bias_gyro.z,
             r.num_intervals);
+
+          evaluateMapFrameRelevel(r);
         }
       }
     } else {
@@ -139,6 +142,163 @@ void LidarOdometry::closeMapGravityInterval(
     mg.open_v_from = v_map;
     mg.preintegrator.reset_integration();
   }
+}
+
+void LidarOdometry::evaluateMapFrameRelevel(const mola::imu::MapGravityEstimator::Result & r)
+{
+  // Caller holds state_mtx_ and imu_state_mtx_.
+  const auto & p = params_.imu_gravity_correction.map_gravity;
+  auto & mg = state_.map_gravity;
+
+  if (!p.relevel_map_frame || p.log_only || mg.relevel_decided) {
+    return;
+  }
+
+  // Readiness is a data-quantity question, deliberately expressed as an
+  // interval count and not as the reported sigmas: those are measured to be
+  // roughly an order of magnitude more confident than the estimate is
+  // accurate, so gating on them would not mean what it says.
+  if (r.num_intervals < p.relevel_min_intervals) {
+    return;
+  }
+
+  // The map frame is the frame everything else is anchored to, so once
+  // anything external has been tied to it, moving it is no longer a private
+  // gauge choice:
+  if (
+    state_.map_has_been_loaded || state_.external_georef.has_value() ||
+    (state_.local_map && state_.local_map->georeferencing.has_value())) {
+    mg.relevel_decided = true;
+    MRPT_LOG_INFO(
+      "Map-frame re-leveling stood down: the map frame is already tied to a "
+      "loaded or geo-referenced map.");
+    return;
+  }
+
+  const double tiltDeg = mrpt::RAD2DEG(r.tilt);
+
+  // A tilt this large is not a leaning map, it is a broken estimate; refusing
+  // is cheaper than rotating the whole session by it.
+  constexpr double MAX_PLAUSIBLE_TILT_DEG = 45.0;
+  if (!std::isfinite(tiltDeg) || tiltDeg > MAX_PLAUSIBLE_TILT_DEG) {
+    mg.relevel_decided = true;
+    MRPT_LOG_WARN_FMT(
+      "Map-frame re-leveling stood down: implausible estimated tilt of %.2f deg.", tiltDeg);
+    return;
+  }
+
+  // The magnitude gate. The estimate carries an error of its own, so applying
+  // it to an already-level map frame replaces a small error with a larger one.
+  // Only fire when the tilt removed clearly exceeds the error introduced.
+  if (tiltDeg < p.relevel_min_tilt_deg) {
+    mg.relevel_decided = true;
+    MRPT_LOG_INFO_FMT(
+      "Map-frame re-leveling stood down: estimated tilt %.2f deg is below "
+      "relevel_min_tilt_deg=%.2f deg, so correcting it would not be a net gain "
+      "(%zu intervals, t=%.3f).",
+      tiltDeg, p.relevel_min_tilt_deg, r.num_intervals, r.timestamp);
+    return;
+  }
+
+  mg.relevel_decided = true;
+  mg.pending_relevel =
+    mrpt::poses::CPose3D::FromRotationAndTranslation(r.correction, mrpt::math::TVector3D(0, 0, 0));
+}
+
+void LidarOdometry::applyMapFrameRelevel()
+{
+  // Caller holds state_mtx_ only: the rotation below needs the local-map and
+  // simplemap mutexes, and the lock order forbids taking those while holding
+  // imu_state_mtx_ (which the solve loop that requested this does hold).
+  std::optional<mrpt::poses::CPose3D> pending;
+  {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    std::swap(pending, state_.map_gravity.pending_relevel);
+  }
+  if (!pending.has_value()) {
+    return;
+  }
+
+  const auto & b = *pending;
+  const ProfilerEntry tle(profiler_, "onLidar.map_frame_relevel");
+
+  // 1/6: the local map contents.
+  {
+    auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
+    if (state_.local_map) {
+      transform_to_new_map_frame(*state_.local_map, b);
+      state_.local_map->metadata["map_frame_relevel_rotation"] = "'" + b.asString() + "'";
+    }
+  }
+  state_.mark_local_map_as_updated(true /*force_republish*/);
+
+  // 2/6: the keyframes already written to the simplemap.
+  {
+    auto lckSM = mrpt::lockHelper(state_simplemap_mtx_);
+    transform_to_new_map_frame(state_.reconstructed_simplemap, b);
+  }
+
+  // 3/6: the published trajectory.
+  {
+    auto lckTraj = mrpt::lockHelper(state_trajectory_mtx_);
+    transform_to_new_map_frame(state_.estimated_trajectory, b);
+  }
+
+  // 4/6: cached poses and the keyframe-density bookkeeping. The deciders hold
+  // map-frame poses, so leaving them behind would make the next distance check
+  // compare frames rather than positions.
+  state_.last_lidar_pose.changeCoordinatesReference(b);
+  if (state_.last_motion_model_output) {
+    state_.last_motion_model_output->pose.changeCoordinatesReference(b);
+    // `twist` is in the vehicle frame, hence invariant.
+  }
+  if (state_.kf_decider_local_map) {
+    state_.kf_decider_local_map->transform_left_multiply(b);
+  }
+  if (state_.kf_decider_simplemap) {
+    state_.kf_decider_simplemap->transform_left_multiply(b);
+  }
+  state_.last_deskewed_scan_for_publishing.reset();
+
+  // 5/6: the state estimator, whose stored poses are map-frame too.
+  if (state_.navstate_fuse) {
+#if defined(MOLA_KERNEL_NAVSTATE_FILTER_HAS_TRANSFORM_FRAME)
+    const bool ok = state_.navstate_fuse->transform_frame(b);
+#else
+    const bool ok = false;
+#endif
+    if (!ok) {
+      // Without frame support the only consistent option is to drop the
+      // estimator state: keeping poses in the old frame would feed the next
+      // ICP an initial guess off by the correction.
+      MRPT_LOG_WARN(
+        "The state estimator cannot re-express its state in a new frame; "
+        "resetting it instead. Expect one scan without a motion model.");
+      state_.navstate_fuse->reset();
+      state_.last_motion_model_output.reset();
+    }
+  }
+
+  // 6/6: the verticality reference is now level by construction, and the
+  // map-gravity estimator's window was expressed in the frame just rotated.
+  {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    state_.gravity_calib_pitch_roll = std::make_pair(0.0, 0.0);
+    state_.gravity_calib_pose = mrpt::poses::CPose3D::Identity();
+
+    auto & mg = state_.map_gravity;
+    mg.estimator.reset();
+    mg.preintegrator.reset_integration();
+    mg.open_t_from.reset();
+    mg.intervals_since_solve = 0;
+    mg.applied_relevel = b;
+  }
+
+  MRPT_LOG_INFO_FMT(
+    "Map frame re-leveled once, about the map origin, by [%s] (tilt %.3f deg). "
+    "All map products from here on are gravity-aligned.",
+    b.asString().c_str(),
+    mrpt::RAD2DEG(mrpt::poses::Lie::SO<3>::log(b.getRotationMatrix()).norm()));
 }
 #endif
 
@@ -1064,6 +1224,11 @@ void LidarOdometry::processLidarScan(  // NOLINT
         mrpt::Clock::toDouble(scan_ref_time), state_.last_lidar_pose.mean,
         state_.last_motion_model_output->twist);
     }
+
+    // If that solve asked for the map frame to be leveled, do it here: before
+    // this scan reaches the local map or the simplemap, so nothing is ever
+    // written in the frame that is about to be replaced.
+    applyMapFrameRelevel();
 #endif
 
     // Update for stats in CSV format:
@@ -1659,6 +1824,19 @@ void LidarOdometry::appendKeyframeMetadataObs(
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     return state_.parameter_source.localVelocityBuffer.toYAML();
   }();
+
+#if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
+  // A map-frame gauge change makes the keyframe poses of this run
+  // non-comparable with those of a run without it, so record it where the
+  // poses themselves are stored.
+  {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    if (state_.map_gravity.applied_relevel.has_value()) {
+      kf_metadata["map_frame_relevel_rotation"] =
+        "'"s + state_.map_gravity.applied_relevel->asString() + "'"s;
+    }
+  }
+#endif
 
   // convert yaml to string:
   std::stringstream ss;

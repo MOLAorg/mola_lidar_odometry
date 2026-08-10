@@ -146,6 +146,11 @@ public:
   /** Drops stored poses farther than the given distance (local map cleanup) */
   void removeAllFartherThan(const mrpt::poses::CPose3D & pose, double maxTranslation);
 
+  /** Re-expresses every stored keyframe pose in a new reference frame, i.e.
+   *  each stored `p` becomes `b + p`. Relative distances are preserved, so no
+   *  past decision changes; only the frame the poses live in moves. */
+  void transform_left_multiply(const mrpt::poses::CPose3D & b);
+
   /** Number of keyframes created so far (minus those dropped by
    *  removeAllFartherThan). This is what the GUI reports: under the temporal
    *  policy, keyframes that aged out of the window still count, since they

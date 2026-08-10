@@ -498,16 +498,55 @@ biases verticality for the whole run.
 `imu_gravity_correction.map_gravity.enabled` replaces it with
 `mola::imu::MapGravityEstimator`, which solves for gravity in the map frame from
 preintegrated IMU plus this odometry's own relative attitudes and velocities;
-its earned pitch/roll sigma is added in quadrature to the prior's, so a weak
-estimate silences itself. There is no quality threshold anywhere in that path,
-by design: the library reports every usable estimate with its sigma and the
-weighting decides (see `mola_imu_preintegration/agents.md`).
+its earned pitch/roll sigma is added in quadrature to the prior's. There is no
+quality threshold anywhere in that path, by design: the library reports every
+usable estimate with its sigma and the weighting decides (see
+`mola_imu_preintegration/agents.md`). Do NOT read those sigmas as a confidence
+gate, though: measured on a handheld dataset the error/sigma ratio is 8.4
+median and 19.0 worst, so "a weak estimate silences itself" is not established.
 
 `map_gravity.log_only` computes and logs the estimate without letting it reach
 the verticality reference, so the trajectory is identical to a disabled run.
 That is the mode to validate the estimator on a new dataset: with the feedback
 loop closed, the map frame being estimated is partly the estimator's own doing,
 and scoring it against ground truth would be self-referential.
+
+## Re-leveling the map frame (`map_gravity.relevel_map_frame`)
+
+All of the above corrects the per-scan *prior*; the map frame itself stays
+where it started, which is the initial body frame, tilt included. On a handheld
+dataset that is a median 8.7 deg lean (max 20.7) baked into every map product
+for the whole run. `relevel_map_frame` (default **false**) rotates the map
+frame once, about the map origin, by the estimator's `Result::correction`.
+
+It is a **gauge change**, not a state update, and must stay one:
+`MapFrameRelevel.h` applies `p -> b + p` to the local map, the simplemap, the
+trajectory; `KeyframeDecider`/`SearchablePoseList::transform_left_multiply()`
+move the keyframe-density bookkeeping with them; and
+`NavStateFilter::transform_frame()` does the same inside the state estimator.
+Anything expressed in the *vehicle* frame (twists, sensor extrinsics) is
+invariant and must not be touched. The decision is taken in
+`evaluateMapFrameRelevel()` and applied by `applyMapFrameRelevel()`, which runs
+outside `imu_state_mtx_` because the lock order forbids taking the local-map and
+simplemap mutexes under it. It fires before the scan reaches either map, and
+refuses outright once a map has been loaded or geo-referenced.
+
+Two things about the trigger that are easy to get wrong:
+
+- **It is not `min_intervals_for_convergence`.** That gates the per-scan prior,
+  where the later, settled estimate is the useful one. For leveling the map once
+  the estimate is at its *best* at the first solve (0.72 deg at ~5.6 s) and
+  degrades from there, so `relevel_min_intervals` is deliberately tiny (5 = the
+  first solve).
+- **The magnitude gate is load-bearing.** The correction's residual is the
+  estimator's own error (0.63 deg median, 1.43 p90, 1.75 worst at the firing
+  point), so on an already-level start it makes things worse. The gate tests the
+  estimate while the quantity that must be large is the truth, and they differ
+  by that error, hence `relevel_min_tilt_deg` ~ 2x the p90, not 1x.
+
+The applied rotation is logged once at INFO and written to the local map's
+`metadata` and to every later keyframe's metadata observation, since a run with
+a re-leveled map frame is not pose-comparable with one without it.
 
 ## Reproducible odometry evaluation
 
