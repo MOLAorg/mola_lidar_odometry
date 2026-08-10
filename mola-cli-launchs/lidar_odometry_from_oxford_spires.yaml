@@ -16,8 +16,24 @@
 #
 # Extrinsics: taken from data/calibration/cam-lidar-imu.yaml (Kalibr
 # "C_q_CL"/"C_r_CL" cam-to-lidar, and "C_q_CI"/"C_r_CI" cam0-to-imu),
-# with the Hesai LiDAR as base_link (identity pose) and every other sensor's
-# pose obtained by inverting/composing those transforms into the LiDAR frame.
+# expressed in the dataset's own BASE frame, i.e. every pose below is
+# T_base_sensor = T_base_lidar . T_lidar_sensor, with T_base_lidar taken
+# from the dataset's sensor.yaml ("0 0 0.124 180 0 0").
+#
+# The base frame, not the raw LiDAR frame, because that is the frame this
+# dataset's ground truth uses. Until 2026-08-10 the LiDAR sat at identity
+# here, which put every estimated pose 180 deg of body yaw away from the
+# reference. An aligned APE barely notices (a body yaw moves position only by
+# the 0.124 m lever arm) but it negates the horizontal part of every relative
+# motion, so relative drift and tilt metrics measured the frame convention
+# instead of the odometry. Symptom, if it ever comes back: vertical drift in
+# the tens-to-hundreds of mm/m and tilt rate in the tens of deg/100 m on a run
+# whose APE looks perfectly good.
+#
+# Cross-checked three ways: the composed IMU pose reproduces sensor.yaml's
+# independently recorded T_base_imu to ~1 mm and 0.6 deg, and solving the
+# IMU-to-body rotation from the gyro against the reference attitude over all
+# 13 sequences gives yaw +89.98 deg against the +89.37 deg composed here.
 #
 # Some sequences are split across several ros2bag directories (a multipart
 # recording); mola::Rosbag2Dataset accepts a YAML sequence for
@@ -89,7 +105,7 @@ modules:
         - ${OXFORD_SPIRES_BAG_4|}
         - ${OXFORD_SPIRES_BAG_5|}
 
-      base_link_frame_id: "${MOLA_TF_BASE_LINK|hesai_lidar}"
+      base_link_frame_id: "${MOLA_TF_BASE_LINK|base_link}"
       time_warp_scale: ${MOLA_TIME_WARP|1.0}
       start_paused: ${MOLA_DATASET_START_PAUSED|false}
       # 0 (default): replay the whole sequence. Set e.g. to quickly validate
@@ -100,16 +116,16 @@ modules:
         - topic: "${MOLA_LIDAR_TOPIC|/hesai/pandar}"
           type: CObservationPointCloud
           sensorLabel: "${MOLA_LIDAR_NAME|lidar}"
-          # Hesai LiDAR is used as the reference (base_link) frame here:
-          fixed_sensor_pose: "0 0 0 0 0 0"
+          # T_base_lidar, from the dataset's sensor.yaml:
+          fixed_sensor_pose: "0 0 0.124 180 0 0"
           use_fixed_sensor_pose: true
 
         - topic: "${MOLA_IMU_TOPIC|/alphasense_driver_ros/imu}"
           type: CObservationIMU
           sensorLabel: imu
-          # T_lidar_imu, derived from cam0's C_q_CI/C_r_CI (cam0-to-imu) and
-          # C_q_CL/C_r_CL (cam0-to-lidar):
-          fixed_sensor_pose: "0.018771 -0.008218 -0.070474 -90.6263 -0.1665 -0.1287"
+          # T_base_imu, derived from cam0's C_q_CI/C_r_CI (cam0-to-imu) and
+          # C_q_CL/C_r_CL (cam0-to-lidar), then composed through T_base_lidar:
+          fixed_sensor_pose: "-0.018771 0.008218 0.053526 89.3737 -0.1665 -0.1287"
           use_fixed_sensor_pose: true
 
         # cam2 is the forward-facing camera (yaw ~ 0 wrt the LiDAR), enabled
@@ -119,24 +135,24 @@ modules:
           type: CObservationImage
           sensorLabel: "${MOLA_CAMERA_SENSOR_NAME|camera}"
           is_optional: true
-          # T_lidar_cam2:
-          fixed_sensor_pose: "0.002228 0.050377 -0.073378 -0.1092 0.0896 -89.9231"
+          # T_base_cam2:
+          fixed_sensor_pose: "-0.002228 -0.050377 0.050622 179.8908 0.0896 -89.9231"
           use_fixed_sensor_pose: true
 
         #- topic: /alphasense_driver_ros/cam2/debayered/image/compressed
         #  type: CObservationImage
         #  sensorLabel: camera2
         #  is_optional: true
-        #  # T_lidar_cam0:
-        #  fixed_sensor_pose: "-0.054541 -0.002683 -0.073943 89.5878 -0.1301 -90.2621"
+        #  # T_base_cam0:
+        #  fixed_sensor_pose: "0.054541 0.002683 0.050057 -90.4122 -0.1301 -90.2621"
         #  use_fixed_sensor_pose: true
 
         #- topic: /alphasense_driver_ros/cam1/debayered/image/compressed
         #  type: CObservationImage
         #  sensorLabel: camera1
         #  is_optional: true
-        #  # T_lidar_cam1:
-        #  fixed_sensor_pose: "0.001823 -0.057626 -0.073524 179.5324 -0.1189 -89.8271"
+        #  # T_base_cam1:
+        #  fixed_sensor_pose: "-0.001823 0.057626 0.050476 -0.4676 -0.1189 -89.8271"
         #  use_fixed_sensor_pose: true
 
   # =====================
