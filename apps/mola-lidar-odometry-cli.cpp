@@ -497,16 +497,22 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
-        # Wheel odometry, if the dataset has it (e.g. a separate odom_*.bag,
-        # comma-joined into rosbag_filename above -- Rosbag1Dataset merges
-        # all listed bags into one topic space). is_optional, so datasets
-        # with no such topic are unaffected. No fixed_sensor_pose here:
-        # Rosbag1Dataset::toOdometry() does not apply one, and
-        # StateEstimationSimple::fuse_odometry() consumes the 2D pose
-        # increment directly against base_link, with no sensor-pose
+        # Wheel odometry (disabled by default -- an empty topic name means
+        # no handler is installed, matching lidar_odometry_from_rosbag1.yaml/
+        # rosbag2.yaml's MOLA_ODOMETRY_TOPIC convention exactly, name and
+        # empty-by-default alike, rather than opting every dataset whose bag
+        # happens to carry a topic literally named "/odom" -- a very common
+        # name across unrelated robots/conventions -- into wheel-odom fusion
+        # silently). Set MOLA_ODOMETRY_TOPIC explicitly to enable, e.g. for a
+        # separate odom_*.bag comma-joined into rosbag_filename above
+        # (Rosbag1Dataset merges all listed bags into one topic space).
+        # is_optional, so an empty/absent topic is unaffected either way.
+        # No fixed_sensor_pose here: Rosbag1Dataset::toOdometry() does not
+        # apply one, and StateEstimationSimple::fuse_odometry() consumes the
+        # 2D pose increment directly against base_link, with no sensor-pose
         # composition (unlike the lidar/imu/gps entries above).
-        - topic: ${MOLA_ODOM_TOPIC|'/odom'}
-          sensorLabel: 'odom_wheels'
+        - topic: ${MOLA_ODOMETRY_TOPIC|''}
+          sensorLabel: ${MOLA_ODOM_SENSOR_LABEL|odom_wheels}
           type: CObservationOdometry
           is_optional: true
 )"""",
