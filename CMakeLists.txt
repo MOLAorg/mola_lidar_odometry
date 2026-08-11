@@ -110,6 +110,7 @@ find_package(mola_input_rosbag2) # optional
 find_package(mola_input_rosbag1) # optional
 find_package(mola_input_paris_luco_dataset) # optional
 find_package(mola_state_estimation_simple QUIET) # optional
+find_package(mola_state_estimation_smoother QUIET) # optional
 
 mola_add_executable(
   TARGET  mola-lidar-odometry-cli
@@ -127,6 +128,48 @@ if(mola_state_estimation_simple_FOUND)
   target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_SE_SIMPLE)
 else()
   message(STATUS "mola-lidar-odometry-cli: With mola_state_estimation_simple = NO")
+endif()
+
+# Not selected as a default/fallback estimator like mola_state_estimation_simple
+# above (no HAVE_MOLA_SE_SMOOTHER define needed for that): linking it in is
+# what's required so its class is registered with MRPT's RTTI and therefore
+# reachable via the CLI's own --state-estimator <classname> flag
+# (mrpt::rtti::classFactory() finds any class whose translation unit is
+# actually linked into the binary, generic mechanism, no compile-time
+# branching needed on the caller's side). Without this, --state-estimator
+# mola::state_estimation_smoother::StateEstimationSmoother fails at runtime
+# with "Apparently unknown class name ... (missing plugin .so file?)" even
+# though the flag itself is accepted -- found running the first-ever
+# offline+smoother (cfg-02) sweep through this pipeline, 2026-08-11.
+if(mola_state_estimation_smoother_FOUND)
+  message(STATUS "mola-lidar-odometry-cli: With mola_state_estimation_smoother = YES")
+  # mola_state_estimation_smoother's exported target only records its GTSAM
+  # link dependency by bare name (CMake's legacy
+  # IMPORTED_LINK_DEPENDENT_LIBRARIES mechanism, not a namespaced imported
+  # target), so the gtsam/gtsam_unstable targets it references must already
+  # exist in THIS scope too, or the final link fails with "cannot find
+  # -lgtsam" despite the .so already carrying its own GTSAM dependency
+  # privately. find_package(GTSAM) here is what defines them.
+  find_package(GTSAM QUIET)
+  find_package(GTSAM_UNSTABLE QUIET)
+  # --no-as-needed around this one: nothing in this CLI's own source
+  # references a symbol from mola_state_estimation_smoother directly (its
+  # class is only ever reached indirectly, by name, through
+  # mrpt::rtti::classFactory() at runtime -- unlike
+  # mola_state_estimation_simple above, which IS called directly as a
+  # compile-time fallback and so survives linking as-is). Without this, the
+  # default --as-needed linker behavior sees no referenced symbol and drops
+  # the .so from the binary's DT_NEEDED entries entirely, silently
+  # reproducing the exact "missing plugin .so file?" runtime error this
+  # whole block exists to fix -- confirmed via ldd, which showed the
+  # smoother absent even after the .so linked and built without error.
+  target_link_libraries(mola-lidar-odometry-cli
+    "-Wl,--no-as-needed"
+    mola::mola_state_estimation_smoother
+    "-Wl,--as-needed"
+  )
+else()
+  message(STATUS "mola-lidar-odometry-cli: With mola_state_estimation_smoother = NO")
 endif()
 
 if(mola_input_kitti_dataset_FOUND)
