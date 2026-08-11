@@ -506,11 +506,27 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
         # silently). Set MOLA_ODOMETRY_TOPIC explicitly to enable, e.g. for a
         # separate odom_*.bag comma-joined into rosbag_filename above
         # (Rosbag1Dataset merges all listed bags into one topic space).
-        # is_optional, so an empty/absent topic is unaffected either way.
-        # No fixed_sensor_pose here: Rosbag1Dataset::toOdometry() does not
-        # apply one, and StateEstimationSimple::fuse_odometry() consumes the
-        # 2D pose increment directly against base_link, with no sensor-pose
-        # composition (unlike the lidar/imu/gps entries above).
+        # is_optional is set for readability/consistency with the gps entry
+        # above, but Rosbag1Dataset doesn't actually implement that key (grep
+        # confirms it) -- harmless here regardless, since an empty or absent
+        # topic name is simply never seen in the bag, so no handler ever
+        # fires; nothing about "optional" behavior is being relied on.
+        #
+        # No fixed_sensor_pose here, and this is NOT interchangeable with the
+        # lidar/imu/gps entries above: mrpt::obs::CObservationOdometry cannot
+        # carry a sensor pose at all (getSensorPose()/setSensorPose() are
+        # both no-ops in that class), and Rosbag1Dataset::toOdometry() makes
+        # no attempt to apply one from config either way. If the wheel-
+        # odometry frame has ANY nontrivial rotation relative to base_link,
+        # fusing it here injects motion in the wrong frame -- verified this
+        # is a real, non-hypothetical trap: lidar_odometry_from_citrusfarm.yaml's
+        # odom_wheels entry carries a ~180deg-yaw fixed_sensor_pose (a real
+        # calibration value, matching its lidar entry's rotation) that gets
+        # silently discarded exactly this way, which is why that dataset's
+        # wheel odometry is deliberately NOT enabled anywhere it's actually
+        # invoked (plans-mola-server's run-single-test.sh) as of 2026-08-11.
+        # Fine for a dataset whose wheel-odometry frame is already
+        # (approximately) base_link-aligned, e.g. BotanicGarden's Xsens IMU.
         - topic: ${MOLA_ODOMETRY_TOPIC|''}
           sensorLabel: ${MOLA_ODOM_SENSOR_LABEL|odom_wheels}
           type: CObservationOdometry
