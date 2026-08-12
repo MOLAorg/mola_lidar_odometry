@@ -31,8 +31,11 @@ params:
   # Set to true when IMU or ICP produce noisy velocity readings.
   velocity_filter_enabled: ${MOLA_NAVSTATE_VELOCITY_FILTER|true}
 
-  # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s):
+  # Optional initial guess for the twist (vx vy vz: m/s, wx wy wz: rad/s),
+  # used only until the first real velocity measurement is fused:
   initial_twist: [ "${MOLA_INITIAL_VX|0.0}", 0.0, 0.0, 0.0, 0.0, 0.0 ]
+  initial_twist_sigma_lin: ${MOLA_INITIAL_TWIST_SIGMA_LIN|20.0} # [m/s]
+  initial_twist_sigma_ang: ${MOLA_INITIAL_TWIST_SIGMA_ANG|3.0} # [rad/s]
 
   # If enabled, the estimator will enforce z, pitch, and roll to be always 0:
   enforce_planar_motion: ${MOLA_NAVSTATE_ENFORCE_PLANAR_MOTION|false}
