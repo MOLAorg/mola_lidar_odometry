@@ -491,10 +491,9 @@ localmap_generator:
           # Half side [m] of the cube of points kept around the robot on each
           # insertion (Chebyshev distance, as in HashedVoxelPointCloud's
           # remove_voxels_farther_than). Unlike the keyframe map, EVERY point
-          # inside this cube is kept in a single tree and rendered, so this is
-          # a much tighter budget than 'remove_frames_farther_than' below:
-          # keep it near the sensor range, not several times it.
-          remove_points_farther_than: "${MOLA_INCREMENTAL_MAP_MAX_SIZE|$f{max(25.0, 0.5*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
+          # inside this cube is kept in a single tree, so this is
+          # a much tighter budget than 'remove_frames_farther_than' below
+          remove_points_farther_than: "${MOLA_INCREMENTAL_MAP_MAX_SIZE|$f{max(100.0, 1.5*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
           # Run the k-d tree balancing rebuilds on a background thread, so the
           # mapping thread never pays for them. Measured on Oxford Spires, this
           # takes local-map insertion from mean 28 ms / max 371 ms (with 9 calls
