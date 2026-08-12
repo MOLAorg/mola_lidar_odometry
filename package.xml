@@ -67,6 +67,7 @@
   <!-- Needed by the mola-lo-* scripts: -->
   <exec_depend>mola_launcher</exec_depend>
   <exec_depend>mola_viz</exec_depend>
+  <exec_depend>mola_viz_imgui</exec_depend>
   <exec_depend>mola_bridge_ros2</exec_depend>
 
   <!-- Test datasets to run on them: -->
