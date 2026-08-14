@@ -23,8 +23,17 @@ mola_lo_profile_resolve() {
   KITTI_SEQ="$seq"
   export KITTI_SEQ
 
-  # A car on a road: the very first scans are matched much better with a
-  # sensible forward-velocity prior than from a standstill assumption.
+  # A car on a road: the very first scans are matched better with a forward-
+  # velocity prior than from a standstill assumption.
+  #
+  # This default is NOT free, and is not the right choice everywhere. Earlier
+  # work found a large value necessary on seq 12 (which starts already moving
+  # fast) but artifact-inducing on the rest of the corpus. It is kept as the
+  # interactive default because that is the case it was tuned for; batch and
+  # regression runs deliberately override it -- eval/cli_kitti.sh pins 18.0
+  # to stay comparable with its own published history, and the server-side
+  # regression corpus pins 0.0. Do not "unify" these to one number: they are
+  # different trade-offs, not an oversight.
   : "${MOLA_INITIAL_VX:=20.0}"
   export MOLA_INITIAL_VX
 

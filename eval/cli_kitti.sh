@@ -36,6 +36,12 @@ fi
 # published numbers from this sweep were produced with 18.0, and the profile
 # (i.e. what an interactive run gets) uses 20.0. Kept explicit so the
 # benchmark stays comparable to its own history rather than silently shifting.
+#
+# The value is a genuine trade-off, not a tuning leftover: a large prior is
+# needed on seq 12, which starts already at speed, and introduces artifacts
+# on the rest of the corpus. A sweep that reports one aggregate number over
+# all sequences is therefore reporting a compromise; keep that in mind before
+# reading a small delta here as a pipeline improvement.
 parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   SEQ={} \
   MOLA_INITIAL_VX=18.0 \
