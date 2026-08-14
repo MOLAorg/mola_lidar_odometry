@@ -32,6 +32,9 @@
 #     mola-cli $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/mola-cli-launchs/lidar_odometry_from_citrusfarm.yaml
 #
 # Optional environment variables:
+#   MOLA_INPUT_ROSBAG1_2/_3/_4      -- extra parts of a sequence recorded as
+#                                      several base_*.bag files (sequences 01,
+#                                      03, 04, 05 and 07 have 2 to 4 of them)
 #   MOLA_WITH_GUI=false             -- headless mode
 #   MOLA_TIME_WARP=1.0              -- playback speed factor
 #   MOLA_QUIT_ON_DATASET_END=true   -- exit when bag ends
@@ -70,8 +73,14 @@ modules:
       # We use environment variables to force the user to specify the bag file(s), e.g.:
       #   MOLA_INPUT_ROSBAG1=/mnt/storage/CitrusFarm/06_14B_Jackal/base_2023-07-18-14-29-35_0.bag
       #   MOLA_INPUT_ROSBAG1_ODOM=/mnt/storage/CitrusFarm/06_14B_Jackal/odom_2023-07-18-14-29-35.bag
+      #
+      # Most sequences are split into several base_*.bag parts; pass the
+      # 2nd and later ones in the numbered slots, in recording order.
       rosbag_filename:
         - ${MOLA_INPUT_ROSBAG1}
+        - ${MOLA_INPUT_ROSBAG1_2|}
+        - ${MOLA_INPUT_ROSBAG1_3|}
+        - ${MOLA_INPUT_ROSBAG1_4|}
         - ${MOLA_INPUT_ROSBAG1_ODOM|}
 
       base_link_frame_id: imu
