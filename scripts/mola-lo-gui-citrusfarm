@@ -16,9 +16,11 @@
 # lidar_odometry_from_citrusfarm.yaml; see that file's header comment for how
 # they were derived from the dataset's own calibration results.
 
+USAGE="Usage: $0 /path/to/base_*.bag [more base_*.bag parts] [/path/to/odom_*.bag] [additional flags for mola-cli]"
+
 if [ "$#" -eq 0 ]; then
     echo "Error: A CitrusFarm ROS 1 'base_*.bag' file is required."
-    echo "Usage: $0 /path/to/base_*.bag [/path/to/odom_*.bag] [additional flags for mola-cli]"
+    echo "$USAGE"
     exit 1
 fi
 
@@ -41,7 +43,15 @@ MOLA_INPUT_ROSBAG1_ODOM=""
 BASE_SLOT=0
 EXTRA_ARGS=()
 for arg in "$@"; do
-    if [ "$BASE_SLOT" -eq 0 ] || [[ "$(basename "$arg")" == base_* ]]; then
+    arg_basename=$(basename -- "$arg")
+    # The odometry bag is recognized wherever it appears, including first,
+    # so it never consumes a base slot and shifts the parts by one.
+    if [ -z "$MOLA_INPUT_ROSBAG1_ODOM" ] && [[ "$arg_basename" == odom_* ]]; then
+        MOLA_INPUT_ROSBAG1_ODOM=$arg
+    # The first non-odometry argument is the first base part whatever it is
+    # called, so a renamed or re-exported bag keeps working; later parts have
+    # to be recognizable as such to tell them from mola-cli flags.
+    elif [ "$BASE_SLOT" -eq 0 ] || [[ "$arg_basename" == base_* ]]; then
         BASE_SLOT=$((BASE_SLOT + 1))
         case "$BASE_SLOT" in
             1) MOLA_INPUT_ROSBAG1=$arg ;;
@@ -53,12 +63,16 @@ for arg in "$@"; do
                 exit 1
                 ;;
         esac
-    elif [ -z "$MOLA_INPUT_ROSBAG1_ODOM" ] && [[ "$(basename "$arg")" == odom_* ]]; then
-        MOLA_INPUT_ROSBAG1_ODOM=$arg
     else
         EXTRA_ARGS+=("$arg")
     fi
 done
+
+if [ "$BASE_SLOT" -eq 0 ]; then
+    echo "Error: A CitrusFarm ROS 1 'base_*.bag' file is required."
+    echo "$USAGE"
+    exit 1
+fi
 export MOLA_INPUT_ROSBAG1
 export MOLA_INPUT_ROSBAG1_2
 export MOLA_INPUT_ROSBAG1_3
