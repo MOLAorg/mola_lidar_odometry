@@ -1,31 +1,23 @@
 #!/usr/bin/env bash
 # For usage instructions, see: https://docs.mola-slam.org/latest/
+#
+# Runs MOLA LiDAR odometry on the 'rosbag1' dataset through
+# mola-cli (online replay, 3D GUI).
+#
+# Everything this script knows about the dataset lives in
+# lib/profiles/rosbag1.sh, shared with the matching
+# mola-lo-cli-rosbag1 wrapper. Any MOLA_* variable you export
+# before invoking this takes precedence over the profile's default.
+set -euo pipefail
 
-if [ "$#" -eq 0 ]; then
-    echo "Error: A ROS 1 bag file (.bag) is required."
-    echo "Usage: $0 /path/to/dataset.bag"
-    echo ""
-    echo "Common environment variables:"
-    echo "  MOLA_LIDAR_TOPIC       LiDAR topic name (default: '/ouster/points')"
-    echo "  MOLA_IMU_TOPIC         IMU topic name (default: '/imu')"
-    echo "  MOLA_GNSS_TOPIC        GNSS NavSatFix topic name (default: '/gps')"
-    echo "  MOLA_ODOMETRY_TOPIC    Wheels 2D odometry (optional)"
-    echo "  MOLA_TF_BASE_LINK      Robot base /tf frame id (default: 'base_link')"
-    exit 1
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+MOLA_LO_LIB="$SCRIPT_DIR/lib/dataset-profile.sh"
+if [ ! -f "$MOLA_LO_LIB" ]; then
+  MOLA_LO_LIB="$SCRIPT_DIR/../share/mola_lidar_odometry/scripts-lib/dataset-profile.sh"
 fi
+# shellcheck source=lib/dataset-profile.sh
+source "$MOLA_LO_LIB"
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../mola-cli-launchs/
-if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
-  MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
-fi
-
-FILE=$1
-shift 1
-
-MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
-MOLA_INPUT_ROSBAG1="$FILE" \
-  mola-cli \
-    "$MOLA_LAUNCHS_DIR/lidar_odometry_from_rosbag1.yaml" \
-    "$@"
+MOLA_LO_MODE=gui
+mola_lo_load_profile rosbag1 "$@" || exit $?
+mola_lo_exec_gui

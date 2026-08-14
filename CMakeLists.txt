@@ -242,21 +242,52 @@ install(
     share/${PROJECT_NAME}
 )
 
-# Install gui-* demo "executables" too:
+# The per-dataset knowledge behind all the wrappers below. They locate it
+# relative to themselves, so it has to land in share/ under this exact name.
+install(
+  DIRECTORY
+    scripts/lib/
+  DESTINATION
+    share/${PROJECT_NAME}/scripts-lib
+)
+
+# Install the dataset wrappers too. Every dataset gets a "gui" one (online
+# replay through mola-cli) and a "cli" one (offline batch through
+# mola-lidar-odometry-cli); both are thin front-ends over the same profile in
+# scripts-lib/profiles/. Ouster is gui-only: it is a live source, which the
+# offline CLI cannot read.
+set(MOLA_LO_DATASET_WRAPPERS
+    botanicgarden
+    citrusfarm
+    conslam
+    grandtour
+    kitti
+    kitti360
+    mulran
+    oxford-spires
+    paris-luco
+    rawlog
+    rosbag1
+    rosbag2
+    # TIERS records five lidars at once, so it gets one wrapper per sensor
+    # rather than one that silently picks a winner:
+    tiers-ouster-os0
+    tiers-ouster-os1
+    tiers-velodyne
+    tiers-livox-horizon
+    tiers-livox-avia
+)
+
+set(MOLA_LO_WRAPPER_PATHS scripts/mola-lo-gui-ouster)
+foreach(ds ${MOLA_LO_DATASET_WRAPPERS})
+  list(APPEND MOLA_LO_WRAPPER_PATHS
+       scripts/mola-lo-gui-${ds}
+       scripts/mola-lo-cli-${ds})
+endforeach()
+
 install(
   PROGRAMS
-    scripts/mola-lo-gui-kitti
-    scripts/mola-lo-gui-kitti360
-    scripts/mola-lo-gui-mulran
-    scripts/mola-lo-gui-rawlog
-    scripts/mola-lo-gui-rosbag2
-    scripts/mola-lo-gui-rosbag1
-    scripts/mola-lo-gui-ouster
-    scripts/mola-lo-gui-conslam
-    scripts/mola-lo-gui-oxford-spires
-    scripts/mola-lo-gui-botanicgarden
-    scripts/mola-lo-gui-citrusfarm
-    scripts/mola-lo-gui-grandtour
+    ${MOLA_LO_WRAPPER_PATHS}
   DESTINATION
     bin
 )

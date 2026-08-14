@@ -1,97 +1,23 @@
 #!/usr/bin/env bash
 # For usage instructions, see: https://docs.mola-slam.org/latest/
 #
-# Convenience wrapper around mola-lo-gui-rosbag1/mola-lo-gui-rosbag2 for the
-# ConSLAM dataset: presets its camera/IMU/LiDAR topic names and fixed LiDAR
-# pose, and enables the mola_state_estimation_smoother state estimator (see
-# mola_state_estimation's AGENTS.md, "Real-time setup").
+# Runs MOLA LiDAR odometry on the 'conslam' dataset through
+# mola-cli (online replay, 3D GUI).
 #
-# Accepts either a ROS 1 bag (.bag) or a ROS 2 bag (.mcap), autodetected from
-# the file extension. ROS 2 bags use lidar_odometry_from_rosbag2.yaml instead
-# of lidar_odometry_from_rosbag1.yaml.
+# Everything this script knows about the dataset lives in
+# lib/profiles/conslam.sh, shared with the matching
+# mola-lo-cli-conslam wrapper. Any MOLA_* variable you export
+# before invoking this takes precedence over the profile's default.
+set -euo pipefail
 
-if [ "$#" -eq 0 ]; then
-    echo "Error: A ConSLAM ROS 1 (.bag) or ROS 2 (.mcap) bag file is required."
-    echo "Usage: $0 /path/to/sequenceN.bag [additional flags for mola-cli]"
-    echo "Usage: $0 /path/to/sequenceN.mcap [additional flags for mola-cli]"
-    exit 1
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+MOLA_LO_LIB="$SCRIPT_DIR/lib/dataset-profile.sh"
+if [ ! -f "$MOLA_LO_LIB" ]; then
+  MOLA_LO_LIB="$SCRIPT_DIR/../share/mola_lidar_odometry/scripts-lib/dataset-profile.sh"
 fi
+# shellcheck source=lib/dataset-profile.sh
+source "$MOLA_LO_LIB"
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../mola-cli-launchs/
-if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
-  MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
-fi
-
-FILE=$1
-shift 1
-
-# ConSLAM-specific sensor topics (override by exporting before invoking this script).
-# Note: topics in the ConSLAM bags have no leading slash (e.g. 'imu/data', not '/imu/data'),
-# and there is no /tf or /tf_static at all, so every sensor pose must be fixed.
-# See mola_mapper/mola-cli-launchs/lidar_odometry_mapper_from_conslam.yaml for the
-# validated reference configuration this mirrors.
-: "${MOLA_CAMERA_TOPIC:=pp_rgb/synced2points}"
-: "${MOLA_IMU_TOPIC:=imu/data}"
-: "${MOLA_LIDAR_TOPIC:=pp_points/synced2rgb}"
-
-# No /tf: use the IMU as base_link (it is the dataset's own reference frame), fixed at
-# the origin, with the LiDAR yawed 180 deg from it (the two share the same "up" axis;
-# see the reference launch file's header for the paper-documented mounting-frame axes):
-: "${MOLA_TF_BASE_LINK:=imu}"
-: "${MOLA_USE_FIXED_IMU_POSE:=1}"
-: "${MOLA_USE_FIXED_LIDAR_POSE:=1}"
-: "${LIDAR_POSE_YAW:=180}"
-# Camera pose is only used for the GUI preview (unused by LO/LIO itself):
-: "${MOLA_USE_FIXED_CAMERA_POSE:=1}"
-
-# Hand-held scanner (not a vehicle): larger/faster rotations than a car, so lean on the
-# IMU for deskewing and for the initial pitch/roll estimate:
-: "${MOLA_LO_INITIAL_LOCALIZATION_METHOD:=InitLocalization::PitchAndRollFromIMU}"
-: "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
-
-# No GNSS in this dataset: pin the first pose to the map origin, or the smoother's
-# GTSAM graph is left with a rank-deficient null-space (IndeterminantLinearSystemException):
-: "${MOLA_LINK_FIRST_POSE_SIGMA:=1e-6}"
-
-# Enable the iSAM2 sliding-window smoother instead of the default simple estimator:
-SMOOTHER_SHARE_DIR=$(ros2 pkg prefix mola_state_estimation_smoother 2>/dev/null)/share/mola_state_estimation_smoother
-if [ ! -f "$SMOOTHER_SHARE_DIR/params/state-estimation-smoother.yaml" ]; then
-    echo "Error: package 'mola_state_estimation_smoother' was not found. Please install it."
-    exit 1
-fi
-
-export MOLA_CAMERA_TOPIC
-export MOLA_IMU_TOPIC
-export MOLA_LIDAR_TOPIC
-export MOLA_TF_BASE_LINK
-export MOLA_USE_FIXED_IMU_POSE
-export MOLA_USE_FIXED_LIDAR_POSE
-export LIDAR_POSE_YAW
-export MOLA_USE_FIXED_CAMERA_POSE
-export MOLA_LO_INITIAL_LOCALIZATION_METHOD
-export MOLA_DESKEW_METHOD
-export MOLA_LINK_FIRST_POSE_SIGMA
-
-# Autodetect the bag type from the file extension: ROS 2 bags (.mcap) use
-# lidar_odometry_from_rosbag2.yaml; everything else is assumed to be a ROS 1 bag.
-if [[ "$FILE" == *.mcap ]]; then
-    LAUNCH_FILE="$MOLA_LAUNCHS_DIR/lidar_odometry_from_rosbag2.yaml"
-    MOLA_STATE_ESTIMATOR="mola::state_estimation_smoother::StateEstimationSmoother" \
-    MOLA_STATE_ESTIMATOR_YAML="${MOLA_STATE_ESTIMATOR_YAML:-$SMOOTHER_SHARE_DIR/params/state-estimation-smoother.yaml}" \
-    MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
-    MOLA_INPUT_ROSBAG2="$FILE" \
-      mola-cli \
-        "$LAUNCH_FILE" \
-        "$@"
-else
-    LAUNCH_FILE="$MOLA_LAUNCHS_DIR/lidar_odometry_from_rosbag1.yaml"
-    MOLA_STATE_ESTIMATOR="mola::state_estimation_smoother::StateEstimationSmoother" \
-    MOLA_STATE_ESTIMATOR_YAML="${MOLA_STATE_ESTIMATOR_YAML:-$SMOOTHER_SHARE_DIR/params/state-estimation-smoother.yaml}" \
-    MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
-    MOLA_INPUT_ROSBAG1="$FILE" \
-      mola-cli \
-        "$LAUNCH_FILE" \
-        "$@"
-fi
+MOLA_LO_MODE=gui
+mola_lo_load_profile conslam "$@" || exit $?
+mola_lo_exec_gui

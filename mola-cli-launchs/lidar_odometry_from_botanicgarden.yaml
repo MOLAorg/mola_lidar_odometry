@@ -82,24 +82,30 @@ modules:
         - ${BOTANICGARDEN_LIO_BAG}
         - ${BOTANICGARDEN_GT_BAG|}
 
-      base_link_frame_id: xsens
+      base_link_frame_id: ${MOLA_TF_BASE_LINK|xsens}
       time_warp_scale: ${MOLA_TIME_WARP|1.0}
       start_paused: ${MOLA_DATASET_START_PAUSED|false}
 
       ground_truth_topic: /gt_poses
 
+      # The defaults below ARE this dataset's configuration; they are spelled
+      # as substitutions so that scripts/lib/profiles/botanicgarden.sh can be
+      # the single place a caller overrides them, and so the offline CLI --
+      # which builds its own equivalent config from these same variables --
+      # cannot drift from this file.
       sensors:
-        - topic: /imu/data   # Xsens MTi-680G, ~400 Hz: this IS base_link
+        - topic: ${MOLA_IMU_TOPIC|/imu/data}   # Xsens MTi-680G, ~400 Hz: this IS base_link
           type: CObservationIMU
           sensorLabel: imu
-          fixed_sensor_pose: "0 0 0 0 0 0"
-          use_fixed_sensor_pose: true
+          fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}"
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|true}
 
-        - topic: /velodyne_points   # Velodyne VLP-16, ~10 Hz
+        - topic: ${MOLA_LIDAR_TOPIC|/velodyne_points}   # Velodyne VLP-16, ~10 Hz
           type: CObservationPointCloud
           sensorLabel: lidar
-          fixed_sensor_pose: "0.0584868 0.0084042 0.1689155 -1.448155 0.097462 0.444791" # T_xsens_vlp16
-          use_fixed_sensor_pose: true
+          # T_xsens_vlp16:
+          fixed_sensor_pose: "${LIDAR_POSE_X|0.0584868} ${LIDAR_POSE_Y|0.0084042} ${LIDAR_POSE_Z|0.1689155} ${LIDAR_POSE_YAW|-1.448155} ${LIDAR_POSE_PITCH|0.097462} ${LIDAR_POSE_ROLL|0.444791}"
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|true}
 
         - topic: /odom   # Wheel odometry, ~200 Hz
           type: CObservationOdometry

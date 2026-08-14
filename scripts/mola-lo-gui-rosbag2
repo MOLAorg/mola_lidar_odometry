@@ -1,35 +1,23 @@
 #!/usr/bin/env bash
 # For usage instructions, see: https://docs.mola-slam.org/latest/
+#
+# Runs MOLA LiDAR odometry on the 'rosbag2' dataset through
+# mola-cli (online replay, 3D GUI).
+#
+# Everything this script knows about the dataset lives in
+# lib/profiles/rosbag2.sh, shared with the matching
+# mola-lo-cli-rosbag2 wrapper. Any MOLA_* variable you export
+# before invoking this takes precedence over the profile's default.
+set -euo pipefail
 
-if [ "$#" -eq 0 ]; then
-    echo "Error: At least 1 rosbag file is required. Split rosbags are also supported by providing the path to the directory."
-    echo "Usage: $0 /path/to/dataset.mcap"
-    echo "Usage: $0 /path/to/dataset_directory    (It must contain a metadata.yaml)"
-    echo ""
-    echo "Common environment variables:"
-    echo "  MOLA_LIDAR_TOPIC       LiDAR topic name (default: '/ouster/points')"
-    echo "  MOLA_IMU_TOPIC         IMU topic name (default: '/imu')"
-    echo "  MOLA_GNSS_TOPIC        GNSS NavSatFix topic name (default: '/gps')"
-    echo "  MOLA_ODOMETRY_TOPIC    Wheels 2D odometry (optional)"
-    echo "  MOLA_TF_BASE_LINK      Robot base /tf frame id (default: 'base_link')"
-    echo "  MOLA_TF_TOPIC          /tf topic in the bag (default: '/tf')"
-    echo "  MOLA_TF_STATIC_TOPIC   /tf_static topic in the bag (default: '/tf_static')"
-    echo "                         Override both for namespaced bags (e.g. /robot1/tf)."
-    exit 1
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+MOLA_LO_LIB="$SCRIPT_DIR/lib/dataset-profile.sh"
+if [ ! -f "$MOLA_LO_LIB" ]; then
+  MOLA_LO_LIB="$SCRIPT_DIR/../share/mola_lidar_odometry/scripts-lib/dataset-profile.sh"
 fi
+# shellcheck source=lib/dataset-profile.sh
+source "$MOLA_LO_LIB"
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../mola-cli-launchs/
-if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
-  MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
-fi
-
-FILE=$1
-shift 1
-
-MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
-MOLA_INPUT_ROSBAG2="$FILE" \
-  mola-cli \
-    $MOLA_LAUNCHS_DIR/lidar_odometry_from_rosbag2.yaml \
-    $@
+MOLA_LO_MODE=gui
+mola_lo_load_profile rosbag2 "$@" || exit $?
+mola_lo_exec_gui

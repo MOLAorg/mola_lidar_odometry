@@ -83,22 +83,29 @@ modules:
         - ${MOLA_INPUT_ROSBAG1_4|}
         - ${MOLA_INPUT_ROSBAG1_ODOM|}
 
-      base_link_frame_id: imu
+      base_link_frame_id: ${MOLA_TF_BASE_LINK|imu}
       time_warp_scale: ${MOLA_TIME_WARP|1.0}
       start_paused: ${MOLA_DATASET_START_PAUSED|false}
 
+      # The defaults below ARE this dataset's calibration; they are spelled as
+      # substitutions so that scripts/lib/profiles/citrusfarm.sh can be the
+      # single place a caller overrides them, and so the offline CLI -- which
+      # builds its own equivalent config from these same variables -- cannot
+      # drift from this file. It did: the offline path used to run this
+      # dataset with co-located placeholder extrinsics.
       sensors:
-        - topic: /microstrain/imu/data # Microstrain GX5: this IS base_link
+        - topic: ${MOLA_IMU_TOPIC|/microstrain/imu/data} # Microstrain GX5: this IS base_link
           type: CObservationIMU
           sensorLabel: imu
-          fixed_sensor_pose: "0 0 0 0 0 0"
-          use_fixed_sensor_pose: true
+          fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}"
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|true}
 
-        - topic: /velodyne_points # Velodyne (spinning), ~10 Hz
+        - topic: ${MOLA_LIDAR_TOPIC|/velodyne_points} # Velodyne (spinning), ~10 Hz
           type: CObservationPointCloud
           sensorLabel: lidar
-          fixed_sensor_pose: "0.0285 0.0091 0.0776 179.8419 -0.3290 0.1130" # T_imu_lidar, derived from CAD + Kalibr calib chain
-          use_fixed_sensor_pose: true
+          # T_imu_lidar, derived from CAD + Kalibr calib chain:
+          fixed_sensor_pose: "${LIDAR_POSE_X|0.0285} ${LIDAR_POSE_Y|0.0091} ${LIDAR_POSE_Z|0.0776} ${LIDAR_POSE_YAW|179.8419} ${LIDAR_POSE_PITCH|-0.3290} ${LIDAR_POSE_ROLL|0.1130}"
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|true}
 
         # GPS-RTK (currently disabled: it's the ground truth)
         # - topic: /piksi/navsatfix_best_fix   # GPS-RTK, fixed mode

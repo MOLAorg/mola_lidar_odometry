@@ -219,12 +219,20 @@ struct Cli
                              "Skip the first N dataset entries {0=default, not used}")
                            ->check(CLI::NonNegativeNumber);
 
+    // The four options below take an environment-variable fallback, spelled
+    // exactly as the mola-cli-launchs/*.yaml files already spell it. A single
+    // dataset profile (scripts/lib/profiles/*.sh) can then drive this offline
+    // CLI and the online launch files from one set of exported variables,
+    // instead of each caller keeping its own flags-vs-env translation table.
+    // An explicit command-line flag still wins over the environment.
     arg_lidarLabel.value = "lidar1";
-    arg_lidarLabel.opt = cmd.add_option(
-      "--lidar-sensor-label", arg_lidarLabel.value,
-      "If provided, this supersedes the values in the 'lidar_sensor_labels' "
-      "entry of the odometry pipeline, defining the sensorLabel/topic name to "
-      "read LIDAR data from. It can be a regular expression {std::regex}");
+    arg_lidarLabel.opt = cmd
+                           .add_option(
+                             "--lidar-sensor-label", arg_lidarLabel.value,
+                             "If provided, this supersedes the values in the 'lidar_sensor_labels' "
+                             "entry of the odometry pipeline, defining the sensorLabel/topic name "
+                             "to read LIDAR data from. It can be a regular expression {std::regex}")
+                           ->envname("MOLA_LIDAR_TOPIC");
 
     arg_imuLabel.value = "imu";
     arg_imuLabel.opt = cmd
@@ -233,6 +241,7 @@ struct Cli
                            "If provided, this supersedes the values in the 'imu_sensor_label' "
                            "entry of the odometry pipeline, defining the sensorLabel/topic name to "
                            "read IMU data from. It can be a regular expression {std::regex}")
+                         ->envname("MOLA_IMU_TOPIC")
                          ->capture_default_str();
 
     arg_baseLinkName.value = "base_link";
@@ -243,6 +252,7 @@ struct Cli
           "Only for rosbag input sources. This defines the /tf frame_id used as "
           "reference frame for the vehicle or robot. It is used to get sensors poses with "
           "respect to the vehicle from /tf data.")
+        ->envname("MOLA_TF_BASE_LINK")
         ->capture_default_str();
 
     arg_tfTopic.value = "/tf";
@@ -252,6 +262,7 @@ struct Cli
           "--tf-topic", arg_tfTopic.value,
           "Only for rosbag2 input: /tf topic name in the bag. Override for namespaced bags "
           "(e.g. '/robot1/tf').")
+        ->envname("MOLA_TF_TOPIC")
         ->capture_default_str();
 
     arg_tfStaticTopic.value = "/tf_static";
@@ -261,6 +272,7 @@ struct Cli
           "--tf-static-topic", arg_tfStaticTopic.value,
           "Only for rosbag2 input: /tf_static topic name in the bag. Override for namespaced "
           "bags (e.g. '/robot1/tf_static').")
+        ->envname("MOLA_TF_STATIC_TOPIC")
         ->capture_default_str();
 
     arg_progressBarPeriod.value = -1.0;
@@ -428,7 +440,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           sensorLabel: 'gps'
           #type: CObservationGPS  # This will be determined automatically by Rosbag2Dataset
           is_optional: true
-          fixed_sensor_pose: "${GPS_POSE_X|0} ${GPS_POSE_Y|0} ${GPS_POSE_Z|0} ${GPS_POSE_YAW|0} ${GPS_POSE_PITCH|0} ${GPS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
+          fixed_sensor_pose: "${GNSS_POSE_X|0} ${GNSS_POSE_Y|0} ${GNSS_POSE_Z|0} ${GNSS_POSE_YAW|0} ${GNSS_POSE_PITCH|0} ${GNSS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
         - topic: '%s'
           type: CObservationIMU
@@ -490,7 +502,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
         - topic: ${MOLA_GNSS_TOPIC|'/gps'}
           sensorLabel: 'gps'
           is_optional: true
-          fixed_sensor_pose: "${GPS_POSE_X|0} ${GPS_POSE_Y|0} ${GPS_POSE_Z|0} ${GPS_POSE_YAW|0} ${GPS_POSE_PITCH|0} ${GPS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
+          fixed_sensor_pose: "${GNSS_POSE_X|0} ${GNSS_POSE_Y|0} ${GNSS_POSE_Z|0} ${GNSS_POSE_YAW|0} ${GNSS_POSE_PITCH|0} ${GNSS_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_GNSS_POSE|false}
         - topic: '%s'
           type: CObservationIMU
@@ -1019,6 +1031,38 @@ int main_odometry(Cli & cli)
 
   return 0;
 }
+
+// Prints the options whose value came from their envname() fallback rather
+// than from the command line. CLI11 does not record the provenance, so this
+// re-derives it: an option that ended up set, has an env fallback, that
+// variable is present, and none of its flag spellings appears in argv.
+void report_options_taken_from_env(const CLI::App & cmd, int argc, char ** argv)
+{
+  const std::vector<std::string> args(argv + 1, argv + argc);
+
+  for (const auto * opt : cmd.get_options()) {
+    const auto & envName = opt->get_envname();
+    if (envName.empty() || opt->count() == 0) {
+      continue;
+    }
+    if (::getenv(envName.c_str()) == nullptr) {
+      continue;
+    }
+    bool onCommandLine = false;
+    for (const auto & name : opt->get_lnames()) {
+      const std::string flag = "--" + name;
+      for (const auto & a : args) {
+        if (a == flag || a.rfind(flag + "=", 0) == 0) {
+          onCommandLine = true;
+        }
+      }
+    }
+    if (!onCommandLine) {
+      std::cout << "Note: " << opt->get_name() << " taken from the environment ($" << envName
+                << "): '" << opt->as<std::string>() << "'\n";
+    }
+  }
+}
 }  // namespace
 
 int main(int argc, char ** argv)
@@ -1032,6 +1076,12 @@ int main(int argc, char ** argv)
     } catch (const CLI::ParseError & e) {
       return cli.cmd.exit(e);
     }
+
+    // Options that took their value from the environment change what this
+    // run does without appearing anywhere in the command line, so say so.
+    // Relevant because --lidar-sensor-label / --imu-sensor-label supersede
+    // the pipeline YAML for every input source, rosbag or not.
+    report_options_taken_from_env(cli.cmd, argc, argv);
 
     // Load plugins:
     if (cli.arg_plugins.isSet()) {
