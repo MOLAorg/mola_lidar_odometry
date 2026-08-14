@@ -6,8 +6,11 @@
 # recorded ROS 1 "base_*.bag" (LiDAR+IMU+GPS) and, optionally, the matching
 # "odom_*.bag" (wheel odometry) of one sequence.
 #
+# Most sequences are split into several "base_*.bag" parts; pass them all, in
+# recording order.
+#
 # Usage:
-#   mola-lo-gui-citrusfarm /path/to/base_*.bag [/path/to/odom_*.bag] [additional flags for mola-cli]
+#   mola-lo-gui-citrusfarm /path/to/base_*.bag [more base_*.bag parts] [/path/to/odom_*.bag] [additional flags for mola-cli]
 #
 # Fixed sensor extrinsics (IMU as base_link/reference frame) are baked into
 # lidar_odometry_from_citrusfarm.yaml; see that file's header comment for how
@@ -26,15 +29,30 @@ if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
   MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
 fi
 
-# Split the base bag (first non-flag argument) and, if given, the odom bag
-# (second non-flag argument, only if its basename starts with "odom_") from
-# any remaining flags to forward to mola-cli:
+# Split the base bag parts (the first argument, plus any later one whose
+# basename starts with "base_") and, if given, the odom bag (basename starting
+# with "odom_") from any remaining flags to forward to mola-cli. The launch
+# file exposes 4 base slots, which covers every sequence published so far:
 MOLA_INPUT_ROSBAG1=""
+MOLA_INPUT_ROSBAG1_2=""
+MOLA_INPUT_ROSBAG1_3=""
+MOLA_INPUT_ROSBAG1_4=""
 MOLA_INPUT_ROSBAG1_ODOM=""
+BASE_SLOT=0
 EXTRA_ARGS=()
 for arg in "$@"; do
-    if [ -z "$MOLA_INPUT_ROSBAG1" ]; then
-        MOLA_INPUT_ROSBAG1=$arg
+    if [ "$BASE_SLOT" -eq 0 ] || [[ "$(basename "$arg")" == base_* ]]; then
+        BASE_SLOT=$((BASE_SLOT + 1))
+        case "$BASE_SLOT" in
+            1) MOLA_INPUT_ROSBAG1=$arg ;;
+            2) MOLA_INPUT_ROSBAG1_2=$arg ;;
+            3) MOLA_INPUT_ROSBAG1_3=$arg ;;
+            4) MOLA_INPUT_ROSBAG1_4=$arg ;;
+            *)
+                echo "Error: too many base_*.bag parts, the launch file exposes 4 slots."
+                exit 1
+                ;;
+        esac
     elif [ -z "$MOLA_INPUT_ROSBAG1_ODOM" ] && [[ "$(basename "$arg")" == odom_* ]]; then
         MOLA_INPUT_ROSBAG1_ODOM=$arg
     else
@@ -42,6 +60,9 @@ for arg in "$@"; do
     fi
 done
 export MOLA_INPUT_ROSBAG1
+export MOLA_INPUT_ROSBAG1_2
+export MOLA_INPUT_ROSBAG1_3
+export MOLA_INPUT_ROSBAG1_4
 export MOLA_INPUT_ROSBAG1_ODOM
 
 mola-cli \
