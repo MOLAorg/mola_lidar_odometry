@@ -462,11 +462,19 @@ parameter. Voxelizing is the dominant cost, so the second stage becomes
 essentially free (~2 ms/scan on a 100k-point cloud).
 
 One parameter does NOT survive the fold, and the fold-back has to reconcile it:
-the chained "icp" stage had its own `voxel_size` (default 0.10), while a single
-filter has only one grid, `${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.15}`. So the ICP
-cloud is now sampled from the 0.15 m grid over the full scan rather than from a
-0.10 m grid over the already-decimated map cloud. (Both stages always read that
-same env var, so only the two defaults ever differed.)
+the chained "icp" stage has its own `voxel_size`
+(`${MOLA_CLOUD_DECIMATION_VOXEL_SIZE_ICP|0.10}`), while a single filter has only
+one grid (`${MOLA_CLOUD_DECIMATION_VOXEL_SIZE_MAP|0.15}`). So the ICP cloud is
+sampled from the 0.15 m grid over the full scan rather than from a 0.10 m grid
+over the already-decimated map cloud.
+
+The two stages are separately settable since 2026-08-15; before that, one
+`MOLA_CLOUD_DECIMATION_VOXEL_SIZE` drove both and only the defaults differed.
+That name is retired and now has no effect -- set both of the above to
+reproduce a run recorded against it. The stages were split because they want
+different cell sizes: measured on KITTI, a coarse map voxel wins from 400 m of
+travel onward while a finer one wins at 100-300 m, so a single value cannot
+express both drift accumulation and short-range precision.
 
 It lives in a separate file
 only because `outputs` needs an mp2p_icp newer than the current release; fold it
