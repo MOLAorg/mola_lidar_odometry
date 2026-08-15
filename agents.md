@@ -453,6 +453,18 @@ over multiple frames. Two consequences for pipeline tuning:
 See `mola-cli-launchs/lidar_odometry_from_botanicgarden_livox.yaml` for a
 complete example with all three env vars set.
 
+## `pipelines/lidar3d-ndt-blend.yaml`
+
+Same as `lidar3d-ndt.yaml` except that `mp2p_icp::Matcher_Point2Plane` is replaced
+by `mp2p_icp::Matcher_NDT_Blend`, which blends the neighboring cell Gaussians
+instead of keeping the closest one. Generated from the baseline with
+`replace_block()` and diff-verified, so the two files differ only in that block.
+
+`MOLA_NDT_BLEND_TEMPERATURE` defaults to `0`, which reproduces `lidar3d-ndt.yaml`
+bit for bit; raising it smooths the residual. `MOLA_NDT_BLEND_SEARCH_RADIUS`
+defaults to the same expression as the map's own voxel size, because a blending
+radius below the cell size leaves no neighboring cell able to contribute at all.
+
 ## `pipelines/lidar3d-gicp-single-filter.yaml` (temporary test variant)
 
 Same as `lidar3d-gicp.yaml`, except that the two chained `FilterDecimateAdaptive`
