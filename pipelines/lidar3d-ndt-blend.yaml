@@ -1,0 +1,425 @@
+# =====================================================================================
+# Pipeline: blended-plane 3D ICP with 3D-NDT-like maps
+# Variant of lidar3d-ndt.yaml: the point-to-plane matcher is replaced by
+# mp2p_icp::Matcher_NDT_Blend, which blends the neighboring cell Gaussians
+# instead of selecting the closest one. Everything else is identical, and
+# the shipped default temperature of 0 reproduces lidar3d-ndt.yaml exactly.
+#
+# For paper references, see https://github.com/MOLAorg/mola_lidar_odometry/
+#
+# This file holds parameters for mola::LidarOdometry,
+# for use either programmatically calling initialize(), or from a MOLA system
+# launch file. See "mola-cli-launchs/*" examples or the main project docs.
+# =====================================================================================
+
+params:
+  pipeline_name: "point-to-{point,plane} 3D ICP with 3D-NDT-like maps" # For display/debug only
+
+  # These sensor labels will be handled as LIDAR observations:
+  # Can be overridden with cli flag --lidar-sensor-label
+  lidar_sensor_labels: ["${MOLA_LIDAR_NAME|lidar}", "/ouster/points"]
+
+  multiple_lidars:
+    lidar_count: ${MOLA_LIDAR_COUNT|1} # useful only if using several lidar_sensor_labels or regex's.
+    max_time_offset: ${MOLA_LIDAR_MAX_TIME_OFFSET|0.1} # [s]
+
+  # These sensor labels will be handled as IMU observations:
+  imu_sensor_label: "${MOLA_IMU_NAME|imu}"
+
+  # These sensor labels will be handled as GNSS (GPS) (For storage in simplemap only)
+  gnss_sensor_label: "${MOLA_GPS_NAME|gps}"
+
+  # Optionally, drop lidar data too close in time:
+  min_time_between_scans: 1e-3 # [seconds]
+
+  # Parameters for max sensor range automatic estimation:
+  observation_radius_filter_coefficient: 0.95
+  absolute_minimum_observation_radius: ${MOLA_ABS_MIN_SENSOR_RANGE|5.0}
+
+  # If enabled, vehicle twist will be optimized during ICP
+  # enabling better and more robust odometry in high dynamics motion.
+  optimize_twist: "${MOLA_OPTIMIZE_TWIST|true}"
+  optimize_twist_max_corrections: 8 # (max number of corrections)
+  optimize_twist_rerun_min_trans: 0.15 # [m]
+  optimize_twist_rerun_min_rot_deg: 0.75 # [deg]
+
+  # When publishing pose updates, the reference frame for both, estimated robot poses, and the local map.
+  publish_reference_frame: "${MOLA_LO_PUBLISH_REF_FRAME|odom}"
+
+  # When publishing pose updates, the vehicle frame name.
+  publish_vehicle_frame: "${MOLA_LO_PUBLISH_VEHICLE_FRAME|base_link}"
+
+  # How often to update the local map model:
+  local_map_updates:
+    enabled: "${MOLA_MAPPING_ENABLED|true}"
+    load_existing_local_map: ${MOLA_LOAD_MM|""}
+    load_map_after_gui_init: ${MOLA_LO_LOAD_MAP_AFTER_GUI|false}
+
+    # Idea: don't integrate scans with a high rotational speed since they are probably not correctly deskewed:
+    min_translation_between_keyframes: "${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_OBSERVATION_RADIUS}" # [m]
+    min_rotation_between_keyframes: "${MOLA_MIN_ROT_BETWEEN_MAP_UPDATES|(15 + sqrt(wx^2+wy^2+wz^2)*500 )}" # [deg]
+
+    # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
+    max_distance_to_keep_keyframes: "${MOLA_LOCAL_MAP_MAX_SIZE|max(100.0, 1.50*ESTIMATED_OBSERVATION_RADIUS)}" # [m]
+    check_for_removal_every_n: 100
+    min_nearby_poses_occupied: ${MOLA_MIN_NEARBY_POSES_OCCUPIED|1}
+
+  # Minimum ICP quality to insert it into the map:
+  min_icp_goodness: ${MOLA_MINIMUM_ICP_QUALITY|0.25}
+
+  # Adaptive threshold:
+  adaptive_threshold:
+    enabled: true
+    initial_sigma: ${MOLA_SIGMA_INITIAL|0.50} # [m]
+    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.04} # [m]
+    maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|2.00} # [m]
+    max_sigma_step: ${MOLA_SIGMA_MAX_STEP|0.05} # [m]
+    icp_quality_controller_setpoint: ${MOLA_SIGMA_CONTROLLER_QUALITY_SETPOINT|0.85}
+    kp: ${MOLA_SIGMA_CONTROLLER_GAIN|2.0}
+    alpha: ${MOLA_ADAPT_THRESHOLD_ALPHA|0.90}
+    # Sustained-failure recovery: if enabled, sigma is grown multiplicatively
+    # after a streak of bad ICPs, capped at maximum_sigma, so the matcher
+    # window can re-open and ICP can recover. Enabled by default: without it,
+    # once sigma is driven down near min_motion by a run of easy/near-static
+    # scans (e.g. goodness consistently above icp_quality_controller_setpoint),
+    # a single larger inter-scan motion (a turn, a bump, or just ordinary
+    # scan-to-scan variability once sigma is already pinned at its floor) can
+    # push ICP into failure, and with sigma frozen the correspondence search
+    # window never reopens, so the pipeline stalls indefinitely
+    # (estimated_trajectory never grows again). Set to false to restore the
+    # old behavior. `maximum_sigma` must be set strictly above
+    # `initial_sigma`, or this mechanism is a no-op: sigma always starts
+    # each run AT initial_sigma, so a bad ICP on frame 1 (e.g. a slightly
+    # imprecise localization-only seed pose against a prebuilt map) has no
+    # room to grow into and can never recover (observed in testing as ICP
+    # goodness stuck just under min_icp_goodness for an entire run).
+    #
+    # recover_after_n_bad/recover_growth_factor default to a fast reaction
+    # (2 bad frames, x2.0 growth) rather than a slow one (5 bad frames,
+    # x1.5): every frame spent stuck is a frame of real, untracked vehicle
+    # motion accumulating; the slower defaults let that gap grow to the
+    # point where, once the search window finally reopens, ICP can lock onto
+    # a self-consistent but WRONG registration (observed in testing as a
+    # sudden ~30-40 deg yaw error that then persisted for the rest of a run)
+    # instead of recovering the true pose.
+    recover_on_sustained_failure: ${MOLA_ADAPT_THRESHOLD_RECOVER|true}
+    recover_after_n_bad: ${MOLA_ADAPT_THRESHOLD_RECOVER_AFTER_N_BAD|2}
+    recover_growth_factor: ${MOLA_ADAPT_THRESHOLD_RECOVER_GROWTH_FACTOR|2.0}
+
+  # If enabled, a map will be stored in RAM and (if using the CLI) stored
+  # to a ".simplemap" file for later use for localization, etc.
+  simplemap:
+    generate: ${MOLA_GENERATE_SIMPLEMAP|false} # Can be overridden with CLI flag --output-simplemap
+    load_existing_simple_map: ${MOLA_LOAD_SM|""}
+
+    save_final_map_to_file: ${MOLA_SIMPLEMAP_OUTPUT|'final_map.simplemap'}
+
+    # NOTE: unlike local_map_updates above, these thresholds are NOT scaled by
+    # angular velocity: this is what feeds the SharedKeyframeMap sink (e.g.
+    # mola_mapper), and the old w-scaled formula (rotation threshold growing
+    # by 500 deg per rad/s) made it create close to NO keyframes while
+    # smoothly turning, starving loop closure of the keyframes it needs.
+    min_translation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_XYZ|1.0e-2*ESTIMATED_OBSERVATION_RADIUS} # m
+    min_rotation_between_keyframes: ${MOLA_SIMPLEMAP_MIN_ROT|15} # deg
+
+    generate_lazy_load_scan_files: ${MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD|false} # If enabled, a directory will be create alongside the .simplemap and pointclouds will be externally serialized there.
+    add_non_keyframes_too: ${MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES|false} # If enabled, all frames are stored in the simplemap, but non-keyframes will be without associated observations.
+    min_nearby_poses_occupied: ${MOLA_SIMPLEMAP_MIN_NEARBY_POSES|1}
+    # Revisiting an already-mapped area creates NO keyframes with the purely
+    # spatial criterion above, which starves loop closure of the second endpoint
+    # of the loop. Set to a positive value [s] so only keyframes newer than that
+    # take part in the "is there one here already?" test.
+    nearby_keyframe_time_window: ${MOLA_SIMPLEMAP_KF_TIME_WINDOW|0} # [s], 0=disabled
+    save_gnss_max_age: 1.0 # [s] max age of GNSS observations to keep in the keyframe
+
+  # Save the final trajectory in TUM format. Disabled by default.
+  estimated_trajectory:
+    save_to_file: ${MOLA_SAVE_TRAJECTORY|false}
+    output_file: ${MOLA_TUM_TRAJECTORY_OUTPUT|'estimated_trajectory.tum'}
+
+  # If run within a mola-cli container, and mola_viz is present, use these options
+  # to show live progress:
+  visualization:
+    map_update_decimation: ${MOLA_GUI_MAP_UPDATE_DECIMATION|10}
+    show_trajectory: true
+    show_current_observation: false # shows "live raw" LiDAR points
+    show_ground_grid: true
+    ground_grid_spacing: 5.0 # [m]
+    #current_pose_corner_size: 1.5
+    #sensor_poses_corner_size: 0.5  # XYZ corner for each LiDAR sensor pose; 0 to disable
+    show_current_pose_corner: ${MOLA_LO_SHOW_CURRENT_POSE_CORNER|true} # Set to false to hide the current-pose XYZ corner (e.g. for a first-person camera)
+    local_map_point_size: 3
+    model:
+      - file: ${MOLA_VEHICLE_MODEL_FILE|""} # Default: none
+        tf.x: ${MOLA_VEHICLE_MODEL_X|0.0} # deg
+        tf.y: ${MOLA_VEHICLE_MODEL_Y|0.0} # deg
+        tf.z: ${MOLA_VEHICLE_MODEL_Z|0.0} # deg
+        tf.yaw: ${MOLA_VEHICLE_MODEL_YAW|0.0} # deg
+        tf.pitch: ${MOLA_VEHICLE_MODEL_PITCH|0.0} # deg
+        tf.roll: ${MOLA_VEHICLE_MODEL_ROLL|90.0} # deg
+
+  # Profile the main steps of the odometry pipeline:
+  pipeline_profiler_enabled: ${MOLA_PROFILER|true}
+  # Profile the internal steps of the ICP implementation:
+  icp_profiler_enabled: ${MOLA_PROFILER|true}
+
+  # If set to false, the odometry pipeline will ignore incoming observations
+  # until active is set to true (e.g. via the GUI).
+  start_active: "${MOLA_START_ACTIVE|true}"
+
+  # Generate CSV with the evolution of internal variables:
+  debug_traces:
+    save_to_file: "${MOLA_SAVE_DEBUG_TRACES|false}"
+    output_file: "${MOLA_DEBUG_TRACES_FILE|mola-lo-traces.csv}"
+
+  # Optional filters to discard incomplete 3D scans from
+  # faulty network, missing UDP packets, etc.
+  observation_validity_checks:
+    enabled: "${MOLA_ENABLE_OBS_VALIDITY_FILTER|false}"
+    check_layer_name: "raw"
+    minimum_point_count: "${MOLA_OBS_VALIDITY_MIN_POINTS|1000}"
+
+# re-localization method to use at start up:
+initial_localization:
+  method: "InitLocalization::FixedPose"
+  # Format: x(m) y(m) z(m) yaw(deg) pitch(deg) roll(deg)
+  fixed_initial_pose:
+    ["${MOLA_INITIAL_X|0.0}", "${MOLA_INITIAL_Y|0.0}", "${MOLA_INITIAL_Z|0.0}", "${MOLA_INITIAL_YAW|0.0}", "${MOLA_INITIAL_PITCH|0.0}", "${MOLA_INITIAL_ROLL|0.0}"]
+
+# If "icp_settings_without_vel" is not defined here, defaults to be the same than 'icp_settings_with_vel'
+# ICP settings can be included from an external YAML file if desired, or defined
+# in this same YAML for self-completeness:
+# Include example:
+#icp_settings_with_vel: $include{./icp-pipeline-default.yaml}
+
+# ICP parameters for a regular time step:
+icp_settings_with_vel:
+  # mp2p_icp ICP pipeline configuration file, for use in ICP
+  # odometry and SLAM packages.
+  #
+  # YAML configuration file for use with the CLI tool mp2p-icp-run or
+  # programmatically from function mp2p_icp::icp_pipeline_from_yaml()
+  #
+  class_name: mp2p_icp::ICP
+
+  # See: mp2p_icp::Parameter
+  params:
+    maxIterations: 300
+    minAbsStep_trans: 5e-4
+    minAbsStep_rot: 5e-4
+
+    #debugPrintIterationProgress: true  # Print iteration progress
+    #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
+    saveIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS|false} # Store partial solutions and pairings for each ICP iteration
+    decimationIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS_DECIMATION|3}
+    debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
+    decimationDebugFiles: ${MP2P_ICP_LOG_FILES_DECIMATION|10}
+
+  solvers:
+    - class: mp2p_icp::Solver_GaussNewton
+      params:
+        maxIterations: 1
+        robustKernel: "RobustKernel::GemanMcClure"
+        robustKernelParam: "0.5*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-0.5*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30)"
+        # Blend [0,1] for the robust kernel residual reference toward the prior
+        # mean pose (0=current iterate only, 1=prior mean only). See mp2p_icp.
+        robustKernelPriorRefBlend: "${MOLA_LO_ROBUST_KERNEL_PRIOR_REF_BLEND|0.0}"
+        #innerLoopVerbose: true
+
+  # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
+  # instances to pair geometric entities between pointclouds.
+  matchers:
+    - class: mp2p_icp::Matcher_NDT_Blend
+      params:
+        distanceThreshold: "1.0*ADAPTIVE_THRESHOLD_SIGMA"
+        # 0 reproduces Matcher_Point2Plane exactly (see lidar3d-ndt.yaml).
+        # Larger values blend the neighboring cell Gaussians instead of keeping
+        # the closest one, which makes the residual a smooth function of the
+        # pose at the price of a less local plane model.
+        temperature: "${MOLA_NDT_BLEND_TEMPERATURE|0.0}"
+        # Blending window, measured to each cell centroid. Tied to the map's own
+        # cell size, since below it no neighboring cell can contribute at all:
+        searchRadius: "${MOLA_NDT_BLEND_SEARCH_RADIUS|max(0.5, min(2.5, 0.75*ESTIMATED_OBSERVATION_RADIUS))}"
+        smoothCutoff: ${MOLA_NDT_BLEND_SMOOTH_CUTOFF|true}
+        allowMatchAlreadyMatchedGlobalPoints: true # faster
+        pointLayerMatches:
+          - { global: "localmap", local: "decimated_for_icp", weight: 1.0 }
+
+    - class: mp2p_icp::Matcher_Points_DistanceThreshold
+      params:
+        threshold: "2.0*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-0.5*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30)"
+        thresholdAngularDeg: 0 # deg
+        pairingsPerPoint: 1
+        allowMatchAlreadyMatchedGlobalPoints: true # faster
+        pointLayerMatches:
+          - { global: "localmap", local: "decimated_for_icp", weight: 1.0 }
+  quality:
+    - class: mp2p_icp::QualityEvaluator_PairedRatio
+      params: ~ # none required
+
+# Local map updates:
+# Very first observation: Use the mp2p_icp pipeline generator to create the local map:
+localmap_generator:
+  # Generators:
+  #
+  # One filter object will be created for each entry, instancing the given class,
+  # and with the given parameters. Filters are run in definition order on the
+  # incoming raw CObservation objects.
+  #
+  - class_name: mp2p_icp_filters::Generator
+    params:
+      target_layer: "localmap"
+      throw_on_unhandled_observation_class: true
+      process_class_names_regex: "" # NONE: don't process observations in the generator.
+      #process_sensor_labels_regex: '.*'
+      # metric_map_definition_ini_file: '${CURRENT_YAML_FILE_PATH}/localmap_definition_voxelmap.ini'
+
+      metric_map_definition:
+        # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/stable/group_mrpt_maps_grp.html
+        class: mola::NDT
+        plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
+        creationOpts:
+          #voxel_size: '${MOLA_LOCAL_VOXELMAP_RESOLUTION|2.0}' # [m]
+          voxel_size: "${MOLA_LOCAL_VOXELMAP_RESOLUTION|$f{max(0.5, min(2.5, 0.75*ESTIMATED_OBSERVATION_RADIUS))}}" # [m]
+        insertOpts:
+          max_points_per_voxel: ${MOLA_LOCALMAP_MAX_POINTS_PER_VOXEL|0}
+          min_distance_between_points: "$f{${MOLA_LOCAL_VOXELMAP_RESOLUTION|2.0}*0.1}" # [m]
+          # if !=0, remove voxels farther (L1) than the current observation insert point
+          remove_voxels_farther_than: "${MOLA_LOCAL_MAP_MAX_SIZE|$f{max(100.0, 1.50*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
+          # Max ratio between eigenvalues for considering an NDT a plane:
+          max_eigen_ratio_for_planes: 0.05
+        likelihoodOpts:
+          sigma_dist: 1.0 # [m]
+          max_corr_distance: 2.0 #[m]
+          decimation: 10
+        renderOpts:
+          points_visible: true
+          planes_visible: true
+          normals_visible: true
+
+# ---------------------------------------------------------------------------------
+# LIDAR observations are, first, loaded using a generator
+# from "observations_generator".
+# then, optionally, filtered before being registered with ICP
+# against the local map with filter "observations_filter_1st_pass".
+# ---------------------------------------------------------------------------------
+observations_generator:
+  # Generators:
+  #
+  # One filter object will be created for each entry, instancing the given class,
+  # and with the given parameters. Filters are run in definition order on the
+  # incoming raw CObservation objects.
+  #
+  - class_name: mp2p_icp_filters::Generator
+    params:
+      target_layer: "raw"
+      throw_on_unhandled_observation_class: true
+      process_class_names_regex: ".*"
+      process_sensor_labels_regex: ".*"
+
+# this pipeline is required so "SENSOR_TIME_OFFSET" has a different value for each independent LiDAR sensor
+# in setups with multiple LiDARs:
+observations_filter_adjust_timestamps:
+  # If twist estimation within ICP is enabled, this defines
+  # the moment for which twist is estimated:
+  - class_name: mp2p_icp_filters::FilterAdjustTimestamps
+    params:
+      pointcloud_layer: "raw"
+      silently_ignore_no_timestamps: true
+      time_offset: "SENSOR_TIME_OFFSET"
+      method: "TimestampAdjustMethod::MiddleIsZero"
+      #method: 'TimestampAdjustMethod::EarliestIsZero'
+
+# Path to an (optional) user-customizable pipeline definition file. Default: empty = none.
+observations_prefilter_file: ${MOLA_LO_OBS_PREFILTER_PIPELINE_FILE|""}
+
+observations_filter_1st_pass:
+  # Filters:
+  #
+  # One filter object will be created for each entry, instancing the given class,
+  # and with the given parameters. Filters are run in definition order on the
+  # input metric_map_t object.
+
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: "raw"
+      output_pointcloud_layer: "decimated_for_map_raw"
+      voxel_filter_resolution: max(0.10, 0.10*1e-2*ESTIMATED_OBSERVATION_RADIUS) # [m]
+      minimum_input_points_to_filter: 2000 # don't decimate if smaller than this size
+      decimate_method: DecimateMethod::FirstPoint
+      #decimate_method: DecimateMethod::ClosestToAverage
+
+  # Remove points too close, to prevent "noise" from the vehicle,
+  # the person next to the robot, etc. Remove too distant points since
+  # the tiniest angular error projects to a large translational error.
+  - class_name: mp2p_icp_filters::FilterByRange
+    params:
+      input_pointcloud_layer: "decimated_for_map_raw"
+      output_layer_between: "decimated_for_map_by_range"
+      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
+      range_max: 1.2*ESTIMATED_OBSERVATION_RADIUS
+
+  # Remove close ceilings (problematic in most cases!)
+  - class_name: mp2p_icp_filters::FilterBoundingBox
+    params:
+      input_pointcloud_layer: "decimated_for_map_by_range"
+      outside_pointcloud_layer: "decimated_for_map_skewed"
+      bounding_box_min: [-0.20*INSTANTANEOUS_OBSERVATION_RADIUS, -0.20*INSTANTANEOUS_OBSERVATION_RADIUS, 0.01*INSTANTANEOUS_OBSERVATION_RADIUS]
+      bounding_box_max: [0.20*INSTANTANEOUS_OBSERVATION_RADIUS, 0.20*INSTANTANEOUS_OBSERVATION_RADIUS, 0.10*INSTANTANEOUS_OBSERVATION_RADIUS]
+
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: "decimated_for_map_skewed"
+      output_pointcloud_layer: "decimated_for_icp_skewed"
+      voxel_filter_resolution: max(0.60, 0.20*1e-2*ESTIMATED_OBSERVATION_RADIUS) # [m]
+      minimum_input_points_to_filter: 2000 # don't decimate if smaller than this size
+      decimate_method: DecimateMethod::FirstPoint
+      #decimate_method: DecimateMethod::ClosestToAverage
+
+# 2nd pass:
+observations_filter_2nd_pass:
+  - class_name: mp2p_icp_filters::FilterDeleteLayer
+    params:
+      pointcloud_layer_to_remove: ["decimated_for_map", "decimated_for_icp"]
+      error_on_missing_input_layer: false
+
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      input_pointcloud_layer: "decimated_for_map_skewed"
+      output_pointcloud_layer: "decimated_for_map"
+      method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
+      silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
+      output_layer_class: "mrpt::maps::CPointsMapXYZIRT" # Keep intensity, ring, time channels
+
+      # These (vx,...,wz) are variable names that must be defined via the
+      # mp2p_icp::Parameterizable API to update them dynamically.
+      twist: [vx, vy, vz, wx, wy, wz]
+
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      input_pointcloud_layer: "decimated_for_icp_skewed"
+      output_pointcloud_layer: "decimated_for_icp"
+      method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
+      silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
+      output_layer_class: "mrpt::maps::CPointsMapXYZIRT" # Keep intensity, ring, time channels
+
+      # These (vx,...,wz) are variable names that must be defined via the
+      # mp2p_icp::Parameterizable API to update them dynamically.
+      twist: [vx, vy, vz, wx, wy, wz]
+
+# final pass:
+observations_filter_final_pass:
+  # Remove layers to save memory and log file storage
+  - class_name: mp2p_icp_filters::FilterDeleteLayer
+    params:
+      pointcloud_layer_to_remove: ["raw", "decimated_for_map_skewed", "decimated_for_icp_skewed", "decimated_for_map_by_range", "decimated_for_map_raw"]
+
+# To populate the local map, one or more observation layers are merged
+# into the local map via this pipeline:
+insert_observation_into_local_map:
+  - class_name: mp2p_icp_filters::FilterMerge
+    params:
+      input_pointcloud_layer: "decimated_for_map"
+      target_layer: "localmap"
+      input_layer_in_local_coordinates: true
+      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
