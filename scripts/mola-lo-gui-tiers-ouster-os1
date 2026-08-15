@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # For usage instructions, see: https://docs.mola-slam.org/latest/
 #
-# Runs MOLA LiDAR odometry on an Ouster sensor via mola_input_ouster (no ROS
-# required): a live sensor, or a PCAP/OSF recording. The input is selected by
-# environment variable, not by an argument -- run with no variables set for
-# the list.
+# Runs MOLA LiDAR odometry on the 'tiers' dataset through
+# mola-cli (online replay, 3D GUI).
 #
-# There is no mola-lo-cli-ouster counterpart: mola_input_ouster is a live
-# source, not an OfflineDatasetSource, so the offline batch CLI cannot read it.
+# Everything this script knows about the dataset lives in
+# lib/profiles/tiers.sh, shared with the matching
+# mola-lo-cli-tiers-ouster-os1 wrapper. Any MOLA_* variable you export
+# before invoking this takes precedence over the profile's default.
 set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
@@ -19,5 +19,6 @@ fi
 source "$MOLA_LO_LIB"
 
 MOLA_LO_MODE=gui
-mola_lo_load_profile ouster "$@" || exit $?
+export TIERS_SENSOR=ouster-os1
+mola_lo_load_profile tiers "$@" || exit $?
 mola_lo_exec_gui

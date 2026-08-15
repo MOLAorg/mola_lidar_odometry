@@ -8,42 +8,73 @@ This repository provides a LiDAR-Inertial Odometry (LIO) frontend for the MOLA f
 
 Official Docs: https://docs.mola-slam.org/latest/
 
-## `scripts/mola-lo-gui-conslam`: ROS 1 / ROS 2 bag autodetection
+## Dataset wrappers: `scripts/mola-lo-{gui,cli}-*` + `scripts/lib/`
 
-Accepts either a ROS 1 bag (`.bag`) or a ROS 2 bag (`.mcap`) as the first
-argument, autodetected from the file extension. `.mcap` selects
-`lidar_odometry_from_rosbag2.yaml` (`MOLA_INPUT_ROSBAG2`); anything else is
-assumed to be a ROS 1 bag and uses `lidar_odometry_from_rosbag1.yaml`
-(`MOLA_INPUT_ROSBAG1`), matching how `mola-lo-gui-rosbag1`/`mola-lo-gui-rosbag2`
-pick their launch file.
+Each supported dataset has exactly one description of itself, in
+`scripts/lib/profiles/<name>.sh`: its on-disk layout, topic names, frames,
+extrinsics and pipeline tweaks, exported as `MOLA_*` environment variables.
+A profile invokes nothing.
 
-## `lidar_odometry_from_rosbag1.yaml`: up to 3 bags replayed jointly
+Three kinds of consumer share it, so none of them restates a dataset:
 
-`rosbag_filename` is a sequence fed from `MOLA_INPUT_ROSBAG1` plus two
-optional slots, `MOLA_INPUT_ROSBAG1_2` / `_3` (empty entries are dropped by
-`Rosbag1Dataset`). Per-topic datasets that ship `/tf`, the IMU or the odometry
-in separate bag files therefore need no launch file of their own.
+- `mola-lo-gui-<name>` — online replay via `mola-cli` + a launch YAML.
+- `mola-lo-cli-<name>` — offline batch via `mola-lidar-odometry-cli`.
+- Out-of-tree harnesses (`eval/cli_*.sh`, the CI regression job) source
+  `lib/dataset-profile.sh` and call `mola_lo_load_profile` directly.
 
-## `scripts/mola-lo-gui-grandtour`
+Both binaries read the same variables: the launch YAMLs always did, and the
+offline CLI's `--lidar-sensor-label` / `--imu-sensor-label` /
+`--base-link-frame-id` / `--tf-topic` / `--tf-static-topic` carry matching
+`envname()` fallbacks (`MOLA_LIDAR_TOPIC`, `MOLA_IMU_TOPIC`,
+`MOLA_TF_BASE_LINK`, ...). An explicit flag still wins; an option that took
+its value from the environment is reported at startup, since it changes the
+run without appearing in the command line.
 
-GrandTour (ANYmal-D + "Boxi" payload) publishes one bag per topic, so the
-wrapper takes a *mission directory* (or its `*_hesai_undist.bag`) and resolves
-its siblings by the `<mission>_<topic>.bag` naming: LiDAR (required), the
-`tf_minimal` and `adis` bags (optional). Notes specific to this dataset:
+Every value a profile sets uses `: "${VAR:=default}"`, so **anything the
+caller exports first wins**. That is how a harness overrides one field
+without forking the profile. Two variables the caller sets:
 
-- The robot body frame is `base`, not `base_link` (`MOLA_TF_BASE_LINK`).
-- Extrinsics come from the dataset's own `/tf_static`
-  (`base -> box_base -> hesai_lidar` / `adis16475_imu`), so no fixed sensor
-  poses are needed when the tf bag is present; without it the LiDAR falls
-  back to a fixed pose at the origin.
-- The LiDAR topic used is the already-undistorted one, so deskewing defaults
-  to `MotionCompensationMethod::None` to avoid over-compensating motion.
-- The /tf tree view is ON by default here (this is a legged robot with a full
-  joint tree, which is the point), skipping the four frames that are not
-  physically on the body: `odom` (world-fixed, published inverted as a child
-  of `base`), `enu_origin` (geodetic, under `cpt7_imu`) and `dlio_odom` /
-  `dlio_map` (the onboard SLAM's frames, under `hesai_lidar`). Everything
-  else in the tree is real hardware, including the total-station `prism`.
+- `MOLA_LO_MODE` = `gui` | `cli`. Profiles branch on it where a dataset
+  genuinely differs — a camera bag is worth replaying for a preview and is
+  pure decode cost in a batch run.
+- `MOLA_LO_SKIP_STATE_ESTIMATOR=1` — for callers running a method with its
+  own internal estimator (the DLIO / Fast-LIO2 wrappers).
+
+Adding a dataset means adding one profile plus two one-line wrappers, and
+listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
+
+### Per-dataset notes
+
+- **conslam** autodetects ROS 1 (`.bag`) vs ROS 2 (`.mcap`) from the
+  extension. `CONSLAM_BASE_FRAME` picks which frame the trajectory is
+  reported in: `imu` (default, the dataset's own reference frame) or
+  `lidar`, needed when scoring against a ground truth sampled in the LiDAR
+  frame. The two differ by a pure 180 deg yaw.
+- **grandtour** publishes one bag per topic, so the profile takes a *mission
+  directory* (or its `*_hesai_undist.bag`) and resolves the siblings by the
+  `<mission>_<topic>.bag` naming. Body frame is `base`, not `base_link`.
+  Extrinsics come from the mission's own `/tf_static`, so no fixed poses are
+  set. The LiDAR stream is already undistorted, so deskewing defaults to
+  `None`. The /tf tree view is on by default (this is a legged robot with a
+  full joint tree, which is the point), skipping the four frames not
+  physically on the body: `odom`, `enu_origin`, `dlio_odom`, `dlio_map`.
+- **tiers** records FIVE lidars at once — that is what the dataset is for —
+  so it gets one wrapper per sensor (`-ouster-os0`, `-ouster-os1`,
+  `-velodyne`, `-livox-horizon`, `-livox-avia`) rather than one that silently
+  picks a winner. Extrinsics are a co-located placeholder: these bags carry
+  no `/tf` and the dataset publishes no calibration.
+- **oxford-spires** stitches multipart sequences, ordering the `raw/ros2bag/`
+  parts by their trailing `_<n>` numerically.
+- **ouster** is gui-only: a live source, which the offline CLI cannot read.
+
+## `lidar_odometry_from_rosbag1.yaml`: up to 4 bags replayed jointly
+
+`rosbag_filename` is a sequence fed from `MOLA_INPUT_ROSBAG1` plus three
+optional slots, `MOLA_INPUT_ROSBAG1_2` / `_3` / `_4` (empty entries are
+dropped by `Rosbag1Dataset`). Per-topic datasets that ship `/tf`, the IMU, a
+camera or the odometry in separate bag files therefore need no launch file of
+their own. `mola_lo_bag_slots` in `lib/dataset-profile.sh` fills these and the
+comma-joined spelling the offline CLI takes, from one list.
 
 ## Robot /tf tree visualization (opt-in)
 
@@ -572,7 +603,14 @@ full ground-truth timespan.
 Ready-made rig for Oxford Spires (`StateEstimationSimple`, deterministic):
 `~/lo-gravity-eval/{oxford_env.sh,run_oxford.sh,eval_tum.py,analyze_map_gravity.py}`.
 The bags carry no `/tf`, so the sensor extrinsics must be passed as the fixed
-poses the env script sets, and the sensor labels are the topic names.
+poses the env script sets, and the sensor labels are the topic names — or use
+`mola-lo-cli-oxford-spires`, which sets exactly those from the profile.
+
+`eval/cli_*.sh` are batch sweeps, not launchers: they choose sequences,
+parallelism and metrics, and hand the launching to `mola-lo-cli-<dataset>`.
+Anything a sweep pins deliberately (KITTI's `MOLA_INITIAL_VX`, which differs
+from the interactive default) is set there explicitly and commented, since a
+sweep's numbers are only comparable to its own history.
 
 ## Environment Variables (Debug/Tracing Flags)
 

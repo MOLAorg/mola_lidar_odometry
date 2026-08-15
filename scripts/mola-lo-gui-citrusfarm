@@ -1,84 +1,23 @@
 #!/usr/bin/env bash
 # For usage instructions, see: https://docs.mola-slam.org/latest/
 #
-# Convenience wrapper around mola-cli for the CitrusFarm dataset
-# (https://ucr-robotics.github.io/Citrus-Farm-Dataset/): points at the
-# recorded ROS 1 "base_*.bag" (LiDAR+IMU+GPS) and, optionally, the matching
-# "odom_*.bag" (wheel odometry) of one sequence.
+# Runs MOLA LiDAR odometry on the 'citrusfarm' dataset through
+# mola-cli (online replay, 3D GUI).
 #
-# Most sequences are split into several "base_*.bag" parts; pass them all, in
-# recording order.
-#
-# Usage:
-#   mola-lo-gui-citrusfarm /path/to/base_*.bag [more base_*.bag parts] [/path/to/odom_*.bag] [additional flags for mola-cli]
-#
-# Fixed sensor extrinsics (IMU as base_link/reference frame) are baked into
-# lidar_odometry_from_citrusfarm.yaml; see that file's header comment for how
-# they were derived from the dataset's own calibration results.
+# Everything this script knows about the dataset lives in
+# lib/profiles/citrusfarm.sh, shared with the matching
+# mola-lo-cli-citrusfarm wrapper. Any MOLA_* variable you export
+# before invoking this takes precedence over the profile's default.
+set -euo pipefail
 
-USAGE="Usage: $0 /path/to/base_*.bag [more base_*.bag parts] [/path/to/odom_*.bag] [additional flags for mola-cli]"
-
-if [ "$#" -eq 0 ]; then
-    echo "Error: A CitrusFarm ROS 1 'base_*.bag' file is required."
-    echo "$USAGE"
-    exit 1
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+MOLA_LO_LIB="$SCRIPT_DIR/lib/dataset-profile.sh"
+if [ ! -f "$MOLA_LO_LIB" ]; then
+  MOLA_LO_LIB="$SCRIPT_DIR/../share/mola_lidar_odometry/scripts-lib/dataset-profile.sh"
 fi
+# shellcheck source=lib/dataset-profile.sh
+source "$MOLA_LO_LIB"
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../mola-cli-launchs/
-if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
-  MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
-fi
-
-# Split the base bag parts (the first argument, plus any later one whose
-# basename starts with "base_") and, if given, the odom bag (basename starting
-# with "odom_") from any remaining flags to forward to mola-cli. The launch
-# file exposes 4 base slots, which covers every sequence published so far:
-MOLA_INPUT_ROSBAG1=""
-MOLA_INPUT_ROSBAG1_2=""
-MOLA_INPUT_ROSBAG1_3=""
-MOLA_INPUT_ROSBAG1_4=""
-MOLA_INPUT_ROSBAG1_ODOM=""
-BASE_SLOT=0
-EXTRA_ARGS=()
-for arg in "$@"; do
-    arg_basename=$(basename -- "$arg")
-    # The odometry bag is recognized wherever it appears, including first,
-    # so it never consumes a base slot and shifts the parts by one.
-    if [ -z "$MOLA_INPUT_ROSBAG1_ODOM" ] && [[ "$arg_basename" == odom_* ]]; then
-        MOLA_INPUT_ROSBAG1_ODOM=$arg
-    # The first non-odometry argument is the first base part whatever it is
-    # called, so a renamed or re-exported bag keeps working; later parts have
-    # to be recognizable as such to tell them from mola-cli flags.
-    elif [ "$BASE_SLOT" -eq 0 ] || [[ "$arg_basename" == base_* ]]; then
-        BASE_SLOT=$((BASE_SLOT + 1))
-        case "$BASE_SLOT" in
-            1) MOLA_INPUT_ROSBAG1=$arg ;;
-            2) MOLA_INPUT_ROSBAG1_2=$arg ;;
-            3) MOLA_INPUT_ROSBAG1_3=$arg ;;
-            4) MOLA_INPUT_ROSBAG1_4=$arg ;;
-            *)
-                echo "Error: too many base_*.bag parts, the launch file exposes 4 slots."
-                exit 1
-                ;;
-        esac
-    else
-        EXTRA_ARGS+=("$arg")
-    fi
-done
-
-if [ "$BASE_SLOT" -eq 0 ]; then
-    echo "Error: A CitrusFarm ROS 1 'base_*.bag' file is required."
-    echo "$USAGE"
-    exit 1
-fi
-export MOLA_INPUT_ROSBAG1
-export MOLA_INPUT_ROSBAG1_2
-export MOLA_INPUT_ROSBAG1_3
-export MOLA_INPUT_ROSBAG1_4
-export MOLA_INPUT_ROSBAG1_ODOM
-
-mola-cli \
-    "$MOLA_LAUNCHS_DIR/lidar_odometry_from_citrusfarm.yaml" \
-    "${EXTRA_ARGS[@]}"
+MOLA_LO_MODE=gui
+mola_lo_load_profile citrusfarm "$@" || exit $?
+mola_lo_exec_gui

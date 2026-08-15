@@ -1,26 +1,23 @@
 #!/usr/bin/env bash
 # For usage instructions, see: https://docs.mola-slam.org/latest/
+#
+# Runs MOLA LiDAR odometry on the 'mulran' dataset through
+# mola-cli (online replay, 3D GUI).
+#
+# Everything this script knows about the dataset lives in
+# lib/profiles/mulran.sh, shared with the matching
+# mola-lo-cli-mulran wrapper. Any MOLA_* variable you export
+# before invoking this takes precedence over the profile's default.
+set -euo pipefail
 
-if [ "$#" -eq 0 ]; then
-    echo "Error: At least 1 argument is required."
-    echo "Usage: $0 <MULRAN_SEQ> [additional flags for mola-cli]"
-    echo "With <MULRAN_SEQ> KAIST01, DCC01, ..."
-    exit 1
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+MOLA_LO_LIB="$SCRIPT_DIR/lib/dataset-profile.sh"
+if [ ! -f "$MOLA_LO_LIB" ]; then
+  MOLA_LO_LIB="$SCRIPT_DIR/../share/mola_lidar_odometry/scripts-lib/dataset-profile.sh"
 fi
+# shellcheck source=lib/dataset-profile.sh
+source "$MOLA_LO_LIB"
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../mola-cli-launchs/
-if [ -d $SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs ]; then
-  MOLA_LAUNCHS_DIR=$SCRIPT_DIR/../share/mola_lidar_odometry/mola-cli-launchs
-fi
-
-SEQ=$1
-shift 1
-
-MOLA_ODOMETRY_PIPELINE_YAML="${PIPELINE_YAML:-$MOLA_LAUNCHS_DIR/../pipelines/lidar3d-default.yaml}" \
-MULRAN_SEQ=$SEQ \
-MOLA_DESKEW_METHOD="${MOLA_DESKEW_METHOD:-MotionCompensationMethod::IMU}" \
-  mola-cli \
-    $MOLA_LAUNCHS_DIR/lidar_odometry_from_mulran.yaml \
-    $@
+MOLA_LO_MODE=gui
+mola_lo_load_profile mulran "$@" || exit $?
+mola_lo_exec_gui
