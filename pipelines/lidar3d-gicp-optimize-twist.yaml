@@ -382,7 +382,7 @@ observations_filter_1st_pass:
       name: "FilterDecimateAdaptive (map)"
       input_pointcloud_layer: "raw"
       output_pointcloud_layer: "decimated_unfiltered"
-      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.15}" # [m]
+      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE_MAP|0.15}" # [m]
       desired_output_point_count: "${MOLA_DECIMATED_POINTS_MAP|10000}"
       parallelization_grain_size: 8000 # When TBB is enabled, the grainsize for splitting the input clouds into threads
 
@@ -401,7 +401,7 @@ observations_filter_1st_pass:
       name: "FilterDecimateAdaptive (icp)"
       input_pointcloud_layer: "decimated_skewed_for_map"
       output_pointcloud_layer: "decimated_skewed_for_icp"
-      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.10}" # [m]
+      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE_ICP|0.10}" # [m]
       desired_output_point_count: "${MOLA_DECIMATED_POINTS_ICP|3000}"
       parallelization_grain_size: 8000 # When TBB is enabled, the grainsize for splitting the input clouds into threads
 
