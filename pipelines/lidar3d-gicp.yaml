@@ -637,7 +637,11 @@ observations_filter_1st_pass:
       input_pointcloud_layer: "deskewed"
       output_pointcloud_layer: "decimated_for_map"
       voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.15}" # [m]
+      # A floor, not the target: the point count that matters is relative to
+      # the number of occupied voxels, which maximum_voxel_stride bounds.
       desired_output_point_count: "${MOLA_DECIMATED_POINTS_MAP|10000}"
+      maximum_voxel_stride: "${MOLA_VOXEL_STRIDE_MAP|0}" # 0=off; 1=visit every occupied voxel
+      decimate_method: "${MOLA_DECIMATE_METHOD|DecimateMethod::FirstPoint}"
       parallelization_grain_size: 8000 # When TBB is enabled, the grainsize for splitting the input clouds into threads
 
   - class_name: mp2p_icp_filters::FilterDecimateAdaptive
@@ -647,6 +651,8 @@ observations_filter_1st_pass:
       output_pointcloud_layer: "decimated_for_icp"
       voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE|0.10}" # [m]
       desired_output_point_count: "${MOLA_DECIMATED_POINTS_ICP|3000}"
+      maximum_voxel_stride: "${MOLA_VOXEL_STRIDE_ICP|0}" # 0=off; 2=visit one occupied voxel in two
+      decimate_method: "${MOLA_DECIMATE_METHOD|DecimateMethod::FirstPoint}"
       parallelization_grain_size: 8000 # When TBB is enabled, the grainsize for splitting the input clouds into threads
 
 # 2nd pass:
