@@ -43,6 +43,11 @@
 # Every value a profile publishes uses the ': "${VAR:=default}"' idiom, so a
 # caller that exported the variable first always wins. That is what lets the
 # CI keep its per-dataset overrides without forking the profile.
+#
+# A profile may also pick the odometry pipeline itself, by publishing
+# MOLA_ODOMETRY_PIPELINE_YAML the same way. Do that only where a dataset has a
+# measured reason to differ from the default, and state the evidence in the
+# profile: see profiles/kitti.sh.
 
 # Absolute path of this library's directory, resolved through symlinks.
 MOLA_LO_LIB_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)

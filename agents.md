@@ -40,10 +40,21 @@ without forking the profile. Two variables the caller sets:
 - `MOLA_LO_SKIP_STATE_ESTIMATOR=1` — for callers running a method with its
   own internal estimator (the DLIO / Fast-LIO2 wrappers).
 
+A profile may also pick the pipeline, by publishing
+`MOLA_ODOMETRY_PIPELINE_YAML` the same way. Only where a dataset has a measured
+reason to differ, and the evidence goes in the profile.
+
 Adding a dataset means adding one profile plus two one-line wrappers, and
 listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
 
 ### Per-dataset notes
+
+- **kitti** selects `pipelines/lidar3d-icp.yaml` over the cov-to-cov default:
+  measured over 00-10 it wins 8/11 on translation and 7/11 on rotation at about
+  half the cost per scan. A forward ablation between the two pipelines found
+  the difference is not attributable to any one stage — intermediate
+  configurations are several times worse than either — so this is a per-dataset
+  choice, not a ranking of the pipelines.
 
 - **conslam** autodetects ROS 1 (`.bag`) vs ROS 2 (`.mcap`) from the
   extension. `CONSLAM_BASE_FRAME` picks which frame the trajectory is
