@@ -37,6 +37,22 @@ mola_lo_profile_resolve() {
   : "${MOLA_INITIAL_VX:=20.0}"
   export MOLA_INITIAL_VX
 
+  # KITTI does better on the point-to-point pipeline than on the default
+  # cov-to-cov one, and by enough to be worth selecting here: measured over
+  # sequences 00-10 it is better on 8 of 11 in translation and 7 of 11 in
+  # rotation, and costs about half the time per scan.
+  #
+  # This is a per-dataset choice, not a claim about the pipelines in general.
+  # A forward ablation between the two found that the difference does not come
+  # from any single stage: intermediate configurations are several times worse
+  # than either pipeline, so the two are separate optima rather than points on
+  # a path. Swapping just the matcher, in particular, is far worse than either.
+  #
+  # Batch and regression runs override this the same way they override the
+  # velocity prior above, so their published numbers stay comparable.
+  : "${MOLA_ODOMETRY_PIPELINE_YAML:=$MOLA_LO_PIPELINES_DIR/lidar3d-icp.yaml}"
+  export MOLA_ODOMETRY_PIPELINE_YAML
+
   MOLA_LO_LAUNCH_FILE=lidar_odometry_from_kitti.yaml
   MOLA_LO_CLI_INPUT=(--input-kitti-seq "$seq")
 }
