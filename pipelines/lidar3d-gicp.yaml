@@ -37,8 +37,10 @@ params:
   # If enabled, vehicle twist will be optimized during ICP
   # enabling better and more robust odometry in high dynamics motion without an IMU.
   # NOTE: Disabled for more efficient deskew in the GICP pipeline with IMU.
-  # If using LO without IMU, try lidar3d-gicp-optimize-twist.yaml to enable optimize_twist if needed.
-  optimize_twist: false
+  # Enabling it costs about 25% more time per scan. On KITTI, which has no IMU
+  # and so no other source of velocity, it still bought nothing measurable, so
+  # do not assume it helps just because a platform lacks an IMU: measure it.
+  optimize_twist: ${MOLA_OPTIMIZE_TWIST|false}
 
   # IMU accelerometer-based verticality correction:
   # Uses averaged accelerometer readings to constrain ICP pitch/roll.
@@ -666,6 +668,15 @@ observations_filter_1st_pass:
 
 # 2nd pass:
 observations_filter_2nd_pass:
+  # The merge below appends to "observation", so this pass has to start from an
+  # empty layer: with optimize_twist enabled the whole pass re-runs after a
+  # twist correction, and a second append leaves the cov-capable observation
+  # map holding two keyframes, which the cov-to-cov nearest-neighbor search
+  # rejects outright.
+  - class_name: mp2p_icp_filters::FilterClear
+    params:
+      target_layer: "observation"
+
   - class_name: mp2p_icp_filters::FilterMerge
     params:
       name: "FilterMerge (icp into obs)"
