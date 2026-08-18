@@ -136,7 +136,23 @@ mola_lo_profile_resolve() {
   # back to leveling from raw accelerometer readings.
   : "${MOLA_LO_INITIAL_LOCALIZATION_METHOD:=InitLocalization::PitchAndRollFromIMU}"
   : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
-  export MOLA_LO_INITIAL_LOCALIZATION_METHOD MOLA_DESKEW_METHOD
+  # Accelerometer suppressed: gyro-only deskew took path-length error from
+  # 9.5% to 0.3% here (est/gt ratio), 2.6x better APE than leaving the
+  # accelerometer in. See lio/03_accuracy_pipeline.md ranked action 3c.
+  : "${MOLA_DESKEW_IGNORE_ACCELEROMETER:=true}"
+  export MOLA_LO_INITIAL_LOCALIZATION_METHOD MOLA_DESKEW_METHOD MOLA_DESKEW_IGNORE_ACCELEROMETER
+
+  # GICP-pipeline decimation tuning -- per-dataset, not a shipped pipeline
+  # default. See the KITTI profile for the shared rationale/evidence; this
+  # dataset independently confirmed the same configuration (56% cut in
+  # pooled vertical drift at a third of the cost, 12-13/13 sequences).
+  : "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE_MAP:=0.45}"
+  : "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE_ICP:=0.45}"
+  : "${MOLA_VOXEL_STRIDE_MAP:=1}"
+  : "${MOLA_VOXEL_STRIDE_ICP:=2}"
+  : "${MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV:=10}"
+  export MOLA_CLOUD_DECIMATION_VOXEL_SIZE_MAP MOLA_CLOUD_DECIMATION_VOXEL_SIZE_ICP
+  export MOLA_VOXEL_STRIDE_MAP MOLA_VOXEL_STRIDE_ICP MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV
 
   # No GNSS in this dataset: pin the first pose to the map origin, or the
   # smoother's GTSAM graph is left with a rank-deficient null-space

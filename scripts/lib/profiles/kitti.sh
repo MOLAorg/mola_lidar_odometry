@@ -53,6 +53,24 @@ mola_lo_profile_resolve() {
   : "${MOLA_ODOMETRY_PIPELINE_YAML:=$MOLA_LO_PIPELINES_DIR/lidar3d-icp.yaml}"
   export MOLA_ODOMETRY_PIPELINE_YAML
 
+  # GICP-pipeline decimation tuning, for whenever lidar3d-gicp.yaml is
+  # selected instead of the pipeline default above (e.g. the SLAM-eval
+  # harness always evaluates job=lio against lidar3d-gicp.yaml regardless of
+  # this profile's own pipeline choice). A coarser voxel visited completely
+  # via the stride bound beats the shipped fine voxel sampled at a stride of
+  # 3-5, on both translation and rotation, at a third of the cost, on the
+  # full 00-10 corpus. Per-dataset, not a shipped pipeline default: it was
+  # only ever validated on KITTI and Oxford Spires -- see the Oxford Spires
+  # profile for its own copy of these, and lio/03_accuracy_pipeline.md for
+  # why BotanicGarden/citrus-farm/ConSLAM must not inherit it untested.
+  : "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE_MAP:=0.45}"
+  : "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE_ICP:=0.45}"
+  : "${MOLA_VOXEL_STRIDE_MAP:=1}"
+  : "${MOLA_VOXEL_STRIDE_ICP:=2}"
+  : "${MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV:=10}"
+  export MOLA_CLOUD_DECIMATION_VOXEL_SIZE_MAP MOLA_CLOUD_DECIMATION_VOXEL_SIZE_ICP
+  export MOLA_VOXEL_STRIDE_MAP MOLA_VOXEL_STRIDE_ICP MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV
+
   MOLA_LO_LAUNCH_FILE=lidar_odometry_from_kitti.yaml
   MOLA_LO_CLI_INPUT=(--input-kitti-seq "$seq")
 }
