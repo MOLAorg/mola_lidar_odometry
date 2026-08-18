@@ -57,20 +57,38 @@ mola_lo_profile_resolve() {
   : "${MOLA_IGNORE_NO_POINT_STAMPS:=false}"
   export MOLA_DESKEW_METHOD MOLA_IGNORE_NO_POINT_STAMPS
 
-  # No GICP-tuning overrides here on purpose. Two rounds tried
-  # (2026-08-18, lio/03_accuracy_pipeline.md §0.4): the decimation
-  # voxel/stride/k_cov bundle regresses badly (+506% mean APE at the full
-  # KITTI/Oxford tuning, still +62-77% with the voxel left alone and only
-  # k_cov/stride touched), the coarse voxel alone is catastrophic (+445%),
-  # and MOLA_DESKEW_IGNORE_ACCELEROMETER=true -- briefly shipped here on
-  # the strength of a "cuts the band" claim from a different dataset's
-  # tuning -- turned out to swing sign between two same-day replicates
-  # (5/7 sequences better, then 1/7) once actually measured on this
-  # dataset's own APE: run-to-run noise here (-56% to +39% on the
-  # UNCHANGED baseline config, replicate to replicate) swamps every effect
-  # this small. Nothing tested beats the untouched pipeline defaults with
-  # confidence; leave this profile at them until a properly repeated
-  # (ideally determinism-controlled) study says otherwise.
+  # No decimation-tuning overrides here on purpose (2026-08-18,
+  # lio/03_accuracy_pipeline.md §0.4): the KITTI/Oxford voxel/stride/k_cov
+  # bundle regresses badly (+506% mean APE at full tuning, still +62-77%
+  # with just k_cov/stride), the coarse voxel alone is catastrophic
+  # (+445%), and MOLA_DESKEW_IGNORE_ACCELEROMETER=true -- briefly shipped
+  # here on a "cuts the band" claim from a different dataset -- swung sign
+  # between two same-day replicates (5/7 sequences better, then 1/7) once
+  # actually measured: this dataset's run-to-run noise (-56% to +39% on an
+  # UNCHANGED config, replicate to replicate) swamps effects that size.
+  #
+  # The incremental map class is different: mean APE -26% over 2 replicates
+  # x 7 sequences, and unlike the above it clears its own noise floor -- 4
+  # of 7 sequences have non-overlapping replicate ranges against the
+  # keyframe map (clear wins), 1 is a tie at the accuracy floor, 1 is
+  # ambiguous (kf's own spread already reaches the incremental map's
+  # range), and 1 (1008_03) is a clear, reproducible REGRESSION -- the
+  # opposite sign from the one older cross-session data point for this
+  # exact sequence, which is exactly why this dataset needs replicates
+  # rather than single historical runs. Net positive, not a clean sweep.
+  # async_rebuild is forced off, not merely the pipeline default: with it
+  # on, k-d tree rebuilds run on a background thread nn_* queries never
+  # join, so the arm would measure the scheduler as well as the map class
+  # (matches the same caution in the corpus's first ever local-map A/B).
+  # CAVEAT worth knowing before using this profile for anything beyond
+  # odometry benchmarking: mola::IncrementalPointCloud is documented as
+  # odometry-only, not loop-closure-safe (single global k-d tree, no
+  # per-keyframe re-mapping) -- irrelevant to this LO accuracy comparison,
+  # but a real constraint if BotanicGarden is ever run through a
+  # loop-closure-capable pipeline.
+  : "${MOLA_LOCALMAP_CLASS:=mola::IncrementalPointCloud}"
+  : "${MOLA_INCREMENTAL_MAP_ASYNC_REBUILD:=false}"
+  export MOLA_LOCALMAP_CLASS MOLA_INCREMENTAL_MAP_ASYNC_REBUILD
 
   if [ "$use_livox" -eq 1 ]; then
     MOLA_LO_LAUNCH_FILE=lidar_odometry_from_botanicgarden_livox.yaml
