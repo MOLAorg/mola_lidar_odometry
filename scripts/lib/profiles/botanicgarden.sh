@@ -55,15 +55,22 @@ mola_lo_profile_resolve() {
 
   : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
   : "${MOLA_IGNORE_NO_POINT_STAMPS:=false}"
-  # Accelerometer suppressed on top of the IMU deskew already selected above:
-  # cuts the band 2.3x at unchanged path length. Deskew-only tuning -- unlike
-  # Oxford Spires/KITTI, the GICP decimation voxel/stride tuning is NOT
-  # applied here: it was never validated on this dataset, and a full-corpus
-  # A/B run 2026-08-18 found it regresses BotanicGarden badly (+506% mean
-  # APE) when it leaked in via a global pipeline default. See
-  # lio/03_accuracy_pipeline.md ranked action 3c and §0.3.
-  : "${MOLA_DESKEW_IGNORE_ACCELEROMETER:=true}"
-  export MOLA_DESKEW_METHOD MOLA_IGNORE_NO_POINT_STAMPS MOLA_DESKEW_IGNORE_ACCELEROMETER
+  export MOLA_DESKEW_METHOD MOLA_IGNORE_NO_POINT_STAMPS
+
+  # No GICP-tuning overrides here on purpose. Two rounds tried
+  # (2026-08-18, lio/03_accuracy_pipeline.md §0.4): the decimation
+  # voxel/stride/k_cov bundle regresses badly (+506% mean APE at the full
+  # KITTI/Oxford tuning, still +62-77% with the voxel left alone and only
+  # k_cov/stride touched), the coarse voxel alone is catastrophic (+445%),
+  # and MOLA_DESKEW_IGNORE_ACCELEROMETER=true -- briefly shipped here on
+  # the strength of a "cuts the band" claim from a different dataset's
+  # tuning -- turned out to swing sign between two same-day replicates
+  # (5/7 sequences better, then 1/7) once actually measured on this
+  # dataset's own APE: run-to-run noise here (-56% to +39% on the
+  # UNCHANGED baseline config, replicate to replicate) swamps every effect
+  # this small. Nothing tested beats the untouched pipeline defaults with
+  # confidence; leave this profile at them until a properly repeated
+  # (ideally determinism-controlled) study says otherwise.
 
   if [ "$use_livox" -eq 1 ]; then
     MOLA_LO_LAUNCH_FILE=lidar_odometry_from_botanicgarden_livox.yaml
