@@ -368,8 +368,9 @@ Sensor inputs: IMU (optional)
   Read carefully the contents of the `mola-cli launch files <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_
   and the comments therein to understand the differences.
 
-- ``MOLA_DESKEW_IGNORE_ACCELEROMETER`` (Default: ``false``): Enable if a noisy IMU sensor causes shaky motion in the estimation,
-  but you still want to use gyroscope for precise deskewing in LIO.
+- ``MOLA_DESKEW_IGNORE_ACCELEROMETER`` (Default: ``true``): Suppress the accelerometer's contribution to IMU-based
+  deskew, keeping only the gyroscope. Set to ``false`` to use the accelerometer too if it is not noisy and its
+  lever arm to the LiDAR is small.
 
 
 IMU gravity correction (pitch/roll)
@@ -437,12 +438,13 @@ Sensor inputs: GPS (GNSS) (optional)
 Scan de-skew options
 ^^^^^^^^^^^^^^^^^^^^^^
 
-- ``MOLA_DESKEW_METHOD`` (Default: ``MotionCompensationMethod::Linear``): Selects the scan de-skew (motion compensation) method.
+- ``MOLA_DESKEW_METHOD`` (Default: ``MotionCompensationMethod::IMU``): Selects the scan de-skew (motion compensation) method.
 
   .. note::
 
-     **IMPORTANT**: If you do not change this from its default, IMU data will not be used for deskewing.
-     To fully achieve the best accuracy when an IMU is available, set this to ``MotionCompensationMethod::IMU``.
+     If no IMU is present (or none of its data reaches the deskew filter), IMU-based methods fall back to no
+     correction for that scan, with a throttled warning. Set this to ``MotionCompensationMethod::Linear`` to use a
+     constant-velocity model instead, e.g. on platforms without an IMU that still carry per-point timestamps.
 
 - ``MOLA_IGNORE_NO_POINT_STAMPS`` (Default: ``true``): If enabled (default), input point clouds without per-point timestamps
   will be processed without doing any de-skew. If set to ``false``, an exception is triggered in that event,
@@ -554,15 +556,27 @@ Observation filter pipeline
   file applied to raw observations before any built-in filtering. Use this to inject custom filters (e.g. a ring-based
   ground filter or a sector masking filter) without modifying the main pipeline file.
 
-- ``MOLA_CLOUD_DECIMATION_VOXEL_SIZE`` (Default: ``0.15`` [m] for map, ``0.10`` [m] for ICP; GICP pipeline only):
-  Minimum voxel size for adaptive decimation of point clouds. The GICP pipeline uses two separate decimation stages;
-  this sets the floor voxel size for both. See also ``MOLA_DECIMATED_POINTS_MAP`` and ``MOLA_DECIMATED_POINTS_ICP``.
+- ``MOLA_CLOUD_DECIMATION_VOXEL_SIZE_MAP`` / ``MOLA_CLOUD_DECIMATION_VOXEL_SIZE_ICP`` (Default: ``0.45`` [m] each;
+  GICP pipeline only): Floor voxel size for adaptive decimation of point clouds, set independently for the map and
+  ICP stages. Settable per stage, but the shipped default keeps both equal: an asymmetric split was measured and
+  found no better than a matched pair. (Replaces the older, now-retired ``MOLA_CLOUD_DECIMATION_VOXEL_SIZE``, which
+  set both stages from one variable and no longer has any effect.)
 
 - ``MOLA_DECIMATED_POINTS_MAP`` (Default: ``10000``; GICP pipeline only): Target point count for the cloud inserted
-  into the local map after adaptive decimation.
+  into the local map after adaptive decimation. A floor, not a target, when ``MOLA_VOXEL_STRIDE_MAP`` is nonzero:
+  see below.
 
 - ``MOLA_DECIMATED_POINTS_ICP`` (Default: ``3000``; GICP pipeline only): Target point count for the cloud used in
-  ICP matching after adaptive decimation.
+  ICP matching after adaptive decimation. Same floor caveat as above, via ``MOLA_VOXEL_STRIDE_ICP``.
+
+- ``MOLA_VOXEL_STRIDE_MAP`` / ``MOLA_VOXEL_STRIDE_ICP`` (Default: ``1`` / ``2``; GICP pipeline only): Bounds how many
+  occupied voxels the adaptive decimation filter may skip between two emitted points (``0`` disables the bound,
+  the point-count target above then governs alone). Without a bound, a small point-count target at a coarse voxel
+  size only shrinks the sampling stride toward the target instead of visiting every occupied voxel, which starves
+  coverage rather than saving useful points.
+
+- ``MOLA_DECIMATE_METHOD`` (Default: ``DecimateMethod::FirstPoint``; GICP pipeline only): Point selected per visited
+  voxel by the two decimation stages above (``FirstPoint``, ``ClosestToAverage``, ``VoxelAverage``, ...).
 
 
 ICP settings
@@ -635,7 +649,7 @@ They have no effect on the ICP or NDT pipelines.
 - ``MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES`` (Default: ``3``): Maximum number of keyframes searched for correspondences
   per ICP step.
 
-- ``MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV`` (Default: ``20``): Number of nearest neighbors used to estimate
+- ``MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV`` (Default: ``10``): Number of nearest neighbors used to estimate
   per-point covariance in the local map.
 
 - ``MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER`` (Default: ``true``): Enable filtering of candidate keyframes by

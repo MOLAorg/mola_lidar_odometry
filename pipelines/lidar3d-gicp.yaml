@@ -489,7 +489,7 @@ localmap_generator:
         plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         creationOpts:
           # --- common to both classes ---
-          k_correspondences_for_cov: ${MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV|20}
+          k_correspondences_for_cov: ${MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV|10}
           min_correspondences_for_cov: ${MOLA_LOCALMAP_MIN_CORRESPONDENCES_FOR_COV|5}
           max_distance_for_cov: ${MOLA_LOCALMAP_MAX_DISTANCE_FOR_COV|2.0}
           # --- mola::IncrementalPointCloud only ---
@@ -616,8 +616,14 @@ observations_deskew_pass:
       name: "FilterDeskew (early)"
       input_pointcloud_layer: "raw_range_filtered"
       output_pointcloud_layer: "deskewed"
-      method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
-      ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|false}"
+      # IMU-based deskew, with the accelerometer suppressed: the gyro alone
+      # tracks path length far more accurately than a constant-velocity
+      # linear model, and the accelerometer's lever-arm noise does not help
+      # deskew specifically (it still feeds the separate gravity constraint
+      # above). Falls back to no correction, per scan, if no IMU trajectory
+      # can be reconstructed (e.g. no IMU present, or a data gap).
+      method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::IMU}"
+      ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|true}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
       output_layer_class: "mrpt::maps::CGenericPointsMap" # Keep intensity, ring, time channels
 
@@ -641,17 +647,17 @@ observations_filter_1st_pass:
       name: "FilterDecimateAdaptive (map)"
       input_pointcloud_layer: "deskewed"
       output_pointcloud_layer: "decimated_for_map"
-      # Per stage since 2026-08-15. The two stages want different cell sizes:
-      # a coarser map voxel trades a little short-range precision for markedly
-      # less drift accumulation, and no single value expresses both.
+      # Per stage since 2026-08-15, kept independently settable, but the
+      # shipped default is symmetric with the ICP stage below: an asymmetric
+      # split measured no better than the matched pair.
       # NOTE: this replaces MOLA_CLOUD_DECIMATION_VOXEL_SIZE, which set both
       # stages at once. Setting the old name now has no effect: to reproduce a
       # run recorded against it, set both variables below to that value.
-      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE_MAP|0.15}" # [m]
+      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE_MAP|0.45}" # [m]
       # A floor, not the target: the point count that matters is relative to
       # the number of occupied voxels, which maximum_voxel_stride bounds.
       desired_output_point_count: "${MOLA_DECIMATED_POINTS_MAP|10000}"
-      maximum_voxel_stride: "${MOLA_VOXEL_STRIDE_MAP|0}" # 0=off; 1=visit every occupied voxel
+      maximum_voxel_stride: "${MOLA_VOXEL_STRIDE_MAP|1}" # 0=off; 1=visit every occupied voxel
       decimate_method: "${MOLA_DECIMATE_METHOD|DecimateMethod::FirstPoint}"
       parallelization_grain_size: 8000 # When TBB is enabled, the grainsize for splitting the input clouds into threads
 
@@ -660,9 +666,9 @@ observations_filter_1st_pass:
       name: "FilterDecimateAdaptive (icp)"
       input_pointcloud_layer: "decimated_for_map"
       output_pointcloud_layer: "decimated_for_icp"
-      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE_ICP|0.10}" # [m]
+      voxel_size: "${MOLA_CLOUD_DECIMATION_VOXEL_SIZE_ICP|0.45}" # [m]
       desired_output_point_count: "${MOLA_DECIMATED_POINTS_ICP|3000}"
-      maximum_voxel_stride: "${MOLA_VOXEL_STRIDE_ICP|0}" # 0=off; 2=visit one occupied voxel in two
+      maximum_voxel_stride: "${MOLA_VOXEL_STRIDE_ICP|2}" # 0=off; 2=visit one occupied voxel in two
       decimate_method: "${MOLA_DECIMATE_METHOD|DecimateMethod::FirstPoint}"
       parallelization_grain_size: 8000 # When TBB is enabled, the grainsize for splitting the input clouds into threads
 
