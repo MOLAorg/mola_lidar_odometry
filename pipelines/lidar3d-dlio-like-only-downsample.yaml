@@ -151,7 +151,7 @@ params:
   adaptive_threshold:
     enabled: true
     initial_sigma: ${MOLA_SIGMA_INITIAL|0.50} # [m]
-    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.04} # [m]
+    min_motion: ${MOLA_SIGMA_MIN_MOTION|0.5} # [m]
     maximum_sigma: ${MOLA_SIGMA_MAX_MOTION|2.00} # [m]
     max_sigma_step: ${MOLA_SIGMA_MAX_STEP|0.05} # [m]
     icp_quality_controller_setpoint: ${MOLA_SIGMA_CONTROLLER_QUALITY_SETPOINT|0.85}
