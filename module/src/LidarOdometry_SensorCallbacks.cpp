@@ -20,6 +20,8 @@
  */
 
 // This module:
+#include <thread>
+#include <chrono>
 #include <mola_lidar_odometry/LidarOdometry.h>
 
 // Others:
@@ -245,6 +247,16 @@ std::future<void> LidarOdometry::releaseLidarScansToWorker(const double upToImuT
     return {};  // an invalid future: nothing was submitted
   }
 
+  if (params_.lidar_queue_lossless) {
+    // Every scan the burst released is processed, in order: keeping only the
+    // newest is the same skip as the pool's, one level up.
+    std::future<void> last;
+    for (const auto & e : readyScans) {
+      last = submitReadyLidarScanToWorker(e.obs, e.imu_coverage_end_time);
+    }
+    return last;
+  }
+
   for (std::size_t i = 0; i + 1 < readyScans.size(); i++) {
     addDropStats(true);
     profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
@@ -262,7 +274,21 @@ std::future<void> LidarOdometry::submitReadyLidarScanToWorker(
   // eviction, so detect it here (before enqueueing) purely for the drop-stats
   // accounting; running scans are never aborted, only queued ones can be
   // dropped this way.
-  if (worker_lidar_.pendingTasks() > 0) {
+  if (params_.lidar_queue_lossless) {
+    // Wait for the queue to drain instead of letting the pool evict what is
+    // in it. The producer is a file: making it wait costs wall-clock time and
+    // nothing else, whereas an eviction costs a scan that never comes back.
+    // `destructor_called_` breaks the wait so shutdown is never held up.
+    while (worker_lidar_.pendingTasks() > 0) {
+      {
+        auto lck = mrpt::lockHelper(is_busy_mtx_);
+        if (destructor_called_) {
+          break;
+        }
+      }
+      std::this_thread::sleep_for(std::chrono::microseconds(200));
+    }
+  } else if (worker_lidar_.pendingTasks() > 0) {
     addDropStats(true);
     profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
     MRPT_LOG_THROTTLE_WARN_FMT(

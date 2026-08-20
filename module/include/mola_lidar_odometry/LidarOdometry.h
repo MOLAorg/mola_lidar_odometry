@@ -888,6 +888,24 @@ public:
     /* If enabled, deskewed scans will be published (so, they will be available as ROS2 messages), mostly for visualization.
    * This may slow-down the system, so it is disabled by default. */
     bool publish_deskewed_scans = false;
+
+    /** Process every LiDAR scan, back-pressuring the producer rather than
+     * skipping (default: false, i.e. skip under overload).
+     *
+     * The scan worker runs POLICY_DROP_OLD so a live sensor never builds a
+     * backlog: a scan queued behind a running one is evicted when the next
+     * arrives, and latency stays bounded. That is right for a real-time
+     * pipeline and wrong for an offline replay, where the producer is a file
+     * that could simply have waited -- and where everything downstream
+     * assumes one pose per scan. A batch run that quietly emitted 1197 poses
+     * for 1201 scans has not produced a slower answer, it has produced a
+     * different and shorter trajectory, with no failure anywhere.
+     *
+     * Set by `mola-lidar-odometry-cli` unless `--allow-scan-drops` is passed.
+     * Under it, `releaseLidarScansToWorker()` also submits every scan an IMU
+     * catch-up burst released instead of only the newest.
+     */
+    bool lidar_queue_lossless = false;
   };
 
   /** Algorithm parameters */

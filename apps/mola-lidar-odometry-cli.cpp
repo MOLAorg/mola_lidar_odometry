@@ -120,6 +120,7 @@ struct Cli
   Opt<std::string> arg_tfTopic;
   Opt<std::string> arg_tfStaticTopic;
   Opt<double> arg_progressBarPeriod;
+  Opt<bool> arg_allowScanDrops;
 
 // Input dataset can come from one of these:
 // --------------------------------------------
@@ -339,6 +340,14 @@ struct Cli
                            "INPUT DATASET: Use Mulran dataset sequence KAIST01|KAIST02|...")
                          ->option_text("KAIST01");
 #endif
+
+    arg_allowScanDrops.opt = cmd.add_flag(
+      "--allow-scan-drops", arg_allowScanDrops.value,
+      "Let the scan worker skip queued scans under overload, as the online "
+      "pipeline does. Off by default here: an offline replay reads from a "
+      "file that can simply wait, and everything downstream assumes one pose "
+      "per scan, so skipping produces a shorter trajectory rather than a "
+      "slower run.");
 
 #if defined(HAVE_MOLA_INPUT_PARIS_LUCO)
     argParisLucoSeq.opt = cmd.add_flag(
@@ -757,6 +766,13 @@ int main_odometry(Cli & cli)
 
   // liodom->initialize_common(cfg); // can be skipped for a non-MOLA system
   liodom->initialize(cfg);
+
+  // Offline replay is lossless by contract. The scan worker's POLICY_DROP_OLD
+  // is right for a live sensor and wrong for a file: it silently turned 1201
+  // scans into 1197 poses on kitti-10, deterministically and with no error
+  // anywhere. Applied after initialize() so it wins over the pipeline YAML,
+  // which is shared with the online launch files.
+  liodom->params_.lidar_queue_lossless = !cli.arg_allowScanDrops.value;
 
   if (cli.arg_outSimpleMap.isSet()) {
     liodom->params_.simplemap.generate = true;
