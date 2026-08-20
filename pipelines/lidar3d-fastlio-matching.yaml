@@ -385,6 +385,10 @@ icp_settings_with_vel:
   # See: mp2p_icp::Parameter
   params:
     maxIterations: ${MOLA_MAX_ICP_ITERATIONS|25}
+    # Stop re-associating after this iteration and keep optimizing the
+    # pairings already found (0 = never freeze, the behavior so far).
+    # Exposed only so it can be swept; the default is unchanged.
+    freezePairingsAfterIteration: ${MOLA_FREEZE_PAIRINGS_AFTER_ITER|0}
     minAbsStep_trans: 1e-3
     minAbsStep_rot: 1e-4
 
