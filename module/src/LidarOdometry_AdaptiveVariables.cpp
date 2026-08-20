@@ -177,6 +177,53 @@ void LidarOdometry::doUpdateAdaptiveThreshold()
     "delta: %+.4f ICP q=%.3f sigma=%.4f", delta, state_.last_icp_quality, state_.adapt_thres_sigma);
 }
 
+namespace
+{
+/** Radius of the observation, as either the bounding-box max-norm (the
+ * historical behavior, `quantile` = 1) or a quantile of the per-point norms.
+ *
+ * The max-norm is set by a single point, so a stray far return decides the
+ * scale of the whole scene; six shipped parameters are derived from this
+ * number. The quantile path samples with a stride instead of reading every
+ * point: it needs the shape of the distribution, not all of it.
+ */
+double observationRadius(const mrpt::maps::CPointsMap & pts, double quantile, uint32_t maxSamples)
+{
+  const auto bb = pts.boundingBox();
+  const double maxNorm = std::max(bb.max.norm(), bb.min.norm());
+  if (quantile >= 1.0) {
+    return maxNorm;
+  }
+
+  const auto & xs = pts.getPointsBufferRef_x();
+  const auto & ys = pts.getPointsBufferRef_y();
+  const auto & zs = pts.getPointsBufferRef_z();
+  const size_t n = xs.size();
+  if (n < 2) {
+    return maxNorm;
+  }
+
+  const size_t stride = std::max<size_t>(1, n / std::max<uint32_t>(1, maxSamples));
+  std::vector<double> norms;
+  norms.reserve(n / stride + 1);
+  for (size_t i = 0; i < n; i += stride) {
+    const double r2 = static_cast<double>(xs[i]) * xs[i] + static_cast<double>(ys[i]) * ys[i] +
+                      static_cast<double>(zs[i]) * zs[i];
+    if (std::isfinite(r2)) {
+      norms.push_back(std::sqrt(r2));
+    }
+  }
+  if (norms.empty()) {
+    return maxNorm;
+  }
+
+  const size_t k =
+    std::min(norms.size() - 1, static_cast<size_t>(quantile * (norms.size() - 1) + 0.5));
+  std::nth_element(norms.begin(), norms.begin() + k, norms.end());
+  return norms[k];
+}
+}  // namespace
+
 void LidarOdometry::doInitializeEstimatedObservationRadius(const mrpt::obs::CObservation & o)
 {
   auto & maxRange = state_.estimated_observation_radius;
@@ -195,9 +242,8 @@ void LidarOdometry::doInitializeEstimatedObservationRadius(const mrpt::obs::CObs
     return;
   }
 
-  const auto bb = pts->boundingBox();
-
-  double radius = std::max(bb.max.norm(), bb.min.norm());
+  double radius = observationRadius(
+    *pts, params_.observation_radius_quantile, params_.observation_radius_quantile_max_samples);
 
   // check for NaN, Infinities, etc.: See: https://github.com/MOLAorg/mola_lidar_odometry/issues/10
   if (!std::isnormal(radius)) {
@@ -233,7 +279,8 @@ void LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_ma
       continue;  // skip NaN, INF, etc.
     }
 
-    double radius = std::max(bb.max.norm(), bb.min.norm());
+    double radius = observationRadius(
+      *pts, params_.observation_radius_quantile, params_.observation_radius_quantile_max_samples);
 
     mrpt::keep_max(radius, params_.absolute_minimum_observation_radius);
 

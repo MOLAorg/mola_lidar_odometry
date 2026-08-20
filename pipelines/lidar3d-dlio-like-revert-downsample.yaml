@@ -70,6 +70,11 @@ params:
 
   observation_radius_filter_coefficient: 0.95
   absolute_minimum_observation_radius: ${MOLA_ABS_MIN_SENSOR_RANGE|5.0}
+  # Quantile of the per-point norms taken as ESTIMATED_OBSERVATION_RADIUS.
+  # 1.0 = the bounding-box max-norm, i.e. one far return sets the scene
+  # scale for the six parameters derived from it. Default unchanged;
+  # exposed so the robust alternative can be measured.
+  observation_radius_quantile: ${MOLA_OBSERVATION_RADIUS_QUANTILE|1.0}
 
   optimize_twist: false
 

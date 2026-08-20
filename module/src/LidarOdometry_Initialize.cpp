@@ -185,6 +185,10 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       "absolute_minimum_sensor_range", params_.absolute_minimum_observation_radius);
     YAML_LOAD_OPT(params_, observation_radius_filter_coefficient, double);
     YAML_LOAD_OPT(params_, absolute_minimum_observation_radius, double);
+    YAML_LOAD_OPT(params_, observation_radius_quantile, double);
+    YAML_LOAD_OPT(params_, observation_radius_quantile_max_samples, uint32_t);
+    ASSERT_GT_(params_.observation_radius_quantile, 0.0);
+    ASSERT_LE_(params_.observation_radius_quantile, 1.0);
     YAML_LOAD_OPT(params_, start_active, bool);
 
     YAML_LOAD_OPT(params_, max_lidar_queue_before_drop, uint32_t);
