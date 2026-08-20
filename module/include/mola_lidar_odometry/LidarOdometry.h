@@ -236,6 +236,33 @@ public:
     double observation_radius_filter_coefficient = 0.999;
     double absolute_minimum_observation_radius = 5.0;  // [m]
 
+    /** Quantile of the per-point norms used as ESTIMATED_OBSERVATION_RADIUS,
+     * in (0, 1]. **1.0 means the bounding-box max-norm**, which is what this
+     * estimate has always been and remains the default.
+     *
+     * The max-norm is an outlier statistic, not a scene scale: one far return
+     * sets it. Measured on three lidars recorded simultaneously in one room,
+     * it reads 13.8, 18.0 and 101.8 m -- a 7.4x disagreement about a fixed
+     * scene -- while across every outdoor sequence measured it spans only
+     * 69.8-91.2 m. Six shipped parameters are derived from it (`range_min`,
+     * `range_max`, the keyframe distances, the local-map extent), so an
+     * estimate with that failure mode has almost no leverage where tuning is
+     * needed and a great deal of spurious leverage where it is not.
+     *
+     * A quantile below 1.0 (0.98 is a reasonable choice) reads the same on
+     * scenes whose returns really do reach that far, and stops one stray
+     * return from setting the scale of a room.
+     */
+    double observation_radius_quantile = 1.0;
+
+    /** Cap on how many points are sampled to evaluate
+     * `observation_radius_quantile`. The quantile needs a distribution, not
+     * every point; a strided sample of a few thousand from a 60k-point scan
+     * settles it to well under a metre, and keeps this O(sample) rather than
+     * O(scan) on every frame. Ignored when the quantile is 1.0.
+     */
+    uint32_t observation_radius_quantile_max_samples = 8000;
+
     /** If enabled (slower), vehicle twist will be optimized during ICP
          *  enabling better and more robust odometry in high dynamics motion.
          */
