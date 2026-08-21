@@ -1265,6 +1265,18 @@ private:
     // recovery in AdaptiveThreshold.
     int consecutive_bad_icps = 0;
 
+    /// Run totals, reported once at shutdown. `registration_no_motion_model` is
+    /// the one that had no aggregate before: the front end already logs a
+    /// throttled warning when the state estimator returns nothing (or returns a
+    /// prediction too uncertain to use) and falls back to a zero-motion initial
+    /// guess, but a throttled line cannot be counted, so an estimator that was
+    /// silently failing on 1 scan in 20 looked identical to one that never
+    /// failed. Both counters exclude the very first scan, which has no motion
+    /// model by definition.
+    size_t registrations_attempted = 0;
+    size_t registration_no_motion_model = 0;
+    size_t registration_icp_rejected = 0;
+
     // Automatic estimation of the observation bounding-radius (measured from
     // base_link, not from the sensor — see ESTIMATED_OBSERVATION_RADIUS docs):
     std::optional<double> estimated_observation_radius;

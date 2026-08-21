@@ -435,6 +435,25 @@ icp_settings_with_vel:
     - class: mp2p_icp::Matcher_Cov2Cov
       params:
         threshold: "2.0*ADAPTIVE_THRESHOLD_SIGMA"
+        # Optional range-adaptive matching distance. thresholdFar: 0 (the
+        # default) keeps the flat threshold above, i.e. today's behaviour
+        # exactly. When set, the matching distance ramps from `threshold` near
+        # the sensor to `thresholdFar` beyond `thresholdKneeRange`.
+        #
+        # Why the axis exists: a pose-prediction error `dtheta` displaces a
+        # point at range `r` by `dtheta*r`, so a flat threshold rejects far
+        # returns first, precisely when the prediction is worst. Measured: at a
+        # flat 0.34 m, 1 deg of yaw error takes beyond-25 m acceptance from 82%
+        # to 4.6% while r<10 m stays at 99%; a 1.0 m far window keeps 94%. Those
+        # far returns carry most of the rotation and along-track leverage.
+        #
+        # Note this is a no-op while ADAPTIVE_THRESHOLD_SIGMA sits at its
+        # initial 0.5, where the near value already equals a 1.0 m far value:
+        # it interacts with adaptive_threshold.initial_sigma and .min_motion and
+        # cannot be swept independently of them.
+        thresholdFar: "${MOLA_MATCH_THRESHOLD_FAR|0}"
+        thresholdKneeRange: "${MOLA_MATCH_THRESHOLD_KNEE|15.0}"
+        thresholdTransitionWidth: "${MOLA_MATCH_THRESHOLD_WIDTH|5.0}"
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         # Both layers here must be of the very same cov-capable map class, the

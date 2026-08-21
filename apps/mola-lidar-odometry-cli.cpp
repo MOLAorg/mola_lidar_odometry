@@ -701,6 +701,21 @@ int main_odometry(Cli & cli)
                  "raw sensor data.\n";
   }
 
+  // This is an OFFLINE batch tool: it consumes the dataset as fast as the
+  // pipeline allows, and reproducibility is the whole point of running it.
+  // The smoother's shipped YAML defaults `async_backend` to true, which is the
+  // right setting for a real-time deployment (queries are served from a
+  // lock-free predictor re-anchored on the backend's last completed solve) and
+  // the wrong one here twice over: that serving path is non-deterministic, and
+  // with no clock pacing the front end outruns the backend by construction, so
+  // how stale the anchor is becomes a function of host load rather than of the
+  // data.
+  //
+  // Default it off for this binary, without overwriting an explicit setting
+  // (third argument 0), so anyone who really wants the real-time path can still
+  // ask for it. Datasets whose YAML does not read this variable are unaffected.
+  setenv("MOLA_ASYNC_BACKEND", "false", 0 /* do not overwrite */);
+
   // Make mandatory to specify state estimation config file, so defaults and initialize() are not skipped
   {
     const auto seParamsFile = cli.arg_stateEstimatorParams.getValue();
