@@ -451,7 +451,22 @@ icp_settings_with_vel:
         # initial 0.5, where the near value already equals a 1.0 m far value:
         # it interacts with adaptive_threshold.initial_sigma and .min_motion and
         # cannot be swept independently of them.
-        thresholdFar: "${MOLA_MATCH_THRESHOLD_FAR|0}"
+        #
+        # MOLA_MATCH_THRESHOLD_GATE selects WHEN the far window is open, as a
+        # formula multiplying the value above. Measured on KITTI 00-10, the
+        # always-on window ("1") is two effects with opposite signs: it fixes
+        # the bootstrap on fast starts (kitti-06's entire 11.19 m gain is
+        # created before 5% of the run and never changes again; kitti-04 makes
+        # 83% of its gain there) for -5.6% mean APE, and it slightly loosens
+        # steady-state registration everywhere for +1.4% RPE translation on 7 of
+        # 10 sequences. APE sees only the first, RPE only the second.
+        #
+        # "NO_MOTION_MODEL" opens it only on scans the front end registers with
+        # no usable motion prior, which is the regime the mechanism argues for
+        # and cannot touch steady state by construction. Other variables
+        # available to this formula include `current_relative_timestamp` (for a
+        # fixed opening window) and `ADAPTIVE_THRESHOLD_SIGMA`.
+        thresholdFar: "${MOLA_MATCH_THRESHOLD_FAR|0} * (${MOLA_MATCH_THRESHOLD_GATE|1})"
         thresholdKneeRange: "${MOLA_MATCH_THRESHOLD_KNEE|15.0}"
         thresholdTransitionWidth: "${MOLA_MATCH_THRESHOLD_WIDTH|5.0}"
         pairingsPerPoint: 1

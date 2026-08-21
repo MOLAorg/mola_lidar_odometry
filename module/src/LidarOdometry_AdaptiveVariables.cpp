@@ -113,6 +113,10 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
   ensureVarIsDefined("SENSOR_TIME_OFFSET");
   ensureVarIsDefined("twistCorrectionCount");
   ensureVarIsDefined("icp_quality");
+  // Defined here so a pipeline formula referring to it is always evaluable,
+  // including on the very first scan, before onLidar() has computed the real
+  // value further down (see LidarOdometry_ProcessScan.cpp).
+  ensureVarIsDefined("NO_MOTION_MODEL");
 
   if (state_.estimated_observation_radius) {
     state_.parameter_source.updateVariable(

@@ -777,6 +777,26 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
   tleMotion.stop();
 
+  // Publish the bootstrap gate to the ICP pipeline. A matcher can key off this
+  // to widen its correspondence window only while the prediction is
+  // untrustworthy -- which is the regime where a flat threshold hurts most: a
+  // prediction error `dtheta` displaces a point at range `r` by `dtheta*r`, so
+  // far returns are rejected first, and they are the ones carrying the rotation
+  // and along-track leverage needed to recover.
+  //
+  // Published here rather than in updatePipelineDynamicVariables(), which runs
+  // earlier in this function, because only here is `hasMotionModel` final: it
+  // includes the min_motion_model_xyz_cov_inv gate, not just "did the estimator
+  // return something".
+  //
+  // One lock for the update AND the realize(), as elsewhere in this file: the
+  // IMU thread must not see a variable that is updated but not yet realized.
+  {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    state_.parameter_source.updateVariable("NO_MOTION_MODEL", hasMotionModel ? 0.0 : 1.0);
+    state_.parameter_source.realize();
+  }
+
   if (state_.local_map->empty() && params_.local_map_updates.enabled) {
     // Skip ICP.
     MRPT_LOG_DEBUG("First pointcloud: skipping ICP and directly adding to local map.");
