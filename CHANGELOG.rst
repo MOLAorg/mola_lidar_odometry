@@ -2,6 +2,27 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Offline CLI Enhancements: Made the offline CLI state estimator deterministic by default, added run totals at shutdown, and exposed range-adaptive matcher thresholds.
+* Offline CLI Linking Fix: Resolved runtime crashes in the offline CLI by correctly linking mola_state_estimation_smoother and its GTSAM dependencies.
+* Wheel Odometry Support: Wired optional wheel odometry (MOLA_ODOMETRY_TOPIC) into the offline rosbag1 CLI path and corrected related documentation.
+* Robust Observation Radius: Introduced observation_radius_quantile to prevent single stray far returns from skewing the scale, while keeping the default max-norm path bit-identical.
+* GICP Tuning & Profiles: Moved tuned GICP defaults (coarse-voxel sizes, IMU deskew) out of global configurations and into per-dataset profiles (KITTI, Oxford) to prevent regressions on untested datasets.
+* New Matching Pipelines: Added lidar3d-ndt-blend.yaml, lidar3d-fastlio-matching.yaml, and lidar3d-icp-blend.yaml to support matching protocol studies.
+* KITTI Profile Updates: Configured the KITTI profile to use the more accurate point-to-point pipeline (lidar3d-icp.yaml) and documented the logic behind its velocity prior settings.
+* BotanicGarden Profile Updates: Switched the profile to IncrementalPointCloud for better mean APE, but reverted experimental deskew/decimation overrides that didn't confidently improve results.
+* Dataset Profile Consolidation: Unified dataset configurations (topics, extrinsics, layouts) into single shared scripts utilized by both GUI and offline CLI tools.
+* CitrusFarm Multi-part Bags: Updated launch and GUI scripts to properly accept and route multi-part base_*.bag sequences.
+* ICP Threshold Adjustment: Raised the ICP adaptive threshold min_motion from 0.04 to 0.5 to prevent correspondence search windows from collapsing.
+* Voxel Decimation Splitting: Allowed each decimation stage to use its own voxel size for better short-range precision and long-range drift reduction, and exposed the decimation method via environment variables.
+* Observation Layer Bug Fix: Added a step to clear the observation layer in lidar3d-gicp before filling it to prevent crashes when optimize_twist is enabled.
+* Eviction Cube Widened: Increased the default IncrementalPointCloud eviction cube size in lidar3d-gicp.yaml to retain more in-range points.
+* New Environment Overrides: Exposed environment variables for the solver's inner iteration count, initial twist uncertainties, and MOLA_INITIAL_VX overrides.
+* Reverted Dead Parameters: Removed the freezePairingsAfterIteration parameter exposure after discovering it does not actually exist in the released mp2p_icp library.
+* Dependency Fix: Added a missing execution dependency for mola_viz_imgui.
+* Contributors: Jose Luis Blanco-Claraco, SamueleSandrini
+
 3.1.0 (2026-08-06)
 ------------------
 * fix: keep the local-map render and the IMU worker off the LiDAR critical path (`#126 <https://github.com/MOLAorg/mola_lidar_odometry/issues/126>`_)
