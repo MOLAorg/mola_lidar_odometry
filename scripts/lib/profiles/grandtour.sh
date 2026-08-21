@@ -11,6 +11,7 @@
 #   <mission>_tf_minimal.bag    /tf, /tf_static                          (optional)
 #   <mission>_adis.bag          /boxi/adis/imu                   200 Hz  (optional)
 #   <mission>_hdr_front.bag     /boxi/hdr/front/image_raw/...    ~11 Hz  (optional, GUI only)
+#   <mission>_anymal_state.bag  /anymal/state_estimator/odometry         (opt-in, see below)
 #
 # Sensor extrinsics come from the dataset's own /tf_static (base -> box_base ->
 # hesai_lidar / adis16475_imu / hdr_base -> hdr_front), so no fixed sensor
@@ -27,6 +28,11 @@ mola_lo_profile_usage() {
   echo "Error: A GrandTour mission directory (or its '*_hesai_undist.bag') is required."
   echo "Usage: $0 /path/to/<mission-dir>/ [additional flags]"
   echo "       $0 /path/to/<mission>_hesai_undist.bag [additional flags]"
+  echo ""
+  echo "Optional environment variables:"
+  echo "  MOLA_ODOMETRY_TOPIC    set to '/anymal/state_estimator/odometry' to fuse the"
+  echo "                         robot's legged kinematic-inertial odometry (this adds"
+  echo "                         <mission>_anymal_state.bag to the inputs)"
   echo ""
   echo "Example:"
   echo "  $0 ~/datasets/grand-tour/2024-10-01-11-29-55/"
@@ -62,6 +68,7 @@ mola_lo_profile_resolve() {
   local tf_bag=${prefix}_tf_minimal.bag
   local imu_bag=${prefix}_adis.bag
   local camera_bag=${prefix}_hdr_front.bag
+  local odom_bag=${prefix}_anymal_state.bag
 
   echo "GrandTour mission '$(basename "$prefix")':"
   echo "  LiDAR bag: $lidar_bag"
@@ -95,6 +102,27 @@ mola_lo_profile_resolve() {
     : "${MOLA_IMU_TOPIC:=}"
   fi
   export MOLA_IMU_TOPIC
+
+  # Legged kinematic-inertial odometry, opt-in via MOLA_ODOMETRY_TOPIC -- the
+  # same convention as every other profile: a dataset is not opted into odometry
+  # fusion merely because a bag on disk happens to carry a pose topic.
+  #
+  # `/anymal/state_estimator/odometry` is a nav_msgs/Odometry reported as
+  # odom -> base, i.e. for the very frame this profile already uses as
+  # MOLA_TF_BASE_LINK. That is what makes it safe to fuse:
+  # mrpt::obs::CObservationOdometry cannot carry a sensor pose at all, so a
+  # source reported for anything else injects motion in the wrong frame --
+  # which is precisely why CitrusFarm's wheel odometry is deliberately never
+  # enabled anywhere. Checked by reading the messages' child_frame_id, not
+  # assumed from the topic name.
+  if [ -n "${MOLA_ODOMETRY_TOPIC:-}" ]; then
+    if [ -f "$odom_bag" ]; then
+      echo "  Odometry bag: $odom_bag"
+      bags+=("$odom_bag")
+    else
+      echo "  Odometry bag: (not found: '$odom_bag'; MOLA_ODOMETRY_TOPIC matches nothing)"
+    fi
+  fi
 
   # The camera is a GUI preview only: nothing in the odometry consumes it, so
   # a batch run would pay for decoding several GB of JPEG for nothing.
