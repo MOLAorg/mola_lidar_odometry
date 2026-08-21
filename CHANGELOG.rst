@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+3.2.0 (2026-08-21)
+------------------
 * Offline CLI Enhancements: Made the offline CLI state estimator deterministic by default, added run totals at shutdown, and exposed range-adaptive matcher thresholds.
 * Offline CLI Linking Fix: Resolved runtime crashes in the offline CLI by correctly linking mola_state_estimation_smoother and its GTSAM dependencies.
 * Wheel Odometry Support: Wired optional wheel odometry (MOLA_ODOMETRY_TOPIC) into the offline rosbag1 CLI path and corrected related documentation.
