@@ -983,6 +983,13 @@ void LidarOdometry::processLidarScan(  // NOLINT
     // correspondence threshold:
     in.align_kind = hasMotionModel ? AlignKind::RegularOdometry : AlignKind::NoMotionModel;
 
+    // Run totals (reported at shutdown). Counted here rather than where the
+    // warning is emitted, because that one is throttled.
+    state_.registrations_attempted++;
+    if (!hasMotionModel) {
+      state_.registration_no_motion_model++;
+    }
+
     in.icp_params = params_.icp[in.align_kind].icp_parameters;
     in.last_keyframe_pose = state_.last_lidar_pose.mean;
 
@@ -1197,6 +1204,9 @@ void LidarOdometry::processLidarScan(  // NOLINT
     const bool icpIsGood = (out.goodness >= params_.min_icp_goodness);
 
     state_.last_icp_was_good = icpIsGood;
+    if (!icpIsGood) {
+      state_.registration_icp_rejected++;
+    }
     state_.last_icp_quality = out.goodness;
     state_.last_icp_iterations = out.icp_iterations;
 

@@ -621,11 +621,30 @@ Trajectory-to-trajectory comparisons are only meaningful under all of:
   scheduling changes the result. Pinning makes runs bit-identical; check with
   `md5sum` on the output `.tum` before comparing anything.
 - **`MOLA_ASYNC_BACKEND=false`** when using the smoother state estimator (its
-  async serving path is non-deterministic).
+  async serving path is non-deterministic). `mola-lidar-odometry-cli` now
+  defaults it to false itself (it is a batch tool with no real-time deadline,
+  and with no clock pacing the front end outruns the backend by construction),
+  so this only needs stating for other offline entry points. Measured
+  accuracy-neutral over 49 sequences before being adopted, so it buys
+  reproducibility rather than accuracy.
 
 The smoother also needs `-l <libmola_state_estimation_smoother.so>`; the CLI
 does not load that plugin by default and the class factory otherwise fails with
 "unknown class name".
+
+**Run totals at shutdown.** Every run now logs one INFO line before saving:
+
+```
+Run totals: registrations=N no_motion_model=K (x.xx%) icp_rejected=M (y.yy%)
+```
+
+`no_motion_model` counts the scans registered from a **zero-motion initial
+guess**, because the state estimator returned nothing (or a prediction too
+uncertain to pass `min_motion_model_xyz_cov_inv`). The front end has always
+logged a warning for that, but throttled, so it could not be counted: an
+estimator silently failing on 1 scan in 20 looked exactly like one that never
+failed. Read it next to `scan_drop_pct`; a nonzero value means part of the
+trajectory was registered without a motion prior, whatever the APE says.
 
 Always characterize the run-to-run noise floor (the same config twice) before
 believing a difference between two configs, and confirm the estimate covers the
@@ -653,6 +672,9 @@ pipeline YAML, not read directly in C++.)
 
 | Variable | Type | Default | Location | Purpose |
 |----------|------|---------|----------|---------|
+| `MOLA_MATCH_THRESHOLD_FAR` | double | 0 (off) | `pipelines/lidar3d-gicp.yaml` | Range-adaptive matching distance: matching distance beyond `..._KNEE`. 0 keeps the flat `threshold`, bit-identical to before. Interacts with `adaptive_threshold.initial_sigma`/`min_motion` and is a no-op at sigma 0.5 -- do not sweep it alone |
+| `MOLA_MATCH_THRESHOLD_KNEE` | double | 15.0 | `pipelines/lidar3d-gicp.yaml` | Range [m] where the near/far transition is centred |
+| `MOLA_MATCH_THRESHOLD_WIDTH` | double | 5.0 | `pipelines/lidar3d-gicp.yaml` | Width [m] of the near/far logistic transition |
 | `MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | Start of a timestamp range for forcing ICP debug-log dumps (paired with `..._TO_TIMESTAMP`) |
 | `MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | End of the timestamp range above |
 | `MOLA_LO_DEBUG_ICP_QUALITY` | bool | false | `module/src/LidarOdometry_ProcessScan.cpp` | Trace ICP quality metrics per scan |
