@@ -593,7 +593,29 @@ observations_generator:
         # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/stable/group_mrpt_maps_grp.html
         class: ${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}
         plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
-        creationOpts: ~ # none required: defaults are fine for a single scan
+        # The per-point covariances of the SCAN side of a cov-to-cov pairing are
+        # built here, and they are half of the pairing weight
+        # `(C_global + C_local)^-1`. Leaving this empty used the class defaults
+        # (k=20, min=5, max_distance=1.0 m), which do NOT match what the local
+        # map above is configured with, so the two sides of the same pairing
+        # were estimated over different neighborhood scales.
+        #
+        # A scan is much sparser than the accumulated map, so a radius that is
+        # ample for the map can leave a scan point with fewer than
+        # `min_correspondences_for_cov` neighbors. That case does not drop the
+        # pairing: it falls back to an isotropic covariance, and the pairing
+        # stays in the sum as an almost-isotropic point-to-point constraint
+        # instead of the plane constraint the cov-to-cov form is meant to give.
+        #
+        # Defaults below reproduce the previous class defaults exactly, so
+        # nothing ships differently until they are overridden.
+        creationOpts:
+          # Required by the map class loader; the class default, and inert for a
+          # single-keyframe observation layer.
+          max_search_keyframes: 3
+          k_correspondences_for_cov: ${MOLA_OBSLAYER_K_CORRESPONDENCES_FOR_COV|20}
+          min_correspondences_for_cov: ${MOLA_OBSLAYER_MIN_CORRESPONDENCES_FOR_COV|5}
+          max_distance_for_cov: ${MOLA_OBSLAYER_MAX_DISTANCE_FOR_COV|1.0}
         insertOpts: ~
         likelihoodOpts: ~ # none required
         renderOpts: ~
