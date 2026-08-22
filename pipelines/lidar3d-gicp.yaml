@@ -607,15 +607,27 @@ observations_generator:
         # stays in the sum as an almost-isotropic point-to-point constraint
         # instead of the plane constraint the cov-to-cov form is meant to give.
         #
-        # Defaults below reproduce the previous class defaults exactly, so
-        # nothing ships differently until they are overridden.
+        # `max_distance_for_cov` defaults to 2.0 here, NOT to the map class's
+        # own 1.0: measured over 115M pairings on Oxford Spires, 32.3% of
+        # pairings could not find `min_correspondences_for_cov` neighbors
+        # inside 1.0 m and fell back to an isotropic covariance, which leaves
+        # the pairing in the sum as a point-to-point constraint rather than a
+        # plane one. Full-corpus A/B at 2.0 m: pooled APE x0.785 over 46
+        # sequences, better on six of seven datasets (oxford x0.538,
+        # conslam x0.622, botanic x0.696, kitti x0.912, grand-tour x0.930,
+        # tiers x0.992) and no new failures.
+        #
+        # citrus-farm is the exception at x1.201, and its profile overrides
+        # this back to 1.0. Working hypothesis: dense close-range orchard
+        # foliage has no consistent surface, so a wider neighborhood averages
+        # the normal over vegetation instead of structure.
         creationOpts:
           # Required by the map class loader; the class default, and inert for a
           # single-keyframe observation layer.
           max_search_keyframes: 3
           k_correspondences_for_cov: ${MOLA_OBSLAYER_K_CORRESPONDENCES_FOR_COV|20}
           min_correspondences_for_cov: ${MOLA_OBSLAYER_MIN_CORRESPONDENCES_FOR_COV|5}
-          max_distance_for_cov: ${MOLA_OBSLAYER_MAX_DISTANCE_FOR_COV|1.0}
+          max_distance_for_cov: ${MOLA_OBSLAYER_MAX_DISTANCE_FOR_COV|2.0}
         insertOpts: ~
         likelihoodOpts: ~ # none required
         renderOpts: ~
