@@ -61,6 +61,18 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
   reported in: `imu` (default, the dataset's own reference frame) or
   `lidar`, needed when scoring against a ground truth sampled in the LiDAR
   frame. The two differ by a pure 180 deg yaw.
+- **hilti** (Hilti SLAM Challenge 2022 / Hilti-Oxford) ships one monolithic
+  bag per sequence: a Hesai PandarXT-32, an Alphasense IMU and five cameras,
+  with no `/tf` at all, so every sensor pose is fixed from the dataset's own
+  `lidar_calibration.yaml`. `HILTI_BASE_FRAME` picks the reported frame:
+  `imu` (default) or `lidar`. The default is the one that matters -- that
+  file declares the IMU as `base_link` at identity and the ground truth is
+  published in the IMU frame, so the estimate lands in the reference's own
+  frame with nothing to compose afterwards. Hand-held, so IMU deskewing and
+  IMU-derived initial pitch/roll, as in conslam; the clouds carry real
+  per-point timestamps. Only three of the sixteen sequences (`exp14`,
+  `exp16`, `exp18`) have a dense 6-DoF reference -- the rest ship surveyed
+  control points, which are positions, not poses.
 - **grandtour** publishes one bag per topic, so the profile takes a *mission
   directory* (or its `*_hesai_undist.bag`) and resolves the siblings by the
   `<mission>_<topic>.bag` naming. Body frame is `base`, not `base_link`.
