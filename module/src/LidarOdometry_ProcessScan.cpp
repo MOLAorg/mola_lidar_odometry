@@ -73,8 +73,16 @@ std::ostream * mapGateStream()
     *f << "# scan\ttimestamp\tw_norm\tobs_radius\tthr_trans_m\tthr_rot_deg"
           "\tdist_trans_m\tdist_rot_deg\tdecider_create\ticp_good\thas_motion_model"
           "\tmapping_enabled\tfrozen_post_reloc\tupdate_local_map\n";
+    if (!f->good()) {
+      return {};
+    }
     return f;
   }();
+  // A write that failed silently would leave a truncated log looking like a
+  // complete one, so stop handing out a stream that has already gone bad.
+  if (s_file && !s_file->good()) {
+    s_file.reset();
+  }
   return s_file ? s_file.get() : nullptr;
 }
 
