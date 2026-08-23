@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # For usage instructions, see: https://docs.mola-slam.org/latest/
 #
-# Runs MOLA LiDAR odometry on the 'hilti' dataset (Hilti SLAM
+# Runs MOLA LiDAR odometry on the 'hilti2022' dataset (Hilti SLAM
 # Challenge 2022 / Hilti-Oxford) through
 # mola-lidar-odometry-cli (offline batch).
 #
 # Everything this script knows about the dataset lives in
-# lib/profiles/hilti.sh, shared with the matching
-# mola-lo-gui-hilti wrapper. Any MOLA_* variable you export
+# lib/profiles/hilti2022.sh, shared with the matching
+# mola-lo-gui-hilti2022 wrapper. Any MOLA_* variable you export
 # before invoking this takes precedence over the profile's default.
 set -euo pipefail
 
@@ -20,5 +20,5 @@ fi
 source "$MOLA_LO_LIB"
 
 MOLA_LO_MODE=cli
-mola_lo_load_profile hilti "$@" || exit $?
+mola_lo_load_profile hilti2022 "$@" || exit $?
 mola_lo_exec_cli

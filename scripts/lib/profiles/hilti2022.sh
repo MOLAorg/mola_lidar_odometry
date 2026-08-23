@@ -1,6 +1,15 @@
 # Hilti SLAM Challenge 2022 / Hilti-Oxford (a hand-held survey pole walked
 # through construction sites and Oxford's Sheldonian Theatre).
 #
+# Named for the year on purpose: the Hilti challenge datasets are NOT one
+# family with one sensor suite. 2021 is a different rig entirely (Ouster
+# OS0-64 + Livox MID70, IMUs on /imu, /imu_adis and /os_imu). 2023 ships two
+# platforms: its hand-held one reuses these topic and frame names but runs
+# the IMU at 200 Hz rather than ~400 Hz and carries its own calibration,
+# while its robot platform is a RoboSense BPearl + Xsens MTi-670. The 2026
+# Hilti-Trimble challenge has no LiDAR in its bags at all. Anything other
+# than 2022 wants its own profile, not a re-use of this one.
+#
 # One monolithic ROS 1 bag per sequence: a Hesai PandarXT-32 lidar, a
 # Sevensense Alphasense IMU, and five cameras. There is no /tf or /tf_static
 # in the bags at all, so every sensor pose has to be fixed here.
@@ -25,7 +34,7 @@ mola_lo_profile_usage() {
   echo "Usage: $0 /path/to/expNN_name.bag [additional flags]"
   echo ""
   echo "Optional environment variables:"
-  echo "  HILTI_BASE_FRAME   'imu' (default) or 'lidar': which frame the"
+  echo "  HILTI2022_BASE_FRAME   'imu' (default) or 'lidar': which frame the"
   echo "                     estimated trajectory is reported in. The ground"
   echo "                     truth is in the IMU frame, so 'imu' is what"
   echo "                     scores directly against it."
@@ -57,8 +66,8 @@ mola_lo_profile_resolve() {
   : "${MOLA_USE_FIXED_LIDAR_POSE:=1}"
   export MOLA_USE_FIXED_IMU_POSE MOLA_USE_FIXED_LIDAR_POSE
 
-  : "${HILTI_BASE_FRAME:=imu}"
-  case "$HILTI_BASE_FRAME" in
+  : "${HILTI2022_BASE_FRAME:=imu}"
+  case "$HILTI2022_BASE_FRAME" in
     imu)
       # T_imu_pandar, from the dataset's lidar_calibration.yaml.
       : "${MOLA_TF_BASE_LINK:=imu}"
@@ -86,7 +95,7 @@ mola_lo_profile_resolve() {
       : "${IMU_POSE_ROLL:=180}"
       ;;
     *)
-      echo "Error: HILTI_BASE_FRAME must be 'imu' or 'lidar', got '$HILTI_BASE_FRAME'." >&2
+      echo "Error: HILTI2022_BASE_FRAME must be 'imu' or 'lidar', got '$HILTI2022_BASE_FRAME'." >&2
       return 1
       ;;
   esac
