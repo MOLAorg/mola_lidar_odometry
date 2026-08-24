@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# For usage instructions, see: https://docs.mola-slam.org/latest/
+#
+# Runs MOLA LiDAR odometry on the 'newer-college' dataset (a handheld rig
+# walked around New College, Oxford; ships a survey-grade prior map) through
+# mola-cli (online replay, 3D GUI).
+#
+# Everything this script knows about the dataset lives in
+# lib/profiles/newer-college.sh, shared with the matching
+# mola-lo-cli-newer-college wrapper. Any MOLA_* variable you export
+# before invoking this takes precedence over the profile's default.
+set -euo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+MOLA_LO_LIB="$SCRIPT_DIR/lib/dataset-profile.sh"
+if [ ! -f "$MOLA_LO_LIB" ]; then
+  MOLA_LO_LIB="$SCRIPT_DIR/../share/mola_lidar_odometry/scripts-lib/dataset-profile.sh"
+fi
+# shellcheck source=lib/dataset-profile.sh
+source "$MOLA_LO_LIB"
+
+MOLA_LO_MODE=gui
+mola_lo_load_profile newer-college "$@" || exit $?
+mola_lo_exec_gui
