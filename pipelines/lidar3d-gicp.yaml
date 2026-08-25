@@ -429,6 +429,25 @@ icp_settings_with_vel:
         robustKernelPriorRefBlend: "${MOLA_LO_ROBUST_KERNEL_PRIOR_REF_BLEND|0.0}"
         #innerLoopVerbose: true
 
+        # Extra per-pairing weight by the geometry class of the map surface.
+        # Disabled by default, and bit-exactly inert while the weights are all
+        # ones: these numbers do NOT transfer between scene classes, so they
+        # belong in a dataset profile and never in this file's defaults. Read
+        # mp2p_icp's GeometryClassWeights docs before enabling; in particular
+        # 'verticality' is gravity-referenced and needs a gravity source.
+        geometry_class_weights:
+          enabled: ${MOLA_GCW_ENABLED|false}
+          variable: "${MOLA_GCW_VARIABLE|incidence}"
+          gravity_source: "${MOLA_GCW_GRAVITY_SOURCE|map_frame}"
+          softness: ${MOLA_GCW_SOFTNESS|10.0}
+          # Block sequences, not flow ones: the YAML is parsed before the ${}
+          # substitution runs, and a ${..|..} inside [ ] is a parse error.
+          breakpoints:
+            - ${MOLA_GCW_BREAKPOINT|60.0}
+          weights:
+            - ${MOLA_GCW_W_LOW|1.0}
+            - ${MOLA_GCW_W_HIGH|1.0}
+
         # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
         # instances to pair geometric entities between pointclouds.
   matchers:

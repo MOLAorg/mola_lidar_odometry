@@ -696,6 +696,12 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_OBSLAYER_MAX_PLANE_DEV_FOR_COV` | double | 0 (off) | `pipelines/lidar3d-gicp.yaml` | Same gate, scan side. Gating both sides was measured worse than the map side alone on KITTI |
 | `MOLA_LOCALMAP_PLANE_REG_LAMBDA` | double | 0.001 | `pipelines/lidar3d-gicp.yaml` | Variance asserted along the estimated surface normal, i.e. the plane-confidence ratio (0.001 == 1000:1). **Not a tuning knob**: raising it measured monotonically worse on KITTI |
 | `MOLA_OBSLAYER_PLANE_REG_LAMBDA` | double | 0.001 | `pipelines/lidar3d-gicp.yaml` | Idem, scan side |
+| `MOLA_GCW_ENABLED` | bool | false | `pipelines/lidar3d-gicp.yaml` | Enables mp2p_icp's per-pairing weight by map surface geometry class. Inert while the weights are all ones |
+| `MOLA_GCW_VARIABLE` | string | `incidence` | `pipelines/lidar3d-gicp.yaml` | `incidence` (gravity-free) or `verticality` (needs a gravity source) |
+| `MOLA_GCW_GRAVITY_SOURCE` | string | `map_frame` | `pipelines/lidar3d-gicp.yaml` | `imu` or `map_frame`, for `verticality` only |
+| `MOLA_GCW_SOFTNESS` | double | 10.0 | `pipelines/lidar3d-gicp.yaml` | Ramp width at the breakpoint, in the units of the class variable |
+| `MOLA_GCW_BREAKPOINT` | double | 60.0 | `pipelines/lidar3d-gicp.yaml` | Single class boundary: degrees for `incidence`, \|n.up\| for `verticality` |
+| `MOLA_GCW_W_LOW` / `MOLA_GCW_W_HIGH` | double | 1.0 / 1.0 | `pipelines/lidar3d-gicp.yaml` | Weights below/above the breakpoint. Both 1.0 is a no-op |
 | `MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | Start of a timestamp range for forcing ICP debug-log dumps (paired with `..._TO_TIMESTAMP`) |
 | `MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | End of the timestamp range above |
 | `MOLA_LO_DEBUG_ICP_QUALITY` | bool | false | `module/src/LidarOdometry_ProcessScan.cpp` | Trace ICP quality metrics per scan |
