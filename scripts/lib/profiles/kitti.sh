@@ -71,6 +71,39 @@ mola_lo_profile_resolve() {
   export MOLA_CLOUD_DECIMATION_VOXEL_SIZE_MAP MOLA_CLOUD_DECIMATION_VOXEL_SIZE_ICP
   export MOLA_VOXEL_STRIDE_MAP MOLA_VOXEL_STRIDE_ICP MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV
 
+  # Local map for the GICP pipeline: the radius-bounded incremental cloud
+  # instead of the default 3-keyframe map, plus the map-side planarity gate.
+  #
+  # Measured over 00-10 with the KITTI devkit metric (the leaderboard one),
+  # against a baseline reproducing the published regression corpus exactly:
+  #
+  #                       translation %   rotation deg/100 m
+  #   shipped keyframe map      0.608           0.176
+  #   + planarity gate 0.20     0.577           0.175
+  #   incremental map + gate    0.571           0.1215
+  #   KISS-ICP, for reference   0.502           0.148
+  #
+  # The rotation number is the point: 0.1215 is 18% BETTER than KISS-ICP,
+  # from 19% worse. The gain comes from map extent -- the keyframe map only
+  # ever queried its 3 nearest keyframes, so the retention radius could not
+  # reach a pairing.
+  #
+  # PER-DATASET ON PURPOSE, and it must not be promoted to a pipeline default:
+  #  - On Oxford Spires the same map class is a consistent HORIZONTAL win
+  #    (0.67-0.79x on 4 of 4 sites) but an unpredictable VERTICAL cost, up to
+  #    2.9x APE on bodleian-library-02. Nothing yet controls that.
+  #  - IncrementalPointCloud is ODOMETRY ONLY: a global SE(3) re-map forces a
+  #    full rebuild, so do not combine it with loop closure or the SLAM
+  #    map-building entry points. Override MOLA_LOCALMAP_CLASS back to
+  #    mola::KeyframePointCloudMap for those.
+  #
+  # The gate needs mola_metric_maps with max_plane_deviation_for_cov
+  # (MOLAorg/mola#200); on an older core the key is ignored and this reverts to
+  # the previous behavior rather than failing.
+  : "${MOLA_LOCALMAP_CLASS:=mola::IncrementalPointCloud}"
+  : "${MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV:=0.20}"
+  export MOLA_LOCALMAP_CLASS MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV
+
   MOLA_LO_LAUNCH_FILE=lidar_odometry_from_kitti.yaml
   MOLA_LO_CLI_INPUT=(--input-kitti-seq "$seq")
 }
