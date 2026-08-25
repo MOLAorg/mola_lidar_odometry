@@ -692,6 +692,10 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_MATCH_THRESHOLD_FAR` | double | 0 (off) | `pipelines/lidar3d-gicp.yaml` | Range-adaptive matching distance: matching distance beyond `..._KNEE`. 0 keeps the flat `threshold`, bit-identical to before. Interacts with `adaptive_threshold.initial_sigma`/`min_motion` and is a no-op at sigma 0.5 -- do not sweep it alone |
 | `MOLA_MATCH_THRESHOLD_KNEE` | double | 15.0 | `pipelines/lidar3d-gicp.yaml` | Range [m] where the near/far transition is centred |
 | `MOLA_MATCH_THRESHOLD_WIDTH` | double | 5.0 | `pipelines/lidar3d-gicp.yaml` | Width [m] of the near/far logistic transition |
+| `MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV` | double | 0 (off) | `pipelines/lidar3d-gicp.yaml` | Map-side planarity gate: reject a covariance neighborhood, falling back to isotropic, when any of its `k` neighbors lies farther than this [m] from their least-squares plane. Measured best at 0.20 on KITTI; 0 is the shipped behavior |
+| `MOLA_OBSLAYER_MAX_PLANE_DEV_FOR_COV` | double | 0 (off) | `pipelines/lidar3d-gicp.yaml` | Same gate, scan side. Gating both sides was measured worse than the map side alone on KITTI |
+| `MOLA_LOCALMAP_PLANE_REG_LAMBDA` | double | 0.001 | `pipelines/lidar3d-gicp.yaml` | Variance asserted along the estimated surface normal, i.e. the plane-confidence ratio (0.001 == 1000:1). **Not a tuning knob**: raising it measured monotonically worse on KITTI |
+| `MOLA_OBSLAYER_PLANE_REG_LAMBDA` | double | 0.001 | `pipelines/lidar3d-gicp.yaml` | Idem, scan side |
 | `MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | Start of a timestamp range for forcing ICP debug-log dumps (paired with `..._TO_TIMESTAMP`) |
 | `MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | End of the timestamp range above |
 | `MOLA_LO_DEBUG_ICP_QUALITY` | bool | false | `module/src/LidarOdometry_ProcessScan.cpp` | Trace ICP quality metrics per scan |
