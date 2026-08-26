@@ -136,10 +136,15 @@ mola_lo_profile_resolve() {
   # back to leveling from raw accelerometer readings.
   : "${MOLA_LO_INITIAL_LOCALIZATION_METHOD:=InitLocalization::PitchAndRollFromIMU}"
   : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
-  # Accelerometer suppressed: gyro-only deskew took path-length error from
-  # 9.5% to 0.3% here (est/gt ratio), 2.6x better APE than leaving the
-  # accelerometer in. See lio/03_accuracy_pipeline.md ranked action 3c.
-  : "${MOLA_DESKEW_IGNORE_ACCELEROMETER:=true}"
+  # Keep the accelerometer in the deskew. This used to be suppressed, on
+  # evidence that gyro-only deskew cut path-length error and improved APE.
+  # Re-measured on all 13 sequences against today's pipeline, both halves of
+  # that are gone: est/gt is identical to three decimals either way, and
+  # suppressing the accelerometer now COSTS about 11% of APE (median 0.886x
+  # in its favour, better on 9 of 13). The defect it compensated for has since
+  # been fixed elsewhere, so the override no longer earns its keep. Left
+  # explicit rather than deleted so the measurement is not lost.
+  : "${MOLA_DESKEW_IGNORE_ACCELEROMETER:=false}"
   export MOLA_LO_INITIAL_LOCALIZATION_METHOD MOLA_DESKEW_METHOD MOLA_DESKEW_IGNORE_ACCELEROMETER
 
   # GICP-pipeline decimation tuning -- per-dataset, not a shipped pipeline
