@@ -9,7 +9,9 @@
 # Bags used (the rest of each mission's bags are ignored):
 #   <mission>_hesai_undist.bag  /boxi/hesai/points_undistorted   10 Hz   (required)
 #   <mission>_tf_minimal.bag    /tf, /tf_static                          (optional)
-#   <mission>_adis.bag          /boxi/adis/imu                   200 Hz  (optional)
+#   <mission>_tf_model.bag      /tf, /tf_static                          (only for the STIM320, see below)
+#   <mission>_adis.bag          /boxi/adis/imu                   200 Hz  (optional, default IMU)
+#   <mission>_stim320_imu.bag   /boxi/stim320/imu                500 Hz  (opt-in alternative IMU)
 #   <mission>_hdr_front.bag     /boxi/hdr/front/image_raw/...    ~11 Hz  (optional, GUI only)
 #   <mission>_anymal_state.bag  /anymal/state_estimator/odometry         (opt-in, see below)
 #
@@ -33,6 +35,10 @@ mola_lo_profile_usage() {
   echo "  MOLA_ODOMETRY_TOPIC    set to '/anymal/state_estimator/odometry' to fuse the"
   echo "                         robot's legged kinematic-inertial odometry (this adds"
   echo "                         <mission>_anymal_state.bag to the inputs)"
+  echo "  MOLA_GRANDTOUR_IMU     which IMU to use: 'adis' (default, 200 Hz) or"
+  echo "                         'stim320' (500 Hz, tactical grade). The STIM320 also"
+  echo "                         requires <mission>_tf_model.bag, since its frame is"
+  echo "                         absent from the smaller tf_minimal.bag"
   echo ""
   echo "Example:"
   echo "  $0 ~/datasets/grand-tour/2024-10-01-11-29-55/"
@@ -65,8 +71,31 @@ mola_lo_profile_resolve() {
     return 1
   fi
 
+  # Which IMU: the ADIS16475 by default, or the higher-grade STIM320.
+  #
+  # The two are not interchangeable as far as /tf goes. `tf_minimal.bag`
+  # publishes the ADIS's frame but NOT the STIM320's, so selecting the
+  # STIM320 also selects the full `tf_model.bag`, which carries every
+  # sensor frame (verified: it has base, hesai_lidar, prism, adis16475_imu
+  # and stim320_imu, and the same /tf and /tf_static message counts).
+  : "${MOLA_GRANDTOUR_IMU:=adis}"
   local tf_bag=${prefix}_tf_minimal.bag
   local imu_bag=${prefix}_adis.bag
+  local imu_topic=/boxi/adis/imu
+
+  case "$MOLA_GRANDTOUR_IMU" in
+    adis) ;;
+    stim320)
+      tf_bag=${prefix}_tf_model.bag
+      imu_bag=${prefix}_stim320_imu.bag
+      imu_topic=/boxi/stim320/imu
+      ;;
+    *)
+      echo "Error: MOLA_GRANDTOUR_IMU must be 'adis' or 'stim320', got '$MOLA_GRANDTOUR_IMU'." >&2
+      return 1
+      ;;
+  esac
+
   local camera_bag=${prefix}_hdr_front.bag
   local odom_bag=${prefix}_anymal_state.bag
 
@@ -83,6 +112,14 @@ mola_lo_profile_resolve() {
   if [ -f "$tf_bag" ]; then
     echo "  TF bag   : $tf_bag"
     bags+=("$tf_bag")
+  elif [ "$MOLA_GRANDTOUR_IMU" = "stim320" ]; then
+    # Unlike the ADIS case below, this cannot fall back to a fixed pose: the
+    # whole reason this bag is required is that it is the only source of the
+    # STIM320's extrinsics.
+    echo "Error: MOLA_GRANDTOUR_IMU=stim320 needs '$tf_bag', which was not found." >&2
+    echo "       Fetch it with: klein download -p GrandTourDataset -m release_<mission> \\" >&2
+    echo "                        --dest <dir> --create-dirs -y <mission>_tf_model.bag" >&2
+    return 1
   else
     echo "  TF bag   : (not found: '$tf_bag'; using a fixed LiDAR pose at the origin)"
     : "${MOLA_USE_FIXED_LIDAR_POSE:=1}"
@@ -90,9 +127,9 @@ mola_lo_profile_resolve() {
   fi
 
   if [ -f "$imu_bag" ]; then
-    echo "  IMU bag  : $imu_bag"
+    echo "  IMU bag  : $imu_bag  ($MOLA_GRANDTOUR_IMU)"
     bags+=("$imu_bag")
-    : "${MOLA_IMU_TOPIC:=/boxi/adis/imu}"
+    : "${MOLA_IMU_TOPIC:=$imu_topic}"
     # A legged robot pitches and rolls constantly from the very first scan,
     # so level the initial pose from the IMU instead of assuming a flat start:
     : "${MOLA_LO_INITIAL_LOCALIZATION_METHOD:=InitLocalization::PitchAndRollFromIMU}"
