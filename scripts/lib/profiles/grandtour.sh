@@ -12,7 +12,8 @@
 #   <mission>_tf_model.bag      /tf, /tf_static                          (only for the STIM320, see below)
 #   <mission>_adis.bag          /boxi/adis/imu                   200 Hz  (optional, default IMU)
 #   <mission>_stim320_imu.bag   /boxi/stim320/imu                500 Hz  (opt-in alternative IMU)
-#   <mission>_hdr_front.bag     /boxi/hdr/front/image_raw/...    ~11 Hz  (optional, GUI only)
+#   <mission>_hdr_<tag>.bag     /boxi/hdr/<tag>/image_raw/...    10 Hz   (optional, GUI only)
+#   <mission>_alphasense.bag    /boxi/alphasense/<tag>/image_...  10 Hz   (optional, GUI only)
 #   <mission>_anymal_state.bag  /anymal/state_estimator/odometry         (opt-in, see below)
 #
 # Sensor extrinsics come from the dataset's own /tf_static (base -> box_base ->
@@ -39,6 +40,12 @@ mola_lo_profile_usage() {
   echo "                         'stim320' (500 Hz, tactical grade). The STIM320 also"
   echo "                         requires <mission>_tf_model.bag, since its frame is"
   echo "                         absent from the smaller tf_minimal.bag"
+  echo "  MOLA_GRANDTOUR_CAMERA  which camera to preview in the GUI (ignored in CLI"
+  echo "                         mode): 'hdr_front' (default), 'hdr_left', 'hdr_right',"
+  echo "                         or one of the five Alphasense cameras"
+  echo "                         'alphasense_front_center', 'alphasense_front_left',"
+  echo "                         'alphasense_front_right', 'alphasense_left',"
+  echo "                         'alphasense_right'"
   echo ""
   echo "Example:"
   echo "  $0 ~/datasets/grand-tour/2024-10-01-11-29-55/"
@@ -96,7 +103,31 @@ mola_lo_profile_resolve() {
       ;;
   esac
 
-  local camera_bag=${prefix}_hdr_front.bag
+  # Which camera to preview. The three HDR cameras each ship in their own bag,
+  # while the five Alphasense cameras share a single one, so the bag and the
+  # topic have to be resolved together rather than derived from the tag alone.
+  : "${MOLA_GRANDTOUR_CAMERA:=hdr_front}"
+  local camera_bag
+  local camera_topic
+
+  case "$MOLA_GRANDTOUR_CAMERA" in
+    hdr_front | hdr_left | hdr_right)
+      camera_bag=${prefix}_${MOLA_GRANDTOUR_CAMERA}.bag
+      camera_topic=/boxi/hdr/${MOLA_GRANDTOUR_CAMERA#hdr_}/image_raw/compressed
+      ;;
+    alphasense_front_center | alphasense_front_left | alphasense_front_right | \
+      alphasense_left | alphasense_right)
+      camera_bag=${prefix}_alphasense.bag
+      camera_topic=/boxi/alphasense/${MOLA_GRANDTOUR_CAMERA#alphasense_}/image_raw/compressed
+      ;;
+    *)
+      echo "Error: MOLA_GRANDTOUR_CAMERA must be one of hdr_{front,left,right} or" >&2
+      echo "       alphasense_{front_center,front_left,front_right,left,right}," >&2
+      echo "       got '$MOLA_GRANDTOUR_CAMERA'." >&2
+      return 1
+      ;;
+  esac
+
   local odom_bag=${prefix}_anymal_state.bag
 
   echo "GrandTour mission '$(basename "$prefix")':"
@@ -164,10 +195,12 @@ mola_lo_profile_resolve() {
   # The camera is a GUI preview only: nothing in the odometry consumes it, so
   # a batch run would pay for decoding several GB of JPEG for nothing.
   if [ "$MOLA_LO_MODE" = "gui" ] && [ -f "$camera_bag" ]; then
-    echo "  Camera bag: $camera_bag"
+    echo "  Camera bag: $camera_bag  ($MOLA_GRANDTOUR_CAMERA)"
     bags+=("$camera_bag")
-    : "${MOLA_CAMERA_TOPIC:=/boxi/hdr/front/image_raw/compressed}"
+    : "${MOLA_CAMERA_TOPIC:=$camera_topic}"
     export MOLA_CAMERA_TOPIC
+  elif [ "$MOLA_LO_MODE" = "gui" ]; then
+    echo "  Camera bag: (not found: '$camera_bag'; no camera preview)"
   fi
 
   # The LiDAR stream used here is the dataset's already-undistorted one, so

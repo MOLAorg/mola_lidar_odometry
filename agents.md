@@ -92,6 +92,11 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
   `MOLA_LOCALMAP_CLASS=mola::KeyframePointCloudMap` for loop-closure SLAM.
   `MOLA_MINIMUM_RANGE_FILTER` is 1.5 m and sits next to a cliff: 2.0 m is worse
   by an order of magnitude, so measure before re-tuning it.
+  `MOLA_GRANDTOUR_CAMERA` picks the GUI preview camera: `hdr_front` (default),
+  `hdr_left`, `hdr_right`, or `alphasense_{front_center,front_left,front_right,
+  left,right}`. The three HDR cameras each have their own bag; the five
+  Alphasense ones share `<mission>_alphasense.bag`, so bag and topic are
+  resolved together. Preview only, in GUI mode: no odometry consumes it.
 - **tiers** records FIVE lidars at once — that is what the dataset is for —
   so it gets one wrapper per sensor (`-ouster-os0`, `-ouster-os1`,
   `-velodyne`, `-livox-horizon`, `-livox-avia`) rather than one that silently
