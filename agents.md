@@ -86,6 +86,12 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
   `None`. The /tf tree view is on by default (this is a legged robot with a
   full joint tree, which is the point), skipping the four frames not
   physically on the body: `odom`, `enu_origin`, `dlio_odom`, `dlio_map`.
+  The local map defaults to `mola::IncrementalPointCloud` here: measured lower
+  ATE on every mission of this dataset carrying a reference trajectory (~46% on
+  average). That makes the profile **odometry only** by default -- set
+  `MOLA_LOCALMAP_CLASS=mola::KeyframePointCloudMap` for loop-closure SLAM.
+  `MOLA_MINIMUM_RANGE_FILTER` is 1.5 m and sits next to a cliff: 2.0 m is worse
+  by an order of magnitude, so measure before re-tuning it.
 - **tiers** records FIVE lidars at once — that is what the dataset is for —
   so it gets one wrapper per sensor (`-ouster-os0`, `-ouster-os1`,
   `-velodyne`, `-livox-horizon`, `-livox-avia`) rather than one that silently
