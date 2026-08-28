@@ -447,6 +447,18 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
+        # Wheel odometry, disabled unless MOLA_ODOMETRY_TOPIC is set: same
+        # name and empty-by-default convention as dataset_from_rosbag1()
+        # below and as lidar_odometry_from_rosbag2.yaml, rather than opting
+        # every bag carrying a topic named "/odom" into wheel-odom fusion.
+        # No fixed_sensor_pose: mrpt::obs::CObservationOdometry cannot carry
+        # one, so the wheel-odometry twist must already be expressed in
+        # base_link (nav_msgs/Odometry's child_frame_id) -- see the longer
+        # note in dataset_from_rosbag1().
+        - topic: ${MOLA_ODOMETRY_TOPIC|''}
+          sensorLabel: ${MOLA_ODOM_SENSOR_LABEL|odom_wheels}
+          type: CObservationOdometry
+          is_optional: true
 )"""",
     bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(), cli.arg_tfTopic.getValue().c_str(),
     cli.arg_tfStaticTopic.getValue().c_str(), cli.arg_lidarLabel.getValue().c_str(),
