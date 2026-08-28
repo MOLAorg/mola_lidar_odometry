@@ -119,7 +119,7 @@ Internally, MOLA LO is based on mp2p_icp filtering and ICP pipelines:
    Block diagram of the MOLA-LO module (Figure adapted from :cite:`blanco2025mola_lo`).
 
 
-Most blocks in the diagram above can be redefined without coding, just changing the :ref:`MOLA-LO pipeline configuration YAML file <>`.
+Most blocks in the diagram above can be redefined without coding, just changing the :ref:`MOLA-LO pipeline configuration YAML file <mola_lo_pipelines>`.
 Refer to the MOLA LO paper for further details.
 
 .. note::
