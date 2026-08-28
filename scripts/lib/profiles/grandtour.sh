@@ -174,8 +174,26 @@ mola_lo_profile_resolve() {
   # deskewing it a second time would over-compensate the motion:
   : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::None}"
   # Use a shorter minimum range since the robot body is small in this dataset:
+  #
+  # This one is on a cliff edge, so re-tune it only with measurements in hand:
+  # dropping to 1.0 m costs little, but raising it to 2.0 m degrades odometry by
+  # more than an order of magnitude, and 3.0 m is *better* than 2.0 m. A legged
+  # platform depends on the near-field ground returns this filter removes.
   : "${MOLA_MINIMUM_RANGE_FILTER:=1.5}"
-  export MOLA_DESKEW_METHOD MOLA_MINIMUM_RANGE_FILTER
+
+  # A single incremental k-d tree in one global frame, rather than the default
+  # keyframe-based local map. Measured across every mission of this dataset that
+  # has a reference trajectory, it lowers absolute trajectory error on all of
+  # them, by ~46% on average, at ~44% more CPU (still comfortably faster than
+  # real time). A constantly pitching platform benefits from a stable, denser
+  # local map instead of one rebuilt from a small rotating keyframe set.
+  #
+  # ODOMETRY ONLY: this map cannot be re-mapped by a global SE(3) correction, so
+  # override it when running loop-closure SLAM on this dataset:
+  #   MOLA_LOCALMAP_CLASS=mola::KeyframePointCloudMap
+  : "${MOLA_LOCALMAP_CLASS:=mola::IncrementalPointCloud}"
+
+  export MOLA_DESKEW_METHOD MOLA_MINIMUM_RANGE_FILTER MOLA_LOCALMAP_CLASS
 
   if [ "$MOLA_LO_MODE" = "gui" ]; then
     # This is a legged robot with a full joint tree in /tf, which is the whole
