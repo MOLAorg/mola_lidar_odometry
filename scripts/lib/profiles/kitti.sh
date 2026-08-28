@@ -104,6 +104,18 @@ mola_lo_profile_resolve() {
   : "${MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV:=0.20}"
   export MOLA_LOCALMAP_CLASS MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV
 
+  # Smoother-only relative-pose prior floor (no-op for `simple`), raised from
+  # the class default of 0. On a well-conditioned road corpus the unfloored
+  # smoother's prior collapses to near-zero velocity between scans and the
+  # trajectory comes out 5x short; the floor alone fixes it, back to parity
+  # with `simple` (1.01x) on all 11 sequences. Per-dataset, not a shipped
+  # default: the families where the smoother earns its keep by pinning ICP
+  # (uneven or degenerate geometry) lose this same floor back. Oxford Spires
+  # carries its own copy of these values for the same reason.
+  : "${MOLA_SMOOTHER_SIGMA_REL_POSE_LIN:=0.1}"
+  : "${MOLA_SMOOTHER_SIGMA_REL_POSE_ANG:=0.02}"
+  export MOLA_SMOOTHER_SIGMA_REL_POSE_LIN MOLA_SMOOTHER_SIGMA_REL_POSE_ANG
+
   MOLA_LO_LAUNCH_FILE=lidar_odometry_from_kitti.yaml
   MOLA_LO_CLI_INPUT=(--input-kitti-seq "$seq")
 }

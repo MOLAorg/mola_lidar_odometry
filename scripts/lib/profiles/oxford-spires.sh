@@ -165,6 +165,16 @@ mola_lo_profile_resolve() {
   : "${MOLA_LINK_FIRST_POSE_SIGMA:=1e-6}"
   export MOLA_LINK_FIRST_POSE_SIGMA
 
+  # Smoother-only relative-pose prior floor (no-op for `simple`), same values
+  # as KITTI. Measured over all 13 sequences it costs nothing here (0.96x vs
+  # the unfloored smoother, 10/13 improving) and beats `simple` overall
+  # (1.06x vs 1.11x unfloored): well-conditioned geometry doesn't need the
+  # unfloored prior's ICP-pinning the way degenerate scenes do, so raising
+  # the floor is close to free. See the KITTI profile for the fuller case.
+  : "${MOLA_SMOOTHER_SIGMA_REL_POSE_LIN:=0.1}"
+  : "${MOLA_SMOOTHER_SIGMA_REL_POSE_ANG:=0.02}"
+  export MOLA_SMOOTHER_SIGMA_REL_POSE_LIN MOLA_SMOOTHER_SIGMA_REL_POSE_ANG
+
   mola_lo_use_smoother || return 1
 
   local IFS=,
