@@ -33,6 +33,7 @@
 #include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
+#include <mrpt/obs/CObservationRobotPose.h>
 #include <mrpt/obs/CObservationRotatingScan.h>
 #include <mrpt/obs/CObservationVelodyneScan.h>
 #include <mrpt/obs/CRawlog.h>
@@ -457,7 +458,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
         # note in dataset_from_rosbag1().
         - topic: ${MOLA_ODOMETRY_TOPIC|''}
           sensorLabel: ${MOLA_ODOM_SENSOR_LABEL|odom_wheels}
-          type: CObservationOdometry
+          # Planar type: (x, y, yaw) plus a 2D twist. For a 3D odometry
+          # source set MOLA_ODOMETRY_OBS_CLASS=CObservationRobotPose to keep
+          # z, roll, pitch and the source's 6x6 covariance.
+          type: ${MOLA_ODOMETRY_OBS_CLASS|CObservationOdometry}
           is_optional: true
 )"""",
     bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(), cli.arg_tfTopic.getValue().c_str(),
@@ -553,7 +557,13 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
         # (approximately) base_link-aligned, e.g. BotanicGarden's Xsens IMU.
         - topic: ${MOLA_ODOMETRY_TOPIC|''}
           sensorLabel: ${MOLA_ODOM_SENSOR_LABEL|odom_wheels}
-          type: CObservationOdometry
+          # CObservationOdometry is planar: it can only carry (x, y, yaw)
+          # plus a 2D twist. For a 3D odometry source (legged robot, VIO,
+          # aerial platform) set MOLA_ODOMETRY_OBS_CLASS=CObservationRobotPose
+          # to keep z, roll, pitch and the source's 6x6 covariance. That type
+          # DOES honor a sensor pose, so the frame caveat above applies only
+          # to the planar default.
+          type: ${MOLA_ODOMETRY_OBS_CLASS|CObservationOdometry}
           is_optional: true
 )"""",
     bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(),
@@ -908,6 +918,7 @@ int main_odometry(Cli & cli)
     using mrpt::obs::CObservationIMU;
     using mrpt::obs::CObservationOdometry;
     using mrpt::obs::CObservationPointCloud;
+    using mrpt::obs::CObservationRobotPose;
     using mrpt::obs::CObservationRotatingScan;
     using mrpt::obs::CObservationVelodyneScan;
 
@@ -933,6 +944,11 @@ int main_odometry(Cli & cli)
     }
     if (!obs) {
       obs = sf->getObservationByClass<CObservationOdometry>();
+    }
+    if (!obs) {
+      // The SE(3) counterpart of CObservationOdometry, for 3D odometry
+      // sources whose z/roll/pitch and covariance the planar type drops:
+      obs = sf->getObservationByClass<CObservationRobotPose>();
     }
     if (!obs) {
       obs = sf->getObservationByClass<CObservationIMU>();
