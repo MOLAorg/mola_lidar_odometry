@@ -115,6 +115,21 @@ camera or the odometry in separate bag files therefore need no launch file of
 their own. `mola_lo_bag_slots` in `lib/dataset-profile.sh` fills these and the
 comma-joined spelling the offline CLI takes, from one list.
 
+## Wheel odometry in the offline CLI
+
+Both `dataset_from_rosbag2()` and `dataset_from_rosbag1()` in
+`apps/mola-lidar-odometry-cli.cpp` expose a `CObservationOdometry` entry gated
+on `${MOLA_ODOMETRY_TOPIC|''}` with `${MOLA_ODOM_SENSOR_LABEL|odom_wheels}`,
+the same name-and-empty-by-default convention as
+`mola-cli-launchs/lidar_odometry_from_rosbag2.yaml`. Empty by default on
+purpose: `/odom` is a very common topic name across unrelated robots, so
+auto-detecting it would silently opt every bag that has one into wheel-odom
+fusion.
+
+No `fixed_sensor_pose` on that entry: `mrpt::obs::CObservationOdometry` cannot
+carry one, so the twist must already be expressed in `base_link`
+(`nav_msgs/Odometry`'s `child_frame_id`).
+
 ## Robot /tf tree visualization (opt-in)
 
 `visualization.show_tf_tree` draws the subtree of coordinate frames below
