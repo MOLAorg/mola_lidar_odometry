@@ -106,23 +106,25 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
   parts by their trailing `_<n>` numerically.
 - **ouster** is gui-only: a live source, which the offline CLI cannot read.
 
-## `lidar_odometry_from_rosbag1.yaml`: up to 4 bags replayed jointly
+## `lidar_odometry_from_rosbag1.yaml`: up to 5 bags replayed jointly
 
-`rosbag_filename` is a sequence fed from `MOLA_INPUT_ROSBAG1` plus three
-optional slots, `MOLA_INPUT_ROSBAG1_2` / `_3` / `_4` (empty entries are
+`rosbag_filename` is a sequence fed from `MOLA_INPUT_ROSBAG1` plus four
+optional slots, `MOLA_INPUT_ROSBAG1_2` / `_3` / `_4` / `_5` (empty entries are
 dropped by `Rosbag1Dataset`). Per-topic datasets that ship `/tf`, the IMU, a
 camera or the odometry in separate bag files therefore need no launch file of
 their own. `mola_lo_bag_slots` in `lib/dataset-profile.sh` fills these and the
-comma-joined spelling the offline CLI takes, from one list.
+comma-joined spelling the offline CLI takes, from one list. The cap was raised
+from 4 to 5 for GrandTour: lidar + tf + imu + odometry + camera is 5 bags in
+GUI mode with odometry fusion on (its default).
 
-## Wheel odometry in the offline CLI
+## Wheel odometry, GUI and offline CLI alike
 
-Both `dataset_from_rosbag2()` and `dataset_from_rosbag1()` in
-`apps/mola-lidar-odometry-cli.cpp` expose a `CObservationOdometry` entry gated
-on `${MOLA_ODOMETRY_TOPIC|''}` with `${MOLA_ODOM_SENSOR_LABEL|odom_wheels}`,
-the same name-and-empty-by-default convention as
-`mola-cli-launchs/lidar_odometry_from_rosbag2.yaml`. Empty by default on
-purpose: `/odom` is a very common topic name across unrelated robots, so
+Both `dataset_from_rosbag2()` / `dataset_from_rosbag1()` in
+`apps/mola-lidar-odometry-cli.cpp`, and the wheel-odometry entry in
+`mola-cli-launchs/lidar_odometry_from_rosbag1.yaml` / `rosbag2.yaml`, expose a
+`CObservationOdometry`-by-default entry gated on `${MOLA_ODOMETRY_TOPIC|''}`
+with `${MOLA_ODOM_SENSOR_LABEL|odom_wheels}`. Empty by default on purpose:
+`/odom` is a very common topic name across unrelated robots, so
 auto-detecting it would silently opt every bag that has one into wheel-odom
 fusion.
 
@@ -131,6 +133,9 @@ fusion.
 full SE(3) pose and its 6x6 covariance. Use the latter for any 3D source
 (legged, VIO, aerial); the planar type drops z, roll and pitch. It needs a
 `mola_input_rosbag1`/`rosbag2` new enough to build it from a `nav_msgs/Odometry`.
+Honored identically by the offline CLI and both GUI launch YAMLs, so a
+profile that sets it (e.g. grandtour.sh) gets the same observation type in
+either mode.
 
 No `fixed_sensor_pose` on the planar entry: `mrpt::obs::CObservationOdometry`
 cannot carry one, so the twist must already be expressed in `base_link`

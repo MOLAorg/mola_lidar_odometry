@@ -114,7 +114,12 @@ modules:
           # reset. Default false.
           use_bag_recv_time_as_timestamp: ${MOLA_IMU_USE_BAG_RECV_TIME|false}
 
-        # 2D wheel odometry (disabled by default)
+        # Wheel/robot odometry (disabled by default). CObservationOdometry is
+        # planar: (x, y, yaw) plus a 2D twist. For a 3D odometry source
+        # (legged robot, VIO, aerial platform) set
+        # MOLA_ODOMETRY_OBS_CLASS=CObservationRobotPose to keep z, roll,
+        # pitch and the source's 6x6 covariance, matching the offline CLI's
+        # dataset_from_rosbag1()/dataset_from_rosbag2().
         - topic: ${MOLA_ODOMETRY_TOPIC|''}
           sensorLabel: ${MOLA_ODOM_SENSOR_LABEL|odom_wheels}
-          type: CObservationOdometry
+          type: ${MOLA_ODOMETRY_OBS_CLASS|CObservationOdometry}

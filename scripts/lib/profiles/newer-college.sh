@@ -22,8 +22,8 @@
 # profile needs no workaround; without it, set the fixed poses below.
 #
 # The sequences are split across MANY bags (10 for 01_short, 16 for
-# 02_long). mola_lo_bag_slots() caps at 4 because the GUI launch files expose
-# four slots, so the gui wrapper cannot replay a full sequence; the offline
+# 02_long). mola_lo_bag_slots() caps at 5 because the GUI launch files expose
+# five slots, so the gui wrapper cannot replay a full sequence; the offline
 # CLI takes a comma-separated list of any length and is what the eval uses.
 
 mola_lo_profile_usage() {
@@ -112,7 +112,7 @@ mola_lo_profile_resolve() {
 
   # The offline CLI splits a comma-separated list into a YAML sequence, so a
   # 10- or 16-bag sequence replays in one run. mola_lo_bag_slots() is used
-  # only for the gui path's four slots, and refuses more than that.
+  # only for the gui path's five slots, and refuses more than that.
   if [ "$MOLA_LO_MODE" = "gui" ]; then
     mola_lo_bag_slots "${bags[@]}" || return 1
   else

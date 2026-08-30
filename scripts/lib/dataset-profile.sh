@@ -69,7 +69,7 @@ MOLA_LO_SHARE_DIR=$(mola_lo_share_dir)
 MOLA_LO_LAUNCHS_DIR="$MOLA_LO_SHARE_DIR/mola-cli-launchs"
 MOLA_LO_PIPELINES_DIR="$MOLA_LO_SHARE_DIR/pipelines"
 
-# Fills the four MOLA_INPUT_ROSBAG1* slots the rosbag1 launch files expose
+# Fills the five MOLA_INPUT_ROSBAG1* slots the rosbag1 launch files expose
 # from the bag list given as arguments, and sets MOLA_LO_BAGS_JOINED to the
 # same list comma-joined, which is the spelling the offline CLI's
 # --input-rosbag1 takes. Empty arguments are dropped; unused slots are set to
@@ -85,7 +85,7 @@ mola_lo_bag_slots() {
     [ -n "$b" ] && bags+=("$b")
   done
 
-  local max_slots=4
+  local max_slots=5
   if [ "${#bags[@]}" -gt "$max_slots" ]; then
     echo "Error: ${#bags[@]} bags given, the rosbag1 launch files expose $max_slots slots." >&2
     return 1
@@ -93,7 +93,8 @@ mola_lo_bag_slots() {
 
   local i
   for ((i = 0; i < max_slots; i++)); do
-    local var="MOLA_INPUT_ROSBAG1"
+    local var
+    var="MOLA_INPUT_ROSBAG1"
     [ "$i" -gt 0 ] && var="MOLA_INPUT_ROSBAG1_$((i + 1))"
     printf -v "$var" '%s' "${bags[$i]:-}"
     export "${var?}"
