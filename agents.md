@@ -126,9 +126,21 @@ purpose: `/odom` is a very common topic name across unrelated robots, so
 auto-detecting it would silently opt every bag that has one into wheel-odom
 fusion.
 
-No `fixed_sensor_pose` on that entry: `mrpt::obs::CObservationOdometry` cannot
-carry one, so the twist must already be expressed in `base_link`
-(`nav_msgs/Odometry`'s `child_frame_id`).
+`MOLA_ODOMETRY_OBS_CLASS` picks how the topic is read: the planar
+`CObservationOdometry` (default) or `CObservationRobotPose`, which keeps the
+full SE(3) pose and its 6x6 covariance. Use the latter for any 3D source
+(legged, VIO, aerial); the planar type drops z, roll and pitch. It needs a
+`mola_input_rosbag1`/`rosbag2` new enough to build it from a `nav_msgs/Odometry`.
+
+No `fixed_sensor_pose` on the planar entry: `mrpt::obs::CObservationOdometry`
+cannot carry one, so the twist must already be expressed in `base_link`
+(`nav_msgs/Odometry`'s `child_frame_id`). `CObservationRobotPose` does carry a
+sensor pose, so that restriction does not apply to it.
+
+GrandTour is the one profile that turns odometry fusion on by default, and
+reads it as `CObservationRobotPose`; see `scripts/lib/profiles/grandtour.sh`
+for the
+measurements behind that and behind its loose velocity sigmas.
 
 ## Robot /tf tree visualization (opt-in)
 
