@@ -336,13 +336,6 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
   // reference it is combined with come from one consistent snapshot:
   auto lckImu = mrpt::lockHelper(imu_state_mtx_);
 
-  const auto pr = state_.gravity_estimator.estimatedPitchRoll(
-    params_.imu_gravity_correction.averaging_samples,
-    params_.imu_gravity_correction.max_age_seconds);
-  if (!pr.has_value()) {
-    return std::nullopt;
-  }
-
   // "Up" unit vector from (pitch, roll), matching the convention of
   // GravityEstimator::estimatedPitchRoll(): pitch = asin(-u.x),
   // roll = atan2(u.y, u.z). At rest the accelerometer's specific force points
@@ -353,7 +346,28 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
   };
 
   mp2p_icp::GravityPrior g;
-  g.up_body = upFrom(pr->first, pr->second);
+
+  // Where this scan's reading comes from: the odometry attitude source when
+  // one is configured and current, otherwise the accelerometer average. The
+  // odometry reading carries its own fixed sigma, since the adaptive widening
+  // below measures accelerometer dispersion and has nothing to say about an
+  // externally estimated attitude.
+  std::optional<double> readingSigmaRad;
+
+  const auto upOdom = state_.gravity_calib_from_odometry ? odometryUpBody() : std::nullopt;
+
+  if (upOdom.has_value()) {
+    g.up_body = *upOdom;
+    readingSigmaRad = mrpt::DEG2RAD(params_.imu_gravity_correction.odometry_attitude.sigma_deg);
+  } else {
+    const auto pr = state_.gravity_estimator.estimatedPitchRoll(
+      params_.imu_gravity_correction.averaging_samples,
+      params_.imu_gravity_correction.max_age_seconds);
+    if (!pr.has_value()) {
+      return std::nullopt;
+    }
+    g.up_body = upFrom(pr->first, pr->second);
+  }
 
   // Gravity direction expressed in the MAP frame. The map origin is not
   // necessarily level (nonzero fixed_initial_pose, or starting on a slope), so
@@ -368,7 +382,7 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
   // happened to be at the first keyframe and which never improves afterwards.
   if (
     params_.imu_gravity_correction.map_gravity.enabled &&
-    !params_.imu_gravity_correction.map_gravity.log_only) {
+    !params_.imu_gravity_correction.map_gravity.log_only && !state_.gravity_calib_from_odometry) {
     if (const auto & r = state_.map_gravity.estimator.latest_result();
         r.has_value() && r->converged) {
       const auto & gm = r->gravity_in_map;
@@ -398,11 +412,34 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
     }
   }
 
-  const double s = effectiveGravitySigmaRad();
+  const double s = readingSigmaRad.value_or(effectiveGravitySigmaRad());
   g.sigma_rad = std::sqrt(s * s + extraSigmaRad * extraSigmaRad);
   return g;
 }
+
 #endif  // MOLA_LO_HAS_MP2P_GRAVITY_PRIOR
+
+std::optional<mrpt::math::TVector3D> LidarOdometry::odometryUpBody() const
+{
+  // Caller holds imu_state_mtx_, under which odom_attitude is written.
+  const auto & oa = params_.imu_gravity_correction.odometry_attitude;
+
+  if (!oa.enabled || !state_.odom_attitude.valid) {
+    return std::nullopt;
+  }
+
+  // Fall back to the accelerometer rather than to a stale attitude: a source
+  // that stops publishing must degrade to the previous behavior, not freeze
+  // the vertical at its last value for the rest of the run.
+  if (oa.max_age_seconds > 0) {
+    const double age = latest_obs_time_.load() - state_.odom_attitude.timestamp;
+    if (age > oa.max_age_seconds) {
+      return std::nullopt;
+    }
+  }
+
+  return state_.odom_attitude.up_body;
+}
 
 void LidarOdometry::captureMapOriginVerticality(const mrpt::poses::CPose3D & poseAtCapture)
 {
@@ -410,6 +447,63 @@ void LidarOdometry::captureMapOriginVerticality(const mrpt::poses::CPose3D & pos
   auto lckImu = mrpt::lockHelper(imu_state_mtx_);
 
   if (!params_.imu_gravity_correction.enabled || state_.gravity_calib_pitch_roll.has_value()) {
+    return;
+  }
+
+  // A reading from the odometry attitude source has to be referenced against a
+  // map origin captured from that same source. Mixing the two turns the
+  // constant offset between them into a permanent tilt of the map frame, which
+  // is exactly what this reference exists to avoid. No dispersion gate applies
+  // here: the source publishes an already-filtered attitude rather than a raw
+  // specific force, so there is nothing to wait for.
+  //
+  // It does have to be waited FOR, though: the capture runs on the first scan,
+  // which routinely precedes the first odometry message. Without this the
+  // reference would come from the accelerometer and the readings from the
+  // odometry, i.e. the very mix described above.
+  const auto oaUp = odometryUpBody();
+
+  if (params_.imu_gravity_correction.odometry_attitude.enabled && !oaUp.has_value()) {
+    const double now = state_.last_obs_timestamp.has_value()
+                         ? mrpt::Clock::toDouble(*state_.last_obs_timestamp)
+                         : 0.0;
+
+    if (!state_.odom_attitude_wait_since.has_value()) {
+      state_.odom_attitude_wait_since = now;
+    }
+    const double waited = now - *state_.odom_attitude_wait_since;
+    const double timeout = params_.imu_gravity_correction.map_origin_capture_timeout;
+
+    if (timeout <= 0 || waited < timeout) {
+      MRPT_LOG_THROTTLE_INFO_FMT(
+        2.0,
+        "Deferring the map-origin verticality capture: waiting for odometry source '%s' (%.1f s)",
+        params_.imu_gravity_correction.odometry_attitude.sensor_label.c_str(), waited);
+      return;
+    }
+
+    MRPT_LOG_WARN_FMT(
+      "Odometry attitude source '%s' produced nothing in %.1f s: falling back to the "
+      "accelerometer for BOTH the map-origin reference and the per-scan reading, so the two "
+      "stay consistent.",
+      params_.imu_gravity_correction.odometry_attitude.sensor_label.c_str(), waited);
+  }
+
+  if (oaUp.has_value()) {
+    const auto & u = *oaUp;
+    state_.gravity_calib_pitch_roll =
+      std::make_pair(std::asin(std::clamp(-u.x, -1.0, 1.0)), std::atan2(u.y, u.z));
+    state_.gravity_calib_pose = poseAtCapture;
+    state_.gravity_calib_from_odometry = true;
+
+    const auto [pOdom, rOdom] = *state_.gravity_calib_pitch_roll;
+    MRPT_LOG_INFO_FMT(
+      "Map-origin verticality reference captured from the odometry attitude source '%s': "
+      "pitch=%.3f roll=%.3f deg (tilt %.3f deg), at pose [%s]",
+      params_.imu_gravity_correction.odometry_attitude.sensor_label.c_str(), mrpt::RAD2DEG(pOdom),
+      mrpt::RAD2DEG(rOdom),
+      mrpt::RAD2DEG(std::acos(std::clamp(std::cos(pOdom) * std::cos(rOdom), -1.0, 1.0))),
+      poseAtCapture.asString().c_str());
     return;
   }
 
