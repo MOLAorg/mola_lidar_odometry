@@ -197,7 +197,9 @@ mola_lo_profile_resolve() {
   # Measured across the seven missions that have a reference: -13.3 % mean ATE,
   # driven almost entirely by the one mission that goes indoors (arc-3,
   # 0.3829 -> 0.3146). Set MOLA_ODOMETRY_TOPIC= (empty) to turn it off.
-  : "${MOLA_ODOMETRY_TOPIC:=/anymal/state_estimator/odometry}"
+  # Note "=" and not ":=": an explicitly empty MOLA_ODOMETRY_TOPIC is how a
+  # caller turns fusion off, and ":=" would treat that as unset and re-enable it.
+  : "${MOLA_ODOMETRY_TOPIC=/anymal/state_estimator/odometry}"
   : "${MOLA_ODOMETRY_OBS_CLASS:=CObservationRobotPose}"
   : "${MOLA_NAVSTATE_SIGMA_WHEEL_ODOM_LINVEL:=1.0}"
   : "${MOLA_NAVSTATE_SIGMA_WHEEL_ODOM_ANGVEL:=0.5}"

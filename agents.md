@@ -138,7 +138,8 @@ cannot carry one, so the twist must already be expressed in `base_link`
 sensor pose, so that restriction does not apply to it.
 
 GrandTour is the one profile that turns odometry fusion on by default, and
-reads it as `CObservationRobotPose`; see `profiles/grandtour.sh` for the
+reads it as `CObservationRobotPose`; see `scripts/lib/profiles/grandtour.sh`
+for the
 measurements behind that and behind its loose velocity sigmas.
 
 ## Robot /tf tree visualization (opt-in)
