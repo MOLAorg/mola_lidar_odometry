@@ -33,9 +33,12 @@ mola_lo_profile_usage() {
   echo "       $0 /path/to/<mission>_hesai_undist.bag [additional flags]"
   echo ""
   echo "Optional environment variables:"
-  echo "  MOLA_ODOMETRY_TOPIC    set to '/anymal/state_estimator/odometry' to fuse the"
-  echo "                         robot's legged kinematic-inertial odometry (this adds"
-  echo "                         <mission>_anymal_state.bag to the inputs)"
+  echo "  MOLA_ODOMETRY_TOPIC    the robot's legged kinematic-inertial odometry, fused"
+  echo "                         by default (this adds <mission>_anymal_state.bag to"
+  echo "                         the inputs). Set it EMPTY to run LiDAR-inertial only"
+  echo "  MOLA_ODOMETRY_OBS_CLASS  how to read that topic: 'CObservationRobotPose'"
+  echo "                         (default, full SE(3) + covariance) or the planar"
+  echo "                         'CObservationOdometry'"
   echo "  MOLA_GRANDTOUR_IMU     which IMU to use: 'adis' (default, 200 Hz) or"
   echo "                         'stim320' (500 Hz, tactical grade). The STIM320 also"
   echo "                         requires <mission>_tf_model.bag, since its frame is"
@@ -171,18 +174,36 @@ mola_lo_profile_resolve() {
   fi
   export MOLA_IMU_TOPIC
 
-  # Legged kinematic-inertial odometry, opt-in via MOLA_ODOMETRY_TOPIC -- the
-  # same convention as every other profile: a dataset is not opted into odometry
-  # fusion merely because a bag on disk happens to carry a pose topic.
+  # Legged kinematic-inertial odometry, ON by default for this dataset. Every
+  # other profile leaves odometry fusion opt-in, because a dataset is not opted
+  # in merely by carrying a pose topic; here it is enabled because it was
+  # measured to help, and the frame is known to be right.
   #
   # `/anymal/state_estimator/odometry` is a nav_msgs/Odometry reported as
   # odom -> base, i.e. for the very frame this profile already uses as
-  # MOLA_TF_BASE_LINK. That is what makes it safe to fuse:
-  # mrpt::obs::CObservationOdometry cannot carry a sensor pose at all, so a
-  # source reported for anything else injects motion in the wrong frame --
-  # which is precisely why CitrusFarm's wheel odometry is deliberately never
-  # enabled anywhere. Checked by reading the messages' child_frame_id, not
+  # MOLA_TF_BASE_LINK. Checked by reading the messages' child_frame_id, not
   # assumed from the topic name.
+  #
+  # Read as CObservationRobotPose, not the default CObservationOdometry: the
+  # latter is planar, so it would drop z, roll, pitch and the covariance this
+  # source publishes -- exactly the components that matter on stairs.
+  #
+  # The velocity sigmas are deliberately loose. This source's pose channel is
+  # good and its velocity channel is not worth trusting against ICP: measured
+  # on the missions with a reference, tightening them degrades the result
+  # monotonically (0.3146 -> 0.3952 -> 0.6496 -> 0.7947 m ATE on arc-3 as the
+  # linear sigma goes 1.0 -> 0.3 -> 0.1 -> 0.03).
+  #
+  # Measured across the seven missions that have a reference: -13.3 % mean ATE,
+  # driven almost entirely by the one mission that goes indoors (arc-3,
+  # 0.3829 -> 0.3146). Set MOLA_ODOMETRY_TOPIC= (empty) to turn it off.
+  : "${MOLA_ODOMETRY_TOPIC:=/anymal/state_estimator/odometry}"
+  : "${MOLA_ODOMETRY_OBS_CLASS:=CObservationRobotPose}"
+  : "${MOLA_NAVSTATE_SIGMA_WHEEL_ODOM_LINVEL:=1.0}"
+  : "${MOLA_NAVSTATE_SIGMA_WHEEL_ODOM_ANGVEL:=0.5}"
+  export MOLA_ODOMETRY_TOPIC MOLA_ODOMETRY_OBS_CLASS
+  export MOLA_NAVSTATE_SIGMA_WHEEL_ODOM_LINVEL MOLA_NAVSTATE_SIGMA_WHEEL_ODOM_ANGVEL
+
   if [ -n "${MOLA_ODOMETRY_TOPIC:-}" ]; then
     if [ -f "$odom_bag" ]; then
       echo "  Odometry bag: $odom_bag"
