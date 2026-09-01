@@ -404,14 +404,31 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
  *  offline CLI able to expose more than one lidar topic, which the launch
  *  files could already do.
  */
-std::string lidar_sensor_entries(const std::string & labels)
+std::vector<std::string> lidar_sensor_labels(const std::string & labels)
 {
   std::vector<std::string> parts;
   mrpt::system::tokenize(labels, ",", parts);
-  ASSERT_(!parts.empty());
-  std::string s;
+  std::vector<std::string> out;
   for (const auto & p : parts) {
-    s += "\n        - topic: '" + mrpt::system::trim(p) + "'";
+    const std::string one = mrpt::system::trim(p);
+    // A blank entry would reach the pipeline as an empty topic and the run
+    // would start with no lidar input at all, instead of reporting bad input.
+    if (one.empty()) {
+      THROW_EXCEPTION_FMT("--lidar-sensor-label has a blank entry in '%s'", labels.c_str());
+    }
+    out.push_back(one);
+  }
+  if (out.empty()) {
+    THROW_EXCEPTION("--lidar-sensor-label is empty");
+  }
+  return out;
+}
+
+std::string lidar_sensor_entries(const std::string & labels)
+{
+  std::string s;
+  for (const auto & p : lidar_sensor_labels(labels)) {
+    s += "\n        - topic: '" + p + "'";
     s += "\n          type: CObservationPointCloud";
     s += "\n          # If present, this overrides whatever /tf says about the sensor pose.";
     s += "\n          # Note it applies to every lidar listed, so it is only meaningful";
@@ -826,12 +843,10 @@ int main_odometry(Cli & cli)
   }
 
   if (cli.arg_lidarLabel.isSet()) {
-    std::vector<std::string> labels;
-    mrpt::system::tokenize(cli.arg_lidarLabel.getValue(), ",", labels);
-    ASSERT_(!labels.empty());
+    const auto labels = lidar_sensor_labels(cli.arg_lidarLabel.getValue());
     liodom->params_.lidar_sensor_labels.clear();
     for (const auto & l : labels) {
-      liodom->params_.lidar_sensor_labels.emplace_back(mrpt::system::trim(l));
+      liodom->params_.lidar_sensor_labels.emplace_back(l);
     }
     // Several labels only make sense if the odometry is also told to wait for
     // that many observations before treating them as one scan; leaving the

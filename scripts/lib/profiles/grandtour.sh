@@ -136,9 +136,7 @@ mola_lo_profile_resolve() {
   # sensor frame (verified: it has base, hesai_lidar, prism, adis16475_imu
   # and stim320_imu, and the same /tf and /tf_static message counts).
   : "${MOLA_GRANDTOUR_IMU:=adis}"
-  # MOLA_GRANDTOUR_TF_BAG lets a caller supply a TF bag with refined
-  # extrinsics in place of the recorded one; empty keeps the mission's own.
-  local tf_bag=${MOLA_GRANDTOUR_TF_BAG:-${prefix}_tf_minimal.bag}
+  local tf_bag=${prefix}_tf_minimal.bag
   local imu_bag=${prefix}_adis.bag
   local imu_topic=/boxi/adis/imu
 
@@ -154,6 +152,12 @@ mola_lo_profile_resolve() {
       return 1
       ;;
   esac
+
+  # MOLA_GRANDTOUR_TF_BAG lets a caller supply a TF bag with refined extrinsics
+  # in place of whichever recorded one the IMU choice selected; empty keeps that
+  # default. Applied after the case above, so a caller that sets both variables
+  # gets the override rather than having it replaced by the STIM320 default.
+  tf_bag=${MOLA_GRANDTOUR_TF_BAG:-$tf_bag}
 
   # Which camera to preview. The three HDR cameras each ship in their own bag,
   # while the five Alphasense cameras share a single one, so the bag and the
@@ -230,6 +234,11 @@ mola_lo_profile_resolve() {
     echo "Error: MOLA_GRANDTOUR_IMU=stim320 needs '$tf_bag', which was not found." >&2
     echo "       Fetch it with: klein download -p GrandTourDataset -m release_<mission> \\" >&2
     echo "                        --dest <dir> --create-dirs -y <mission>_tf_model.bag" >&2
+    return 1
+  elif [ -n "$lidar2_bag" ]; then
+    # Two sensors cannot share one fixed pose, so /tf is the only thing that can
+    # place them; falling back would silently put both at the vehicle origin.
+    echo "Error: MOLA_GRANDTOUR_LIDAR2 needs the extrinsics in '$tf_bag', not found." >&2
     return 1
   else
     echo "  TF bag   : (not found: '$tf_bag'; using a fixed LiDAR pose at the origin)"
