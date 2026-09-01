@@ -870,6 +870,18 @@ public:
       /// gating below is on patch support instead.
       ///
       /// Only honored by the rank-2 prior path.
+      ///
+      /// MEASURED BEHAVIOR, so nobody has to rediscover it: the constraint's
+      /// influence is INVERSELY coupled to how rich the scene is. It is
+      /// weighted 1/sigma^2 in radians while the point pairs are in metres, so
+      /// its share of the rotational information falls as the pair count and
+      /// lever arms grow. On an open construction site sigma_deg = 0.6 buys
+      /// 0.02 % of that information and does nothing; in a confined stairwell
+      /// the pairs collapse and the same setting becomes locally dominant --
+      /// and tipped the world frame by 12 deg on a mission whose control run
+      /// stays level. That is the wrong way round: strongest exactly where the
+      /// structure is least trustworthy. Check `gravity_information_share`
+      /// before concluding anything from a sigma.
       struct StructuralVerticality
       {
         bool enabled = false;
@@ -911,6 +923,19 @@ public:
         /// reference is a correction, not a relocalization: a request this
         /// large means the patches are not what the model assumes.
         double max_tilt_deg = 15.0;
+
+        /// Pool the patch equations over recent scans, with this forgetting
+        /// time constant [s]. 0 = each scan stands alone.
+        ///
+        /// One scan sees few wall directions, so its 2-DoF solve is often
+        /// rank-deficient and is refused outright by `min_conditioning` -- on a
+        /// construction-site mission, 39 % of scans. Pooling fixes both
+        /// problems at once: it averages the per-scan scatter down, and it
+        /// combines walls seen at different headings, which is what makes both
+        /// tilt axes observable. The equations are accumulated in a
+        /// gravity-aligned MAP frame, so they stay comparable across scans; the
+        /// accumulator resets if the map-frame vertical itself moves.
+        double smoothing_tau_seconds = 0.0;
 
         void initialize(const Yaml & c);
       };
@@ -1519,7 +1544,7 @@ private:
   ///        tell a wall from a floor. nullptr disables the structural source.
   [[nodiscard]] std::optional<mp2p_icp::GravityPrior> buildGravityPrior(
     const mp2p_icp::metric_map_t * observation  = nullptr,
-    const mrpt::poses::CPose3D *   estPoseInMap = nullptr) const;
+    const mrpt::poses::CPose3D *   estPoseInMap = nullptr, double scanTime = 0) const;
 
   /// The "up" direction in the BODY frame implied by asserting that the
   /// observation's large planar patches are plumb (and optionally level).
@@ -1552,9 +1577,20 @@ private:
   };
   mutable StructuralStats structural_stats_;
 
+  /// Exponentially forgetting normal equations of the structural tilt solve,
+  /// in the gravity-aligned map frame. Mutable because it is the memory of a
+  /// const query; the caller's state_mtx_ serializes access.
+  struct StructuralAccumulator
+  {
+    double                       n00 = 0, n01 = 0, n11 = 0, v0 = 0, v1 = 0, w = 0;
+    std::optional<double>        last_t;
+    mrpt::math::TVector3D        up_map_ref{0, 0, 1};
+  };
+  mutable StructuralAccumulator structural_acc_;
+
   [[nodiscard]] std::optional<std::pair<mrpt::math::TVector3D, double>> structuralUpBody(
     const mp2p_icp::metric_map_t & observation, const mrpt::poses::CPose3D & estPoseInMap,
-    const mrpt::math::TVector3D & upMap) const;
+    const mrpt::math::TVector3D & upMap, double scanTime) const;
 #endif
 
   /// The gravity sigma [rad] actually applied this scan: the configured

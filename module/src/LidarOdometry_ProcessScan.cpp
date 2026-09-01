@@ -330,7 +330,8 @@ void LidarOdometry::applyMapFrameRelevel() {}
 // newer mp2p_icp but the older mola_imu_preintegration.
 #if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
 std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior(
-  const mp2p_icp::metric_map_t * observation, const mrpt::poses::CPose3D * estPoseInMap) const
+  const mp2p_icp::metric_map_t * observation, const mrpt::poses::CPose3D * estPoseInMap,
+  double scanTime) const
 {
   // Caller holds state_mtx_; gravity_estimator and map_gravity are fed by the
   // IMU thread. Held across the whole body so the reading and the map-frame
@@ -401,7 +402,8 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior(
   if (
     params_.imu_gravity_correction.structural.enabled && observation != nullptr &&
     estPoseInMap != nullptr) {
-    if (const auto st = structuralUpBody(*observation, *estPoseInMap, g.up_map); st.has_value()) {
+    if (const auto st = structuralUpBody(*observation, *estPoseInMap, g.up_map, scanTime);
+        st.has_value()) {
       g.up_body = st->first;
       readingSigmaRad = st->second;
     }
@@ -424,7 +426,7 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior(
 
 std::optional<std::pair<mrpt::math::TVector3D, double>> LidarOdometry::structuralUpBody(
   const mp2p_icp::metric_map_t & observation, const mrpt::poses::CPose3D & estPoseInMap,
-  const mrpt::math::TVector3D & upMap) const
+  const mrpt::math::TVector3D & upMap, double scanTime) const
 {
   const auto & P = params_.imu_gravity_correction.structural;
 
@@ -542,6 +544,36 @@ std::optional<std::pair<mrpt::math::TVector3D, double>> LidarOdometry::structura
     structural_stats_.low_area++;
     report();
     return std::nullopt;
+  }
+
+  // Optionally pool with recent scans. One scan sees few wall directions, so
+  // its own solve is often rank-deficient; walls seen at different headings a
+  // few seconds apart make both tilt axes observable, and the per-scan scatter
+  // averages down at the same time.
+  if (P.smoothing_tau_seconds > 0) {
+    auto & A = structural_acc_;
+    // A change of the map-frame vertical re-defines the frame the accumulated
+    // equations are written in, so the memory is no longer valid.
+    const double drift = std::abs(A.up_map_ref.x - uz.x) + std::abs(A.up_map_ref.y - uz.y) +
+                         std::abs(A.up_map_ref.z - uz.z);
+    if (!A.last_t.has_value() || drift > 1e-4) {
+      A = StructuralAccumulator();
+      A.up_map_ref = uz;
+    }
+    const double dt = A.last_t.has_value() ? std::max(0.0, scanTime - *A.last_t) : 0.0;
+    const double lambda = std::exp(-dt / P.smoothing_tau_seconds);
+    A.n00 = A.n00 * lambda + n00;
+    A.n01 = A.n01 * lambda + n01;
+    A.n11 = A.n11 * lambda + n11;
+    A.v0 = A.v0 * lambda + v0;
+    A.v1 = A.v1 * lambda + v1;
+    A.w = A.w * lambda + totalW;
+    A.last_t = scanTime;
+    n00 = A.n00;
+    n01 = A.n01;
+    n11 = A.n11;
+    v0 = A.v0;
+    v1 = A.v1;
   }
 
   // Conditioning: with every wall parallel, one tilt axis is unobserved and
@@ -1112,7 +1144,8 @@ void LidarOdometry::processLidarScan(  // NOLINT
 #if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
     if (params_.imu_gravity_correction.enabled && params_.imu_gravity_correction.use_rank2_prior) {
       const auto estPoseForStructure = mrpt::poses::CPose3D(in.init_guess_local_wrt_global);
-      in.gravityPrior = buildGravityPrior(observation.get(), &estPoseForStructure);
+      in.gravityPrior = buildGravityPrior(
+        observation.get(), &estPoseForStructure, mrpt::Clock::toDouble(this_obs_tim));
       if (in.gravityPrior.has_value()) {
         MRPT_LOG_DEBUG_FMT(
           "IMU gravity (rank-2): up_body=[%.4f %.4f %.4f] up_map=[%.4f %.4f %.4f] sigma=%.2f deg",

@@ -108,6 +108,11 @@ params:
       min_total_area: ${MOLA_STRUCT_VERTICALITY_MIN_TOTAL_AREA|6.0}
       min_conditioning: ${MOLA_STRUCT_VERTICALITY_MIN_COND|0.10}
       max_tilt_deg: ${MOLA_STRUCT_VERTICALITY_MAX_TILT_DEG|15.0}
+      # Pool the patch equations over recent scans [s]; 0 = each scan alone.
+      # One scan rarely sees two non-parallel walls, so its own solve is often
+      # refused for conditioning; walls seen seconds apart at different
+      # headings make both tilt axes observable and average the scatter down.
+      smoothing_tau_seconds: ${MOLA_STRUCT_VERTICALITY_TAU|0.0}
 
     map_gravity:
       enabled: ${MOLA_IMU_MAP_GRAVITY|false}

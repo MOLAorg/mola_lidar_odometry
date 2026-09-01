@@ -389,6 +389,7 @@ void LidarOdometry::Parameters::IMUGravityCorrection::StructuralVerticality::ini
   YAML_LOAD_OPT(min_total_area, double);
   YAML_LOAD_OPT(min_conditioning, double);
   YAML_LOAD_OPT(max_tilt_deg, double);
+  YAML_LOAD_OPT(smoothing_tau_seconds, double);
 
   if (!enabled) {
     return;
@@ -423,6 +424,11 @@ void LidarOdometry::Parameters::IMUGravityCorrection::StructuralVerticality::ini
     max_tilt_deg > 0,
     mrpt::format(
       "imu_gravity_correction.structural.max_tilt_deg=%.4f must be > 0", max_tilt_deg));
+  ASSERTMSG_(
+    smoothing_tau_seconds >= 0,
+    mrpt::format(
+      "imu_gravity_correction.structural.smoothing_tau_seconds=%.4f must be >= 0",
+      smoothing_tau_seconds));
 }
 
 void LidarOdometry::Parameters::IMUGravityCorrection::MapGravity::initialize(const Yaml & cfg)
