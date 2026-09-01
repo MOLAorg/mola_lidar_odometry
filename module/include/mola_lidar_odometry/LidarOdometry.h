@@ -846,6 +846,77 @@ public:
 
       MapGravity map_gravity;
 
+      /// Take the verticality reading from the STRUCTURE of the scene: large
+      /// planar patches in a built environment are, as a rule, plumb or level,
+      /// so asserting that they are yields an attitude reference that comes
+      /// neither from an accelerometer nor from the map.
+      ///
+      /// The patches are read from the OBSERVATION map's `planes`, i.e. from
+      /// this scan alone, never from the local map. A plane read off the map
+      /// inherits whatever deformation the map already has, so asserting that
+      /// it is vertical asserts something the map already believes and adds no
+      /// information; a plane read off the incoming scan is independent of
+      /// every pose estimated so far, and that independence is the whole
+      /// value. Populate `planes` with mp2p_icp_filters::FilterPlanePatches in
+      /// the observation pipeline, or this source finds nothing and stands
+      /// down.
+      ///
+      /// `adaptive_sigma` deliberately does NOT apply here. It widens the
+      /// constraint by accelerometer dispersion, i.e. it stands the reading
+      /// down while the platform accelerates. A structural reading has the
+      /// opposite character: it is valid precisely while moving, and is
+      /// degraded only by a lack of structure. Reusing the acceleration gate
+      /// would switch this off in exactly the situations it exists for, so the
+      /// gating below is on patch support instead.
+      ///
+      /// Only honored by the rank-2 prior path.
+      struct StructuralVerticality
+      {
+        bool enabled = false;
+
+        /// Sigma [degrees] of the reading, as a floor.
+        double sigma_deg = 0.6;
+
+        /// Add the solve's own weighted residual to `sigma_deg` in quadrature,
+        /// so a scan whose patches disagree with each other reports a wider
+        /// sigma than one whose patches agree. Physically right, but it makes
+        /// the effective sigma impossible to set: the residual dominates the
+        /// floor on real data, and then sweeping `sigma_deg` changes nothing.
+        /// Turn it off to control the constraint's strength directly.
+        bool add_solve_residual = true;
+
+        /// A patch counts as a wall when its normal is within this many
+        /// degrees of horizontal, and as a floor when within this many of
+        /// vertical.
+        double wall_tolerance_deg  = 10.0;
+        double floor_tolerance_deg = 10.0;
+
+        /// Use near-level patches as well as walls. Off by default: floors
+        /// slope, walls are built plumb, and on every mission measured so far
+        /// the floor-derived vertical is the worse of the two.
+        bool use_floors = false;
+
+        /// Ignore patches smaller than this [m2].
+        double min_patch_area = 3.0;
+
+        /// Support gates, standing in for the acceleration gate this source
+        /// must not use. The reading stands down unless the patches used total
+        /// at least `min_total_area` [m2] and the 2-DoF solve is conditioned at
+        /// least `min_conditioning` (smaller over larger eigenvalue of the
+        /// normal matrix), which is what says the walls are not all parallel.
+        double min_total_area   = 6.0;
+        double min_conditioning = 0.10;
+
+        /// Refuse a reading asking for more tilt than this [deg]. A structural
+        /// reference is a correction, not a relocalization: a request this
+        /// large means the patches are not what the model assumes.
+        double max_tilt_deg = 15.0;
+
+        void initialize(const Yaml & c);
+      };
+
+      StructuralVerticality structural;
+
       void initialize(const Yaml & c);
     };
 
@@ -1442,7 +1513,48 @@ private:
   /// the accelerometer gravity estimate, expressed against the map-frame
   /// gravity direction captured at the map origin. nullopt if no reading yet.
   /// Caller must hold state_mtx_.
-  [[nodiscard]] std::optional<mp2p_icp::GravityPrior> buildGravityPrior() const;
+  /// \param observation The current scan's map, whose `planes` the structural
+  ///        source reads. nullptr disables that source.
+  /// \param estPoseInMap The pose estimate this scan starts from, used only to
+  ///        tell a wall from a floor. nullptr disables the structural source.
+  [[nodiscard]] std::optional<mp2p_icp::GravityPrior> buildGravityPrior(
+    const mp2p_icp::metric_map_t * observation  = nullptr,
+    const mrpt::poses::CPose3D *   estPoseInMap = nullptr) const;
+
+  /// The "up" direction in the BODY frame implied by asserting that the
+  /// observation's large planar patches are plumb (and optionally level).
+  ///
+  /// \param observation Scan map holding `planes`, in body coordinates.
+  /// \param estPoseInMap Current pose estimate, used to classify each patch.
+  /// \param upMap Gravity "up" in the MAP frame: the reference the patches are
+  ///        judged against, so a non-level map frame is handled correctly.
+  /// \return The body-frame up direction and the sigma [rad] earned by the
+  ///        solve, or nothing when patch support does not meet the gates.
+  /// Why the structural reading was or was not usable, so that a run which
+  /// scores as a wash can be told apart from one where the source never fired.
+  /// Mutable because the counters are a diagnostic of a const query.
+  struct StructuralStats
+  {
+    std::atomic<uint64_t> attempts{0};
+    std::atomic<uint64_t> accepted{0};
+    std::atomic<uint64_t> no_patches{0};
+    std::atomic<uint64_t> low_area{0};
+    std::atomic<uint64_t> ill_conditioned{0};
+    std::atomic<uint64_t> too_much_tilt{0};
+    std::atomic<uint64_t> sum_walls{0};
+    // Accumulated in micro-degrees to keep the counters integral and lock-free.
+    std::atomic<uint64_t> sum_tilt_udeg{0};
+    std::atomic<uint64_t> sum_sigma_udeg{0};
+    /// Share of the ICP rotational information the prior actually won, in
+    /// parts per million, summed; the sigma alone does not say what this is.
+    std::atomic<uint64_t> sum_share_e6{0};
+    std::atomic<uint64_t> share_samples{0};
+  };
+  mutable StructuralStats structural_stats_;
+
+  [[nodiscard]] std::optional<std::pair<mrpt::math::TVector3D, double>> structuralUpBody(
+    const mp2p_icp::metric_map_t & observation, const mrpt::poses::CPose3D & estPoseInMap,
+    const mrpt::math::TVector3D & upMap) const;
 #endif
 
   /// The gravity sigma [rad] actually applied this scan: the configured

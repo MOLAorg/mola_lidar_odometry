@@ -370,6 +370,59 @@ void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cf
   if (cfg.has("map_gravity")) {
     map_gravity.initialize(cfg["map_gravity"]);
   }
+
+  if (cfg.has("structural")) {
+    structural.initialize(cfg["structural"]);
+  }
+}
+
+void LidarOdometry::Parameters::IMUGravityCorrection::StructuralVerticality::initialize(
+  const Yaml & cfg)
+{
+  YAML_LOAD_OPT(enabled, bool);
+  YAML_LOAD_OPT(sigma_deg, double);
+  YAML_LOAD_OPT(add_solve_residual, bool);
+  YAML_LOAD_OPT(wall_tolerance_deg, double);
+  YAML_LOAD_OPT(floor_tolerance_deg, double);
+  YAML_LOAD_OPT(use_floors, bool);
+  YAML_LOAD_OPT(min_patch_area, double);
+  YAML_LOAD_OPT(min_total_area, double);
+  YAML_LOAD_OPT(min_conditioning, double);
+  YAML_LOAD_OPT(max_tilt_deg, double);
+
+  if (!enabled) {
+    return;
+  }
+  ASSERTMSG_(
+    sigma_deg > 0, mrpt::format(
+                     "imu_gravity_correction.structural.sigma_deg=%.4f must be > 0", sigma_deg));
+  ASSERTMSG_(
+    wall_tolerance_deg > 0 && wall_tolerance_deg < 45,
+    mrpt::format(
+      "imu_gravity_correction.structural.wall_tolerance_deg=%.4f must be in (0,45)",
+      wall_tolerance_deg));
+  ASSERTMSG_(
+    floor_tolerance_deg > 0 && floor_tolerance_deg < 45,
+    mrpt::format(
+      "imu_gravity_correction.structural.floor_tolerance_deg=%.4f must be in (0,45)",
+      floor_tolerance_deg));
+  ASSERTMSG_(
+    min_patch_area >= 0,
+    mrpt::format(
+      "imu_gravity_correction.structural.min_patch_area=%.4f must be >= 0", min_patch_area));
+  ASSERTMSG_(
+    min_total_area > 0,
+    mrpt::format(
+      "imu_gravity_correction.structural.min_total_area=%.4f must be > 0", min_total_area));
+  ASSERTMSG_(
+    min_conditioning > 0 && min_conditioning <= 1.0,
+    mrpt::format(
+      "imu_gravity_correction.structural.min_conditioning=%.4f must be in (0,1]",
+      min_conditioning));
+  ASSERTMSG_(
+    max_tilt_deg > 0,
+    mrpt::format(
+      "imu_gravity_correction.structural.max_tilt_deg=%.4f must be > 0", max_tilt_deg));
 }
 
 void LidarOdometry::Parameters::IMUGravityCorrection::MapGravity::initialize(const Yaml & cfg)

@@ -329,19 +329,13 @@ void LidarOdometry::applyMapFrameRelevel() {}
 // definition on both leaves the symbol undefined whenever a build has the
 // newer mp2p_icp but the older mola_imu_preintegration.
 #if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
-std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
+std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior(
+  const mp2p_icp::metric_map_t * observation, const mrpt::poses::CPose3D * estPoseInMap) const
 {
   // Caller holds state_mtx_; gravity_estimator and map_gravity are fed by the
   // IMU thread. Held across the whole body so the reading and the map-frame
   // reference it is combined with come from one consistent snapshot:
   auto lckImu = mrpt::lockHelper(imu_state_mtx_);
-
-  const auto pr = state_.gravity_estimator.estimatedPitchRoll(
-    params_.imu_gravity_correction.averaging_samples,
-    params_.imu_gravity_correction.max_age_seconds);
-  if (!pr.has_value()) {
-    return std::nullopt;
-  }
 
   // "Up" unit vector from (pitch, roll), matching the convention of
   // GravityEstimator::estimatedPitchRoll(): pitch = asin(-u.x),
@@ -353,7 +347,6 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
   };
 
   mp2p_icp::GravityPrior g;
-  g.up_body = upFrom(pr->first, pr->second);
 
   // Gravity direction expressed in the MAP frame. The map origin is not
   // necessarily level (nonzero fixed_initial_pose, or starting on a slope), so
@@ -398,10 +391,231 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
     }
   }
 
-  const double s = effectiveGravitySigmaRad();
+  // The reading itself. Preferred source: the scene's own structure, which
+  // unlike the accelerometer stays valid while the platform accelerates. It
+  // carries its own sigma, so `adaptive_sigma` -- which measures accelerometer
+  // dispersion and has nothing to say about a structural reading -- is
+  // deliberately bypassed on this path.
+  std::optional<double> readingSigmaRad;
+
+  if (
+    params_.imu_gravity_correction.structural.enabled && observation != nullptr &&
+    estPoseInMap != nullptr) {
+    if (const auto st = structuralUpBody(*observation, *estPoseInMap, g.up_map); st.has_value()) {
+      g.up_body = st->first;
+      readingSigmaRad = st->second;
+    }
+  }
+
+  if (!readingSigmaRad.has_value()) {
+    const auto pr = state_.gravity_estimator.estimatedPitchRoll(
+      params_.imu_gravity_correction.averaging_samples,
+      params_.imu_gravity_correction.max_age_seconds);
+    if (!pr.has_value()) {
+      return std::nullopt;
+    }
+    g.up_body = upFrom(pr->first, pr->second);
+  }
+
+  const double s = readingSigmaRad.value_or(effectiveGravitySigmaRad());
   g.sigma_rad = std::sqrt(s * s + extraSigmaRad * extraSigmaRad);
   return g;
 }
+
+std::optional<std::pair<mrpt::math::TVector3D, double>> LidarOdometry::structuralUpBody(
+  const mp2p_icp::metric_map_t & observation, const mrpt::poses::CPose3D & estPoseInMap,
+  const mrpt::math::TVector3D & upMap) const
+{
+  const auto & P = params_.imu_gravity_correction.structural;
+
+  structural_stats_.attempts++;
+  const auto report = [&]() {
+    const uint64_t a = structural_stats_.attempts.load();
+    const uint64_t k = std::max<uint64_t>(1, structural_stats_.accepted.load());
+    MRPT_LOG_THROTTLE_INFO_FMT(
+      20.0,
+      "Structural verticality: %llu/%llu scans used (%.0f %%); refused: %llu no patches, "
+      "%llu too little area, %llu ill-conditioned, %llu excessive tilt. "
+      "Mean over used scans: %.2f walls, tilt %.3f deg, sigma %.3f deg, "
+      "%.2f %% of the ICP rotational information",
+      static_cast<unsigned long long>(structural_stats_.accepted.load()),
+      static_cast<unsigned long long>(a),
+      100.0 * structural_stats_.accepted.load() / std::max<uint64_t>(1, a),
+      static_cast<unsigned long long>(structural_stats_.no_patches.load()),
+      static_cast<unsigned long long>(structural_stats_.low_area.load()),
+      static_cast<unsigned long long>(structural_stats_.ill_conditioned.load()),
+      static_cast<unsigned long long>(structural_stats_.too_much_tilt.load()),
+      static_cast<double>(structural_stats_.sum_walls.load()) / k,
+      1e-6 * structural_stats_.sum_tilt_udeg.load() / k,
+      1e-6 * structural_stats_.sum_sigma_udeg.load() / k,
+      1e-4 * structural_stats_.sum_share_e6.load() /
+        std::max<uint64_t>(1, structural_stats_.share_samples.load()));
+  };
+
+  if (observation.planes.empty()) {
+    structural_stats_.no_patches++;
+    report();
+    return std::nullopt;
+  }
+
+  // Work in a gravity-aligned frame: z is `upMap`, so a level patch has a
+  // normal of (0,0,+-1) and a plumb one has a normal with z=0, whatever tilt
+  // the map frame itself carries.
+  const double un = std::sqrt(upMap.x * upMap.x + upMap.y * upMap.y + upMap.z * upMap.z);
+  if (un < 1e-9) {
+    return std::nullopt;
+  }
+  const mrpt::math::TVector3D uz = {upMap.x / un, upMap.y / un, upMap.z / un};
+  // Any two vectors completing the basis will do: the solve is rotationally
+  // symmetric about uz, and the answer is mapped straight back out of it.
+  mrpt::math::TVector3D ux =
+    std::abs(uz.z) < 0.9 ? mrpt::math::TVector3D{0, 0, 1} : mrpt::math::TVector3D{1, 0, 0};
+  {
+    const double d = ux.x * uz.x + ux.y * uz.y + ux.z * uz.z;
+    ux = {ux.x - d * uz.x, ux.y - d * uz.y, ux.z - d * uz.z};
+    const double n = std::sqrt(ux.x * ux.x + ux.y * ux.y + ux.z * ux.z);
+    ux = {ux.x / n, ux.y / n, ux.z / n};
+  }
+  const mrpt::math::TVector3D uy = {
+    uz.y * ux.z - uz.z * ux.y, uz.z * ux.x - uz.x * ux.z, uz.x * ux.y - uz.y * ux.x};
+
+  const double sinWall = std::sin(mrpt::DEG2RAD(P.wall_tolerance_deg));
+  const double cosFloor = std::cos(mrpt::DEG2RAD(P.floor_tolerance_deg));
+
+  // Normal equations of the 2-DoF tilt `d` such that rotating the observed
+  // normals by -d makes every wall plumb and every floor level. A wall pins
+  // one axis, a level patch pins both.
+  double n00 = 0, n01 = 0, n11 = 0, v0 = 0, v1 = 0;
+  double totalW = 0, totalArea = 0;
+  size_t nWalls = 0, nFloors = 0;
+
+  const auto addRow = [&](double a0, double a1, double rhs, double w) {
+    n00 += w * a0 * a0;
+    n01 += w * a0 * a1;
+    n11 += w * a1 * a1;
+    v0 += w * a0 * rhs;
+    v1 += w * a1 * rhs;
+    totalW += w;
+  };
+
+  std::vector<std::array<double, 4>> rows;  // a0, a1, rhs, w -- kept for the residual
+  rows.reserve(2 * observation.planes.size());
+
+  for (const auto & pp : observation.planes) {
+    // An extent is what makes one patch weighable against another; a source
+    // that does not provide one cannot take part.
+    if (pp.area < P.min_patch_area) {
+      continue;
+    }
+    const auto & c = pp.plane.coefs;
+    const double nn = std::sqrt(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
+    if (nn < 1e-9) {
+      continue;
+    }
+    // Patch normals are in the body frame; the classification is about the map.
+    const auto nb = mrpt::math::TVector3D(c[0] / nn, c[1] / nn, c[2] / nn);
+    const auto nm = estPoseInMap.rotateVector(nb);
+    const double gx = nm.x * ux.x + nm.y * ux.y + nm.z * ux.z;
+    const double gy = nm.x * uy.x + nm.y * uy.y + nm.z * uy.z;
+    const double gz = nm.x * uz.x + nm.y * uz.y + nm.z * uz.z;
+
+    const double w = pp.area;
+    if (std::abs(gz) <= sinWall) {
+      // Wall: its normal must have no vertical component.
+      rows.push_back({gy, -gx, gz, w});
+      addRow(gy, -gx, gz, w);
+      nWalls++;
+      totalArea += pp.area;
+    } else if (P.use_floors && std::abs(gz) >= cosFloor) {
+      const double s = gz > 0 ? 1.0 : -1.0;
+      const double mx = gx * s, my = gy * s, mz = gz * s;
+      rows.push_back({0.0, mz, mx, w});
+      addRow(0.0, mz, mx, w);
+      rows.push_back({-mz, 0.0, my, w});
+      addRow(-mz, 0.0, my, w);
+      nFloors++;
+      totalArea += pp.area;
+    }
+  }
+
+  if (rows.empty() || totalArea < P.min_total_area) {
+    structural_stats_.low_area++;
+    report();
+    return std::nullopt;
+  }
+
+  // Conditioning: with every wall parallel, one tilt axis is unobserved and
+  // the min-norm solution would silently invent a value for it.
+  const double tr = n00 + n11;
+  const double det = n00 * n11 - n01 * n01;
+  const double disc = std::sqrt(std::max(0.0, 0.25 * tr * tr - det));
+  const double evMax = 0.5 * tr + disc;
+  const double evMin = 0.5 * tr - disc;
+  if (evMax < 1e-12 || evMin / evMax < P.min_conditioning) {
+    structural_stats_.ill_conditioned++;
+    report();
+    return std::nullopt;
+  }
+
+  const double d0 = (n11 * v0 - n01 * v1) / det;
+  const double d1 = (n00 * v1 - n01 * v0) / det;
+
+  const double tilt = std::sqrt(d0 * d0 + d1 * d1);
+  if (tilt > mrpt::DEG2RAD(P.max_tilt_deg)) {
+    MRPT_LOG_THROTTLE_WARN_FMT(
+      5.0, "Structural verticality: refusing a %.2f deg request from %zu walls / %zu floors",
+      mrpt::RAD2DEG(tilt), nWalls, nFloors);
+    structural_stats_.too_much_tilt++;
+    report();
+    return std::nullopt;
+  }
+
+  // How much the patches disagree with each other, after the best fit. This is
+  // the reading's own earned uncertainty, and it is what a lack of structure
+  // shows up as.
+  double sse = 0;
+  for (const auto & r : rows) {
+    const double e = r[0] * d0 + r[1] * d1 - r[2];
+    sse += r[3] * e * e;
+  }
+  const double residRad = std::sqrt(sse / totalW);
+
+  // Correct the estimate's attitude by -d, then read "up" back out in body
+  // coordinates. Exact rotation, not the small-angle form: the requests worth
+  // acting on can be several degrees.
+  mrpt::math::TVector3D upG = {0, 0, 1};
+  if (tilt > 1e-12) {
+    const double kx = d0 / tilt, ky = d1 / tilt;  // rotation axis, kz = 0
+    const double st = std::sin(tilt), ct = std::cos(tilt);
+    // Rodrigues on (0,0,1): k x z = (ky, -kx, 0); k.z = 0
+    upG = {ky * st, -kx * st, ct};
+  }
+  const mrpt::math::TVector3D upMapCorrected = {
+    upG.x * ux.x + upG.y * uy.x + upG.z * uz.x, upG.x * ux.y + upG.y * uy.y + upG.z * uz.y,
+    upG.x * ux.z + upG.y * uy.z + upG.z * uz.z};
+
+  const auto upBody = estPoseInMap.inverseRotateVector(upMapCorrected);
+
+  const double sigmaRad =
+    P.add_solve_residual
+      ? std::sqrt(mrpt::square(mrpt::DEG2RAD(P.sigma_deg)) + mrpt::square(residRad))
+      : mrpt::DEG2RAD(P.sigma_deg);
+
+  MRPT_LOG_DEBUG_FMT(
+    "Structural verticality: %zu walls + %zu floors, %.1f m2, cond=%.3f, tilt=%.3f deg, "
+    "resid=%.3f deg, sigma=%.3f deg",
+    nWalls, nFloors, totalArea, evMin / evMax, mrpt::RAD2DEG(tilt), mrpt::RAD2DEG(residRad),
+    mrpt::RAD2DEG(sigmaRad));
+
+  structural_stats_.accepted++;
+  structural_stats_.sum_walls += nWalls;
+  structural_stats_.sum_tilt_udeg += static_cast<uint64_t>(1e6 * mrpt::RAD2DEG(tilt));
+  structural_stats_.sum_sigma_udeg += static_cast<uint64_t>(1e6 * mrpt::RAD2DEG(sigmaRad));
+  report();
+
+  return std::make_pair(upBody, sigmaRad);
+}
+
 #endif  // MOLA_LO_HAS_MP2P_GRAVITY_PRIOR
 
 void LidarOdometry::captureMapOriginVerticality(const mrpt::poses::CPose3D & poseAtCapture)
@@ -897,7 +1111,8 @@ void LidarOdometry::processLidarScan(  // NOLINT
     // never touches yaw or translation.
 #if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
     if (params_.imu_gravity_correction.enabled && params_.imu_gravity_correction.use_rank2_prior) {
-      in.gravityPrior = buildGravityPrior();
+      const auto estPoseForStructure = mrpt::poses::CPose3D(in.init_guess_local_wrt_global);
+      in.gravityPrior = buildGravityPrior(observation.get(), &estPoseForStructure);
       if (in.gravityPrior.has_value()) {
         MRPT_LOG_DEBUG_FMT(
           "IMU gravity (rank-2): up_body=[%.4f %.4f %.4f] up_map=[%.4f %.4f %.4f] sigma=%.2f deg",
@@ -1161,6 +1376,12 @@ void LidarOdometry::processLidarScan(  // NOLINT
       }
 
     } while (icp_result.terminationReason == mp2p_icp::IterTermReason::HookRequest);
+
+    if (icp_result.gravity_information_share >= 0) {
+      structural_stats_.sum_share_e6 +=
+        static_cast<uint64_t>(1e6 * icp_result.gravity_information_share);
+      structural_stats_.share_samples++;
+    }
 
     out.found_pose_to_wrt_from = icp_result.optimal_tf;
     out.goodness = icp_result.quality;

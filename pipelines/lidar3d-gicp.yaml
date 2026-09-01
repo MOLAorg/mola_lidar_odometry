@@ -78,6 +78,37 @@ params:
     # (plus IMU biases) from preintegrated IMU and this odometry's own relative
     # attitudes/velocities, so platform acceleration cancels and no
     # quasi-static window is required.
+    # Read the vertical off the SCENE'S STRUCTURE: large planar patches in a
+    # built environment are, as a rule, plumb or level, so asserting that they
+    # are gives an attitude reference that comes neither from an accelerometer
+    # nor from the map. Needs FilterPlanePatches in the observation pipeline
+    # (see observations_filter_1st_pass); without it there are no patches and
+    # this source stands down silently.
+    #
+    # `adaptive_sigma` does NOT apply here, by design. It stands the reading
+    # down while the platform accelerates, which is right for an accelerometer
+    # and exactly backwards for structure: a wall is plumb whether or not the
+    # robot is trotting. The gating is on patch support instead.
+    structural:
+      enabled: ${MOLA_STRUCT_VERTICALITY|false}
+      sigma_deg: ${MOLA_STRUCT_VERTICALITY_SIGMA_DEG|0.6}
+      # The solve's own residual is physically the right thing to add, but on
+      # real data it dominates the floor, and then sigma_deg controls nothing.
+      # Turn it off to set the constraint's strength directly.
+      add_solve_residual: ${MOLA_STRUCT_VERTICALITY_RESID|true}
+      # Walls only by default: floors slope, walls are built plumb, and the
+      # floor-derived vertical measures worse on every mission tried so far.
+      use_floors: ${MOLA_STRUCT_VERTICALITY_USE_FLOORS|false}
+      wall_tolerance_deg: ${MOLA_STRUCT_VERTICALITY_WALL_TOL_DEG|10.0}
+      floor_tolerance_deg: ${MOLA_STRUCT_VERTICALITY_FLOOR_TOL_DEG|10.0}
+      min_patch_area: ${MOLA_STRUCT_VERTICALITY_MIN_PATCH_AREA|3.0}
+      # Support gates, standing in for the acceleration gate this source must
+      # not use: enough total surface, and walls that are not all parallel
+      # (otherwise one tilt axis is unobserved and would be invented).
+      min_total_area: ${MOLA_STRUCT_VERTICALITY_MIN_TOTAL_AREA|6.0}
+      min_conditioning: ${MOLA_STRUCT_VERTICALITY_MIN_COND|0.10}
+      max_tilt_deg: ${MOLA_STRUCT_VERTICALITY_MAX_TILT_DEG|15.0}
+
     map_gravity:
       enabled: ${MOLA_IMU_MAP_GRAVITY|false}
       # Compute and log the estimate without letting it affect the verticality
@@ -718,6 +749,28 @@ observations_filter_1st_pass:
   # One filter object will be created for each entry, instancing the given class,
   # and with the given parameters. Filters are run in definition order on the
   # input metric_map_t object.
+
+  # Large planar patches of the CURRENT SCAN, into the observation map's
+  # `planes`. Read by imu_gravity_correction.structural above; nothing else
+  # consumes them, so leaving this in with the feature off only costs the
+  # extraction time. Deliberately fed from "deskewed", the full-resolution
+  # scan, not from a decimated layer: the patch normals are the measurement,
+  # and decimation is exactly what blunts them.
+  - class_name: mp2p_icp_filters::FilterPlanePatches
+    params:
+      input_pointcloud_layer: "deskewed"
+      voxel_size: ${MOLA_PLANE_PATCH_VOXEL|0.10}
+      distance_threshold: ${MOLA_PLANE_PATCH_DIST_TH|0.06}
+      normal_agreement_deg: ${MOLA_PLANE_PATCH_NORMAL_DEG|12.0}
+      # 300 points at a 0.10 m voxel is 3 m2. Large enough to be a surface,
+      # small enough that real walls arrive as many medium patches rather than
+      # one slab, which is how they actually arrive.
+      min_points: ${MOLA_PLANE_PATCH_MIN_PTS|300}
+      min_span: ${MOLA_PLANE_PATCH_MIN_SPAN|1.5}
+      range_min: ${MOLA_PLANE_PATCH_RANGE_MIN|1.0}
+      range_max: ${MOLA_PLANE_PATCH_RANGE_MAX|60.0}
+      max_patches: ${MOLA_PLANE_PATCH_MAX|12}
+      enabled: ${MOLA_STRUCT_VERTICALITY|false}
 
   - class_name: mp2p_icp_filters::FilterDecimateAdaptive
     params:
