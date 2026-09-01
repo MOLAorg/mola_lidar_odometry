@@ -68,6 +68,30 @@ mola_lo_profile_usage() {
   echo "  $0 ~/datasets/grand-tour/2024-10-01-11-29-55/"
 }
 
+# Map a LiDAR tag to the bag suffix and topic it is carried on. Shared by the
+# primary sensor and by the optional second one fused with it, so the two
+# cannot drift apart.
+_grandtour_lidar_spec() {
+  case "$1" in
+    hesai)
+      _gt_lidar_suffix=_hesai_undist.bag
+      _gt_lidar_topic=/boxi/hesai/points_undistorted
+      ;;
+    livox)
+      _gt_lidar_suffix=_livox_undist.bag
+      _gt_lidar_topic=/boxi/livox/points_undistorted
+      ;;
+    velodyne)
+      _gt_lidar_suffix=_anymal_velodyne_undist.bag
+      _gt_lidar_topic=/anymal/velodyne/points_undistorted
+      ;;
+    *)
+      echo "Error: $2 must be 'hesai', 'livox' or 'velodyne', got '$1'." >&2
+      return 1
+      ;;
+  esac
+}
+
 mola_lo_profile_resolve() {
   local arg=$1
   shift
@@ -78,24 +102,9 @@ mola_lo_profile_resolve() {
   : "${MOLA_GRANDTOUR_LIDAR:=hesai}"
   local lidar_suffix
   local lidar_topic_default
-  case "$MOLA_GRANDTOUR_LIDAR" in
-    hesai)
-      lidar_suffix=_hesai_undist.bag
-      lidar_topic_default=/boxi/hesai/points_undistorted
-      ;;
-    livox)
-      lidar_suffix=_livox_undist.bag
-      lidar_topic_default=/boxi/livox/points_undistorted
-      ;;
-    velodyne)
-      lidar_suffix=_anymal_velodyne_undist.bag
-      lidar_topic_default=/anymal/velodyne/points_undistorted
-      ;;
-    *)
-      echo "Error: MOLA_GRANDTOUR_LIDAR must be 'hesai', 'livox' or 'velodyne', got '$MOLA_GRANDTOUR_LIDAR'." >&2
-      return 1
-      ;;
-  esac
+  _grandtour_lidar_spec "$MOLA_GRANDTOUR_LIDAR" MOLA_GRANDTOUR_LIDAR || return 1
+  lidar_suffix=$_gt_lidar_suffix
+  lidar_topic_default=$_gt_lidar_topic
 
   # Resolve the "<dir>/<mission>" prefix shared by all of a mission's bags,
   # from either a mission directory or any one of its bag files:
@@ -144,6 +153,12 @@ mola_lo_profile_resolve() {
       ;;
   esac
 
+  # MOLA_GRANDTOUR_TF_BAG lets a caller supply a TF bag with refined extrinsics
+  # in place of whichever recorded one the IMU choice selected; empty keeps that
+  # default. Applied after the case above, so a caller that sets both variables
+  # gets the override rather than having it replaced by the STIM320 default.
+  tf_bag=${MOLA_GRANDTOUR_TF_BAG:-$tf_bag}
+
   # Which camera to preview. The three HDR cameras each ship in their own bag,
   # while the five Alphasense cameras share a single one, so the bag and the
   # topic have to be resolved together rather than derived from the tag alone.
@@ -174,12 +189,40 @@ mola_lo_profile_resolve() {
   echo "GrandTour mission '$(basename "$prefix")':"
   echo "  LiDAR bag: $lidar_bag  ($MOLA_GRANDTOUR_LIDAR)"
 
+  # Optional second LiDAR, fused with the first as one scan group. The rig
+  # carries three; the odometry groups them via multiple_lidars.lidar_count,
+  # which the offline CLI derives from the number of comma-separated labels it
+  # is given. Resolved here, before the topic default is frozen below.
+  : "${MOLA_GRANDTOUR_LIDAR2:=}"
+  local lidar2_bag=
+  if [ -n "$MOLA_GRANDTOUR_LIDAR2" ]; then
+    if [ "$MOLA_GRANDTOUR_LIDAR2" = "$MOLA_GRANDTOUR_LIDAR" ]; then
+      echo "Error: MOLA_GRANDTOUR_LIDAR2 must differ from MOLA_GRANDTOUR_LIDAR." >&2
+      return 1
+    fi
+    _grandtour_lidar_spec "$MOLA_GRANDTOUR_LIDAR2" MOLA_GRANDTOUR_LIDAR2 || return 1
+    lidar2_bag=${prefix}${_gt_lidar_suffix}
+    if [ ! -f "$lidar2_bag" ]; then
+      echo "Error: MOLA_GRANDTOUR_LIDAR2=$MOLA_GRANDTOUR_LIDAR2 needs '$lidar2_bag', not found." >&2
+      return 1
+    fi
+    echo "  LiDAR bag 2: $lidar2_bag  ($MOLA_GRANDTOUR_LIDAR2)"
+    lidar_topic_default="${lidar_topic_default},${_gt_lidar_topic}"
+    # One fixed pose cannot describe two sensors: the extrinsics must come
+    # from /tf, which the TF bag below provides.
+    MOLA_USE_FIXED_LIDAR_POSE=false
+    export MOLA_USE_FIXED_LIDAR_POSE
+  fi
+
   # GrandTour topic names and /tf frames:
   : "${MOLA_LIDAR_TOPIC:=$lidar_topic_default}"
   : "${MOLA_TF_BASE_LINK:=base}"  # the ANYmal body frame; NOT named 'base_link'
   export MOLA_LIDAR_TOPIC MOLA_TF_BASE_LINK
 
   local -a bags=("$lidar_bag")
+  if [ -n "$lidar2_bag" ]; then
+    bags+=("$lidar2_bag")
+  fi
 
   if [ -f "$tf_bag" ]; then
     echo "  TF bag   : $tf_bag"
@@ -191,6 +234,11 @@ mola_lo_profile_resolve() {
     echo "Error: MOLA_GRANDTOUR_IMU=stim320 needs '$tf_bag', which was not found." >&2
     echo "       Fetch it with: klein download -p GrandTourDataset -m release_<mission> \\" >&2
     echo "                        --dest <dir> --create-dirs -y <mission>_tf_model.bag" >&2
+    return 1
+  elif [ -n "$lidar2_bag" ]; then
+    # Two sensors cannot share one fixed pose, so /tf is the only thing that can
+    # place them; falling back would silently put both at the vehicle origin.
+    echo "Error: MOLA_GRANDTOUR_LIDAR2 needs the extrinsics in '$tf_bag', not found." >&2
     return 1
   else
     echo "  TF bag   : (not found: '$tf_bag'; using a fixed LiDAR pose at the origin)"
