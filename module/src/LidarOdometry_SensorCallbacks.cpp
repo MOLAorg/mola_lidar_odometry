@@ -29,6 +29,7 @@
 #include <mrpt/obs/CObservationGPS.h>
 #include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationOdometry.h>
+#include <mrpt/obs/CObservationRobotPose.h>
 
 // Std:
 #include <regex>
@@ -101,6 +102,16 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
     onIMU(o);
   }
 
+  // Is it the odometry source whose absolute attitude provides the verticality
+  // reading? Handled inline for the same reason as the IMU above: it only
+  // stores the newest value, so doing it on the caller's thread keeps what a
+  // scan sees a function of the input sequence rather than of scheduling.
+  if (
+    params_.imu_gravity_correction.odometry_attitude.enabled &&
+    o->sensorLabel == params_.imu_gravity_correction.odometry_attitude.sensor_label) {
+    onOdometryAttitude(o);
+  }
+
   // Is it GNSS?
   if (
     params_.gnss_sensor_label &&
@@ -124,6 +135,58 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
 
     break;  // do not keep processing the list
   }
+
+  MRPT_TRY_END
+}
+
+void LidarOdometry::onOdometryAttitude(const CObservation::ConstPtr & o)
+{
+  MRPT_TRY_START
+
+  const auto obs = std::dynamic_pointer_cast<const mrpt::obs::CObservationRobotPose>(o);
+  if (!obs) {
+    MRPT_LOG_THROTTLE_WARN_FMT(
+      5.0,
+      "Observation '%s' is configured as the odometry attitude source but is not a "
+      "CObservationRobotPose, so it carries no 3D attitude. Ignoring it.",
+      o->sensorLabel.c_str());
+    return;
+  }
+
+  // Move the reading from the sensor to the vehicle frame, as the state
+  // estimator does for the same observation.
+  auto pose = obs->pose.mean;
+  if (obs->sensorPose != mrpt::poses::CPose3D()) {
+    pose = pose + (-obs->sensorPose);
+  }
+
+  // Only the vertical is taken. Writing R = R_odom_vehicle, the source frame's
+  // "up" in vehicle coordinates is R^T * [0,0,1], i.e. R's third row. The
+  // source frame and the map frame differ by an unknown yaw and translation,
+  // and a rotation about the vertical leaves the vertical fixed, so this one
+  // direction transfers between them exactly while the position and the
+  // heading do not.
+  const auto R = pose.getRotationMatrix();
+  const auto up = mrpt::math::TVector3D(R(2, 0), R(2, 1), R(2, 2));
+
+  const double n = up.norm();
+  if (n < 1e-6) {
+    return;
+  }
+
+  const double stamp = mrpt::Clock::toDouble(obs->timestamp);
+
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+
+  // Readings can arrive out of order. Letting an older one land would move the
+  // vertical backwards and, with no age limit configured, keep it there.
+  if (state_.odom_attitude.valid && stamp < state_.odom_attitude.timestamp) {
+    return;
+  }
+
+  state_.odom_attitude.up_body = up * (1.0 / n);
+  state_.odom_attitude.timestamp = stamp;
+  state_.odom_attitude.valid = true;
 
   MRPT_TRY_END
 }

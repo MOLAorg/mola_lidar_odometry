@@ -72,6 +72,31 @@ params:
     # rate, or estimatedPitchRoll() returns nothing and the constraint is
     # silently inactive (at 400 Hz, 2.0 s holds only ~800 samples).
     #
+    # Take the verticality reading from an odometry source's ABSOLUTE attitude
+    # instead of the accelerometer. Only the "up" axis is used: the source's
+    # frame differs from the map frame by an unknown yaw and translation, and
+    # neither moves the vertical, so that one direction transfers exactly while
+    # the position and heading do not.
+    #
+    # An accelerometer only measures gravity while quasi-static, so on a
+    # platform that accelerates continuously `adaptive_sigma` correctly stands
+    # the constraint down nearly always, leaving the vertical unconstrained. A
+    # kinematic-inertial estimator on the platform has no such limitation.
+    # The map-origin reference is captured from the same source, so the
+    # constant offset between the two verticals stays a gauge instead of
+    # becoming a growing tilt.
+    odometry_attitude:
+      enabled: ${MOLA_ODOM_VERTICALITY|false}
+      # The VALUE here must equal the label the odometry observation is
+      # published under, which the shipped launch files set through their own
+      # MOLA_ODOM_SENSOR_LABEL variable; the two variables are separate on
+      # purpose, since the verticality source need not be the fused one. That
+      # observation must also be a CObservationRobotPose: planar odometry has
+      # no pitch or roll to offer.
+      sensor_label: "${MOLA_ODOM_VERTICALITY_LABEL|odom_wheels}"
+      sigma_deg: ${MOLA_ODOM_VERTICALITY_SIGMA_DEG|1.0}
+      max_age_seconds: ${MOLA_ODOM_VERTICALITY_MAX_AGE|0.5}
+
     # Estimate the map-frame vertical online instead of freezing it from one
     # accelerometer average at the first keyframe. See
     # mola::imu::MapGravityEstimator: it solves for gravity in the map frame
