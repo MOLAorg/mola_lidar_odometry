@@ -79,12 +79,16 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
   mounted upside down; that is the rig, confirmed against both the dataset's
   own extrinsics and its ground-truth attitude, not a frame error.
 - **grandtour** publishes one bag per topic, so the profile takes a *mission
-  directory* (or its `*_hesai_undist.bag`) and resolves the siblings by the
-  `<mission>_<topic>.bag` naming. Body frame is `base`, not `base_link`.
-  Extrinsics come from the mission's own `/tf_static`, so no fixed poses are
-  set. The LiDAR stream is already undistorted, so deskewing defaults to
-  `None`. The /tf tree view is on by default (this is a legged robot with a
-  full joint tree, which is the point), skipping the four frames not
+  directory* (or one of its `*_<lidar>_undist.bag` files) and resolves the
+  siblings by the `<mission>_<topic>.bag` naming. The robot carries three
+  LiDARs -- Hesai and Livox on the Boxi payload, Velodyne on the ANYmal body
+  itself -- selected with `MOLA_GRANDTOUR_LIDAR=hesai|livox|velodyne` (default
+  `hesai`); all three "_undist" streams are plain `sensor_msgs/PointCloud2`,
+  so no per-sensor message handling was needed. Body frame is `base`, not
+  `base_link`. Extrinsics come from the mission's own `/tf_static`, so no
+  fixed poses are set. The LiDAR stream is already undistorted, so deskewing
+  defaults to `None`. The /tf tree view is on by default (this is a legged
+  robot with a full joint tree, which is the point), skipping the four frames not
   physically on the body: `odom`, `enu_origin`, `dlio_odom`, `dlio_map`.
   The local map defaults to `mola::IncrementalPointCloud` here: measured lower
   ATE on every mission of this dataset carrying a reference trajectory (~46% on
