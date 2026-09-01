@@ -174,9 +174,18 @@ void LidarOdometry::onOdometryAttitude(const CObservation::ConstPtr & o)
     return;
   }
 
+  const double stamp = mrpt::Clock::toDouble(obs->timestamp);
+
   auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+
+  // Readings can arrive out of order. Letting an older one land would move the
+  // vertical backwards and, with no age limit configured, keep it there.
+  if (state_.odom_attitude.valid && stamp < state_.odom_attitude.timestamp) {
+    return;
+  }
+
   state_.odom_attitude.up_body = up * (1.0 / n);
-  state_.odom_attitude.timestamp = mrpt::Clock::toDouble(obs->timestamp);
+  state_.odom_attitude.timestamp = stamp;
   state_.odom_attitude.valid = true;
 
   MRPT_TRY_END

@@ -359,6 +359,14 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
   if (upOdom.has_value()) {
     g.up_body = *upOdom;
     readingSigmaRad = mrpt::DEG2RAD(params_.imu_gravity_correction.odometry_attitude.sigma_deg);
+  } else if (state_.gravity_calib_from_odometry) {
+    // The map-origin reference was captured from the odometry source, so an
+    // accelerometer reading here would be measured against a different
+    // vertical: the constant offset between the two would stop being a gauge
+    // and become a tilt of the map frame, which is what capturing both from
+    // one source exists to prevent. Emitting no prior for this scan is the
+    // only consistent option while the source is silent.
+    return std::nullopt;
   } else {
     const auto pr = state_.gravity_estimator.estimatedPitchRoll(
       params_.imu_gravity_correction.averaging_samples,
@@ -428,9 +436,10 @@ std::optional<mrpt::math::TVector3D> LidarOdometry::odometryUpBody() const
     return std::nullopt;
   }
 
-  // Fall back to the accelerometer rather than to a stale attitude: a source
-  // that stops publishing must degrade to the previous behavior, not freeze
-  // the vertical at its last value for the rest of the run.
+  // Report nothing rather than a stale attitude: a source that stops
+  // publishing must not freeze the vertical at its last value for the rest of
+  // the run. What that degrades to is the caller's decision, since it depends
+  // on which source the map-origin reference was captured from.
   if (oa.max_age_seconds > 0) {
     const double age = latest_obs_time_.load() - state_.odom_attitude.timestamp;
     if (age > oa.max_age_seconds) {

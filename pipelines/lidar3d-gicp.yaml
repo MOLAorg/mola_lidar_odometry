@@ -87,9 +87,12 @@ params:
     # becoming a growing tilt.
     odometry_attitude:
       enabled: ${MOLA_ODOM_VERTICALITY|false}
-      # Must match the odometry observation's label (MOLA_ODOM_SENSOR_LABEL
-      # in the shipped launch files), and that observation must be a
-      # CObservationRobotPose: planar odometry has no pitch or roll to offer.
+      # The VALUE here must equal the label the odometry observation is
+      # published under, which the shipped launch files set through their own
+      # MOLA_ODOM_SENSOR_LABEL variable; the two variables are separate on
+      # purpose, since the verticality source need not be the fused one. That
+      # observation must also be a CObservationRobotPose: planar odometry has
+      # no pitch or roll to offer.
       sensor_label: "${MOLA_ODOM_VERTICALITY_LABEL|odom_wheels}"
       sigma_deg: ${MOLA_ODOM_VERTICALITY_SIGMA_DEG|1.0}
       max_age_seconds: ${MOLA_ODOM_VERTICALITY_MAX_AGE|0.5}
