@@ -540,6 +540,27 @@ bit for bit; raising it smooths the residual. `MOLA_NDT_BLEND_SEARCH_RADIUS`
 defaults to the same expression as the map's own voxel size, because a blending
 radius below the cell size leaves no neighboring cell able to contribute at all.
 
+## `pipelines/lidar3d-gicp-dual-tsdf.yaml`
+
+Same as `lidar3d-gicp.yaml` plus a second local-map layer, `tsdf`
+(`mola::TSDF`), matched point-to-plane alongside the point map's cov-to-cov
+block. Both matchers feed one pairing set and `Solver_GaussNewton` sums both
+blocks into a single normal equation.
+
+The one knob is `MOLA_PAIRW_PT2PL` (default `1000.0`), the solver's
+`pair_weights.pt2pl`. It is an **inverse variance**, not a relative share: the
+cov-to-cov block already carries ~500 per pairing from its `(1, 1, 1e-3)`
+surface regularization, so leaving this at `1.0` makes the field block a few
+tenths of a percent of the information and reproduces `lidar3d-gicp.yaml`. The
+per-layer `weight` key inside a matcher's layer list is a legacy no-op in
+mp2p_icp and cannot be used for this. The `MOLA_TSDF_*` variables tune the
+field itself and are documented in the YAML.
+
+Measured on 13 Oxford Spires sequences against `lidar3d-gicp.yaml` under the
+same profile: pooled vertical drift +1.415 -> +0.166 mm/m (13/13 sequences
+better), per-segment tilt drift better on 11/13, median APE 0.142 -> 0.117 m,
+at about +21% per scan.
+
 ## `pipelines/lidar3d-gicp-single-filter.yaml` (temporary test variant)
 
 Same as `lidar3d-gicp.yaml`, except that the two chained `FilterDecimateAdaptive`
