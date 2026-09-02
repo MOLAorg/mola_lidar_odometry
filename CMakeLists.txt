@@ -41,6 +41,7 @@ set(LIB_SRCS
   module/src/LidarOdometry_Parameters.cpp
   module/src/LidarOdometry_Initialize.cpp
   module/src/LidarOdometry_ProcessScan.cpp
+  module/src/LidarOdometry_SlidingWindow.cpp
   module/src/LidarOdometry_AdaptiveVariables.cpp
   module/src/LidarOdometry_MapServer.cpp
   module/src/LidarOdometry_GUI.cpp
@@ -88,6 +89,18 @@ install(
   DIRECTORY module/include/
   DESTINATION ${CMAKE_INSTALL_PREFIX}/include
 )
+
+# Optional: the sliding-window map insertion feature solves a small pose graph
+# with GTSAM. Without it the feature refuses to run, and everything else builds
+# unchanged.
+find_package(GTSAM QUIET)
+if(GTSAM_FOUND)
+    target_link_libraries(${PROJECT_NAME} PRIVATE gtsam)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MOLA_LO_HAS_GTSAM)
+    message(STATUS "mola_lidar_odometry: GTSAM found, sliding-window insertion enabled")
+else()
+    message(STATUS "mola_lidar_odometry: GTSAM NOT found, sliding-window insertion disabled")
+endif()
 
 mola_version_to_hexadecimal(MP2P_ICP_VERSION_HEX "${mp2p_icp_VERSION}")
 target_compile_definitions(${PROJECT_NAME} PRIVATE MP2P_ICP_VERSION=${MP2P_ICP_VERSION_HEX})

@@ -513,6 +513,10 @@ icp_settings_with_vel:
         # one selected below by ${MOLA_LOCALMAP_CLASS}.
         layerMatches:
           - { global: "${MOLA_LOCALMAP_LAYER_NAME|localmap}", local: "observation" }
+          # The not-yet-consolidated keyframes the sliding window still holds.
+          # Without this the scan would register against a map lagging by the
+          # whole window.
+          - { global: "${MOLA_SWIN_WINDOW_LAYER_NAME|swinmap}", local: "observation" }
 
   quality:
     - class: mp2p_icp::QualityEvaluator_PairedRatio
@@ -521,6 +525,65 @@ icp_settings_with_vel:
 # Local map updates:
 # Very first observation: Use the mp2p_icp pipeline generator to create the local map:
 localmap_generator:
+  # The sliding window's own layer, created empty here and rebuilt from the
+  # window's keyframes on every insertion. Same map class and same covariance
+  # options as the consolidated layer below, since the matcher pairs the scan
+  # against both.
+  - class_name: mp2p_icp_filters::Generator
+    params:
+      name: "Generator (sliding window layer)"
+      target_layer: "${MOLA_SWIN_WINDOW_LAYER_NAME|swinmap}"
+      throw_on_unhandled_observation_class: true
+      process_class_names_regex: "" # NONE: don't process observations in the generator.
+      #process_sensor_labels_regex: '.*'
+      # metric_map_definition_ini_file: '${CURRENT_YAML_FILE_PATH}/localmap_definition_voxelmap.ini'
+
+      metric_map_definition:
+        # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/stable/group_mrpt_maps_grp.html
+        class: ${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}
+        plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
+        # The per-point covariances of the SCAN side of a cov-to-cov pairing are
+        # built here, and they are half of the pairing weight
+        # `(C_global + C_local)^-1`. Leaving this empty used the class defaults
+        # (k=20, min=5, max_distance=1.0 m), which do NOT match what the local
+        # map above is configured with, so the two sides of the same pairing
+        # were estimated over different neighborhood scales.
+        #
+        # A scan is much sparser than the accumulated map, so a radius that is
+        # ample for the map can leave a scan point with fewer than
+        # `min_correspondences_for_cov` neighbors. That case does not drop the
+        # pairing: it falls back to an isotropic covariance, and the pairing
+        # stays in the sum as an almost-isotropic point-to-point constraint
+        # instead of the plane constraint the cov-to-cov form is meant to give.
+        #
+        # `max_distance_for_cov` defaults to 2.0 here, NOT to the map class's
+        # own 1.0: measured over 115M pairings on Oxford Spires, 32.3% of
+        # pairings could not find `min_correspondences_for_cov` neighbors
+        # inside 1.0 m and fell back to an isotropic covariance, which leaves
+        # the pairing in the sum as a point-to-point constraint rather than a
+        # plane one. Full-corpus A/B at 2.0 m: pooled APE x0.785 over 46
+        # sequences, better on six of seven datasets (oxford x0.538,
+        # conslam x0.622, botanic x0.696, kitti x0.912, grand-tour x0.930,
+        # tiers x0.992) and no new failures.
+        #
+        # citrus-farm is the exception at x1.201, and its profile overrides
+        # this back to 1.0. Working hypothesis: dense close-range orchard
+        # foliage has no consistent surface, so a wider neighborhood averages
+        # the normal over vegetation instead of structure.
+        creationOpts:
+          # This layer really does hold several keyframes, so unlike the
+          # single-keyframe observation layer it must be allowed to search all
+          # of them. Inert for mola::IncrementalPointCloud.
+          max_search_keyframes: ${MOLA_SWIN_WINDOW_MAX_SEARCH_KF|12}
+          k_correspondences_for_cov: ${MOLA_OBSLAYER_K_CORRESPONDENCES_FOR_COV|20}
+          min_correspondences_for_cov: ${MOLA_OBSLAYER_MIN_CORRESPONDENCES_FOR_COV|5}
+          max_distance_for_cov: ${MOLA_OBSLAYER_MAX_DISTANCE_FOR_COV|2.0}
+          max_plane_deviation_for_cov: ${MOLA_OBSLAYER_MAX_PLANE_DEV_FOR_COV|0}
+          plane_regularization_lambda: ${MOLA_OBSLAYER_PLANE_REG_LAMBDA|0.001}
+        insertOpts: ~
+        likelihoodOpts: ~ # none required
+        renderOpts: ~
+
   # Generators:
   #
   # One filter object will be created for each entry, instancing the given class,

@@ -162,6 +162,10 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     ASSERT_(cfg.has("local_map_updates"));
     params_.local_map_updates.initialize(cfg["local_map_updates"], params_);
 
+    if (cfg.has("sliding_window")) {
+      params_.sliding_window.initialize(cfg["sliding_window"], params_);
+    }
+
     if (cfg.has("multiple_lidars")) {
       params_.multiple_lidars.initialize(cfg["multiple_lidars"], params_);
     }

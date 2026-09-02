@@ -54,9 +54,13 @@ namespace mola
 
 void LidarOdometry::updatePipelineDynamicVariablesRobotPoseOnly()
 {
+  updatePipelineDynamicVariablesRobotPoseOnly(state_.last_lidar_pose.mean);
+}
+
+void LidarOdometry::updatePipelineDynamicVariablesRobotPoseOnly(const mrpt::poses::CPose3D & p)
+{
   auto lckImu = mrpt::lockHelper(imu_state_mtx_);
 
-  const auto & p = state_.last_lidar_pose.mean;
   state_.parameter_source.updateVariable("robot_x", p.x());
   state_.parameter_source.updateVariable("robot_y", p.y());
   state_.parameter_source.updateVariable("robot_z", p.z());

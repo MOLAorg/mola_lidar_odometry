@@ -106,6 +106,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
+#include <deque>
 #include <fstream>
 #include <future>
 #include <limits>
@@ -336,6 +337,107 @@ public:
     };
 
     MapUpdateOptions local_map_updates;
+
+    /** Sliding-window map insertion ("SWIN").
+     *
+     *  Scan-to-map registration writes each keyframe into an irrevocable local
+     *  map at the pose it had when it was registered, so a pose error at that
+     *  instant stops being an estimate and becomes map geometry. This option
+     *  holds the last N keyframes in memory instead, links them to each other
+     *  with direct scan-to-scan registrations, solves a small pose graph over
+     *  them, and only merges a keyframe into the consolidated map once it
+     *  leaves the window, at its refined pose.
+     *
+     *  Disabled by default; when disabled the whole feature is bit-exactly
+     *  inert.
+     */
+    struct SlidingWindowOptions
+    {
+      bool enabled = false;
+
+      /** How many not-yet-consolidated keyframes to keep in the window. */
+      uint32_t window_size = 6;
+
+      /** How many earlier window members each new keyframe is directly
+       *  registered against. 1 gives a chain, >=2 adds the loops that let the
+       *  graph disagree with the chain. */
+      uint32_t links_per_keyframe = 2;
+
+      /** Upper bound on how long a keyframe may wait before being merged, so
+       *  the consolidated map never lags by more than this. 0 disables it. */
+      double max_lag_seconds = 3.0;
+
+      /** 1-sigma of the scan-to-map unary prior (the pose the front end
+       *  already found). */
+      double sigma_map_xyz = 0.05;     //!< [m]
+      double sigma_map_rot_deg = 0.5;  //!< [deg]
+
+      /** 1-sigma of a scan-to-scan relative constraint. The ratio against the
+       *  two above is what decides how much the graph is allowed to move a
+       *  pose away from what scan-to-map said. */
+      double sigma_s2s_xyz = 0.01;     //!< [m]
+      double sigma_s2s_rot_deg = 0.1;  //!< [deg]
+
+      /** Which components of the graph's correction actually reach the map.
+       *  The error the warp is made of is an attitude one (a fraction of a
+       *  degree baked into map geometry), while a translation correction is
+       *  what a chain of relative registrations drifts in, so the two are
+       *  worth separating. Setting both to false leaves only roll and pitch.
+       */
+      bool correct_translation = true;
+      bool correct_yaw = true;
+
+      /** If false, the graph is not solved at all and each keyframe is merged
+       *  at its live pose. Isolates the cost of the deferral from the effect
+       *  of the refinement. */
+      bool solve_graph = true;
+
+      /** Minimum ICP quality for a scan-to-scan link to be trusted. */
+      double min_s2s_quality = 0.5;
+
+      /** A scan-to-scan registration that disagrees with the two live poses by
+       *  more than this did not refine anything, it diverged. The correction
+       *  this feature exists to harvest is millimetres and hundredths of a
+       *  degree, so anything of this size is an outlier by construction and
+       *  the link is dropped. */
+      double max_link_disagreement_xyz = 0.25;     //!< [m]
+      double max_link_disagreement_rot_deg = 2.0;  //!< [deg]
+
+      /** Huber threshold on the scan-to-scan factors, as a multiple of their
+       *  own sigma. 0 disables the robust kernel. */
+      double s2s_huber_k = 3.0;
+
+      /** A solved pose further than this from the live one is rejected and the
+       *  live pose is merged instead. Last line of defence: one bad keyframe
+       *  becomes permanent map geometry. 0 disables the check. */
+      double max_correction_xyz = 0.30;     //!< [m]
+      double max_correction_rot_deg = 3.0;  //!< [deg]
+
+      /** Also keep the window's not-yet-consolidated keyframes in their own
+       *  map layer, so registration still sees the newest geometry while it
+       *  waits. Requires a pipeline whose matcher lists that layer too. */
+      bool window_layer = false;
+      std::string window_layer_name = "swinmap";
+
+      /** Layer names this feature has to know about: the consolidated local
+       *  map layer, and the cov-capable per-scan layer ICP registers. */
+      std::string map_layer_name = "localmap";
+      std::string obs_layer_name = "observation";
+
+      /** Rewrite the refined poses back into the published trajectory. The
+       *  refinement is a fixed-lag smoother output, so this lags by the
+       *  window. */
+      bool update_trajectory = false;
+
+      /** If not empty, a directory where two TUM files are written: the pose
+       *  each keyframe had when it was registered, and the pose it was merged
+       *  at. Scoring both is the falsification test for the whole idea. */
+      std::string probe_dir;
+
+      void initialize(const Yaml & c, Parameters & parent);
+    };
+
+    SlidingWindowOptions sliding_window;
 
     /** Minimum ICP "goodness" (in the range [0,1]) for a new KeyFrame to be
          * accepted during regular lidar odometry & mapping */
@@ -1390,6 +1492,55 @@ private:
     void append_gnss_stamp(
       const mrpt::Clock::time_point & stamp, const mrpt::system::COutputLogger & logger);
 
+    /** One not-yet-consolidated keyframe held by
+     *  Parameters::SlidingWindowOptions. */
+    struct SlidingWindowKF
+    {
+      uint64_t id = 0;
+      mrpt::Clock::time_point stamp;
+      /// Pose the front end published for this scan, i.e. what today's code
+      /// would merge it at.
+      mrpt::poses::CPose3D live_pose;
+      /// Current estimate, equal to live_pose until the graph moves it.
+      mrpt::poses::CPose3D pose;
+      /// The scan's own layers, in its local frame, kept alive so the scan can
+      /// be registered against later ones and merged later on.
+      mp2p_icp::metric_map_t::Ptr obs;
+      /// True once merged into the consolidated map: its pose is frozen and it
+      /// only stays around as the window's gauge.
+      bool committed = false;
+    };
+
+    /// Relative constraint between two SlidingWindowKF, from a direct
+    /// scan-to-scan registration.
+    struct SlidingWindowLink
+    {
+      uint64_t from_id = 0;
+      uint64_t to_id = 0;
+      mrpt::poses::CPose3D rel;  //!< pose of `to` as seen from `from`
+    };
+
+    /// The first keyframe of a map has to be merged immediately: an empty map
+    /// registers nothing.
+    bool swin_bootstrap_pending = true;
+
+    std::deque<SlidingWindowKF> swin_kfs;
+    std::vector<SlidingWindowLink> swin_links;
+    uint64_t swin_next_id = 0;
+    /// Running counters for the end-of-run summary.
+    uint64_t swin_merged = 0;
+    uint64_t swin_links_kept = 0;
+    uint64_t swin_links_dropped = 0;
+    /// How far each scan-to-scan measurement sits from the relative pose the
+    /// two live scan-to-map poses imply: the raw amount of information the
+    /// links carry that the map did not already have.
+    double swin_sum_disagree_xyz = 0;
+    double swin_sum_disagree_rot_deg = 0;
+    double swin_sum_corr_xyz = 0;
+    double swin_sum_corr_rot_deg = 0;
+    double swin_max_corr_xyz = 0;
+    double swin_max_corr_rot_deg = 0;
+
   };  // end of MethodState
 
   /** The worker thread pool with 1 thread for processing incoming observations.
@@ -1400,6 +1551,12 @@ private:
    *  backlog ("drop stale, keep freshest"). Running tasks are never aborted. */
   mrpt::WorkerThreadsPool worker_lidar_{
     1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_lidar"};
+
+  /// Probe outputs of the sliding-window feature: the pose each keyframe had
+  /// when it was registered, and the pose it was actually merged at. Scoring
+  /// the two against each other is what says whether the refinement is real.
+  std::ofstream swin_probe_live_;
+  std::ofstream swin_probe_refined_;
 
   ScanImuWaitList worker_lidar_wait_for_imu_list_;
   std::mutex worker_lidar_wait_for_imu_list_mtx_;
@@ -1657,6 +1814,38 @@ private:
   void updatePipelineDynamicVariables(const mrpt::Clock::time_point & stamp);
   void updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw);
   void updatePipelineDynamicVariablesRobotPoseOnly();
+  /// Same, but for an explicit pose instead of state_.last_lidar_pose.
+  void updatePipelineDynamicVariablesRobotPoseOnly(const mrpt::poses::CPose3D & p);
+
+  /// Sliding-window map insertion (Parameters::SlidingWindowOptions).
+  /// Pushes one just-decided keyframe into the window, links it to its
+  /// predecessors, re-solves the small graph and consolidates whatever has
+  /// aged out. Caller must hold state_mtx_ and must NOT hold
+  /// local_map_content_mtx_.
+  void slidingWindowOnKeyframe(
+    const mp2p_icp::metric_map_t::Ptr & observation, const mrpt::poses::CPose3D & livePose,
+    const mrpt::Clock::time_point & stamp);
+
+  /// Merges every keyframe still held by the window, in order. Called at the
+  /// end of a run so the last window-worth of data is not lost.
+  void slidingWindowFlush();
+
+  /// Merges one window entry into the consolidated local map at its current
+  /// pose, exactly as the immediate path would have.
+  void slidingWindowMergeIntoMap(MethodState::SlidingWindowKF & kf);
+
+  /// Rebuilds the optional window map layer from the not-yet-consolidated
+  /// entries at their current poses.
+  void slidingWindowRebuildWindowLayer();
+
+  /// Solves the window's pose graph in place.
+  void slidingWindowSolve();
+
+  /// Applies one keyframe's refinement to every published pose from that
+  /// keyframe up to \a until, which is the segment of trajectory that was
+  /// registered while that keyframe was the newest thing in the map.
+  void slidingWindowCorrectTrajectory(
+    const MethodState::SlidingWindowKF & kf, const mrpt::Clock::time_point & until);
 
   /// All these methods read state_, so the caller must own state_mtx_ and pass
   /// its lock object down, which they assert on entry.

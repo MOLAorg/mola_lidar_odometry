@@ -1471,6 +1471,9 @@ void LidarOdometry::processLidarScan(  // NOLINT
     state_.gravity_calib_first_available_time.reset();
     updateLocalMap = false;
     state_.last_icp_was_good = true;
+    state_.swin_bootstrap_pending = true;
+    state_.swin_kfs.clear();
+    state_.swin_links.clear();
 
     MRPT_LOG_WARN("Bad first ICP, re-starting from scratch with a new local map");
   }
@@ -1493,51 +1496,63 @@ void LidarOdometry::processLidarScan(  // NOLINT
       }
     }
 
-    ProfilerEntry tle3(profiler_, "onLidar.4.update_local_map.insert");
+    // Sliding-window map insertion: hand the keyframe to the window instead of
+    // merging it now. The very first keyframe still goes straight in, since a
+    // map with nothing in it cannot register anything. See
+    // Parameters::SlidingWindowOptions.
+    if (params_.sliding_window.enabled && !state_.swin_bootstrap_pending) {
+      lckMapContents.unlock();
+      tle2.stop();
+      slidingWindowOnKeyframe(observation, state_.last_lidar_pose.mean, scan_ref_time);
+    } else {
+      state_.swin_bootstrap_pending = false;
 
-    // Merge "observation_layers_to_merge_local_map" in local map:
-    // Input  metric_map_t: observation
-    // Output metric_map_t: state_.local_map
+      ProfilerEntry tle3(profiler_, "onLidar.4.update_local_map.insert");
 
-    // 1/4: temporarily make a (shallow) copy of the observation layers into
-    // the local map:
-    for (const auto & [lyName, lyMap] : observation->layers) {
-      ASSERTMSG_(
-        state_.local_map->layers.count(lyName) == 0,
-        mrpt::format(
-          "Error: local map layer name '%s' collides with one of the "
-          "observation layers, please use different layer names.",
-          lyName.c_str()));
+      // Merge "observation_layers_to_merge_local_map" in local map:
+      // Input  metric_map_t: observation
+      // Output metric_map_t: state_.local_map
 
-      state_.local_map->layers[lyName] = lyMap;  // shallow copy
-    }
+      // 1/4: temporarily make a (shallow) copy of the observation layers into
+      // the local map:
+      for (const auto & [lyName, lyMap] : observation->layers) {
+        ASSERTMSG_(
+          state_.local_map->layers.count(lyName) == 0,
+          mrpt::format(
+            "Error: local map layer name '%s' collides with one of the "
+            "observation layers, please use different layer names.",
+            lyName.c_str()));
 
-    // 2/4: Make sure dynamic variables are up-to-date,
-    // in particular, [robot_x, ..., robot_roll]:
-    // One lock for the update AND the realize(), see the twist update above:
-    {
-      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
-      updatePipelineDynamicVariablesRobotPoseOnly();
-      // Make all changes effective and evaluate the variables now:
-      state_.parameter_source.realize();
-    }
+        state_.local_map->layers[lyName] = lyMap;  // shallow copy
+      }
 
-    // 3/4: Apply pipeline
-    mp2p_icp_filters::apply_filter_pipeline(state_.obs2map_merge, *state_.local_map, profiler_);
+      // 2/4: Make sure dynamic variables are up-to-date,
+      // in particular, [robot_x, ..., robot_roll]:
+      // One lock for the update AND the realize(), see the twist update above:
+      {
+        auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+        updatePipelineDynamicVariablesRobotPoseOnly();
+        // Make all changes effective and evaluate the variables now:
+        state_.parameter_source.realize();
+      }
 
-    // 4/4: remove temporary layers:
-    for (const auto & [lyName, lyMap] : observation->layers) {
-      state_.local_map->layers.erase(lyName);
-    }
+      // 3/4: Apply pipeline
+      mp2p_icp_filters::apply_filter_pipeline(state_.obs2map_merge, *state_.local_map, profiler_);
 
-    // No more changes to the map contents below:
-    lckMapContents.unlock();
+      // 4/4: remove temporary layers:
+      for (const auto & [lyName, lyMap] : observation->layers) {
+        state_.local_map->layers.erase(lyName);
+      }
 
-    tle3.stop();
+      // No more changes to the map contents below:
+      lckMapContents.unlock();
 
-    state_.mark_local_map_as_updated();
+      tle3.stop();
 
-    tle2.stop();
+      state_.mark_local_map_as_updated();
+
+      tle2.stop();
+    }  // end: immediate (non-sliding-window) merge
 
 #ifdef MOLA_KERNEL_VIZ_HAS_METRICS
     // Stream the local-map update cost to the visualizer's live plot

@@ -137,6 +137,10 @@ void LidarOdometry::shutdownCleanup()
         state_.registration_icp_rejected, pctRejected);
     }
 
+    // The window still holds keyframes that were never merged; without this
+    // the last seconds of the run are missing from the saved map.
+    slidingWindowFlush();
+
     if (params_.simplemap.generate) {
       saveReconstructedMapToFile();
     }

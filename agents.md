@@ -749,6 +749,22 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_GCW_SOFTNESS` | double | 10.0 | `pipelines/lidar3d-gicp.yaml` | Ramp width at the breakpoint, in the units of the class variable |
 | `MOLA_GCW_BREAKPOINT` | double | 60.0 | `pipelines/lidar3d-gicp.yaml` | Single class boundary: degrees for `incidence`, \|n.up\| for `verticality` |
 | `MOLA_GCW_W_LOW` / `MOLA_GCW_W_HIGH` | double | 1.0 / 1.0 | `pipelines/lidar3d-gicp.yaml` | Weights below/above the breakpoint. Both 1.0 is a no-op |
+| `MOLA_SWIN_ENABLED` | bool | false | `pipelines/lidar3d-gicp.yaml` | Sliding-window map insertion: hold the last N keyframes, link them by scan-to-scan ICP, solve a small GTSAM pose graph, and merge each one only when it leaves the window. Measured negative on every mission tried; kept default-off. Bit-identical to a build without it while off |
+| `MOLA_SWIN_N` | uint | 6 | `pipelines/lidar3d-gicp.yaml` | Keyframes held un-merged. The consolidated map lags by this many, and that lag is what costs |
+| `MOLA_SWIN_LINKS` | uint | 2 | `pipelines/lidar3d-gicp.yaml` | Predecessors each new keyframe is registered against |
+| `MOLA_SWIN_MAX_LAG` | double | 3.0 | `pipelines/lidar3d-gicp.yaml` | Upper bound [s] on that lag, whatever the keyframe rate. 0 disables |
+| `MOLA_SWIN_SIGMA_MAP_XYZ` / `..._ROT` | double | 0.05 / 0.5 | `pipelines/lidar3d-gicp.yaml` | 1-sigma [m] / [deg] of the unary prior at the scan-to-map pose |
+| `MOLA_SWIN_SIGMA_S2S_XYZ` / `..._ROT` | double | 0.01 / 0.1 | `pipelines/lidar3d-gicp.yaml` | 1-sigma [m] / [deg] of a scan-to-scan link. The ratio against the two above is the only real knob, and its measured optimum is at zero s2s weight |
+| `MOLA_SWIN_SOLVE` | bool | true | `pipelines/lidar3d-gicp.yaml` | false merges each keyframe at its live pose, isolating the cost of the deferral |
+| `MOLA_SWIN_CORRECT_XYZ` / `..._YAW` | bool | true / true | `pipelines/lidar3d-gicp.yaml` | Which components of the correction reach the map. Both false leaves roll and pitch only |
+| `MOLA_SWIN_MIN_S2S_QUALITY` | double | 0.5 | `pipelines/lidar3d-gicp.yaml` | Paired-ratio floor for a link. NOT a divergence test: a confidently wrong ICP scores well here |
+| `MOLA_SWIN_MAX_LINK_XYZ` / `..._ROT` | double | 0.25 / 2.0 | `pipelines/lidar3d-gicp.yaml` | The divergence test that works: a link disagreeing with the two live poses by more than this [m] / [deg] is dropped |
+| `MOLA_SWIN_HUBER_K` | double | 3.0 | `pipelines/lidar3d-gicp.yaml` | Huber threshold on the s2s factors, in sigmas. 0 disables |
+| `MOLA_SWIN_MAX_CORR_XYZ` / `..._ROT` | double | 0.30 / 3.0 | `pipelines/lidar3d-gicp.yaml` | A solved pose further than this from the live one is refused; it would become permanent map geometry |
+| `MOLA_SWIN_WINDOW_LAYER` | bool | false | `pipelines/lidar3d-gicp.yaml` | Also keep the window in its own matched map layer, so registration still sees the newest geometry. Needs `MOLA_ODOMETRY_PIPELINE_YAML=lidar3d-gicp-swin.yaml`, and halves the paired-ratio quality, so pin the adaptive sigma with it |
+| `MOLA_SWIN_WINDOW_LAYER_NAME` | string | `swinmap` | `pipelines/lidar3d-gicp.yaml` | Name of that layer |
+| `MOLA_SWIN_UPDATE_TRAJ` | bool | false | `pipelines/lidar3d-gicp.yaml` | Apply each keyframe's refinement to the published poses it owns, making the output a fixed-lag smoother |
+| `MOLA_SWIN_PROBE_DIR` | string | (unset) | `pipelines/lidar3d-gicp.yaml` | Directory for two TUM files: the pose each keyframe was registered at, and the pose it was merged at. Scoring both is the falsification test |
 | `MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | Start of a timestamp range for forcing ICP debug-log dumps (paired with `..._TO_TIMESTAMP`) |
 | `MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | End of the timestamp range above |
 | `MOLA_LO_DEBUG_ICP_QUALITY` | bool | false | `module/src/LidarOdometry_ProcessScan.cpp` | Trace ICP quality metrics per scan |
