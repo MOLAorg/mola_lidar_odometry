@@ -169,9 +169,9 @@ void LidarOdometry::Parameters::Visualization::initializeModelPart(const Yaml & 
   const auto models = cfg["model"].asSequenceRange();
   for (const auto & e : models) {
     ASSERT_(e.isMap());
-    auto c = e.asMap();
+    const mrpt::containers::yaml c(e);
     auto & m = model.emplace_back();
-    ASSERT_(c.count("file") != 0);
+    ASSERT_(c.has("file"));
     m.file = c["file"].as<std::string>();
 
     if (m.file.empty()) {
@@ -179,25 +179,25 @@ void LidarOdometry::Parameters::Visualization::initializeModelPart(const Yaml & 
       continue;
     }
 
-    if (c.count("tf.x") != 0) {
+    if (c.has("tf.x")) {
       m.tf.x = c["tf.x"].as<float>();
     }
-    if (c.count("tf.y") != 0) {
+    if (c.has("tf.y")) {
       m.tf.y = c["tf.y"].as<float>();
     }
-    if (c.count("tf.z") != 0) {
+    if (c.has("tf.z")) {
       m.tf.z = c["tf.z"].as<float>();
     }
-    if (c.count("tf.yaw") != 0) {
+    if (c.has("tf.yaw")) {
       m.tf.yaw = mrpt::DEG2RAD(c["tf.yaw"].as<float>());
     }
-    if (c.count("tf.pitch") != 0) {
+    if (c.has("tf.pitch")) {
       m.tf.pitch = mrpt::DEG2RAD(c["tf.pitch"].as<float>());
     }
-    if (c.count("tf.roll") != 0) {
+    if (c.has("tf.roll")) {
       m.tf.roll = mrpt::DEG2RAD(c["tf.roll"].as<float>());
     }
-    if (c.count("scale") != 0) {
+    if (c.has("scale")) {
       m.scale = c["scale"].as<float>();
     }
   }

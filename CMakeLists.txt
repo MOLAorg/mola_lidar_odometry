@@ -21,8 +21,9 @@ project(mola_lidar_odometry LANGUAGES CXX)
 find_package(mola_common REQUIRED)
 
 # find dependencies:
-find_package(mrpt-maps REQUIRED)
+find_package(mrpt_maps REQUIRED)
 find_package(CLI11 REQUIRED)
+find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(mola_kernel REQUIRED)
 find_package(mola_yaml REQUIRED)
 find_package(mp2p_icp REQUIRED)
@@ -61,21 +62,21 @@ mola_add_library(
   TARGET ${PROJECT_NAME}
   SOURCES ${LIB_SRCS} ${LIB_PUBLIC_HDRS}
   PUBLIC_LINK_LIBRARIES
-    mrpt::maps
+    mrpt::mrpt_maps
     mola::mola_kernel
     mola::mola_yaml
     mola::mp2p_icp
     mola::mp2p_icp_filters
     mola::mola_pose_list
     mola::mola_imu_preintegration
-# PRIVATE_LINK_LIBRARIES
-#  mrpt::maps
+  PRIVATE_LINK_LIBRARIES
+    Eigen3::Eigen
   CMAKE_DEPENDENCIES
     mola_kernel
     mola_yaml
     mp2p_icp
     mp2p_icp_filters
-    mrpt-maps
+    mrpt_maps
 )
 
 # mola_add_library() expects headers under "ROOT/include", so do this manually here:
@@ -117,7 +118,7 @@ mola_add_executable(
   SOURCES apps/mola-lidar-odometry-cli.cpp
   LINK_LIBRARIES
   ${PROJECT_NAME}
-  mrpt::maps
+  mrpt::mrpt_maps
   CLI11::CLI11
 )
 target_compile_definitions(mola-lidar-odometry-cli PRIVATE MOLA_LO_VERSION=\"${MY_VERSION}\")

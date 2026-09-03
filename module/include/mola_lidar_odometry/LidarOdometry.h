@@ -96,10 +96,10 @@
 #include <mrpt/core/WorkerThreadsPool.h>
 #include <mrpt/maps/CSimpleMap.h>
 #include <mrpt/obs/obs_frwds.h>
-#include <mrpt/opengl/CSetOfLines.h>
-#include <mrpt/opengl/CSetOfObjects.h>
 #include <mrpt/poses/CPose3DInterpolator.h>
 #include <mrpt/typemeta/TEnumType.h>
+#include <mrpt/viz/CSetOfLines.h>
+#include <mrpt/viz/CSetOfObjects.h>
 
 // STD:
 #include <array>
@@ -1436,12 +1436,12 @@ private:
     // CSetOfObjects around them and hands it to MolaViz, so we never
     // share a long-lived, mutable object pointer with the GUI thread.
     // glVehicleCachedBuilt tracks whether loading has already happened.
-    std::vector<mrpt::opengl::CRenderizable::Ptr> glVehicleModels;
+    std::vector<mrpt::viz::CVisualObject::Ptr> glVehicleModels;
     bool glVehicleModelsLoaded = false;
     // Worker-private growing buffer for the estimated path. Never handed
     // to the GUI thread directly: each update clones it into a fresh
     // CSetOfObjects wrapper before dispatch.
-    mrpt::opengl::CSetOfLines::Ptr glEstimatedPath;
+    mrpt::viz::CSetOfLines::Ptr glEstimatedPath;
     /// Decimation counter for the local map visualization. Saturating (never
     /// wraps around), so its maximum value means "refresh at the next chance".
     unsigned int mapUpdateCnt = std::numeric_limits<unsigned int>::max();

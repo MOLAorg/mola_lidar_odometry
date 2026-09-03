@@ -10,10 +10,10 @@ ament_add_gtest(test_keyframe_decider test_keyframe_decider.cpp)
 target_link_libraries(test_keyframe_decider mola::mola_lidar_odometry)
 
 ament_add_gtest(test_map_frame_relevel test_map_frame_relevel.cpp)
-target_link_libraries(test_map_frame_relevel mola::mola_lidar_odometry mrpt::obs)
+target_link_libraries(test_map_frame_relevel mola::mola_lidar_odometry mrpt::mrpt_obs)
 
 ament_add_gtest(test_imu_scan_sync test_imu_scan_sync.cpp)
-target_link_libraries(test_imu_scan_sync mola::mola_lidar_odometry mrpt::obs)
+target_link_libraries(test_imu_scan_sync mola::mola_lidar_odometry mrpt::mrpt_obs)
 
 # -----------------------------------------------------------------------
 # Data-dependent integration tests (require optional packages):
@@ -59,7 +59,7 @@ ament_add_gtest(test_lidar_odometry_kitti test_lidar_odometry_rawlog.cpp
   ENV MOLA_PROFILER=false
 )
 target_link_libraries(test_lidar_odometry_kitti
-  mrpt::obs
+  mrpt::mrpt_obs
   mola::mola_state_estimation_simple
   mola::mola_lidar_odometry
   mola::mola_state_estimation_simple
@@ -83,7 +83,7 @@ ament_add_gtest(test_lidar_odometry_mulran test_lidar_odometry_rawlog.cpp
   ENV MOLA_PROFILER=false
 )
 target_link_libraries(test_lidar_odometry_mulran
-  mrpt::obs
+  mrpt::mrpt_obs
   mola::mola_state_estimation_simple
   mola::mola_lidar_odometry
   mola::mola_state_estimation_simple
@@ -97,7 +97,7 @@ set(RSLIDAR_DATASET_FILE "${mola_test_datasets_DIR}/../datasets/rslidar_warehous
 set(RSLIDAR_GT_TUM ${mola_lidar_odometry_SOURCE_DIR}/test/rslidar_fragment_gt.tum)
 set(RSLIDAR_TOPIC "/rslidar_points")
 
-if(${mrpt-ros2bridge_VERSION} VERSION_GREATER_EQUAL "2.13.5")
+if(${mrpt_libros_bridge_VERSION} VERSION_GREATER_EQUAL "2.13.5")
   set(IGNORE_POINT_STAMPS "false")  # this was a bug fixed in 2.13.5, don't make this pkg to fail
 else()
   set(IGNORE_POINT_STAMPS "true")
@@ -115,7 +115,7 @@ if(EXISTS "${RSLIDAR_DATASET_FILE}")
     MOLA_IGNORE_NO_POINT_STAMPS=${IGNORE_POINT_STAMPS} # make it fail if no timestamps are found
   )
   target_link_libraries(test_lidar_odometry_rslidar
-    mrpt::obs
+    mrpt::mrpt_obs
     mola::mola_lidar_odometry
     mola::mola_input_rosbag2
     mola::mola_state_estimation_simple

@@ -22,7 +22,8 @@
   <depend>mola_pose_list</depend>
 
   <depend>cli11</depend>
-  <depend>mrpt_libmaps</depend>
+  <depend>mrpt_maps</depend>
+  <build_depend>eigen</build_depend>
 
   <!-- dataset input sources (all are actually optional) -->
   <depend>mola_input_kitti_dataset</depend>

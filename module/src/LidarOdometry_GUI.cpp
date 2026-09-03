@@ -29,18 +29,18 @@
 // MRPT:
 #include <mrpt/maps/CGenericPointsMap.h>
 #include <mrpt/obs/customizable_obs_viz.h>
-#include <mrpt/opengl/CArrow.h>
-#include <mrpt/opengl/CAssimpModel.h>
-#include <mrpt/opengl/CCylinder.h>
-#include <mrpt/opengl/CGridPlaneXY.h>
-#include <mrpt/opengl/COpenGLScene.h>
-#include <mrpt/opengl/CPointCloudColoured.h>
-#include <mrpt/opengl/CSetOfLines.h>
-#include <mrpt/opengl/CText.h>
-#include <mrpt/opengl/stock_objects.h>
 #include <mrpt/system/filesystem.h>
 #include <mrpt/system/string_utils.h>
 #include <mrpt/version.h>
+#include <mrpt/viz/CArrow.h>
+#include <mrpt/viz/CAssimpModel.h>
+#include <mrpt/viz/CCylinder.h>
+#include <mrpt/viz/CGridPlaneXY.h>
+#include <mrpt/viz/CPointCloudColoured.h>
+#include <mrpt/viz/CSetOfLines.h>
+#include <mrpt/viz/CText.h>
+#include <mrpt/viz/Scene.h>
+#include <mrpt/viz/stock_objects.h>
 
 // STD:
 #include <algorithm>
@@ -83,7 +83,7 @@ constexpr uint32_t kTfLinkCylinderSlices = 6;
 // derived from MRPT's R = Rz(yaw)*Ry(pitch)*Rx(roll) convention applied to
 // local Z (roll is a free rotation about the cylinder's own axis, so 0 is
 // fine). Returns nullptr for a degenerate (near-zero-length) link.
-mrpt::opengl::CCylinder::Ptr makeTfLinkCylinder(
+mrpt::viz::CCylinder::Ptr makeTfLinkCylinder(
   const mrpt::math::TPoint3D & a, const mrpt::math::TPoint3D & b, float radius)
 {
   const mrpt::math::TPoint3D d = b - a;
@@ -95,7 +95,7 @@ mrpt::opengl::CCylinder::Ptr makeTfLinkCylinder(
   const double yaw = std::atan2(d.y, d.x);
 
   auto glCyl =
-    mrpt::opengl::CCylinder::Create(radius, radius, static_cast<float>(len), kTfLinkCylinderSlices);
+    mrpt::viz::CCylinder::Create(radius, radius, static_cast<float>(len), kTfLinkCylinderSlices);
   glCyl->setHasBases(false, false);
   glCyl->setColor_u8(0x80, 0x80, 0x80, 0xff);
   glCyl->setPose(mrpt::poses::CPose3D(a.x, a.y, a.z, yaw, pitch, 0.0));
@@ -114,7 +114,7 @@ mrpt::opengl::CCylinder::Ptr makeTfLinkCylinder(
 size_t renderTfTree(
   const mola::TransformTree & tree, const std::string & subtreeRoot,
   const std::set<std::string> & excluded, float cornerSize, bool showLinks, float linkRadius,
-  bool showNames, mrpt::opengl::CSetOfObjects & out)
+  bool showNames, mrpt::viz::CSetOfObjects & out)
 {
   // Nodes come ordered parents-before-children, so both the "keep only this
   // subtree" and the "drop this frame" tests propagate down in a single pass:
@@ -137,13 +137,13 @@ size_t renderTfTree(
     posesByFrame[node.frame] = node.pose_in_root;
 
     if (cornerSize > 0) {
-      auto corner = mrpt::opengl::stock_objects::CornerXYZSimple(cornerSize);
+      auto corner = mrpt::viz::stock_objects::CornerXYZSimple(cornerSize);
       corner->setPose(node.pose_in_root);
       out.insert(corner);
     }
 
     if (showNames) {
-      auto label = mrpt::opengl::CText::Create(node.frame);
+      auto label = mrpt::viz::CText::Create(node.frame);
       label->setLocation(node.pose_in_root.translation());
       out.insert(label);
     }
@@ -413,7 +413,7 @@ void LidarOdometry::internalBuildGUI()
   gui_.lbMapStats = std::make_shared<LiveString>(" ");
 
   // Background 3D scene: change background color (backend-agnostic)
-  visualizer_->execute_custom_code_on_background_scene([this](mrpt::opengl::Scene & scene) {
+  visualizer_->execute_custom_code_on_background_scene([this](mrpt::viz::Scene & scene) {
     const auto f = params_.visualization.background_color_gray_level;
     scene.getViewport()->setCustomBackgroundColor({f, f, f});
   });
@@ -500,7 +500,7 @@ namespace
 {
 void doRecolorize(
   const mrpt::img::TColormap & colormap, const std::string & colorByField,
-  const mrpt::maps::CPointsMap * org_cloud, const mrpt::opengl::CPointCloudColoured::Ptr & cloud)
+  const mrpt::maps::CPointsMap * org_cloud, const mrpt::viz::CPointCloudColoured::Ptr & cloud)
 {
   if (colormap == mrpt::img::TColormap::cmNONE) {
     return;
@@ -563,7 +563,7 @@ mp2p_icp::metric_map_t cheapLayerSnapshot(const mp2p_icp::metric_map_t & m)
 // mola_kernel that lacks the movable-frame API.
 void vizUpsert3D(
   const mola::VizInterface::Ptr & viz, const std::string & name,
-  const mrpt::opengl::CSetOfObjects::Ptr & obj, const std::string & parentFrame)
+  const mrpt::viz::CSetOfObjects::Ptr & obj, const std::string & parentFrame)
 {
 #if defined(MOLA_KERNEL_VIZ_HAS_MOVABLE_FRAMES)
   viz->update_3d_object(name, obj, "main", "main", parentFrame);
@@ -654,14 +654,14 @@ void LidarOdometry::updateVisualization(
   // list itself to the GUI thread, so there is no writer/reader race on
   // the parent (MolaViz::update_3d_object deep-reads it on the GUI
   // thread while the lidar worker may keep producing new frames).
-  auto glVehicle = mrpt::opengl::CSetOfObjects::Create();
+  auto glVehicle = mrpt::viz::CSetOfObjects::Create();
   if (const auto l = params_.visualization.current_pose_corner_size;
       params_.visualization.show_current_pose_corner && l > 0) {
-    glVehicle->insert(mrpt::opengl::stock_objects::CornerXYZ(l));
+    glVehicle->insert(mrpt::viz::stock_objects::CornerXYZ(l));
   }
   if (const auto l = params_.visualization.sensor_poses_corner_size; l > 0) {
     for (const auto & [label, sp] : state_.last_lidar_sensor_poses) {
-      auto sensorCorner = mrpt::opengl::stock_objects::CornerXYZSimple(l);
+      auto sensorCorner = mrpt::viz::stock_objects::CornerXYZSimple(l);
       sensorCorner->setPose(sp);
       glVehicle->insert(sensorCorner);
     }
@@ -720,9 +720,9 @@ void LidarOdometry::updateVisualization(
 
   // ground grid:
   {
-    auto glGroundGrid = mrpt::opengl::CSetOfObjects::Create();
+    auto glGroundGrid = mrpt::viz::CSetOfObjects::Create();
     if (params_.visualization.show_ground_grid) {
-      auto glGrid = mrpt::opengl::CGridPlaneXY::Create();
+      auto glGrid = mrpt::viz::CGridPlaneXY::Create();
 
       mrpt::math::TBoundingBoxf bbox;
       bbox.min = {-10.0f, -10.0f, -1.0f};
@@ -806,12 +806,12 @@ void LidarOdometry::updateVisualizationInitVehFrame()
     for (const auto & model : _.model) {
       const auto localFileName = model.file;
 
-      auto m = mrpt::opengl::CAssimpModel::Create();
+      auto m = mrpt::viz::CAssimpModel::Create();
 
       ASSERT_FILE_EXISTS_(localFileName);
 
-      const int loadFlags = mrpt::opengl::CAssimpModel::LoadFlags::RealTimeMaxQuality |
-                            mrpt::opengl::CAssimpModel::LoadFlags::FlipUVs;
+      const int loadFlags = mrpt::viz::CAssimpModel::LoadFlags::RealTimeMaxQuality |
+                            mrpt::viz::CAssimpModel::LoadFlags::FlipUVs;
 
       m->loadScene(localFileName, loadFlags);
 
@@ -844,7 +844,7 @@ void LidarOdometry::updateVisualizationCurrentObservation(
       // false or there is no raw layer, so any previously displayed cloud
       // must be removed.
       if (viz) {
-        auto empty = mrpt::opengl::CSetOfObjects::Create();
+        auto empty = mrpt::viz::CSetOfObjects::Create();
         vizUpsert3D(viz, "liodom/cur_obs", empty, vizFrame);
         viz->clear_all_point_clouds_with_decay();
       }
@@ -902,14 +902,14 @@ void LidarOdometry::updateVisualizationCurrentObservation(
       auto glCurrentObs = mm.get_visualization(rp);
       glCurrentObs->setPose(currentPose);
 
-      if (auto cloud = glCurrentObs->getByClass<mrpt::opengl::CPointCloudColoured>(0); cloud) {
+      if (auto cloud = glCurrentObs->getByClass<mrpt::viz::CPointCloudColoured>(0); cloud) {
         const auto orgCloud = mm.point_layer("raw");
         doRecolorize(curObsColormap, curObsColorField, orgCloud.get(), cloud);
       }
 
       vizUpsert3D(viz, "liodom/cur_obs", glCurrentObs, vizFrame);
     } else {
-      auto empty = mrpt::opengl::CSetOfObjects::Create();
+      auto empty = mrpt::viz::CSetOfObjects::Create();
       vizUpsert3D(viz, "liodom/cur_obs", empty, vizFrame);
     }
 
@@ -928,7 +928,7 @@ void LidarOdometry::updateVisualizationCurrentObservation(
 
       auto glDecayObs = mm.get_visualization(rp);
 
-      if (auto cloud = glDecayObs->getByClass<mrpt::opengl::CPointCloudColoured>(0); cloud) {
+      if (auto cloud = glDecayObs->getByClass<mrpt::viz::CPointCloudColoured>(0); cloud) {
         cloud->setPose(currentPose);
         doRecolorize(decayColormap, decayColorField, deskewed.get(), cloud);
 
@@ -1019,7 +1019,7 @@ void LidarOdometry::updateVisualizationLocalMap()
     // enqueued above and cannot be overwritten by it.
     auto viz = visualizer_;
     (void)worker_viz_local_map_.enqueue([=]() {
-      auto glMap = mrpt::opengl::CSetOfObjects::Create();
+      auto glMap = mrpt::viz::CSetOfObjects::Create();
       vizUpsert3D(viz, "liodom/localmap", glMap, vizFrame);
     });
 
@@ -1036,7 +1036,7 @@ void LidarOdometry::updateVisualizationTfTree(
 #if defined(MOLA_HAS_TRANSFORM_TREE_SOURCE)
   const auto & vp = params_.visualization;
 
-  auto glTree = mrpt::opengl::CSetOfObjects::Create();
+  auto glTree = mrpt::viz::CSetOfObjects::Create();
 
   if (vp.show_tf_tree && state_.transform_tree_source) {
     // ALWAYS query from the robot body frame, whatever subtree is to be shown:
@@ -1083,7 +1083,7 @@ void LidarOdometry::updateVisualizationTfTree(
 void LidarOdometry::updateVisualizationPath(std::vector<std::function<void()>> & updateTasks)
 {
   if (!params_.visualization.show_trajectory) {
-    auto empty = mrpt::opengl::CSetOfObjects::Create();
+    auto empty = mrpt::viz::CSetOfObjects::Create();
     updateTasks.emplace_back([visualizer = visualizer_, empty, vizFrame = vizParentFrame()]() {
       vizUpsert3D(visualizer, "liodom/path", empty, vizFrame);
     });
@@ -1093,7 +1093,7 @@ void LidarOdometry::updateVisualizationPath(std::vector<std::function<void()>> &
   const ProfilerEntry tle2(profiler_, "updateVisualization.update_traject");
 
   if (!state_.glEstimatedPath) {
-    state_.glEstimatedPath = mrpt::opengl::CSetOfLines::Create();
+    state_.glEstimatedPath = mrpt::viz::CSetOfLines::Create();
     const auto & rgba = params_.visualization.trajectory_rgba;
     state_.glEstimatedPath->setColor(rgba.at(0), rgba.at(1), rgba.at(2), rgba.at(3));
   }
@@ -1114,8 +1114,8 @@ void LidarOdometry::updateVisualizationPath(std::vector<std::function<void()>> &
   // GUI thread, so the worker-private glEstimatedPath buffer can keep
   // growing on subsequent ticks without racing with MolaViz's deep
   // read on the GUI thread.
-  auto pathGrp = mrpt::opengl::CSetOfObjects::Create();
-  pathGrp->insert(mrpt::opengl::CSetOfLines::Create(*state_.glEstimatedPath));
+  auto pathGrp = mrpt::viz::CSetOfObjects::Create();
+  pathGrp->insert(mrpt::viz::CSetOfLines::Create(*state_.glEstimatedPath));
 
   updateTasks.emplace_back([visualizer = visualizer_, pathGrp, vizFrame = vizParentFrame()]() {
     vizUpsert3D(visualizer, "liodom/path", pathGrp, vizFrame);
@@ -1127,7 +1127,7 @@ void LidarOdometry::updateVisualizationGravityVector(
 {
   const std::string vizFrame = vizParentFrame();
   if (!params_.visualization.show_gravity_align_vector) {
-    auto grp = mrpt::opengl::CSetOfObjects::Create();
+    auto grp = mrpt::viz::CSetOfObjects::Create();
     updateTasks.emplace_back([visualizer = visualizer_, grp, vizFrame]() {
       vizUpsert3D(visualizer, "liodom/gravity_vector", grp, vizFrame);
     });
@@ -1151,11 +1151,11 @@ void LidarOdometry::updateVisualizationGravityVector(
   const auto & veh = state_.last_lidar_pose.mean;
   const auto arrowPose = mrpt::math::TPose3D(veh.x(), veh.y(), veh.z(), 0.0, imu_pitch, imu_roll);
 
-  auto glArrow = mrpt::opengl::CArrow::Create();
+  auto glArrow = mrpt::viz::CArrow::Create();
   glArrow->setArrowEnds(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 3.0f);
   glArrow->setColor_u8(0xff, 0xa5, 0x00, 0xdc);  // orange
 
-  auto grp = mrpt::opengl::CSetOfObjects::Create();
+  auto grp = mrpt::viz::CSetOfObjects::Create();
   grp->setPose(arrowPose);
   grp->insert(glArrow);
 
