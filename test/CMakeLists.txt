@@ -46,6 +46,18 @@ endif()
 set(DEFAULT_PIPELINE_YAML ${mola_lidar_odometry_SOURCE_DIR}/pipelines/lidar3d-default.yaml)
 set(DEFAULT_STATE_ESTIMATOR_YAML ${mola_lidar_odometry_SOURCE_DIR}/state-estimator-params/state-estimation-simple.yaml)
 
+# Test: relocalization requests (no dataset needed, but needs a state estimator)
+# ------------------------------------------------------------------------------
+ament_add_gtest(test_relocalization_request test_relocalization_request.cpp
+  ENV LO_PIPELINE_YAML=${DEFAULT_PIPELINE_YAML}
+  ENV LO_STATE_ESTIM_YAML=${DEFAULT_STATE_ESTIMATOR_YAML}
+  ENV MOLA_PROFILER=false
+)
+target_link_libraries(test_relocalization_request
+  mola::mola_state_estimation_simple
+  mola::mola_lidar_odometry
+)
+
 # Test: from rawlog file, using KITTI fragment
 # ---------------------------------------------------
 set(KITTI00_DATASET_FILE "${mola_test_datasets_DIR}/../datasets/kitti/kitti_00_extract.rawlog")
