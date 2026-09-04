@@ -367,8 +367,35 @@ void LidarOdometry::Parameters::IMUGravityCorrection::initialize(const Yaml & cf
       sigma_deg > 0, mrpt::format("imu_gravity_correction.sigma_deg=%.4f must be > 0", sigma_deg));
   }
 
+  if (cfg.has("odometry_attitude")) {
+    odometry_attitude.initialize(cfg["odometry_attitude"]);
+  }
+
   if (cfg.has("map_gravity")) {
     map_gravity.initialize(cfg["map_gravity"]);
+  }
+}
+
+void LidarOdometry::Parameters::IMUGravityCorrection::OdometryAttitude::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(enabled, bool);
+  YAML_LOAD_OPT(sensor_label, std::string);
+  YAML_LOAD_OPT(sigma_deg, double);
+  YAML_LOAD_OPT(max_age_seconds, double);
+
+  if (enabled) {
+    ASSERTMSG_(
+      !sensor_label.empty(),
+      "imu_gravity_correction.odometry_attitude.sensor_label cannot be empty when enabled");
+    ASSERTMSG_(
+      sigma_deg > 0,
+      mrpt::format(
+        "imu_gravity_correction.odometry_attitude.sigma_deg=%.4f must be > 0", sigma_deg));
+    ASSERTMSG_(
+      max_age_seconds >= 0,
+      mrpt::format(
+        "imu_gravity_correction.odometry_attitude.max_age_seconds=%.4f must be >= 0",
+        max_age_seconds));
   }
 }
 

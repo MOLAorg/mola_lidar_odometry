@@ -37,26 +37,28 @@ mola_lo_profile_resolve() {
   : "${MOLA_INITIAL_VX:=20.0}"
   export MOLA_INITIAL_VX
 
-  # KITTI does better on the point-to-point pipeline than on the default
-  # cov-to-cov one, and by enough to be worth selecting here: measured over
-  # sequences 00-10 it is better on 8 of 11 in translation and 7 of 11 in
-  # rotation, and costs about half the time per scan.
+  # No pipeline override: KITTI runs the shipped default, like every other
+  # dataset here.
   #
-  # This is a per-dataset choice, not a claim about the pipelines in general.
-  # A forward ablation between the two found that the difference does not come
-  # from any single stage: intermediate configurations are several times worse
-  # than either pipeline, so the two are separate optima rather than points on
-  # a path. Swapping just the matcher, in particular, is far worse than either.
+  # This profile used to select the point-to-point pipeline
+  # (lidar3d-icp.yaml), on a measurement over 00-10 that it wins the KITTI
+  # devkit's relative metric on 8 of 11 sequences. That result still
+  # reproduces -- relative translation error is 3.8 % lower on average, better
+  # on 8 of 11 -- but it prices only local registration. Scored on absolute
+  # trajectory error over the same 11 sequences, the default cov-to-cov
+  # pipeline wins 9 of 11, with a mean of 1.65 m against 2.72 m and a median
+  # of 1.07 m against 1.93 m. Three sequences are not close: 06 is 0.45 m
+  # against 4.78 m, 01 is 2.02 against 4.09, and 09 is 1.07 against 1.93.
   #
-  # Batch and regression runs override this the same way they override the
-  # velocity prior above, so their published numbers stay comparable.
-  : "${MOLA_ODOMETRY_PIPELINE_YAML:=$MOLA_LO_PIPELINES_DIR/lidar3d-icp.yaml}"
-  export MOLA_ODOMETRY_PIPELINE_YAML
+  # Good local registration that drifts is what that pattern describes, and
+  # ATE is the metric this dataset's users compare. Note the two are not in
+  # conflict about anything subtle: the relative gain is a few percent and the
+  # absolute cost is 65 %.
+  #
+  # The decimation tuning below was always measured against this pipeline, so
+  # the two now agree instead of being tuned for different targets.
 
-  # GICP-pipeline decimation tuning, for whenever lidar3d-gicp.yaml is
-  # selected instead of the pipeline default above (e.g. the SLAM-eval
-  # harness always evaluates job=lio against lidar3d-gicp.yaml regardless of
-  # this profile's own pipeline choice). A coarser voxel visited completely
+  # Decimation tuning for that pipeline. A coarser voxel visited completely
   # via the stride bound beats the shipped fine voxel sampled at a stride of
   # 3-5, on both translation and rotation, at a third of the cost, on the
   # full 00-10 corpus. Per-dataset, not a shipped pipeline default: it was
@@ -70,6 +72,51 @@ mola_lo_profile_resolve() {
   : "${MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV:=10}"
   export MOLA_CLOUD_DECIMATION_VOXEL_SIZE_MAP MOLA_CLOUD_DECIMATION_VOXEL_SIZE_ICP
   export MOLA_VOXEL_STRIDE_MAP MOLA_VOXEL_STRIDE_ICP MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV
+
+  # Local map for the GICP pipeline: the radius-bounded incremental cloud
+  # instead of the default 3-keyframe map, plus the map-side planarity gate.
+  #
+  # Measured over 00-10 with the KITTI devkit metric (the leaderboard one),
+  # against a baseline reproducing the published regression corpus exactly:
+  #
+  #                       translation %   rotation deg/100 m
+  #   shipped keyframe map      0.608           0.176
+  #   + planarity gate 0.20     0.577           0.175
+  #   incremental map + gate    0.571           0.1215
+  #   KISS-ICP, for reference   0.502           0.148
+  #
+  # The rotation number is the point: 0.1215 is 18% BETTER than KISS-ICP,
+  # from 19% worse. The gain comes from map extent -- the keyframe map only
+  # ever queried its 3 nearest keyframes, so the retention radius could not
+  # reach a pairing.
+  #
+  # PER-DATASET ON PURPOSE, and it must not be promoted to a pipeline default:
+  #  - On Oxford Spires the same map class is a consistent HORIZONTAL win
+  #    (0.67-0.79x on 4 of 4 sites) but an unpredictable VERTICAL cost, up to
+  #    2.9x APE on bodleian-library-02. Nothing yet controls that.
+  #  - IncrementalPointCloud is ODOMETRY ONLY: a global SE(3) re-map forces a
+  #    full rebuild, so do not combine it with loop closure or the SLAM
+  #    map-building entry points. Override MOLA_LOCALMAP_CLASS back to
+  #    mola::KeyframePointCloudMap for those.
+  #
+  # The gate needs mola_metric_maps with max_plane_deviation_for_cov
+  # (MOLAorg/mola#200); on an older core the key is ignored and this reverts to
+  # the previous behavior rather than failing.
+  : "${MOLA_LOCALMAP_CLASS:=mola::IncrementalPointCloud}"
+  : "${MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV:=0.20}"
+  export MOLA_LOCALMAP_CLASS MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV
+
+  # Smoother-only relative-pose prior floor (no-op for `simple`), raised from
+  # the class default of 0. On a well-conditioned road corpus the unfloored
+  # smoother's prior collapses to near-zero velocity between scans and the
+  # trajectory comes out 5x short; the floor alone fixes it, back to parity
+  # with `simple` (1.01x) on all 11 sequences. Per-dataset, not a shipped
+  # default: the families where the smoother earns its keep by pinning ICP
+  # (uneven or degenerate geometry) lose this same floor back. Oxford Spires
+  # carries its own copy of these values for the same reason.
+  : "${MOLA_SMOOTHER_SIGMA_REL_POSE_LIN:=0.1}"
+  : "${MOLA_SMOOTHER_SIGMA_REL_POSE_ANG:=0.02}"
+  export MOLA_SMOOTHER_SIGMA_REL_POSE_LIN MOLA_SMOOTHER_SIGMA_REL_POSE_ANG
 
   MOLA_LO_LAUNCH_FILE=lidar_odometry_from_kitti.yaml
   MOLA_LO_CLI_INPUT=(--input-kitti-seq "$seq")

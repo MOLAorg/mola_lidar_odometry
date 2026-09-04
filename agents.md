@@ -61,14 +61,46 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
   reported in: `imu` (default, the dataset's own reference frame) or
   `lidar`, needed when scoring against a ground truth sampled in the LiDAR
   frame. The two differ by a pure 180 deg yaw.
+- **hilti2022** (Hilti SLAM Challenge 2022 / Hilti-Oxford) ships one monolithic
+  bag per sequence: a Hesai PandarXT-32, an Alphasense IMU and five cameras,
+  with no `/tf` at all, so every sensor pose is fixed from the dataset's own
+  `lidar_calibration.yaml`. `HILTI2022_BASE_FRAME` picks the reported frame:
+  `imu` (default) or `lidar`. The default is the one that matters -- that
+  file declares the IMU as `base_link` at identity and the ground truth is
+  published in the IMU frame, so the estimate lands in the reference's own
+  frame with nothing to compose afterwards. Hand-held, so IMU deskewing and
+  IMU-derived initial pitch/roll, as in conslam; the clouds carry real
+  per-point timestamps. Only three of the sixteen sequences (`exp14`,
+  `exp16`, `exp18`) have a dense 6-DoF reference -- the rest ship surveyed
+  control points, which are positions, not poses. The name carries the
+  year because the Hilti challenges do not share a sensor suite: 2021 is an
+  Ouster/Livox rig, 2023's robot platform is RoboSense/Xsens, and 2026 has
+  no LiDAR in its bags. Note the IMU here reads gravity along -Z, i.e. it is
+  mounted upside down; that is the rig, confirmed against both the dataset's
+  own extrinsics and its ground-truth attitude, not a frame error.
 - **grandtour** publishes one bag per topic, so the profile takes a *mission
-  directory* (or its `*_hesai_undist.bag`) and resolves the siblings by the
-  `<mission>_<topic>.bag` naming. Body frame is `base`, not `base_link`.
-  Extrinsics come from the mission's own `/tf_static`, so no fixed poses are
-  set. The LiDAR stream is already undistorted, so deskewing defaults to
-  `None`. The /tf tree view is on by default (this is a legged robot with a
-  full joint tree, which is the point), skipping the four frames not
+  directory* (or one of its `*_<lidar>_undist.bag` files) and resolves the
+  siblings by the `<mission>_<topic>.bag` naming. The robot carries three
+  LiDARs -- Hesai and Livox on the Boxi payload, Velodyne on the ANYmal body
+  itself -- selected with `MOLA_GRANDTOUR_LIDAR=hesai|livox|velodyne` (default
+  `hesai`); all three "_undist" streams are plain `sensor_msgs/PointCloud2`,
+  so no per-sensor message handling was needed. Body frame is `base`, not
+  `base_link`. Extrinsics come from the mission's own `/tf_static`, so no
+  fixed poses are set. The LiDAR stream is already undistorted, so deskewing
+  defaults to `None`. The /tf tree view is on by default (this is a legged
+  robot with a full joint tree, which is the point), skipping the four frames not
   physically on the body: `odom`, `enu_origin`, `dlio_odom`, `dlio_map`.
+  The local map defaults to `mola::IncrementalPointCloud` here: measured lower
+  ATE on every mission of this dataset carrying a reference trajectory (~46% on
+  average). That makes the profile **odometry only** by default -- set
+  `MOLA_LOCALMAP_CLASS=mola::KeyframePointCloudMap` for loop-closure SLAM.
+  `MOLA_MINIMUM_RANGE_FILTER` is 1.5 m and sits next to a cliff: 2.0 m is worse
+  by an order of magnitude, so measure before re-tuning it.
+  `MOLA_GRANDTOUR_CAMERA` picks the GUI preview camera: `hdr_front` (default),
+  `hdr_left`, `hdr_right`, or `alphasense_{front_center,front_left,front_right,
+  left,right}`. The three HDR cameras each have their own bag; the five
+  Alphasense ones share `<mission>_alphasense.bag`, so bag and topic are
+  resolved together. Preview only, in GUI mode: no odometry consumes it.
 - **tiers** records FIVE lidars at once — that is what the dataset is for —
   so it gets one wrapper per sensor (`-ouster-os0`, `-ouster-os1`,
   `-velodyne`, `-livox-horizon`, `-livox-avia`) rather than one that silently
@@ -78,14 +110,46 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
   parts by their trailing `_<n>` numerically.
 - **ouster** is gui-only: a live source, which the offline CLI cannot read.
 
-## `lidar_odometry_from_rosbag1.yaml`: up to 4 bags replayed jointly
+## `lidar_odometry_from_rosbag1.yaml`: up to 5 bags replayed jointly
 
-`rosbag_filename` is a sequence fed from `MOLA_INPUT_ROSBAG1` plus three
-optional slots, `MOLA_INPUT_ROSBAG1_2` / `_3` / `_4` (empty entries are
+`rosbag_filename` is a sequence fed from `MOLA_INPUT_ROSBAG1` plus four
+optional slots, `MOLA_INPUT_ROSBAG1_2` / `_3` / `_4` / `_5` (empty entries are
 dropped by `Rosbag1Dataset`). Per-topic datasets that ship `/tf`, the IMU, a
 camera or the odometry in separate bag files therefore need no launch file of
 their own. `mola_lo_bag_slots` in `lib/dataset-profile.sh` fills these and the
-comma-joined spelling the offline CLI takes, from one list.
+comma-joined spelling the offline CLI takes, from one list. The cap was raised
+from 4 to 5 for GrandTour: lidar + tf + imu + odometry + camera is 5 bags in
+GUI mode with odometry fusion on (its default).
+
+## Wheel odometry, GUI and offline CLI alike
+
+Both `dataset_from_rosbag2()` / `dataset_from_rosbag1()` in
+`apps/mola-lidar-odometry-cli.cpp`, and the wheel-odometry entry in
+`mola-cli-launchs/lidar_odometry_from_rosbag1.yaml` / `rosbag2.yaml`, expose a
+`CObservationOdometry`-by-default entry gated on `${MOLA_ODOMETRY_TOPIC|''}`
+with `${MOLA_ODOM_SENSOR_LABEL|odom_wheels}`. Empty by default on purpose:
+`/odom` is a very common topic name across unrelated robots, so
+auto-detecting it would silently opt every bag that has one into wheel-odom
+fusion.
+
+`MOLA_ODOMETRY_OBS_CLASS` picks how the topic is read: the planar
+`CObservationOdometry` (default) or `CObservationRobotPose`, which keeps the
+full SE(3) pose and its 6x6 covariance. Use the latter for any 3D source
+(legged, VIO, aerial); the planar type drops z, roll and pitch. It needs a
+`mola_input_rosbag1`/`rosbag2` new enough to build it from a `nav_msgs/Odometry`.
+Honored identically by the offline CLI and both GUI launch YAMLs, so a
+profile that sets it (e.g. grandtour.sh) gets the same observation type in
+either mode.
+
+No `fixed_sensor_pose` on the planar entry: `mrpt::obs::CObservationOdometry`
+cannot carry one, so the twist must already be expressed in `base_link`
+(`nav_msgs/Odometry`'s `child_frame_id`). `CObservationRobotPose` does carry a
+sensor pose, so that restriction does not apply to it.
+
+GrandTour is the one profile that turns odometry fusion on by default, and
+reads it as `CObservationRobotPose`; see `scripts/lib/profiles/grandtour.sh`
+for the
+measurements behind that and behind its loose velocity sigmas.
 
 ## Robot /tf tree visualization (opt-in)
 
@@ -127,6 +191,21 @@ footprint-to-base_link offset, not the localization starting pose). Use
 `initial_pose:="[x, y, z, yaw_deg, pitch_deg, roll_deg]"` (same format as
 `mola_footprint_to_base_link_tf`); empty (default) leaves the pipeline
 YAML's own fallback (origin) in place.
+
+## A manual relocalization request overrides `initial_localization.method`
+
+`relocalize_near_pose_pdf()` sets `method = InitLocalization::FixedPose` along
+with the requested pose. Without that, a system configured with
+`FromStateEstimator` (what `gnss_mode:=relocalize` selects in the ROS 2 launch)
+or `PitchAndRollFromIMU` would store the pose and never read it, while the
+`initial_localization_done = false` set by the same call already stopped scans
+from being processed in `onLidar()`: the request would stall the front end
+instead of relocalizing it. This is the case that matters most, since a manual
+request is typically what is used when the automatic source cannot converge
+(e.g. poor GNSS coverage).
+
+`relocalize_from_gnss()` moves the method back to `FromStateEstimator`, so the
+two entry points can be alternated at runtime.
 
 ## State estimator integration
 
@@ -675,6 +754,16 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_MATCH_THRESHOLD_FAR` | double | 0 (off) | `pipelines/lidar3d-gicp.yaml` | Range-adaptive matching distance: matching distance beyond `..._KNEE`. 0 keeps the flat `threshold`, bit-identical to before. Interacts with `adaptive_threshold.initial_sigma`/`min_motion` and is a no-op at sigma 0.5 -- do not sweep it alone |
 | `MOLA_MATCH_THRESHOLD_KNEE` | double | 15.0 | `pipelines/lidar3d-gicp.yaml` | Range [m] where the near/far transition is centred |
 | `MOLA_MATCH_THRESHOLD_WIDTH` | double | 5.0 | `pipelines/lidar3d-gicp.yaml` | Width [m] of the near/far logistic transition |
+| `MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV` | double | 0 (off) | `pipelines/lidar3d-gicp.yaml` | Map-side planarity gate: reject a covariance neighborhood, falling back to isotropic, when any of its `k` neighbors lies farther than this [m] from their least-squares plane. Measured best at 0.20 on KITTI; 0 is the shipped behavior |
+| `MOLA_OBSLAYER_MAX_PLANE_DEV_FOR_COV` | double | 0 (off) | `pipelines/lidar3d-gicp.yaml` | Same gate, scan side. Gating both sides was measured worse than the map side alone on KITTI |
+| `MOLA_LOCALMAP_PLANE_REG_LAMBDA` | double | 0.001 | `pipelines/lidar3d-gicp.yaml` | Variance asserted along the estimated surface normal, i.e. the plane-confidence ratio (0.001 == 1000:1). **Not a tuning knob**: raising it measured monotonically worse on KITTI |
+| `MOLA_OBSLAYER_PLANE_REG_LAMBDA` | double | 0.001 | `pipelines/lidar3d-gicp.yaml` | Idem, scan side |
+| `MOLA_GCW_ENABLED` | bool | false | `pipelines/lidar3d-gicp.yaml` | Enables mp2p_icp's per-pairing weight by map surface geometry class. Inert while the weights are all ones |
+| `MOLA_GCW_VARIABLE` | string | `incidence` | `pipelines/lidar3d-gicp.yaml` | `incidence` (gravity-free) or `verticality` (needs a gravity source) |
+| `MOLA_GCW_GRAVITY_SOURCE` | string | `map_frame` | `pipelines/lidar3d-gicp.yaml` | `imu` or `map_frame`, for `verticality` only |
+| `MOLA_GCW_SOFTNESS` | double | 10.0 | `pipelines/lidar3d-gicp.yaml` | Ramp width at the breakpoint, in the units of the class variable |
+| `MOLA_GCW_BREAKPOINT` | double | 60.0 | `pipelines/lidar3d-gicp.yaml` | Single class boundary: degrees for `incidence`, \|n.up\| for `verticality` |
+| `MOLA_GCW_W_LOW` / `MOLA_GCW_W_HIGH` | double | 1.0 / 1.0 | `pipelines/lidar3d-gicp.yaml` | Weights below/above the breakpoint. Both 1.0 is a no-op |
 | `MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | Start of a timestamp range for forcing ICP debug-log dumps (paired with `..._TO_TIMESTAMP`) |
 | `MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | End of the timestamp range above |
 | `MOLA_LO_DEBUG_ICP_QUALITY` | bool | false | `module/src/LidarOdometry_ProcessScan.cpp` | Trace ICP quality metrics per scan |

@@ -278,6 +278,19 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     }
 #endif
 
+    // The odometry attitude source feeds the rank-2 prior's reading only. The
+    // legacy pose-prior path derives its tilt straight from the accelerometer,
+    // so leaving this silently ignored there would look like the setting had
+    // no effect.
+    if (
+      params_.imu_gravity_correction.odometry_attitude.enabled &&
+      !params_.imu_gravity_correction.use_rank2_prior) {
+      MRPT_LOG_WARN(
+        "imu_gravity_correction.odometry_attitude is enabled but "
+        "use_rank2_prior is false: the legacy pose-prior path reads the "
+        "accelerometer directly, so the odometry attitude will be ignored.");
+    }
+
     if (c.has("initial_localization")) {
       params_.initial_localization.initialize(c["initial_localization"]);
     }

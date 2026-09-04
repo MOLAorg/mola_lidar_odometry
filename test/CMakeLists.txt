@@ -23,6 +23,22 @@ find_package(mola_metric_maps)
 find_package(mola_input_rosbag2)
 find_package(mola_state_estimation_simple)
 
+# Test: relocalization requests. Reads no dataset, so it is gated only on what
+# it does need: the metric maps the LO pipeline instantiates, and a state
+# estimator for LO to attach to.
+# ------------------------------------------------------------------------------
+if(mola_metric_maps_FOUND AND mola_state_estimation_simple_FOUND)
+  ament_add_gtest(test_relocalization_request test_relocalization_request.cpp
+    ENV LO_PIPELINE_YAML=${mola_lidar_odometry_SOURCE_DIR}/pipelines/lidar3d-default.yaml
+    ENV LO_STATE_ESTIM_YAML=${mola_lidar_odometry_SOURCE_DIR}/state-estimator-params/state-estimation-simple.yaml
+    ENV MOLA_PROFILER=false
+  )
+  target_link_libraries(test_relocalization_request
+    mola::mola_state_estimation_simple
+    mola::mola_lidar_odometry
+  )
+endif()
+
 if((NOT mola_test_datasets_FOUND) OR
    (NOT mola_metric_maps_FOUND) OR
    (NOT mola_input_rosbag2_FOUND) OR

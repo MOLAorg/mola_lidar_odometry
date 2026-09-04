@@ -136,10 +136,15 @@ mola_lo_profile_resolve() {
   # back to leveling from raw accelerometer readings.
   : "${MOLA_LO_INITIAL_LOCALIZATION_METHOD:=InitLocalization::PitchAndRollFromIMU}"
   : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
-  # Accelerometer suppressed: gyro-only deskew took path-length error from
-  # 9.5% to 0.3% here (est/gt ratio), 2.6x better APE than leaving the
-  # accelerometer in. See lio/03_accuracy_pipeline.md ranked action 3c.
-  : "${MOLA_DESKEW_IGNORE_ACCELEROMETER:=true}"
+  # Keep the accelerometer in the deskew. This used to be suppressed, on
+  # evidence that gyro-only deskew cut path-length error and improved APE.
+  # Re-measured on all 13 sequences against today's pipeline, both halves of
+  # that are gone: est/gt is identical to three decimals either way, and
+  # suppressing the accelerometer now COSTS about 11% of APE (median 0.886x
+  # in its favour, better on 9 of 13). The defect it compensated for has since
+  # been fixed elsewhere, so the override no longer earns its keep. Left
+  # explicit rather than deleted so the measurement is not lost.
+  : "${MOLA_DESKEW_IGNORE_ACCELEROMETER:=false}"
   export MOLA_LO_INITIAL_LOCALIZATION_METHOD MOLA_DESKEW_METHOD MOLA_DESKEW_IGNORE_ACCELEROMETER
 
   # GICP-pipeline decimation tuning -- per-dataset, not a shipped pipeline
@@ -159,6 +164,16 @@ mola_lo_profile_resolve() {
   # (IndeterminantLinearSystemException):
   : "${MOLA_LINK_FIRST_POSE_SIGMA:=1e-6}"
   export MOLA_LINK_FIRST_POSE_SIGMA
+
+  # Smoother-only relative-pose prior floor (no-op for `simple`), same values
+  # as KITTI. Measured over all 13 sequences it costs nothing here (0.96x vs
+  # the unfloored smoother, 10/13 improving) and beats `simple` overall
+  # (1.06x vs 1.11x unfloored): well-conditioned geometry doesn't need the
+  # unfloored prior's ICP-pinning the way degenerate scenes do, so raising
+  # the floor is close to free. See the KITTI profile for the fuller case.
+  : "${MOLA_SMOOTHER_SIGMA_REL_POSE_LIN:=0.1}"
+  : "${MOLA_SMOOTHER_SIGMA_REL_POSE_ANG:=0.02}"
+  export MOLA_SMOOTHER_SIGMA_REL_POSE_LIN MOLA_SMOOTHER_SIGMA_REL_POSE_ANG
 
   mola_lo_use_smoother || return 1
 

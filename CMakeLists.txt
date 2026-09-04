@@ -261,6 +261,7 @@ set(MOLA_LO_DATASET_WRAPPERS
     citrusfarm
     conslam
     grandtour
+    hilti2022
     kitti
     kitti360
     mulran

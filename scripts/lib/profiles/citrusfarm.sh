@@ -75,6 +75,15 @@ mola_lo_profile_resolve() {
   # The launch file takes the odom bag in a slot of its own, so it never
   # displaces a base part; the offline CLI takes one comma-joined list.
   MOLA_INPUT_ROSBAG1_ODOM="$odom_bag"
+  # Keep the observation layer's covariance neighborhood at the map class's
+  # own 1.0 m, against the 2.0 m the pipeline now defaults to. This is the one
+  # dataset in the curated corpus where the wider neighborhood loses: APE
+  # x1.201 over 7 sequences, worse on 5, with two past x2. Dense close-range
+  # orchard foliage has no consistent surface to fit, so a wider neighborhood
+  # averages the scan-side normal over vegetation rather than structure.
+  : "${MOLA_OBSLAYER_MAX_DISTANCE_FOR_COV:=1.0}"
+  export MOLA_OBSLAYER_MAX_DISTANCE_FOR_COV
+
   export MOLA_INPUT_ROSBAG1_ODOM
 
   mola_lo_bag_slots "${base_bags[@]}" || return 1

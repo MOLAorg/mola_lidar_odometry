@@ -64,15 +64,17 @@ Choosing a visualizer module
 MOLA provides two alternative visualizer modules, both allowing MRPT's OpenGL rendering,
 that can be used with all GUI applications:
 
-- **MolaVizImGui** (``mola_viz_imgui``): The most recent and modern visualizer built on Dear ImGui (default).
-- **MolaViz** (``mola_viz``): An older visualizer, based on nanogui.
+- **MolaVizImGui** (``mola_viz_imgui``): The most recent visualizer, built on
+  Dear ImGui, with dockable subwindows, a log console and live metric plots.
+  **This is the default.**
+- **MolaViz** (``mola_viz``): The older visualizer, based on nanogui.
 
 .. list-table::
    :widths: 50 50
    :header-rows: 1
 
-   * - MolaViz (default)
-     - MolaVizImGui
+   * - MolaVizImGui (default)
+     - MolaViz
    * - .. image:: https://mrpt.github.io/imgs/screenshot_molaviz_imgui.png
           :alt: MolaVizImGui GUI screenshot
           :width: 100%
@@ -85,16 +87,11 @@ any of the GUI applications:
 
 .. code-block:: bash
 
-   # Explicitly select MolaViz (nanogui-based):
-   MOLA_GUI_MODULE=mola::MolaViz mola-lo-gui-rosbag2 /path/to/your/dataset.mcap
-
-   # Select the alternative MolaVizImGui (Dear ImGui-based):
+   # Explicitly select MolaVizImGui (Dear ImGui-based, the default):
    MOLA_GUI_MODULE=mola::MolaVizImGui mola-lo-gui-rosbag2 /path/to/your/dataset.mcap
 
-.. note::
-
-   ``MolaViz`` is the current default. ``MolaVizImGui`` is under active development
-   and may become the default in a future release once it reaches full feature parity.
+   # Fall back to the older MolaViz (nanogui-based):
+   MOLA_GUI_MODULE=mola::MolaViz mola-lo-gui-rosbag2 /path/to/your/dataset.mcap
 
 |
 
@@ -286,7 +283,7 @@ Runs MOLA-LO on a sequence of the Mulran dataset.
         mola-lo-gui-mulran KAIST01
 
         # Example using the 3D-NDT alternative pipeline:
-        PIPELINE_YAML=$(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-ndt.yaml \
+        MOLA_ODOMETRY_PIPELINE_YAML=$(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-ndt.yaml \
         MOLA_LOCAL_VOXELMAP_RESOLUTION=5.0 \
         mola-lo-gui-mulran KAIST01
 
@@ -314,9 +311,17 @@ Runs MOLA-LO on a sequence of the Mulran dataset.
 1.6. Common env variables
 ------------------------------
 
-- ``PIPELINE_YAML`` (Default: full path to installed ``lidar3d-default.yaml``): Can be set to override
-  the default pipeline and experiment with custom MOLA-LO systems described through a modified YAML file.
-  Example: see the example for :ref:`mola-lo-gui-mulran <mola_lo_gui_mulran>`.
+- ``MOLA_ODOMETRY_PIPELINE_YAML`` (Default: the installed ``lidar3d-default.yaml``,
+  which is a symlink to :ref:`lidar3d-gicp.yaml <mola_3d_gicp_pipeline>`): set it to
+  override the default pipeline and experiment with custom MOLA-LO systems described
+  through a modified YAML file. See :ref:`the available pipelines <mola_icp_pipelines_summary>`,
+  and the example for :ref:`mola-lo-gui-mulran <mola_lo_gui_mulran>`.
+
+- ``MOLA_WITH_GUI`` (Default: ``true``): set to ``false`` to run a ``mola-lo-gui-*``
+  launcher headless, e.g. over ssh or in a batch job.
+
+- ``MOLA_GUI_MODULE`` (Default: ``mola::MolaVizImGui``): selects the
+  :ref:`visualizer backend <mola_lo_gui_visualizer_selection>`.
 
 
 |
@@ -363,7 +368,7 @@ Process a ROS 2 bag
 .. dropdown:: Does your bag lack ``/tf``?
     :icon: alert
 
-    By default, ``mola-lidar-odometry-cl`` will try to use ``tf2`` messages in the rosbag to find out the relative pose
+    By default, ``mola-lidar-odometry-cli`` will try to use ``tf2`` messages in the rosbag to find out the relative pose
     of the LiDAR sensor with respect to the vehicle frame (default: ``base_link``). If your system **does not** have ``tf`` data
     (for example, if you only launched the LiDAR driver node) you must then set the environment variable ``MOLA_USE_FIXED_LIDAR_POSE=true``
     to use the default (identity) sensor pose on the vehicle. So, launch it like: 
@@ -392,7 +397,7 @@ Process a ROS 2 bag
     If you prefer to visualize the results as they are being processed, there are two options:
 
     * Use the built-in GUI in the provided apps: :ref:`mola-lo-gui-rosbag2 <mola_lo_apps>`.
-    * Replay the bag with `ros2 bag play` and launch the :ref:`ROS 2 launch file <mola_lo_ros>` so you can use RViz2 or FoxGlove for visualization.aunch
+    * Replay the bag with `ros2 bag play` and launch the :ref:`ROS 2 launch file <mola_lo_ros>` so you can use RViz2 or FoxGlove for visualization.
 
 .. dropdown:: More parameters
     :icon: list-unordered

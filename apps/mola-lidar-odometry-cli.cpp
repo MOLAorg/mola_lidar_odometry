@@ -33,6 +33,7 @@
 #include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
+#include <mrpt/obs/CObservationRobotPose.h>
 #include <mrpt/obs/CObservationRotatingScan.h>
 #include <mrpt/obs/CObservationVelodyneScan.h>
 #include <mrpt/obs/CRawlog.h>
@@ -226,13 +227,16 @@ struct Cli
     // instead of each caller keeping its own flags-vs-env translation table.
     // An explicit command-line flag still wins over the environment.
     arg_lidarLabel.value = "lidar1";
-    arg_lidarLabel.opt = cmd
-                           .add_option(
-                             "--lidar-sensor-label", arg_lidarLabel.value,
-                             "If provided, this supersedes the values in the 'lidar_sensor_labels' "
-                             "entry of the odometry pipeline, defining the sensorLabel/topic name "
-                             "to read LIDAR data from. It can be a regular expression {std::regex}")
-                           ->envname("MOLA_LIDAR_TOPIC");
+    arg_lidarLabel.opt =
+      cmd
+        .add_option(
+          "--lidar-sensor-label", arg_lidarLabel.value,
+          "If provided, this supersedes the values in the 'lidar_sensor_labels' "
+          "entry of the odometry pipeline, defining the sensorLabel/topic name "
+          "to read LIDAR data from. It can be a regular expression {std::regex}, "
+          "or a comma-separated list of them for a rig with several lidars, in "
+          "which case multiple_lidars.lidar_count follows the number given")
+        ->envname("MOLA_LIDAR_TOPIC");
 
     arg_imuLabel.value = "imu";
     arg_imuLabel.opt = cmd
@@ -393,6 +397,51 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_mulran(
 }
 #endif
 
+/** Builds the `sensors:` entries for the lidar(s) named by
+ *  --lidar-sensor-label, which accepts a comma-separated list so a rig with
+ *  several lidars can be replayed as one group. The grouping itself is the
+ *  odometry's (see Parameters::MultipleLidarOptions); this only makes the
+ *  offline CLI able to expose more than one lidar topic, which the launch
+ *  files could already do.
+ */
+std::vector<std::string> lidar_sensor_labels(const std::string & labels)
+{
+  std::vector<std::string> parts;
+  mrpt::system::tokenize(labels, ",", parts);
+  std::vector<std::string> out;
+  for (const auto & p : parts) {
+    const std::string one = mrpt::system::trim(p);
+    // A blank entry would reach the pipeline as an empty topic and the run
+    // would start with no lidar input at all, instead of reporting bad input.
+    if (one.empty()) {
+      THROW_EXCEPTION_FMT("--lidar-sensor-label has a blank entry in '%s'", labels.c_str());
+    }
+    out.push_back(one);
+  }
+  if (out.empty()) {
+    THROW_EXCEPTION("--lidar-sensor-label is empty");
+  }
+  return out;
+}
+
+std::string lidar_sensor_entries(const std::string & labels)
+{
+  std::string s;
+  for (const auto & p : lidar_sensor_labels(labels)) {
+    s += "\n        - topic: '" + p + "'";
+    s += "\n          type: CObservationPointCloud";
+    s += "\n          # If present, this overrides whatever /tf says about the sensor pose.";
+    s += "\n          # Note it applies to every lidar listed, so it is only meaningful";
+    s += "\n          # for a single-lidar run; with several, rely on /tf.";
+    s +=
+      "\n          fixed_sensor_pose: \"${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} "
+      "${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} "
+      "${LIDAR_POSE_ROLL|0}\"  # 'x y z yaw_deg pitch_deg roll_deg'";
+    s += "\n          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}";
+  }
+  return s;
+}
+
 #if defined(HAVE_MOLA_INPUT_ROSBAG2)
 std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
   Cli & cli, const std::string & rosbag2file, const mrpt::system::VerbosityLevel logLevel)
@@ -430,12 +479,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
       base_link_frame_id: '%s'
       tf_topic: '%s'
       tf_static_topic: '%s'
-      sensors:
-        - topic: '%s'
-          type: CObservationPointCloud
-          # If present, this will override whatever /tf tells about the sensor pose:
-          fixed_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
-          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
+      sensors:%s
         - topic: ${MOLA_GNSS_TOPIC|'/gps'}
           sensorLabel: 'gps'
           #type: CObservationGPS  # This will be determined automatically by Rosbag2Dataset
@@ -447,9 +491,25 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
+        # Wheel odometry, disabled unless MOLA_ODOMETRY_TOPIC is set: same
+        # name and empty-by-default convention as dataset_from_rosbag1()
+        # below and as lidar_odometry_from_rosbag2.yaml, rather than opting
+        # every bag carrying a topic named "/odom" into wheel-odom fusion.
+        # No fixed_sensor_pose: mrpt::obs::CObservationOdometry cannot carry
+        # one, so the wheel-odometry twist must already be expressed in
+        # base_link (nav_msgs/Odometry's child_frame_id) -- see the longer
+        # note in dataset_from_rosbag1().
+        - topic: ${MOLA_ODOMETRY_TOPIC|''}
+          sensorLabel: ${MOLA_ODOM_SENSOR_LABEL|odom_wheels}
+          # Planar type: (x, y, yaw) plus a 2D twist. For a 3D odometry
+          # source set MOLA_ODOMETRY_OBS_CLASS=CObservationRobotPose to keep
+          # z, roll, pitch and the source's 6x6 covariance.
+          type: ${MOLA_ODOMETRY_OBS_CLASS|CObservationOdometry}
+          is_optional: true
 )"""",
     bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(), cli.arg_tfTopic.getValue().c_str(),
-    cli.arg_tfStaticTopic.getValue().c_str(), cli.arg_lidarLabel.getValue().c_str(),
+    cli.arg_tfStaticTopic.getValue().c_str(),
+    lidar_sensor_entries(cli.arg_lidarLabel.getValue()).c_str(),
     cli.arg_imuLabel.getValue().c_str())));
 
   o->initialize(cfg);
@@ -493,12 +553,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
     params:
       rosbag_filename: %s
       base_link_frame_id: '%s'
-      sensors:
-        - topic: '%s'
-          type: CObservationPointCloud
-          # If present, this will override whatever /tf tells about the sensor pose:
-          fixed_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}"  # 'x y z yaw_deg pitch_deg roll_deg'
-          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
+      sensors:%s
         - topic: ${MOLA_GNSS_TOPIC|'/gps'}
           sensorLabel: 'gps'
           is_optional: true
@@ -541,11 +596,18 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
         # (approximately) base_link-aligned, e.g. BotanicGarden's Xsens IMU.
         - topic: ${MOLA_ODOMETRY_TOPIC|''}
           sensorLabel: ${MOLA_ODOM_SENSOR_LABEL|odom_wheels}
-          type: CObservationOdometry
+          # CObservationOdometry is planar: it can only carry (x, y, yaw)
+          # plus a 2D twist. For a 3D odometry source (legged robot, VIO,
+          # aerial platform) set MOLA_ODOMETRY_OBS_CLASS=CObservationRobotPose
+          # to keep z, roll, pitch and the source's 6x6 covariance. That type
+          # DOES honor a sensor pose, so the frame caveat above applies only
+          # to the planar default.
+          type: ${MOLA_ODOMETRY_OBS_CLASS|CObservationOdometry}
           is_optional: true
 )"""",
     bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(),
-    cli.arg_lidarLabel.getValue().c_str(), cli.arg_imuLabel.getValue().c_str())));
+    lidar_sensor_entries(cli.arg_lidarLabel.getValue()).c_str(),
+    cli.arg_imuLabel.getValue().c_str())));
 
   o->initialize(cfg);
 
@@ -781,7 +843,22 @@ int main_odometry(Cli & cli)
   }
 
   if (cli.arg_lidarLabel.isSet()) {
-    liodom->params_.lidar_sensor_labels.assign(1, std::regex(cli.arg_lidarLabel.getValue()));
+    const auto labels = lidar_sensor_labels(cli.arg_lidarLabel.getValue());
+    liodom->params_.lidar_sensor_labels.clear();
+    for (const auto & l : labels) {
+      liodom->params_.lidar_sensor_labels.emplace_back(l);
+    }
+    // Several labels only make sense if the odometry is also told to wait for
+    // that many observations before treating them as one scan; leaving the
+    // count at its default would instead process each lidar as its own scan.
+    // An explicit count from the pipeline YAML still wins.
+    if (labels.size() > 1 && liodom->params_.multiple_lidars.lidar_count == 1) {
+      liodom->params_.multiple_lidars.lidar_count = static_cast<uint32_t>(labels.size());
+      std::cout << "[mola-lidar-odometry-cli] " << labels.size()
+                << " lidar labels given: setting multiple_lidars.lidar_count to match "
+                   "(override with MOLA_LIDAR_COUNT)."
+                << std::endl;
+    }
   }
 
   if (cli.arg_imuLabel.isSet()) {
@@ -896,6 +973,7 @@ int main_odometry(Cli & cli)
     using mrpt::obs::CObservationIMU;
     using mrpt::obs::CObservationOdometry;
     using mrpt::obs::CObservationPointCloud;
+    using mrpt::obs::CObservationRobotPose;
     using mrpt::obs::CObservationRotatingScan;
     using mrpt::obs::CObservationVelodyneScan;
 
@@ -921,6 +999,11 @@ int main_odometry(Cli & cli)
     }
     if (!obs) {
       obs = sf->getObservationByClass<CObservationOdometry>();
+    }
+    if (!obs) {
+      // The SE(3) counterpart of CObservationOdometry, for 3D odometry
+      // sources whose z/roll/pitch and covariance the planar type drops:
+      obs = sf->getObservationByClass<CObservationRobotPose>();
     }
     if (!obs) {
       obs = sf->getObservationByClass<CObservationIMU>();

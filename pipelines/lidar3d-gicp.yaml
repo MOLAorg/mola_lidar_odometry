@@ -72,6 +72,31 @@ params:
     # rate, or estimatedPitchRoll() returns nothing and the constraint is
     # silently inactive (at 400 Hz, 2.0 s holds only ~800 samples).
     #
+    # Take the verticality reading from an odometry source's ABSOLUTE attitude
+    # instead of the accelerometer. Only the "up" axis is used: the source's
+    # frame differs from the map frame by an unknown yaw and translation, and
+    # neither moves the vertical, so that one direction transfers exactly while
+    # the position and heading do not.
+    #
+    # An accelerometer only measures gravity while quasi-static, so on a
+    # platform that accelerates continuously `adaptive_sigma` correctly stands
+    # the constraint down nearly always, leaving the vertical unconstrained. A
+    # kinematic-inertial estimator on the platform has no such limitation.
+    # The map-origin reference is captured from the same source, so the
+    # constant offset between the two verticals stays a gauge instead of
+    # becoming a growing tilt.
+    odometry_attitude:
+      enabled: ${MOLA_ODOM_VERTICALITY|false}
+      # The VALUE here must equal the label the odometry observation is
+      # published under, which the shipped launch files set through their own
+      # MOLA_ODOM_SENSOR_LABEL variable; the two variables are separate on
+      # purpose, since the verticality source need not be the fused one. That
+      # observation must also be a CObservationRobotPose: planar odometry has
+      # no pitch or roll to offer.
+      sensor_label: "${MOLA_ODOM_VERTICALITY_LABEL|odom_wheels}"
+      sigma_deg: ${MOLA_ODOM_VERTICALITY_SIGMA_DEG|1.0}
+      max_age_seconds: ${MOLA_ODOM_VERTICALITY_MAX_AGE|0.5}
+
     # Estimate the map-frame vertical online instead of freezing it from one
     # accelerometer average at the first keyframe. See
     # mola::imu::MapGravityEstimator: it solves for gravity in the map frame
@@ -293,7 +318,7 @@ params:
 
     show_ground_grid: ${MOLA_GUI_SHOW_GROUND_GRID|true}
     ground_grid_spacing: 5.0 # [m]
-    #current_pose_corner_size: 1.5
+    current_pose_corner_size: ${MOLA_LO_CURRENT_POSE_CORNER_SIZE|1.5} # [m]
     #sensor_poses_corner_size: 0.5  # XYZ corner for each LiDAR sensor pose; 0 to disable
     show_current_pose_corner: ${MOLA_LO_SHOW_CURRENT_POSE_CORNER|true} # Set to false to hide the current-pose XYZ corner (e.g. for a first-person camera)
 
@@ -429,6 +454,25 @@ icp_settings_with_vel:
         robustKernelPriorRefBlend: "${MOLA_LO_ROBUST_KERNEL_PRIOR_REF_BLEND|0.0}"
         #innerLoopVerbose: true
 
+        # Extra per-pairing weight by the geometry class of the map surface.
+        # Disabled by default, and bit-exactly inert while the weights are all
+        # ones: these numbers do NOT transfer between scene classes, so they
+        # belong in a dataset profile and never in this file's defaults. Read
+        # mp2p_icp's GeometryClassWeights docs before enabling; in particular
+        # 'verticality' is gravity-referenced and needs a gravity source.
+        geometry_class_weights:
+          enabled: ${MOLA_GCW_ENABLED|false}
+          variable: "${MOLA_GCW_VARIABLE|incidence}"
+          gravity_source: "${MOLA_GCW_GRAVITY_SOURCE|map_frame}"
+          softness: ${MOLA_GCW_SOFTNESS|10.0}
+          # Block sequences, not flow ones: the YAML is parsed before the ${}
+          # substitution runs, and a ${..|..} inside [ ] is a parse error.
+          breakpoints:
+            - ${MOLA_GCW_BREAKPOINT|60.0}
+          weights:
+            - ${MOLA_GCW_W_LOW|1.0}
+            - ${MOLA_GCW_W_HIGH|1.0}
+
         # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
         # instances to pair geometric entities between pointclouds.
   matchers:
@@ -516,6 +560,10 @@ localmap_generator:
           k_correspondences_for_cov: ${MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV|20}
           min_correspondences_for_cov: ${MOLA_LOCALMAP_MIN_CORRESPONDENCES_FOR_COV|5}
           max_distance_for_cov: ${MOLA_LOCALMAP_MAX_DISTANCE_FOR_COV|2.0}
+          # 0 disables the planarity test, which is the shipped behavior.
+          # See mola::KeyframePointCloudMap's docs before enabling it.
+          max_plane_deviation_for_cov: ${MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV|0}
+          plane_regularization_lambda: ${MOLA_LOCALMAP_PLANE_REG_LAMBDA|0.001}
           # --- mola::IncrementalPointCloud only ---
           # Half side [m] of the cube of points kept around the robot on each
           # insertion (Chebyshev distance, as in HashedVoxelPointCloud's
@@ -593,7 +641,43 @@ observations_generator:
         # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/stable/group_mrpt_maps_grp.html
         class: ${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}
         plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
-        creationOpts: ~ # none required: defaults are fine for a single scan
+        # The per-point covariances of the SCAN side of a cov-to-cov pairing are
+        # built here, and they are half of the pairing weight
+        # `(C_global + C_local)^-1`. Leaving this empty used the class defaults
+        # (k=20, min=5, max_distance=1.0 m), which do NOT match what the local
+        # map above is configured with, so the two sides of the same pairing
+        # were estimated over different neighborhood scales.
+        #
+        # A scan is much sparser than the accumulated map, so a radius that is
+        # ample for the map can leave a scan point with fewer than
+        # `min_correspondences_for_cov` neighbors. That case does not drop the
+        # pairing: it falls back to an isotropic covariance, and the pairing
+        # stays in the sum as an almost-isotropic point-to-point constraint
+        # instead of the plane constraint the cov-to-cov form is meant to give.
+        #
+        # `max_distance_for_cov` defaults to 2.0 here, NOT to the map class's
+        # own 1.0: measured over 115M pairings on Oxford Spires, 32.3% of
+        # pairings could not find `min_correspondences_for_cov` neighbors
+        # inside 1.0 m and fell back to an isotropic covariance, which leaves
+        # the pairing in the sum as a point-to-point constraint rather than a
+        # plane one. Full-corpus A/B at 2.0 m: pooled APE x0.785 over 46
+        # sequences, better on six of seven datasets (oxford x0.538,
+        # conslam x0.622, botanic x0.696, kitti x0.912, grand-tour x0.930,
+        # tiers x0.992) and no new failures.
+        #
+        # citrus-farm is the exception at x1.201, and its profile overrides
+        # this back to 1.0. Working hypothesis: dense close-range orchard
+        # foliage has no consistent surface, so a wider neighborhood averages
+        # the normal over vegetation instead of structure.
+        creationOpts:
+          # Required by the map class loader; the class default, and inert for a
+          # single-keyframe observation layer.
+          max_search_keyframes: 3
+          k_correspondences_for_cov: ${MOLA_OBSLAYER_K_CORRESPONDENCES_FOR_COV|20}
+          min_correspondences_for_cov: ${MOLA_OBSLAYER_MIN_CORRESPONDENCES_FOR_COV|5}
+          max_distance_for_cov: ${MOLA_OBSLAYER_MAX_DISTANCE_FOR_COV|2.0}
+          max_plane_deviation_for_cov: ${MOLA_OBSLAYER_MAX_PLANE_DEV_FOR_COV|0}
+          plane_regularization_lambda: ${MOLA_OBSLAYER_PLANE_REG_LAMBDA|0.001}
         insertOpts: ~
         likelihoodOpts: ~ # none required
         renderOpts: ~

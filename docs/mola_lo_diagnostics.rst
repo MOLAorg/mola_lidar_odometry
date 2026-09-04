@@ -9,7 +9,7 @@ health status is published, when running in a ROS 2 stack, as
 ``diagnostic_msgs/DiagnosticArray`` messages on the ``/diagnostics`` topic,
 following `REP-107 <https://www.ros.org/reps/rep-0107.html>`_.
 
-Publication is handled by :ref:`mola_bridge_ros2 <mola_bridge_ros2>`, which
+Publication is handled by :ref:`mola_bridge_ros2 <doxid-group__mola__bridge__ros2__grp>`, which
 discovers all loaded modules implementing ``DiagnosticsProvider`` via
 ``findService<>()`` and aggregates their statuses.
 

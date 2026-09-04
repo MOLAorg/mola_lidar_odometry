@@ -4,8 +4,6 @@
 LO/LIO pipelines
 ============================
 
-____________________________________________
-
 .. contents::
    :depth: 1
    :local:
@@ -61,6 +59,7 @@ ____________________________________________
 |
 
 .. _mola_icp_pipelines_summary:
+
 Summary of ICP pipelines
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -268,6 +267,7 @@ This pipeline exploits the **point-to-plane pairings**.
 
 
 |
+
 ____________________________________________
 
 |
@@ -430,7 +430,7 @@ Sensor inputs: GPS (GNSS) (optional)
   .. note::
 
      For ROS 2 live or rosbag sources, the ROS topic name that the bridge subscribes to is controlled separately
-     by ``MOLA_GNSS_TOPIC`` (see :ref:`mola_lo_ros_mola-cli-env-vars`). These are two different variables:
+     by ``MOLA_GNSS_TOPIC`` (see :ref:`the sensor-input environment variables <mola_lo_ros_mola-cli-env-vars>`). These are two different variables:
      ``MOLA_GPS_NAME`` is the internal sensor label; ``MOLA_GNSS_TOPIC`` is the ROS topic.
 
 
