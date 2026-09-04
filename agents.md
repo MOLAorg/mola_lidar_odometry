@@ -192,6 +192,21 @@ footprint-to-base_link offset, not the localization starting pose). Use
 `mola_footprint_to_base_link_tf`); empty (default) leaves the pipeline
 YAML's own fallback (origin) in place.
 
+## A manual relocalization request overrides `initial_localization.method`
+
+`relocalize_near_pose_pdf()` sets `method = InitLocalization::FixedPose` along
+with the requested pose. Without that, a system configured with
+`FromStateEstimator` (what `gnss_mode:=relocalize` selects in the ROS 2 launch)
+or `PitchAndRollFromIMU` would store the pose and never read it, while the
+`initial_localization_done = false` set by the same call already stopped scans
+from being processed in `onLidar()`: the request would stall the front end
+instead of relocalizing it. This is the case that matters most, since a manual
+request is typically what is used when the automatic source cannot converge
+(e.g. poor GNSS coverage).
+
+`relocalize_from_gnss()` moves the method back to `FromStateEstimator`, so the
+two entry points can be alternated at runtime.
+
 ## State estimator integration
 
 Per LiDAR scan, `LidarOdometry` queries the configured `mola::NavStateFilter`
