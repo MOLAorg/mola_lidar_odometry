@@ -37,10 +37,57 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstdlib>
+#include <fstream>
+#include <memory>
 #include <mutex>
+#include <ostream>
 
 namespace mola
 {
+namespace
+{
+/** Optional diagnostic: append the local-map insert/skip decision to a TSV
+ *  file, one row per scan that reaches the gate.
+ *
+ *  Enabled only if the environment variable MOLA_LO_MAP_GATE_LOG is set to a
+ *  writable path, so it costs one cached lookup when unused. The two keyframe
+ *  thresholds are dynamic expressions of the angular rate, so which of the two
+ *  branches can fire at all depends on the motion and is not observable from
+ *  the trajectory.
+ *
+ *  Not thread-safe by design: it is for single-threaded diagnostic runs.
+ */
+std::ostream * mapGateStream()
+{
+  static std::unique_ptr<std::ofstream> s_file = []() -> std::unique_ptr<std::ofstream> {
+    const char * path = ::getenv("MOLA_LO_MAP_GATE_LOG");
+    if (!path || !path[0]) {
+      return {};
+    }
+    auto f = std::make_unique<std::ofstream>(path, std::ios::out | std::ios::app);
+    if (!f->is_open()) {
+      return {};
+    }
+    *f << "# scan\ttimestamp\tw_norm\tobs_radius\tthr_trans_m\tthr_rot_deg"
+          "\tdist_trans_m\tdist_rot_deg\tdecider_create\ticp_good\thas_motion_model"
+          "\tmapping_enabled\tfrozen_post_reloc\tupdate_local_map\n";
+    if (!f->good()) {
+      return {};
+    }
+    return f;
+  }();
+  // A write that failed silently would leave a truncated log looking like a
+  // complete one, so stop handing out a stream that has already gone bad.
+  if (s_file && !s_file->good()) {
+    s_file.reset();
+  }
+  return s_file ? s_file.get() : nullptr;
+}
+
+uint64_t mapGateScanCounter = 0;
+}  // namespace
 
 bool LidarOdometry::isPipelineUsingIMU() const
 {
@@ -1491,6 +1538,31 @@ void LidarOdometry::processLidarScan(  // NOLINT
        !mapFrozenPostReloc
        );
     // clang-format on
+
+    if (auto * gs = mapGateStream(); gs) {
+      double wNorm = 0;
+      double obsRadius = 0;
+      {
+        auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+        const auto vars = state_.parameter_source.getVariableValues();
+        const auto readVar = [&vars](const char * name) {
+          const auto it = vars.find(name);
+          return it != vars.end() ? it->second : 0.0;
+        };
+        const double wx = readVar("wx");
+        const double wy = readVar("wy");
+        const double wz = readVar("wz");
+        wNorm = std::sqrt(wx * wx + wy * wy + wz * wz);
+        obsRadius = readVar("ESTIMATED_OBSERVATION_RADIUS");
+      }
+      *gs << mapGateScanCounter++ << '\t' << obsTimestamp << '\t' << wNorm << '\t' << obsRadius
+          << '\t' << params_.local_map_updates.min_translation_between_keyframes << '\t'
+          << params_.local_map_updates.min_rotation_between_keyframes << '\t'
+          << euclidean_dist_since_last << '\t' << mrpt::RAD2DEG(rot_since_last) << '\t'
+          << (distFarEnoughLocal ? 1 : 0) << '\t' << (icpIsGood ? 1 : 0) << '\t'
+          << (hasMotionModel ? 1 : 0) << '\t' << (params_.local_map_updates.enabled ? 1 : 0) << '\t'
+          << (mapFrozenPostReloc ? 1 : 0) << '\t' << (updateLocalMap ? 1 : 0) << '\n';
+    }
 
     if (updateLocalMap) {
       state_.kf_decider_local_map->insert(lidarPoseInWorld, obsTimestamp);
