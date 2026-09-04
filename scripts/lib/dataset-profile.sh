@@ -76,6 +76,13 @@ MOLA_LO_PIPELINES_DIR="$MOLA_LO_SHARE_DIR/pipelines"
 # the empty string rather than left alone, so a stale value exported by an
 # earlier run cannot leak in as an extra bag.
 #
+# A recording split into MORE parts than there are slots is not an error: every
+# bag goes into the first slot as one comma-separated list, which Rosbag1Dataset
+# splits on exactly as it does for the offline CLI's --input-rosbag1. Only that
+# case uses the joined spelling, so the per-slot layout every existing dataset
+# produces is unchanged. Newer College is the reason: its two sequences carry 10
+# and 16 bags, so before this its online arm could not run at all.
+#
 # The joined list is returned through a variable, not echoed: a caller
 # capturing it with $(...) would run this in a subshell and lose the exports.
 mola_lo_bag_slots() {
@@ -86,22 +93,34 @@ mola_lo_bag_slots() {
   done
 
   local max_slots=5
-  if [ "${#bags[@]}" -gt "$max_slots" ]; then
-    echo "Error: ${#bags[@]} bags given, the rosbag1 launch files expose $max_slots slots." >&2
-    return 1
-  fi
+
+  local joined=""
+  for b in "${bags[@]}"; do
+    joined="${joined:+$joined,}$b"
+  done
+  MOLA_LO_BAGS_JOINED="$joined"
 
   local i
+  local var
+  local value
   for ((i = 0; i < max_slots; i++)); do
-    local var
     var="MOLA_INPUT_ROSBAG1"
-    [ "$i" -gt 0 ] && var="MOLA_INPUT_ROSBAG1_$((i + 1))"
-    printf -v "$var" '%s' "${bags[$i]:-}"
+    if [ "$i" -gt 0 ]; then
+      var="MOLA_INPUT_ROSBAG1_$((i + 1))"
+    fi
+
+    if [ "${#bags[@]}" -le "$max_slots" ]; then
+      value="${bags[$i]:-}"
+    elif [ "$i" -eq 0 ]; then
+      # More bags than slots: they all travel in the first one.
+      value="$joined"
+    else
+      value=""
+    fi
+
+    printf -v "$var" '%s' "$value"
     export "${var?}"
   done
-
-  local IFS=,
-  MOLA_LO_BAGS_JOINED="${bags[*]}"
 }
 
 # Selects the mola_state_estimation_smoother instead of the default simple
