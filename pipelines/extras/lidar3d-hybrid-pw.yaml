@@ -47,6 +47,11 @@ params:
 
   min_time_between_scans: 1e-3 # [seconds]
 
+  # Whether a scan arriving while the worker is still busy replaces the one
+  # already queued (real-time behavior) or waits for it (lossless). Set to false
+  # for offline batch runs, where every scan must be processed.
+  drop_stale_scans: ${MOLA_DROP_STALE_SCANS|true}
+
   observation_radius_filter_coefficient: 0.95
   absolute_minimum_observation_radius: ${MOLA_ABS_MIN_SENSOR_RANGE|5.0}
 

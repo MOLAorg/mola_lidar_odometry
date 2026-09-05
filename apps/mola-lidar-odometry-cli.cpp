@@ -778,6 +778,11 @@ int main_odometry(Cli & cli)
   // ask for it. Datasets whose YAML does not read this variable are unaffected.
   setenv("MOLA_ASYNC_BACKEND", "false", 0 /* do not overwrite */);
 
+  // Same reasoning for the LiDAR input queue: its "keep only the freshest scan"
+  // default trades data for latency, which is the wrong trade offline, where
+  // every scan must be processed and two runs over the same data must agree.
+  setenv("MOLA_DROP_STALE_SCANS", "false", 0 /* do not overwrite */);
+
   // Make mandatory to specify state estimation config file, so defaults and initialize() are not skipped
   {
     const auto seParamsFile = cli.arg_stateEstimatorParams.getValue();
