@@ -33,6 +33,7 @@
 
 // Std:
 #include <chrono>
+#include <mutex>
 #include <regex>
 #include <thread>
 #include <utility>
@@ -299,6 +300,16 @@ void LidarOdometry::releaseReadyLidarScansToWorker()
 
 std::future<void> LidarOdometry::releaseLidarScansToWorker(const double upToImuTime)
 {
+  // In lossless mode the lock is taken BEFORE the scans leave the wait list and
+  // held until the last of them is enqueued: taking it any later would let a
+  // concurrent caller remove a newer batch and submit it ahead of this one, so
+  // the worker would see the scans out of chronological order. The default mode
+  // has nothing to serialize, since the pool's own policy is the intent there.
+  std::unique_lock<std::mutex> losslessLock;
+  if (!params_.drop_stale_scans) {
+    losslessLock = std::unique_lock<std::mutex>(lossless_submit_mtx_);
+  }
+
   // Collect every waiting scan whose whole span is already covered by received
   // IMU data, in chronological order, then submit outside the wait-list lock:
   const std::vector<ScanImuWaitList::Entry> readyScans = [&]() {
@@ -311,12 +322,9 @@ std::future<void> LidarOdometry::releaseLidarScansToWorker(const double upToImuT
   }
 
   if (!params_.drop_stale_scans) {
-    // Lossless mode: submit every scan that became ready, in chronological
-    // order. Each submit below blocks until the worker is free, so none of them
-    // can be superseded by the next one. The lock spans the whole batch, so a
-    // concurrent caller cannot slip a scan of its own in between two of these
-    // and reorder them.
-    auto lck = mrpt::lockHelper(lossless_submit_mtx_);
+    // Submit every scan that became ready, in chronological order. Each submit
+    // below blocks until the worker is free, so none can be superseded by the
+    // next one either.
     std::future<void> last;
     for (const auto & e : readyScans) {
       last = submitLidarScanLossless_locked(e.obs, e.imu_coverage_end_time);
