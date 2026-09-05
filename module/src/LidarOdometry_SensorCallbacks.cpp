@@ -313,10 +313,13 @@ std::future<void> LidarOdometry::releaseLidarScansToWorker(const double upToImuT
   if (!params_.drop_stale_scans) {
     // Lossless mode: submit every scan that became ready, in chronological
     // order. Each submit below blocks until the worker is free, so none of them
-    // can be superseded by the next one.
+    // can be superseded by the next one. The lock spans the whole batch, so a
+    // concurrent caller cannot slip a scan of its own in between two of these
+    // and reorder them.
+    auto lck = mrpt::lockHelper(lossless_submit_mtx_);
     std::future<void> last;
     for (const auto & e : readyScans) {
-      last = submitReadyLidarScanToWorker(e.obs, e.imu_coverage_end_time);
+      last = submitLidarScanLossless_locked(e.obs, e.imu_coverage_end_time);
     }
     return last;
   }
@@ -342,26 +345,38 @@ std::future<void> LidarOdometry::submitReadyLidarScanToWorker(
   // detects it; running scans are never aborted, only queued ones can be
   // dropped this way.
   if (!params_.drop_stale_scans) {
-    // Lossless mode: wait for the queue to drain instead of letting the
-    // eviction happen, which throttles the producer down to the pipeline's own
-    // rate. That is what a reproducible replay needs.
-    while (worker_lidar_.pendingTasks() > 0) {
-      const bool aborting = [this]() {
-        auto lck = mrpt::lockHelper(is_busy_mtx_);
-        return destructor_called_;
-      }();
-      if (aborting) {
-        return {};
-      }
-      std::this_thread::sleep_for(std::chrono::microseconds(500));
-    }
-  } else if (worker_lidar_.pendingTasks() > 0) {
+    auto lck = mrpt::lockHelper(lossless_submit_mtx_);
+    return submitLidarScanLossless_locked(o, imuCoverageEndTime);
+  }
+
+  if (worker_lidar_.pendingTasks() > 0) {
     // The eviction is about to happen: account for it.
     addDropStats(true);
     profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
     MRPT_LOG_THROTTLE_WARN_FMT(
       1.0, "Dropping LiDAR scan (worker busy: keeping only the freshest); dropped frames: %.02f%%",
       getDropStats() * 100.0);
+  }
+
+  return worker_lidar_.enqueue(
+    &LidarOdometry::onLidar, this, o, mrpt::Clock::nowDouble(), imuCoverageEndTime);
+}
+
+std::future<void> LidarOdometry::submitLidarScanLossless_locked(
+  const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime)
+{
+  // Wait for the queue to drain instead of letting POLICY_DROP_OLD evict the
+  // scan already waiting in it, which throttles the producer down to the
+  // pipeline's own rate. That is what a reproducible replay needs.
+  while (worker_lidar_.pendingTasks() > 0) {
+    const bool aborting = [this]() {
+      auto lck = mrpt::lockHelper(is_busy_mtx_);
+      return destructor_called_;
+    }();
+    if (aborting) {
+      return {};
+    }
+    std::this_thread::sleep_for(std::chrono::microseconds(500));
   }
 
   return worker_lidar_.enqueue(

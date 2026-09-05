@@ -1504,6 +1504,16 @@ private:
   ScanImuWaitList worker_lidar_wait_for_imu_list_;
   std::mutex worker_lidar_wait_for_imu_list_mtx_;
 
+  /// Serializes the whole wait-then-enqueue sequence used when
+  /// Parameters::drop_stale_scans is false. onNewObservation() is not
+  /// serialized by the framework, so the LiDAR and the IMU callback can reach
+  /// the submit path from two threads at once: both would see an empty queue,
+  /// both would enqueue, and POLICY_DROP_OLD would evict one of them, which is
+  /// the very drop this mode exists to prevent. Held across a whole release
+  /// batch, so submission order matches the scans' own order as well. Unused in
+  /// the default mode, where the pool's policy is the intended behavior.
+  std::mutex lossless_submit_mtx_;
+
   /// Newest timestamp (seconds, sensor clock) present in pending_imu_. A
   /// waiting scan may only be released to the worker once this reaches the
   /// scan's own IMU coverage end time, i.e. once every IMU sample the scan will
@@ -1851,6 +1861,13 @@ private:
    *          than on sampled busy counters. */
   std::future<void> submitReadyLidarScanToWorker(
     const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime);
+
+  /** The Parameters::drop_stale_scans==false path of the above: waits for the
+   *  worker queue to drain, then enqueues, so nothing is ever evicted.
+   *  \note The caller must already hold lossless_submit_mtx_. */
+  std::future<void> submitLidarScanLossless_locked(
+    const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime);
+
   /// Number of LiDAR scans currently running or queued on worker_lidar_ (0, 1, or 2).
   int pendingLidarScanCount() const;
 
