@@ -32,7 +32,9 @@
 #include <mrpt/obs/CObservationRobotPose.h>
 
 // Std:
+#include <chrono>
 #include <regex>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -249,12 +251,15 @@ void LidarOdometry::sendLidarScanToProcessQueue(const CObservation::ConstPtr & o
 
     // Safety cap: if IMU data lags badly, keep the wait list from growing without
     // bound by dropping the oldest still-waiting scans (they would be the most
-    // stale ones anyway):
-    const auto nDropped =
-      worker_lidar_wait_for_imu_list_.trim_to(params_.max_lidar_queue_before_drop);
-    for (std::size_t i = 0; i < nDropped; i++) {
-      addDropStats(true);
-      profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
+    // stale ones anyway). Skipped in lossless mode, where the producer is
+    // throttled at submit time and the list is bounded by the IMU lag alone:
+    if (params_.drop_stale_scans) {
+      const auto nDropped =
+        worker_lidar_wait_for_imu_list_.trim_to(params_.max_lidar_queue_before_drop);
+      for (std::size_t i = 0; i < nDropped; i++) {
+        addDropStats(true);
+        profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
+      }
     }
     waitListSize = worker_lidar_wait_for_imu_list_.size();
   }
@@ -301,13 +306,24 @@ std::future<void> LidarOdometry::releaseLidarScansToWorker(const double upToImuT
     return worker_lidar_wait_for_imu_list_.take_ready(upToImuTime);
   }();
 
-  // On an IMU catch-up burst several scans can qualify at once, but only the
-  // newest matters ("keep freshest"): drop-account the older ones directly
-  // instead of submitting each only to have it superseded by the next.
   if (readyScans.empty()) {
     return {};  // an invalid future: nothing was submitted
   }
 
+  if (!params_.drop_stale_scans) {
+    // Lossless mode: submit every scan that became ready, in chronological
+    // order. Each submit below blocks until the worker is free, so none of them
+    // can be superseded by the next one.
+    std::future<void> last;
+    for (const auto & e : readyScans) {
+      last = submitReadyLidarScanToWorker(e.obs, e.imu_coverage_end_time);
+    }
+    return last;
+  }
+
+  // On an IMU catch-up burst several scans can qualify at once, but only the
+  // newest matters ("keep freshest"): drop-account the older ones directly
+  // instead of submitting each only to have it superseded by the next.
   for (std::size_t i = 0; i + 1 < readyScans.size(); i++) {
     addDropStats(true);
     profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
@@ -322,10 +338,25 @@ std::future<void> LidarOdometry::submitReadyLidarScanToWorker(
   // worker_lidar_ uses POLICY_DROP_OLD: with a single worker thread, enqueue()
   // itself discards any older, not-yet-started scan once one is already queued
   // behind the one currently running. The pool gives no callback for that
-  // eviction, so detect it here (before enqueueing) purely for the drop-stats
-  // accounting; running scans are never aborted, only queued ones can be
+  // eviction, so a nonzero pendingTasks() here (before enqueueing) is what
+  // detects it; running scans are never aborted, only queued ones can be
   // dropped this way.
-  if (worker_lidar_.pendingTasks() > 0) {
+  if (!params_.drop_stale_scans) {
+    // Lossless mode: wait for the queue to drain instead of letting the
+    // eviction happen, which throttles the producer down to the pipeline's own
+    // rate. That is what a reproducible replay needs.
+    while (worker_lidar_.pendingTasks() > 0) {
+      const bool aborting = [this]() {
+        auto lck = mrpt::lockHelper(is_busy_mtx_);
+        return destructor_called_;
+      }();
+      if (aborting) {
+        return {};
+      }
+      std::this_thread::sleep_for(std::chrono::microseconds(500));
+    }
+  } else if (worker_lidar_.pendingTasks() > 0) {
+    // The eviction is about to happen: account for it.
     addDropStats(true);
     profiler_.registerUserMeasure("onNewObservation.drop_observation", 1);
     MRPT_LOG_THROTTLE_WARN_FMT(

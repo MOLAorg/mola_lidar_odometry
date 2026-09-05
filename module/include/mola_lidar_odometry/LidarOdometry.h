@@ -584,6 +584,22 @@ public:
 
     SimpleMapOptions simplemap;
 
+    // === INPUT QUEUE ====
+    /** When a new scan arrives while the worker is still busy, the default is to
+     *  keep only the freshest one. That is the right behavior on a robot, where
+     *  a stale scan is worth less than keeping up with the world, and the wrong
+     *  one for an offline batch run, whose whole point is that every scan gets
+     *  processed and the result is reproducible: how many scans are dropped then
+     *  depends on the replay rate and on whatever else the machine happens to be
+     *  doing, so two runs over the same data are not comparable.
+     *
+     *  Setting this to false makes the producer block until the worker is free,
+     *  instead of the queue evicting the older scan. The replay is then lossless
+     *  at any replay rate. Nothing else changes: the pipeline itself is
+     *  untouched, and the run simply takes as long as it takes.
+     */
+    bool drop_stale_scans = true;
+
     // === OUTPUT TRAJECTORY ====
     struct TrajectoryOutputOptions
     {
