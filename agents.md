@@ -751,6 +751,52 @@ The smoother also needs `-l <libmola_state_estimation_smoother.so>`; the CLI
 does not load that plugin by default and the class factory otherwise fails with
 "unknown class name".
 
+## A second front-end in the batch CLI: `--module`
+
+`mola-lidar-odometry-cli` can run arbitrary extra MOLA modules alongside the
+LiDAR odometry, so a two-front-end system (say LiDAR + visual odometry, both
+fused in the smoother) can be evaluated in the deterministic batch tool instead
+of `mola-cli`. Two repeatable options paired up in order, mirroring
+`--state-estimator` / `--state-estimator-param-file`:
+
+```
+mola-lidar-odometry-cli -c pipeline.yaml \
+  -l libmola_state_estimation_smoother.so,libmola_visual_slam.so \
+  --state-estimator mola::state_estimation_smoother::StateEstimationSmoother \
+  --state-estimator-param-file se.yaml \
+  --module mola::VisualSlam --module-param-file vo.yaml \
+  --input-kitti-seq 00 --output-tum-path out.tum
+```
+
+Notes:
+
+- The class is instantiated through `mrpt::rtti::classFactory`, so its `.so`
+  must be in `-l`. No build dependency is added to this package.
+- All modules go into the same `MinimalModuleContainer` **before** any
+  `initialize()`, since that is where a module resolves the services it needs
+  (a front-end looking up the `NavStateFilter`, for instance).
+- Extra modules receive **every** observation of each dataset entry, not just
+  the one the LiDAR odometry consumes, and they receive it *before* the LiDAR
+  odometry, so what they contribute to the state estimator is already there when
+  the LiDAR odometry asks it for a motion prior.
+- A module must do its work in `onNewObservation()`. There is no spin thread
+  here; `mola::VisualSlam` is synchronous by design and therefore deterministic.
+- Sensors the LiDAR odometry ignores are not published by default. `--module`
+  switches KITTI's `publish_image_0/1` on; for rosbags, name the topics with
+  `MOLA_CAMERA_TOPIC_0` / `MOLA_CAMERA_TOPIC_1` (labels `image_0` / `image_1`,
+  overridable with `MOLA_CAMERA_LABEL_0/1`), same empty-by-default convention as
+  `MOLA_ODOMETRY_TOPIC`.
+- A second front-end that pushes poses under its **own** frame id adds a frame
+  variable to the smoother's factor graph, which is gauge-free on the first
+  solves: without an anchor GTSAM throws `IndeterminantLinearSystem` on it and
+  the run dies at scan 1. Set `MOLA_LINK_FIRST_POSE_SIGMA=1e-6`. Not specific
+  to `--module`, but this is where it is first hit.
+
+Measured on KITTI 00's first 300 scans: two pinned runs of LiDAR + stereo VO
+are bit-identical to each other and to an unpinned run, and `no_motion_model`
+falls from 6 (2.01%) to 1 (0.33%) with the visual source present.
+
+
 **Run totals at shutdown.** Every run now logs one INFO line before saving:
 
 ```
@@ -808,6 +854,8 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | End of the timestamp range above |
 | `MOLA_LO_DEBUG_ICP_QUALITY` | bool | false | `module/src/LidarOdometry_ProcessScan.cpp` | Trace ICP quality metrics per scan |
 | `MOLA_DROP_STALE_SCANS` | bool | true | all `pipelines/*.yaml` | false = lossless input queue (producer blocks instead of the queue evicting the older scan). `mola-lidar-odometry-cli` defaults it to false |
+| `MOLA_CAMERA_TOPIC_0` / `_1` | string | (empty = off) | `apps/mola-lidar-odometry-cli.cpp` | Rosbag camera topics to publish, for a `--module` front-end |
+| `MOLA_CAMERA_LABEL_0` / `_1` | string | `image_0` / `image_1` | `apps/mola-lidar-odometry-cli.cpp` | Sensor labels for the topics above |
 | `LO_PIPELINE_YAML` | string | (unset) | `test/test_lidar_odometry_rawlog.cpp`, `test/test_lidar_odometry_rosbag2.cpp` | Path to the LO pipeline YAML used by the test |
 | `LO_STATE_ESTIM_YAML` | string | (unset) | same tests | Path to the state-estimator YAML used by the test |
 | `LO_TEST_RAWLOG` | string | (unset) | `test/test_lidar_odometry_rawlog.cpp` | Path to the input rawlog dataset |
