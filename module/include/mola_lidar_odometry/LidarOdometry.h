@@ -584,6 +584,22 @@ public:
 
     SimpleMapOptions simplemap;
 
+    // === INPUT QUEUE ====
+    /** When a new scan arrives while the worker is still busy, the default is to
+     *  keep only the freshest one. That is the right behavior on a robot, where
+     *  a stale scan is worth less than keeping up with the world, and the wrong
+     *  one for an offline batch run, whose whole point is that every scan gets
+     *  processed and the result is reproducible: how many scans are dropped then
+     *  depends on the replay rate and on whatever else the machine happens to be
+     *  doing, so two runs over the same data are not comparable.
+     *
+     *  Setting this to false makes the producer block until the worker is free,
+     *  instead of the queue evicting the older scan. The replay is then lossless
+     *  at any replay rate. Nothing else changes: the pipeline itself is
+     *  untouched, and the run simply takes as long as it takes.
+     */
+    bool drop_stale_scans = true;
+
     // === OUTPUT TRAJECTORY ====
     struct TrajectoryOutputOptions
     {
@@ -1488,6 +1504,16 @@ private:
   ScanImuWaitList worker_lidar_wait_for_imu_list_;
   std::mutex worker_lidar_wait_for_imu_list_mtx_;
 
+  /// Serializes the whole wait-then-enqueue sequence used when
+  /// Parameters::drop_stale_scans is false. onNewObservation() is not
+  /// serialized by the framework, so the LiDAR and the IMU callback can reach
+  /// the submit path from two threads at once: both would see an empty queue,
+  /// both would enqueue, and POLICY_DROP_OLD would evict one of them, which is
+  /// the very drop this mode exists to prevent. Held across a whole release
+  /// batch, so submission order matches the scans' own order as well. Unused in
+  /// the default mode, where the pool's policy is the intended behavior.
+  std::mutex lossless_submit_mtx_;
+
   /// Newest timestamp (seconds, sensor clock) present in pending_imu_. A
   /// waiting scan may only be released to the worker once this reaches the
   /// scan's own IMU coverage end time, i.e. once every IMU sample the scan will
@@ -1835,6 +1861,13 @@ private:
    *          than on sampled busy counters. */
   std::future<void> submitReadyLidarScanToWorker(
     const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime);
+
+  /** The Parameters::drop_stale_scans==false path of the above: waits for the
+   *  worker queue to drain, then enqueues, so nothing is ever evicted.
+   *  \note The caller must already hold lossless_submit_mtx_. */
+  std::future<void> submitLidarScanLossless_locked(
+    const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime);
+
   /// Number of LiDAR scans currently running or queued on worker_lidar_ (0, 1, or 2).
   int pendingLidarScanCount() const;
 

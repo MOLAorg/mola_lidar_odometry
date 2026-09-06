@@ -21,7 +21,9 @@
  */
 
 #include <mola_kernel/MinimalModuleContainer.h>
+#include <mola_kernel/interfaces/LocalizationSourceBase.h>
 #include <mola_kernel/interfaces/OfflineDatasetSource.h>
+#include <mola_kernel/interfaces/RawDataConsumer.h>
 #include <mola_kernel/pretty_print_exception.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
@@ -84,6 +86,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -110,7 +113,11 @@ struct Cli
   Opt<std::string> arg_plugins;
   Opt<std::string> arg_stateEstimatorClass;
   Opt<std::string> arg_stateEstimatorParams;
+  Opt<std::vector<std::string>> arg_moduleClasses;
+  Opt<std::vector<std::string>> arg_moduleParams;
   Opt<std::string> arg_outPath;
+  Opt<std::string> arg_outPathFused;
+  Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
   Opt<std::string> arg_outSimpleMap;
   Opt<int> arg_firstN;
@@ -190,12 +197,48 @@ struct Cli
           "Path to YAML parameters file to configure the state estimator.")
         ->required();
 
+    // Additional front-ends. Given as two parallel, repeatable options paired
+    // up in order, mirroring --state-estimator / --state-estimator-param-file.
+    arg_moduleClasses.opt =
+      cmd
+        .add_option(
+          "--module", arg_moduleClasses.value,
+          "C++ class name of an additional MOLA module to run alongside the LiDAR odometry, "
+          "e.g. a second front-end. Repeatable; each one needs a --module-param-file.")
+        ->option_text("mola::TheModuleClass ...");
+
+    arg_moduleAttitudeLabel.opt =
+      cmd
+        .add_option(
+          "--module-pose-as-observation", arg_moduleAttitudeLabel.value,
+          "Republish each --module's own localization updates as a CObservationRobotPose under "
+          "this sensor label, so the LiDAR odometry can consume them directly (e.g. as the "
+          "verticality reference of imu_gravity_correction.odometry_attitude). Without this the "
+          "module reaches the odometry only through the state estimator's motion prior.")
+        ->option_text("visual_odom_pose");
+
+    arg_moduleParams.opt = cmd
+                             .add_option(
+                               "--module-param-file", arg_moduleParams.value,
+                               "Path to the YAML parameters file for each --module, in the "
+                               "same order.")
+                             ->option_text("module-params.yaml ...");
+
     arg_outPath.opt = cmd
                         .add_option(
                           "--output-tum-path", arg_outPath.value,
                           "Save the estimated path as a TXT file using the TUM file format {see "
                           "evo docs}")
                         ->option_text("output-trajectory.txt");
+
+    arg_outPathFused.opt =
+      cmd
+        .add_option(
+          "--output-tum-path-fused", arg_outPathFused.value,
+          "Save the STATE ESTIMATOR's fused trajectory, sampled at each processed scan. "
+          "--output-tum-path saves the LiDAR odometry's own registered poses instead, which "
+          "carry a second front-end's contribution only through the motion prior.")
+        ->option_text("output-fused.txt");
 
     arg_outTwist.opt =
       cmd
@@ -506,6 +549,17 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           # z, roll, pitch and the source's 6x6 covariance.
           type: ${MOLA_ODOMETRY_OBS_CLASS|CObservationOdometry}
           is_optional: true
+        # Camera images, for a second front-end added with --module. Same
+        # empty-by-default convention as the wheel-odometry entry above: no
+        # image is decoded unless the topics are named explicitly.
+        - topic: ${MOLA_CAMERA_TOPIC_0|''}
+          sensorLabel: ${MOLA_CAMERA_LABEL_0|image_0}
+          type: CObservationImage
+          is_optional: true
+        - topic: ${MOLA_CAMERA_TOPIC_1|''}
+          sensorLabel: ${MOLA_CAMERA_LABEL_1|image_1}
+          type: CObservationImage
+          is_optional: true
 )"""",
     bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(), cli.arg_tfTopic.getValue().c_str(),
     cli.arg_tfStaticTopic.getValue().c_str(),
@@ -604,6 +658,17 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
           # to the planar default.
           type: ${MOLA_ODOMETRY_OBS_CLASS|CObservationOdometry}
           is_optional: true
+        # Camera images, for a second front-end added with --module. Same
+        # empty-by-default convention as the wheel-odometry entry above: no
+        # image is decoded unless the topics are named explicitly.
+        - topic: ${MOLA_CAMERA_TOPIC_0|''}
+          sensorLabel: ${MOLA_CAMERA_LABEL_0|image_0}
+          type: CObservationImage
+          is_optional: true
+        - topic: ${MOLA_CAMERA_TOPIC_1|''}
+          sensorLabel: ${MOLA_CAMERA_LABEL_1|image_1}
+          type: CObservationImage
+          is_optional: true
 )"""",
     bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(),
     lidar_sensor_entries(cli.arg_lidarLabel.getValue()).c_str(),
@@ -622,6 +687,11 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
   auto o = std::make_shared<mola::KittiOdometryDataset>();
   o->setMinLoggingLevel(logLevel);
 
+  // Decoding the stereo pair costs time the LiDAR odometry has no use for, so
+  // it stays off unless an additional module was asked for: those are typically
+  // the ones that consume the sensors this app otherwise ignores.
+  const char * publishImages = cli.arg_moduleClasses.isSet() ? "true" : "false";
+
   const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
     R""""(
     params:
@@ -630,11 +700,11 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_kitti(
       time_warp_scale: 1.0
       clouds_as_organized_points: false
       publish_lidar: true
-      publish_image_0: false
-      publish_image_1: false
+      publish_image_0: %s
+      publish_image_1: %s
       publish_ground_truth: true
 )"""",
-    kittiSeqNumber.c_str())));
+    kittiSeqNumber.c_str(), publishImages, publishImages)));
 
   o->initialize(cfg);
 
@@ -755,6 +825,11 @@ int main_odometry(Cli & cli)
     "mola::state_estimation_simple");
 
   // Cast to the interface that accepts raw sensor data:
+  // mola::NavStateFilter declares no Ptr of its own, so NavStateFilter::Ptr
+  // resolves to the inherited ExecutableBase::Ptr and the static type above is
+  // the base. Recover the interface explicitly to query the fused estimate.
+  auto stateEstimatorAsNavState = std::dynamic_pointer_cast<mola::NavStateFilter>(stateEstimator);
+
   auto stateEstimatorAsRawConsumer =
     std::dynamic_pointer_cast<mola::RawDataConsumer>(stateEstimator);
   if (!stateEstimatorAsRawConsumer) {
@@ -778,6 +853,54 @@ int main_odometry(Cli & cli)
   // ask for it. Datasets whose YAML does not read this variable are unaffected.
   setenv("MOLA_ASYNC_BACKEND", "false", 0 /* do not overwrite */);
 
+  // Same reasoning for the LiDAR input queue: its "keep only the freshest scan"
+  // default trades data for latency, which is the wrong trade offline, where
+  // every scan must be processed and two runs over the same data must agree.
+  setenv("MOLA_DROP_STALE_SCANS", "false", 0 /* do not overwrite */);
+
+  // Declare any additional modules (e.g. a second front-end):
+  // ------------------------------------------
+  const auto & extraModuleClasses = cli.arg_moduleClasses.getValue();
+  const auto & extraModuleParams = cli.arg_moduleParams.getValue();
+  ASSERTMSG_(
+    extraModuleClasses.size() == extraModuleParams.size(),
+    mrpt::format(
+      "Got %zu --module option(s) but %zu --module-param-file option(s): each module needs "
+      "exactly one parameters file, given in the same order.",
+      extraModuleClasses.size(), extraModuleParams.size()));
+
+  std::vector<mola::ExecutableBase::Ptr> extraModules;
+  std::vector<mola::RawDataConsumer *> extraModulesAsRawConsumers;
+  for (const auto & sClass : extraModuleClasses) {
+    auto o = mrpt::rtti::classFactory(sClass);
+    ASSERTMSG_(
+      o, mrpt::format(
+           "Apparently unknown class name: '%s' (missing plugin .so file?)", sClass.c_str()));
+    auto mod = std::dynamic_pointer_cast<mola::ExecutableBase>(o);
+    ASSERTMSG_(
+      mod, mrpt::format(
+             "Class '%s' does not implement the expected interface mola::ExecutableBase",
+             sClass.c_str()));
+
+    auto * asRawConsumer = dynamic_cast<mola::RawDataConsumer *>(mod.get());
+    if (asRawConsumer == nullptr) {
+      std::cerr << "[Warning] Module '" << sClass
+                << "' does not implement the mola::RawDataConsumer interface, so it will not "
+                   "receive raw sensor data.\n";
+    } else {
+      extraModulesAsRawConsumers.push_back(asRawConsumer);
+    }
+    extraModules.push_back(mod);
+  }
+
+  // Make all modules discoverable to each other. This must happen BEFORE
+  // initialize() below, since that is where a module resolves the services it
+  // depends on (a front-end looking up the state estimator, for instance).
+  // -------------------------------------------------
+  std::vector<mola::ExecutableBase::Ptr> allModules = {liodom, stateEstimator};
+  allModules.insert(allModules.end(), extraModules.begin(), extraModules.end());
+  const mola::MinimalModuleContainer moduleContainer = {allModules};
+
   // Make mandatory to specify state estimation config file, so defaults and initialize() are not skipped
   {
     const auto seParamsFile = cli.arg_stateEstimatorParams.getValue();
@@ -785,9 +908,43 @@ int main_odometry(Cli & cli)
     stateEstimator->initialize(mola::parse_yaml(seParams));
   }
 
-  // Make both modules discoverables to each other:
-  // -------------------------------------------------
-  const mola::MinimalModuleContainer moduleContainer = {{liodom, stateEstimator}};
+  // Bridge each module's localization updates into the odometry's own input, as
+  // an observation. Uses only the generic mola_kernel interfaces, so no build
+  // dependency on whatever package provides the module.
+  if (cli.arg_moduleAttitudeLabel.isSet()) {
+    const auto label = cli.arg_moduleAttitudeLabel.getValue();
+    size_t nSources = 0;
+    for (auto & m : extraModules) {
+      auto * asLocSource = dynamic_cast<mola::LocalizationSourceBase *>(m.get());
+      if (asLocSource == nullptr) {
+        continue;
+      }
+      nSources++;
+      asLocSource->subscribeToLocalizationUpdates(
+        [&liodom, label](const mola::LocalizationSourceBase::LocalizationUpdate & lu) {
+          auto o = mrpt::obs::CObservationRobotPose::Create();
+          o->timestamp = lu.timestamp;
+          o->sensorLabel = label;
+          o->pose.mean = mrpt::poses::CPose3D(lu.pose);
+          if (lu.cov.has_value()) {
+            o->pose.cov = *lu.cov;
+          } else {
+            o->pose.cov.setDiagonal(1e-4);
+          }
+          liodom->onNewObservation(o);
+        });
+    }
+    ASSERTMSG_(
+      nSources > 0,
+      "--module-pose-as-observation was given but no --module implements "
+      "mola::LocalizationSourceBase");
+  }
+
+  for (size_t i = 0; i < extraModules.size(); i++) {
+    extraModules[i]->setModuleInstanceName(extraModuleClasses[i]);
+    auto modParams = mrpt::containers::yaml::FromFile(extraModuleParams[i]);
+    extraModules[i]->initialize(mola::parse_yaml(modParams));
+  }
 
   // Logging level:
   mrpt::system::VerbosityLevel logLevel = liodom->getMinLoggingLevel();
@@ -796,10 +953,19 @@ int main_odometry(Cli & cli)
     logLevel = vl::name2value(cli.arg_verbosity_level.getValue());
     liodom->setVerbosityLevel(logLevel);
     stateEstimator->setVerbosityLevel(logLevel);
+    for (auto & m : extraModules) {
+      m->setVerbosityLevel(logLevel);
+    }
   }
 
   // Add a logger hook to detect visible messages to the terminal
   // and avoid overwriting them with the CLI progress bar:
+  // The state estimator's own fused trajectory, sampled once per processed
+  // scan. Kept separate from the LiDAR odometry's registered poses, which are
+  // what --output-tum-path writes: a second front-end reaches those only
+  // through the motion prior, so its contribution is largely invisible there.
+  std::optional<mrpt::poses::CPose3DInterpolator> outFusedPath;
+
   bool liodom_emitted_log = false;
   std::mutex liodom_emitted_log_mtx;
   const auto mark_emitted_log = [&]() {
@@ -834,6 +1000,13 @@ int main_odometry(Cli & cli)
 
   // liodom->initialize_common(cfg); // can be skipped for a non-MOLA system
   liodom->initialize(cfg);
+
+  if (cli.arg_outPathFused.isSet()) {
+    ASSERTMSG_(
+      stateEstimatorAsNavState,
+      "--output-tum-path-fused needs a state estimator implementing mola::NavStateFilter");
+    outFusedPath.emplace();
+  }
 
   if (cli.arg_outSimpleMap.isSet()) {
     liodom->params_.simplemap.generate = true;
@@ -980,7 +1153,23 @@ int main_odometry(Cli & cli)
     const auto sf = dataset->datasetGetObservations(i);
     ASSERT_(sf);
 
+    // Additional modules get EVERY observation in the frame, not just the one
+    // picked below: a second front-end typically consumes sensors the LiDAR
+    // odometry ignores, such as the images of a camera. Done first so that
+    // whatever they contribute to the state estimator is already there when the
+    // LiDAR odometry asks it for a motion prior.
+    for (auto * consumer : extraModulesAsRawConsumers) {
+      for (const auto & anyObs : *sf) {
+        consumer->onNewObservation(anyObs);
+      }
+    }
+
     mrpt::obs::CObservation::Ptr obs;
+    // Whether the observation picked below is a LiDAR scan, i.e. one that makes
+    // the odometry produce a new pose. Only those are worth sampling the fused
+    // estimate at: between two scans the estimator returns a prediction, not a
+    // solved state, and scoring those would measure the motion model.
+    bool obsIsLidarScan = true;
     obs = sf->getObservationByClass<CObservationRotatingScan>();
     if (!obs) {
       obs = sf->getObservationByClass<CObservationPointCloud>();
@@ -995,6 +1184,7 @@ int main_odometry(Cli & cli)
       obs = sf->getObservationByClass<CObservationVelodyneScan>();
     }
     if (!obs) {
+      obsIsLidarScan = false;
       obs = sf->getObservationByClass<CObservationGPS>();
     }
     if (!obs) {
@@ -1073,6 +1263,16 @@ int main_odometry(Cli & cli)
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
+    // Sample the fused estimate for this scan, now that the worker is done and
+    // whatever the other front-ends contributed is already in the graph:
+    if (outFusedPath && obsIsLidarScan) {
+      const auto st = stateEstimatorAsNavState->estimated_navstate(
+        obs->timestamp, liodom->params_.publish_reference_frame);
+      if (st.has_value()) {
+        outFusedPath->insert(obs->timestamp, st->pose.mean.asTPose());
+      }
+    }
+
     // Keep track of vehicle velocities?
     if (outTwist) {
       if (const auto optPoseAndTwist = liodom->lastEstimatedState(); optPoseAndTwist) {
@@ -1088,6 +1288,10 @@ int main_odometry(Cli & cli)
   // time span will never get it. Process them now, before reading the results
   // below, or the tail of the trajectory is lost:
   liodom->flushPendingLidarScans();
+
+  for (auto & m : extraModules) {
+    m->onQuit();
+  }
 
   // The flush may have produced one more state, after the loop wrote its last
   // twist entry:
@@ -1107,6 +1311,14 @@ int main_odometry(Cli & cli)
     const mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory = liodom->estimatedTrajectory();
 
     lastEstimatedTrajectory.saveToTextFile_TUM(fil);
+  }
+
+  if (outFusedPath) {
+    const auto fil = cli.arg_outPathFused.getValue();
+    std::cout << "\nSaving the state estimator's fused path (" << outFusedPath->size()
+              << " poses) in TUM format to: " << fil
+              << std::endl;  // NOLINT(performance-avoid-endl)
+    outFusedPath->saveToTextFile_TUM(fil);
   }
 
   if (cli.arg_outSimpleMap.isSet()) {

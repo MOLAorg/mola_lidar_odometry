@@ -13,6 +13,11 @@ params:
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 0 # [seconds]
 
+  # Whether a scan arriving while the worker is still busy replaces the one
+  # already queued (real-time behavior) or waits for it (lossless). Set to false
+  # for offline batch runs, where every scan must be processed.
+  drop_stale_scans: ${MOLA_DROP_STALE_SCANS|true}
+
   # How often to update the local map model:
   local_map_updates:
     enabled: "${MOLA_MAPPING_ENABLED|true}"

@@ -9,6 +9,11 @@ params:
 
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 0 # 0.2  # [seconds]
+  # Whether a scan arriving while the worker is still busy replaces the one
+  # already queued (real-time behavior) or waits for it (lossless). Set to false
+  # for offline batch runs, where every scan must be processed.
+  drop_stale_scans: ${MOLA_DROP_STALE_SCANS|true}
+
   # Maximum time between two scans to consider the validity of the velocity model:
   max_time_to_use_velocity_model: 2.0 # [seconds]
 

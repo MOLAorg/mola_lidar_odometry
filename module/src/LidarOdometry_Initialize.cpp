@@ -220,6 +220,14 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     YAML_LOAD_OPT(params_, pipeline_profiler_enabled, bool);
     YAML_LOAD_OPT(params_, icp_profiler_enabled, bool);
     YAML_LOAD_OPT(params_, icp_profiler_full_history, bool);
+    YAML_LOAD_OPT(params_, drop_stale_scans, bool);
+
+    if (!params_.drop_stale_scans) {
+      MRPT_LOG_INFO(
+        "drop_stale_scans=false: the input queue will BLOCK instead of keeping only the "
+        "freshest scan. Intended for offline batch runs, where a lossless, reproducible "
+        "replay matters more than keeping up with the clock.");
+    }
 
     if (cfg.has("simplemap")) {
       params_.simplemap.initialize(cfg["simplemap"], params_);
