@@ -218,7 +218,7 @@ icp_settings_with_vel:
       params:
         maxIterations: 1
         robustKernel: "${MOLA_LO_ROBUST_KERNEL|RobustKernel::GemanMcClure}"
-        robustKernelParam: "${MOLA_LO_ROBUST_KERNEL_PARAM|6.0}"
+        robustKernelScale: "${MOLA_LO_ROBUST_KERNEL_SCALE|2.449489742783178}" # [sigmas] sqrt(6.0): the value this was tuned at, before the kernel scale was squared
         robustKernelPriorRefBlend: "${MOLA_LO_ROBUST_KERNEL_PRIOR_REF_BLEND|0.0}"
         # pair_weights.pt2pt is honored ONLY when Pairings::point_weights is
         # empty, i.e. when no per-layer "weight" is given in the matcher above.
