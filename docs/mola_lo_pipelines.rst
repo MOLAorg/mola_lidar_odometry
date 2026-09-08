@@ -603,8 +603,13 @@ The following only apply when ``MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud`
 - ``MOLA_LO_ROBUST_KERNEL`` (Default: ``RobustKernel::GemanMcClure``): Robust kernel type used in the ICP
   Gauss-Newton solver.
 
-- ``MOLA_LO_ROBUST_KERNEL_PARAM`` (Default: ``6.0``): Parameter for the robust kernel (scale; in normalized
-  covariance units for the GICP pipeline).
+- ``MOLA_LO_ROBUST_KERNEL_SCALE`` (Default: ``2.449489742783178``): Scale of the robust kernel: the residual
+  size at which down-weighting sets in, in sigmas of the whitened residual (normalized covariance units for
+  the GICP pipeline). Replaces ``MOLA_LO_ROBUST_KERNEL_PARAM``, which named the square of this quantity: its
+  ``6.0`` and this ``sqrt(6.0)`` are the same kernel, so the shipped behavior is unchanged. Exporting the old
+  variable name has no effect. Only the GICP-family pipelines read this variable; the adaptive
+  point-to-point, NDT and 2D ones set their kernel scale from their own ``ADAPTIVE_THRESHOLD_SIGMA``
+  schedule, and ignore it.
 
 - ``MOLA_LO_ROBUST_KERNEL_PRIOR_REF_BLEND`` (Default: ``0.0``): Blend factor in [0, 1] for the residual
   reference used by the robust kernel in the Gauss-Newton solver. ``0.0`` (default) keeps the classic
