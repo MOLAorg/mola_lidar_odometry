@@ -30,9 +30,11 @@
 #include <mrpt/core/exceptions.h>
 #include <mrpt/system/string_utils.h>
 
+#include <Eigen/Dense>
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -85,6 +87,11 @@ void VisualPatchMap::Parameters::initialize(const mrpt::containers::yaml & c)
   MCP_LOAD_OPT(c, auto_balance);
   MCP_LOAD_OPT(c, effective_pixels_per_patch);
   MCP_LOAD_OPT(c, max_information_share);
+  MCP_LOAD_OPT(c, estimate_normals);
+  MCP_LOAD_OPT(c, normal_knn);
+  MCP_LOAD_OPT(c, normal_max_planarity_ratio);
+  MCP_LOAD_OPT(c, estimate_gain);
+  MCP_LOAD_OPT(c, max_gain);
   MCP_LOAD_OPT(c, pyramid_levels);
   MCP_LOAD_OPT(c, scale_window);
   MCP_LOAD_OPT(c, scale_min_samples);
@@ -292,6 +299,8 @@ std::shared_ptr<const mp2p_icp::VisualPatchTerm> VisualPatchMap::makeTerm(
   term->auto_balance = params.auto_balance;
   term->effective_pixels_per_patch = params.effective_pixels_per_patch;
   term->max_information_share = params.max_information_share;
+  term->estimate_gain = params.estimate_gain;
+  term->max_gain = params.max_gain;
   term->pyramid_levels = params.pyramid_levels;
   term->buildPyramid(params.pyramid_levels);
   term->scale_hint = scaleHint();
@@ -432,6 +441,22 @@ void VisualPatchMap::captureFrom(
     sp.patch.pt_global = pGlobal;
     sp.patch.ref_camera_pose = camPose;
     sp.ref_view_dir = viewDir;
+
+    // A real surface normal from the LiDAR neighborhood, which is what the
+    // affine warp is built on. Without it the patch is taken fronto-parallel
+    // to the reference camera, and the warp is then wrong by the surface's
+    // actual slant: a systematic residual that no photometric noise covers.
+    if (params.estimate_normals) {
+      const auto n = estimateNormal(points, pVeh);
+      if (n) {
+        // Rotate into the map frame; the sign is fixed later against the view.
+        const auto R = vehiclePose.getRotationMatrix();
+        sp.patch.normal_global = mrpt::math::TVector3D(
+          R(0, 0) * n->x + R(0, 1) * n->y + R(0, 2) * n->z,
+          R(1, 0) * n->x + R(1, 1) * n->y + R(1, 2) * n->z,
+          R(2, 0) * n->x + R(2, 1) * n->y + R(2, 2) * n->z);
+      }
+    }
     sp.patch.ref_patches.emplace_back(patchBuf.begin(), patchBuf.end());
 
     // One more reference patch per coarser level, cut from the reduced
@@ -475,6 +500,50 @@ void VisualPatchMap::captureFrom(
   prune(camOrigin);
 
   MRPT_END
+}
+
+std::optional<mrpt::math::TVector3D> VisualPatchMap::estimateNormal(
+  const mrpt::maps::CPointsMap & points, const mrpt::math::TPoint3D & p) const
+{
+  std::vector<float> nx, ny, nz, dist2;
+  std::vector<size_t> idx;
+  points.kdTreeNClosestPoint3DWithIdx(
+    static_cast<float>(p.x), static_cast<float>(p.y), static_cast<float>(p.z), params.normal_knn,
+    nx, ny, nz, idx, dist2);
+
+  if (nx.size() < 4) {
+    return {};
+  }
+
+  // Plane through the neighborhood, as the eigenvector of the smallest
+  // eigenvalue of its scatter matrix.
+  double cx = 0, cy = 0, cz = 0;
+  for (size_t i = 0; i < nx.size(); i++) {
+    cx += nx[i];
+    cy += ny[i];
+    cz += nz[i];
+  }
+  const double inv = 1.0 / static_cast<double>(nx.size());
+  cx *= inv;
+  cy *= inv;
+  cz *= inv;
+
+  Eigen::Matrix3d C = Eigen::Matrix3d::Zero();
+  for (size_t i = 0; i < nx.size(); i++) {
+    const Eigen::Vector3d d(nx[i] - cx, ny[i] - cy, nz[i] - cz);
+    C.noalias() += d * d.transpose();
+  }
+  C *= inv;
+
+  const Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> es(C);
+  const auto & ev = es.eigenvalues();  // ascending
+  if (!(ev[1] > 1e-12) || ev[0] / ev[1] > params.normal_max_planarity_ratio) {
+    // Not planar enough for a normal to mean anything: a corner, an edge, or
+    // foliage. Better no normal than a confidently wrong one.
+    return {};
+  }
+  const auto v = es.eigenvectors().col(0);
+  return mrpt::math::TVector3D(v.x(), v.y(), v.z());
 }
 
 void VisualPatchMap::prune(const mrpt::math::TPoint3D & cameraOrigin)

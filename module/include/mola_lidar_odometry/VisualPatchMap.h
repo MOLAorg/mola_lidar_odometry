@@ -132,6 +132,23 @@ public:
     /// take. A rail, not a target: measured shares are 0.005 to 0.18.
     double max_information_share = 0.5;
 
+    /// Estimate a real surface normal for each anchor from its LiDAR
+    /// neighborhood, instead of assuming the patch fronto-parallel to the
+    /// reference camera. The warp is only as good as this normal.
+    /// DEFAULT OFF on measurement: it is what the leader does, and it does
+    /// reject grazing surfaces correctly, but on GrandTour it tripled the
+    /// patch rejection rate without moving the photometric chi-square, and
+    /// cost accuracy on both missions.
+    bool estimate_normals = false;
+    /// Neighbors used for that plane fit, and the planarity it must reach
+    /// (smallest eigenvalue over the middle one).
+    uint32_t normal_knn = 10;
+    double normal_max_planarity_ratio = 0.15;
+
+    /// Estimate one photometric gain per frame; see mp2p_icp::VisualPatchTerm.
+    bool estimate_gain = false;
+    double max_gain = 3.0;
+
     /// Pyramid levels for the coarse-to-fine photometric solve. One level is
     /// the behavior of no pyramid at all.
     uint32_t pyramid_levels = 3;
@@ -232,6 +249,11 @@ private:
   std::unordered_map<voxel_key_t, StoredPatch> patches_;
 
   std::deque<double> scale_samples_;
+
+  /// The LiDAR surface normal at `p` (VEHICLE frame), or nullopt when its
+  /// neighborhood is not planar enough for one to mean anything.
+  [[nodiscard]] std::optional<mrpt::math::TVector3D> estimateNormal(
+    const mrpt::maps::CPointsMap & points, const mrpt::math::TPoint3D & p) const;
 
   void prune(const mrpt::math::TPoint3D & cameraOrigin);
 };

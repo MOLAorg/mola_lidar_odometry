@@ -414,6 +414,16 @@ params:
     # Coarse-to-fine: the first Gauss-Newton iterations run on reduced images,
     # which widens the basin of a photometric residual and lowers the
     # linearization error that sigma would otherwise absorb.
+    # A real LiDAR surface normal per anchor, instead of assuming the patch
+    # fronto-parallel to the camera that captured it: the affine warp is only
+    # as good as this normal.
+    estimate_normals: ${MOLA_VP_NORMALS|false}
+    normal_knn: ${MOLA_VP_NORMAL_KNN|10}
+    normal_max_planarity_ratio: ${MOLA_VP_NORMAL_PLANARITY|0.15}
+    # One photometric gain per frame, solved in closed form. Mean
+    # normalization removes an exposure offset but not a gain.
+    estimate_gain: ${MOLA_VP_GAIN|false}
+    max_gain: ${MOLA_VP_MAX_GAIN|3.0}
     pyramid_levels: ${MOLA_VP_PYRAMID_LEVELS|3}
     # The calibration ratio is estimated slowly, over this many scans, rather
     # than recomputed from each scan's own residuals.
