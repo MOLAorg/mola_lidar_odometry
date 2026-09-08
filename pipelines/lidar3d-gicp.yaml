@@ -403,6 +403,14 @@ params:
     huber_delta: ${MOLA_VP_HUBER|2.0}
     max_rms_sigmas: ${MOLA_VP_MAX_RMS|6.0}
     weight: ${MOLA_VP_WEIGHT|1.0}
+    # Scale the term from the data instead of from `weight`, by matching its
+    # chi-square per DOF to the LiDAR block's. Makes the result independent of
+    # sigma_intensity, and needs no per-mission constant.
+    auto_balance: ${MOLA_VP_AUTO_BALANCE|true}
+    # Independent residuals per patch, NOT its pixel count (measured ~8 of 49
+    # for 7x7; see MP2P_ICP_VISUAL_RESIDUAL_FILE).
+    effective_pixels_per_patch: ${MOLA_VP_EFF_PIXELS|8.0}
+    max_information_share: ${MOLA_VP_MAX_INFO_SHARE|0.5}
 
 # re-localization method to use at start up:
 initial_localization:

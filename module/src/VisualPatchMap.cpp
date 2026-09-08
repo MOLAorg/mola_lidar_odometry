@@ -82,6 +82,9 @@ void VisualPatchMap::Parameters::initialize(const mrpt::containers::yaml & c)
   MCP_LOAD_OPT(c, huber_delta);
   MCP_LOAD_OPT(c, max_rms_sigmas);
   MCP_LOAD_OPT(c, weight);
+  MCP_LOAD_OPT(c, auto_balance);
+  MCP_LOAD_OPT(c, effective_pixels_per_patch);
+  MCP_LOAD_OPT(c, max_information_share);
   MCP_LOAD_OPT(c, points_layer);
   MCP_LOAD_OPT(c, camera_fx);
   MCP_LOAD_OPT(c, camera_fy);
@@ -261,6 +264,9 @@ std::shared_ptr<const mp2p_icp::VisualPatchTerm> VisualPatchMap::makeTerm(
   term->max_rms_sigmas = params.max_rms_sigmas;
   term->min_depth = params.min_depth;
   term->weight = params.weight;
+  term->auto_balance = params.auto_balance;
+  term->effective_pixels_per_patch = params.effective_pixels_per_patch;
+  term->max_information_share = params.max_information_share;
   term->patches.reserve(chosen.size());
   for (const auto * sp : chosen) {
     term->patches.push_back(sp->patch);

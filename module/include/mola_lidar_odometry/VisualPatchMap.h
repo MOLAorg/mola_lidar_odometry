@@ -119,6 +119,18 @@ public:
     double max_rms_sigmas = 6.0;
     double weight = 1.0;
 
+    /// Set the term's scale from the data rather than from `weight`, by
+    /// matching its chi-square per DOF to the LiDAR block's. Makes the result
+    /// independent of `sigma_intensity`. See mp2p_icp::VisualPatchTerm.
+    bool auto_balance = true;
+    /// Independent residuals per patch; NOT the pixel count. Measured ~8 of 49
+    /// for a 7x7 patch. Measure with MP2P_ICP_VISUAL_RESIDUAL_FILE.
+    double effective_pixels_per_patch = 8.0;
+    /// Safety rail on the automatic scale, not a tuning knob.
+    /// Rail on auto_balance, as the largest information share the camera may
+    /// take. A rail, not a target: measured shares are 0.005 to 0.18.
+    double max_information_share = 0.5;
+
     /// Intrinsics to use when the image observation carries none, which is
     /// the case for any rosbag reader that does not pair images with their
     /// camera_info. Left at zero, the observation's own values are used.
