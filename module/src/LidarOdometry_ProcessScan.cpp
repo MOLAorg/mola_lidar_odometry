@@ -882,6 +882,12 @@ void LidarOdometry::processLidarScan(  // NOLINT
     scan_ref_time_s > 0 ? mrpt::Clock::fromDouble(scan_ref_time_s) : this_obs_tim;
 
   // local map: used for LIDAR odometry:
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+  // The one camera frame this scan uses, selected once and shared by the ICP
+  // solve and the patch capture further below.
+  std::optional<CameraFrame> visualFrame;
+#endif
+
   bool updateLocalMap = false;
 
   // Simplemap: an optional map to be saved to disk at the end of the mapping
@@ -1064,8 +1070,14 @@ void LidarOdometry::processLidarScan(  // NOLINT
     // fused as a second pose source, this reaches the solver as measurement
     // information about the same map the pairings come from.
     if (params_.visual_patches.enabled) {
-      in.visualPatches = buildVisualPatchTerm(
-        mrpt::Clock::toDouble(scan_ref_time), mrpt::poses::CPose3D(in.init_guess_local_wrt_global));
+      // One frame per scan, chosen by timestamp, and reused below for the
+      // patch capture: the solve and the capture must not see different
+      // images, and neither may depend on how far the input thread has run.
+      visualFrame = selectImageForScan(mrpt::Clock::toDouble(scan_ref_time));
+      if (visualFrame) {
+        in.visualPatches =
+          buildVisualPatchTerm(*visualFrame, mrpt::poses::CPose3D(in.init_guess_local_wrt_global));
+      }
     }
 #endif
 
@@ -1742,9 +1754,8 @@ void LidarOdometry::processLidarScan(  // NOLINT
 #if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
     // Anchor patches on the very points that just entered the map, using the
     // registered pose: a patch is only worth keeping if its anchor is.
-    if (params_.visual_patches.enabled) {
-      captureVisualPatches(
-        mrpt::Clock::toDouble(scan_ref_time), state_.last_lidar_pose.mean, *observation);
+    if (params_.visual_patches.enabled && visualFrame) {
+      captureVisualPatches(*visualFrame, state_.last_lidar_pose.mean, *observation);
     }
 #endif
 

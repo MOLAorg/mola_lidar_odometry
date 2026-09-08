@@ -116,6 +116,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
+#include <deque>
 #include <fstream>
 #include <future>
 #include <limits>
@@ -1104,6 +1105,17 @@ protected:
   void publishMetricMapGeoreferencingData();
 
 private:
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+  struct CameraFrame
+  {
+    mrpt::img::CImage gray;
+    mrpt::img::TCamera camera;
+    mrpt::poses::CPose3D pose_on_vehicle;
+    double timestamp = 0;
+  };
+
+#endif
+
   struct ICP_Input
   {
     using Ptr = std::shared_ptr<ICP_Input>;
@@ -1711,19 +1723,20 @@ private:
   mutable std::mutex local_map_content_mtx_;
 
 #if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
-  /// Guards `latest_image_` only. Taken by the input thread (to store) and by
+  /// Guards `image_buffer_` only. Taken by the input thread (to store) and by
   /// the LiDAR worker (to read); never held while any other lock is.
   mutable std::mutex visual_image_mtx_;
 
-  struct LatestImage
-  {
-    mrpt::img::CImage gray;
-    mrpt::img::TCamera camera;
-    mrpt::poses::CPose3D pose_on_vehicle;
-    double timestamp = 0;
-    bool valid = false;
-  };
-  LatestImage latest_image_;
+  /// A few of the most recent camera frames, NOT just the newest one.
+  ///
+  /// The input thread stores while the LiDAR worker consumes, so how far the
+  /// input has run ahead when a scan is picked up is a function of scheduling.
+  /// Keeping only the newest frame therefore made which image a scan saw
+  /// depend on thread timing, and two identical offline runs disagreed. The
+  /// scan picks the frame nearest its own timestamp instead, which is a
+  /// function of the input sequence alone. Same reasoning as `pending_imu_`.
+  std::deque<CameraFrame> image_buffer_;
+  static constexpr size_t IMAGE_BUFFER_MAX = 8;
 
   /// Compiled once at initialize(), like the LiDAR and IMU label matchers.
   std::optional<std::regex> visual_patches_camera_label_;
@@ -1793,15 +1806,20 @@ private:
    *  what a scan sees stays a function of the input sequence. */
   void onImage(const CObservation::ConstPtr & o);
 
+  /** The buffered camera frame nearest `scanTime`, if one is within
+   *  `visual_patches.max_image_age`. Selected once per scan and reused, so
+   *  that the ICP solve and the patch capture cannot see different images. */
+  [[nodiscard]] std::optional<CameraFrame> selectImageForScan(double scanTime) const;
+
   /** The patches of the map predicted visible from `predictedVehiclePose`,
-   *  scored against the newest image, or an empty pointer if there is no image
-   *  close enough in time. */
+   *  scored against `frame`, or an empty pointer if the store has nothing
+   *  usable to offer. */
   [[nodiscard]] std::shared_ptr<const mp2p_icp::VisualPatchTerm> buildVisualPatchTerm(
-    double scanTime, const mrpt::poses::CPose3D & predictedVehiclePose) const;
+    const CameraFrame & frame, const mrpt::poses::CPose3D & predictedVehiclePose) const;
 
   /** Anchors new patches on the points of a just-registered scan. */
   void captureVisualPatches(
-    double scanTime, const mrpt::poses::CPose3D & vehiclePose,
+    const CameraFrame & frame, const mrpt::poses::CPose3D & vehiclePose,
     const mp2p_icp::metric_map_t & observation);
 #endif
 

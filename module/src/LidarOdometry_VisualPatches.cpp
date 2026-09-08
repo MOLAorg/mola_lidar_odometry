@@ -32,6 +32,9 @@
 #include <mrpt/maps/CPointsMap.h>
 #include <mrpt/obs/CObservationImage.h>
 
+#include <limits>
+#include <utility>
+
 using namespace mola;
 
 void LidarOdometry::onImage(const CObservation::ConstPtr & o)
@@ -79,68 +82,83 @@ void LidarOdometry::onImage(const CObservation::ConstPtr & o)
     poseOnVehicle = mrpt::poses::CPose3D::FromString(params_.visual_patches.camera_pose_override);
   }
 
+  CameraFrame frame;
+  frame.gray = gray;
+  frame.camera = cam;
+  frame.pose_on_vehicle = poseOnVehicle;
+  frame.timestamp = mrpt::Clock::toDouble(img->timestamp);
+
   auto lck = mrpt::lockHelper(visual_image_mtx_);
-  latest_image_.gray = gray;
-  latest_image_.camera = cam;
-  latest_image_.pose_on_vehicle = poseOnVehicle;
-  latest_image_.timestamp = mrpt::Clock::toDouble(img->timestamp);
-  latest_image_.valid = true;
+  image_buffer_.push_back(std::move(frame));
+  while (image_buffer_.size() > IMAGE_BUFFER_MAX) {
+    image_buffer_.pop_front();
+  }
 
   MRPT_TRY_END
 }
 
-std::shared_ptr<const mp2p_icp::VisualPatchTerm> LidarOdometry::buildVisualPatchTerm(
-  double scanTime, const mrpt::poses::CPose3D & predictedVehiclePose) const
+std::optional<LidarOdometry::CameraFrame> LidarOdometry::selectImageForScan(double scanTime) const
 {
   MRPT_TRY_START
 
-  LatestImage snapshot;
-  {
-    auto lck = mrpt::lockHelper(visual_image_mtx_);
-    if (!latest_image_.valid) {
-      return {};
-    }
-    snapshot = latest_image_;
-  }
-
-  const double age = std::abs(snapshot.timestamp - scanTime);
-  if (age > params_.visual_patches.max_image_age) {
-    MRPT_LOG_THROTTLE_DEBUG_FMT(
-      5.0, "Newest image is %.3f s from this scan (limit %.3f s): no photometric term.", age,
-      params_.visual_patches.max_image_age);
+  auto lck = mrpt::lockHelper(visual_image_mtx_);
+  if (image_buffer_.empty()) {
     return {};
   }
 
-  const auto predictedCameraPose = predictedVehiclePose + snapshot.pose_on_vehicle;
+  // Nearest in time, not newest: which frame is "newest" when a scan reaches
+  // the worker depends on how far the input thread has run ahead.
+  const CameraFrame * best = nullptr;
+  double bestAge = std::numeric_limits<double>::max();
+  for (const auto & f : image_buffer_) {
+    const double age = std::abs(f.timestamp - scanTime);
+    if (age < bestAge) {
+      bestAge = age;
+      best = &f;
+    }
+  }
+
+  if (bestAge > params_.visual_patches.max_image_age) {
+    // Logged, and not at debug level: a silent rejection here looks exactly
+    // like a camera that is not wired up at all.
+    MRPT_LOG_THROTTLE_WARN_FMT(
+      10.0,
+      "Nearest camera frame is %.1f ms from this scan, over the %.1f ms limit: "
+      "no photometric term. Check the rig's LiDAR/camera phase and "
+      "visual_patches.max_image_age.",
+      1e3 * bestAge, 1e3 * params_.visual_patches.max_image_age);
+    return {};
+  }
+
+  return *best;
+
+  MRPT_TRY_END
+  return {};
+}
+
+std::shared_ptr<const mp2p_icp::VisualPatchTerm> LidarOdometry::buildVisualPatchTerm(
+  const CameraFrame & frame, const mrpt::poses::CPose3D & predictedVehiclePose) const
+{
+  MRPT_TRY_START
+
+  const auto predictedCameraPose = predictedVehiclePose + frame.pose_on_vehicle;
 
   return state_.visual_patch_map.makeTerm(
-    snapshot.gray, snapshot.camera, snapshot.pose_on_vehicle, predictedCameraPose);
+    frame.gray, frame.camera, frame.pose_on_vehicle, predictedCameraPose);
 
   MRPT_TRY_END
   return {};
 }
 
 void LidarOdometry::captureVisualPatches(
-  double scanTime, const mrpt::poses::CPose3D & vehiclePose,
+  const CameraFrame & frame, const mrpt::poses::CPose3D & vehiclePose,
   const mp2p_icp::metric_map_t & observation)
 {
   MRPT_TRY_START
   const ProfilerEntry tle(profiler_, "onLidar.visual_patches_capture");
 
-  LatestImage snapshot;
-  {
-    auto lck = mrpt::lockHelper(visual_image_mtx_);
-    if (!latest_image_.valid) {
-      return;
-    }
-    snapshot = latest_image_;
-  }
-  if (std::abs(snapshot.timestamp - scanTime) > params_.visual_patches.max_image_age) {
-    return;
-  }
-
   // Which layer of the scan may donate anchors. Anything with enough points
-  // works: the z-buffer below decides which of them actually become patches.
+  // works: the z-buffer inside decides which of them actually become patches.
   const mrpt::maps::CPointsMap * pts = nullptr;
   const auto & wanted = params_.visual_patches.points_layer;
   for (const auto & [name, layer] : observation.layers) {
@@ -161,7 +179,7 @@ void LidarOdometry::captureVisualPatches(
   }
 
   state_.visual_patch_map.captureFrom(
-    snapshot.gray, snapshot.camera, snapshot.pose_on_vehicle, vehiclePose, *pts);
+    frame.gray, frame.camera, frame.pose_on_vehicle, vehiclePose, *pts);
 
   MRPT_TRY_END
 }
