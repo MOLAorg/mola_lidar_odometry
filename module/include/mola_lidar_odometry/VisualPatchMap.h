@@ -34,6 +34,7 @@
 #include <mrpt/poses/CPose3D.h>
 
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <optional>
 #include <string>
@@ -131,6 +132,17 @@ public:
     /// take. A rail, not a target: measured shares are 0.005 to 0.18.
     double max_information_share = 0.5;
 
+    /// Pyramid levels for the coarse-to-fine photometric solve. One level is
+    /// the behavior of no pyramid at all.
+    uint32_t pyramid_levels = 3;
+
+    /// Samples of the per-scan calibration ratio kept for the running estimate
+    /// that actually sets the scale, and how many are needed before it is
+    /// trusted. Reacting to each frame's own residuals was measured to be
+    /// harmful; the ratio is a property of the sensor pair, not of a frame.
+    uint32_t scale_window = 200;
+    uint32_t scale_min_samples = 30;
+
     /// Intrinsics to use when the image observation carries none, which is
     /// the case for any rosbag reader that does not pair images with their
     /// camera_info. Left at zero, the observation's own values are used.
@@ -181,6 +193,15 @@ public:
   size_t size() const { return patches_.size(); }
   void clear() { patches_.clear(); }
 
+  /** Feeds the running estimate of the calibration ratio with one solve's own
+   *  value (mp2p_icp::Results::visual_auto_scale_instant). */
+  void pushScaleSample(double instant);
+
+  /** The running estimate handed to the solver, or <=0 while too few samples
+   *  have accumulated. The median, not the mean: a single frame whose
+   *  photometric fit collapses must not move it. */
+  [[nodiscard]] double scaleHint() const;
+
   /// Counters for the run summary, since the term itself only reports what one
   /// solve saw.
   struct Stats
@@ -209,6 +230,8 @@ private:
   };
 
   std::unordered_map<voxel_key_t, StoredPatch> patches_;
+
+  std::deque<double> scale_samples_;
 
   void prune(const mrpt::math::TPoint3D & cameraOrigin);
 };

@@ -85,6 +85,9 @@ void VisualPatchMap::Parameters::initialize(const mrpt::containers::yaml & c)
   MCP_LOAD_OPT(c, auto_balance);
   MCP_LOAD_OPT(c, effective_pixels_per_patch);
   MCP_LOAD_OPT(c, max_information_share);
+  MCP_LOAD_OPT(c, pyramid_levels);
+  MCP_LOAD_OPT(c, scale_window);
+  MCP_LOAD_OPT(c, scale_min_samples);
   MCP_LOAD_OPT(c, points_layer);
   MCP_LOAD_OPT(c, camera_fx);
   MCP_LOAD_OPT(c, camera_fy);
@@ -146,6 +149,28 @@ std::optional<mrpt::img::TCamera> VisualPatchMap::Parameters::cameraOverride() c
     }
   }
   return cam;
+}
+
+void VisualPatchMap::pushScaleSample(double instant)
+{
+  if (!(instant > 0) || !std::isfinite(instant)) {
+    return;
+  }
+  scale_samples_.push_back(instant);
+  while (scale_samples_.size() > params.scale_window) {
+    scale_samples_.pop_front();
+  }
+}
+
+double VisualPatchMap::scaleHint() const
+{
+  if (scale_samples_.size() < params.scale_min_samples) {
+    return -1.0;
+  }
+  std::vector<double> v(scale_samples_.begin(), scale_samples_.end());
+  const size_t mid = v.size() / 2;
+  std::nth_element(v.begin(), v.begin() + mid, v.end());
+  return v[mid];
 }
 
 VisualPatchMap::voxel_key_t VisualPatchMap::keyOf(const mrpt::math::TPoint3D & p) const
@@ -267,6 +292,9 @@ std::shared_ptr<const mp2p_icp::VisualPatchTerm> VisualPatchMap::makeTerm(
   term->auto_balance = params.auto_balance;
   term->effective_pixels_per_patch = params.effective_pixels_per_patch;
   term->max_information_share = params.max_information_share;
+  term->pyramid_levels = params.pyramid_levels;
+  term->buildPyramid(params.pyramid_levels);
+  term->scale_hint = scaleHint();
   term->patches.reserve(chosen.size());
   for (const auto * sp : chosen) {
     term->patches.push_back(sp->patch);
@@ -344,6 +372,18 @@ void VisualPatchMap::captureFrom(
     }
   }
 
+  // The reference pyramid is built once per frame and shared by every patch
+  // captured from it.
+  std::vector<mrpt::img::CImage> refPyramid;
+  refPyramid.push_back(grayImage);
+  for (uint32_t lv = 1; lv < params.pyramid_levels; lv++) {
+    const auto & prev = refPyramid.back();
+    if (prev.getWidth() < 32 || prev.getHeight() < 32) {
+      break;
+    }
+    refPyramid.push_back(prev.scaleHalf(mrpt::img::IMG_INTERP_LINEAR));
+  }
+
   const double cosRecapture = std::cos(mrpt::DEG2RAD(params.recapture_angle_deg));
   const size_t nPix = static_cast<size_t>(2 * half + 1) * static_cast<size_t>(2 * half + 1);
 
@@ -372,7 +412,7 @@ void VisualPatchMap::captureFrom(
       continue;
     }
 
-    // Sample the patch and measure its texture in one pass.
+    // Sample the patch at full resolution and measure its texture there.
     double gradSum = 0;
     size_t k = 0;
     for (int dy = -half; dy <= half; dy++) {
@@ -391,8 +431,36 @@ void VisualPatchMap::captureFrom(
     StoredPatch sp;
     sp.patch.pt_global = pGlobal;
     sp.patch.ref_camera_pose = camPose;
-    sp.patch.ref_patch.assign(patchBuf.begin(), patchBuf.end());
     sp.ref_view_dir = viewDir;
+    sp.patch.ref_patches.emplace_back(patchBuf.begin(), patchBuf.end());
+
+    // One more reference patch per coarser level, cut from the reduced
+    // reference image rather than from a decimation of the fine patch: the
+    // current image will be sampled the same way, and the two have to match.
+    bool levelsOk = true;
+    for (size_t lv = 1; lv < refPyramid.size(); lv++) {
+      const auto & im = refPyramid[lv];
+      const double sc = 1.0 / static_cast<double>(1u << lv);
+      const double cu = cell.px * sc;
+      const double cv = cell.py * sc;
+      if (
+        cu < half + 2 || cv < half + 2 || cu > static_cast<double>(im.getWidth()) - half - 3 ||
+        cv > static_cast<double>(im.getHeight()) - half - 3) {
+        levelsOk = false;
+        break;
+      }
+      std::vector<float> lvPatch(nPix);
+      size_t kk = 0;
+      for (int dy = -half; dy <= half; dy++) {
+        for (int dx = -half; dx <= half; dx++, kk++) {
+          lvPatch[kk] = static_cast<float>(bilinear(im, cu + dx, cv + dy));
+        }
+      }
+      sp.patch.ref_patches.push_back(std::move(lvPatch));
+    }
+    if (!levelsOk) {
+      continue;
+    }
 
     if (exists) {
       it->second = std::move(sp);

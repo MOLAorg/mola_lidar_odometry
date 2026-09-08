@@ -1355,6 +1355,15 @@ void LidarOdometry::processLidarScan(  // NOLINT
     }
 #endif
 
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+    // Feed the running estimate of the photometric/LiDAR calibration ratio.
+    // It is deliberately fed AFTER the solve and used on the NEXT one, so a
+    // scan can never be weighted by its own residuals.
+    if (in.visualPatches) {
+      state_.visual_patch_map.pushScaleSample(icp_result.visual_auto_scale_instant);
+    }
+#endif
+
     out.goodness = icp_result.quality;
     out.icp_iterations = icp_result.nIterations;
 

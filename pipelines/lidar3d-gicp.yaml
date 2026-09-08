@@ -411,6 +411,14 @@ params:
     # for 7x7; see MP2P_ICP_VISUAL_RESIDUAL_FILE).
     effective_pixels_per_patch: ${MOLA_VP_EFF_PIXELS|8.0}
     max_information_share: ${MOLA_VP_MAX_INFO_SHARE|0.5}
+    # Coarse-to-fine: the first Gauss-Newton iterations run on reduced images,
+    # which widens the basin of a photometric residual and lowers the
+    # linearization error that sigma would otherwise absorb.
+    pyramid_levels: ${MOLA_VP_PYRAMID_LEVELS|3}
+    # The calibration ratio is estimated slowly, over this many scans, rather
+    # than recomputed from each scan's own residuals.
+    scale_window: ${MOLA_VP_SCALE_WINDOW|200}
+    scale_min_samples: ${MOLA_VP_SCALE_MIN_SAMPLES|30}
 
 # re-localization method to use at start up:
 initial_localization:
