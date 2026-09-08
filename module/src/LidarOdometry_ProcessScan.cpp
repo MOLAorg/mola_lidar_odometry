@@ -1345,10 +1345,12 @@ void LidarOdometry::processLidarScan(  // NOLINT
       // What the camera actually contributed, in the one unit comparable with
       // the pairings: its share of the information in the normal equations.
       MRPT_LOG_THROTTLE_INFO_FMT(
-        5.0, "Visual patches: offered=%zu used=%u rejected=%u info_share=%.4f store=%zu",
+        5.0,
+        "Visual patches: offered=%zu used=%u rejected=%u info_share=%.4f chi2/dof=%.4g "
+        "store=%zu",
         in.visualPatches->patches.size(), icp_result.visual_patches_used,
         icp_result.visual_patches_rejected, icp_result.visual_information_share,
-        state_.visual_patch_map.size());
+        icp_result.visual_chi2_per_dof, state_.visual_patch_map.size());
     }
 #endif
 
