@@ -31,6 +31,7 @@
 #include <mrpt/obs/CObservation3DRangeScan.h>
 #include <mrpt/obs/CObservationGPS.h>
 #include <mrpt/obs/CObservationIMU.h>
+#include <mrpt/obs/CObservationImage.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CObservationRobotPose.h>
@@ -499,6 +500,17 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
         # one, so the wheel-odometry twist must already be expressed in
         # base_link (nav_msgs/Odometry's child_frame_id) -- see the longer
         # note in dataset_from_rosbag1().
+        # Camera images, for the photometric map-patch term
+        # (mola_lidar_odometry's `visual_patches`). Empty by default: nothing
+        # else in the odometry consumes images, and decoding a mission's JPEGs
+        # is not free, so this opts in exactly like the wheel odometry below.
+        # The sensor label must match `visual_patches.camera_sensor_label`.
+        # Without a `fixed_sensor_pose` the camera pose comes from /tf, which
+        # is what the multi-camera rigs in these datasets actually ship.
+        - topic: ${MOLA_CAMERA_TOPIC|''}
+          sensorLabel: ${MOLA_CAMERA_SENSOR_LABEL|camera}
+          type: CObservationImage
+          is_optional: true
         - topic: ${MOLA_ODOMETRY_TOPIC|''}
           sensorLabel: ${MOLA_ODOM_SENSOR_LABEL|odom_wheels}
           # Planar type: (x, y, yaw) plus a 2D twist. For a 3D odometry
@@ -594,6 +606,17 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
         # invoked (plans-mola-server's run-single-test.sh) as of 2026-08-11.
         # Fine for a dataset whose wheel-odometry frame is already
         # (approximately) base_link-aligned, e.g. BotanicGarden's Xsens IMU.
+        # Camera images, for the photometric map-patch term
+        # (mola_lidar_odometry's `visual_patches`). Empty by default: nothing
+        # else in the odometry consumes images, and decoding a mission's JPEGs
+        # is not free, so this opts in exactly like the wheel odometry below.
+        # The sensor label must match `visual_patches.camera_sensor_label`.
+        # Without a `fixed_sensor_pose` the camera pose comes from /tf, which
+        # is what the multi-camera rigs in these datasets actually ship.
+        - topic: ${MOLA_CAMERA_TOPIC|''}
+          sensorLabel: ${MOLA_CAMERA_SENSOR_LABEL|camera}
+          type: CObservationImage
+          is_optional: true
         - topic: ${MOLA_ODOMETRY_TOPIC|''}
           sensorLabel: ${MOLA_ODOM_SENSOR_LABEL|odom_wheels}
           # CObservationOdometry is planar: it can only carry (x, y, yaw)
@@ -970,6 +993,7 @@ int main_odometry(Cli & cli)
     using mrpt::obs::CObservation2DRangeScan;
     using mrpt::obs::CObservation3DRangeScan;
     using mrpt::obs::CObservationGPS;
+    using mrpt::obs::CObservationImage;
     using mrpt::obs::CObservationIMU;
     using mrpt::obs::CObservationOdometry;
     using mrpt::obs::CObservationPointCloud;
@@ -1007,6 +1031,11 @@ int main_odometry(Cli & cli)
     }
     if (!obs) {
       obs = sf->getObservationByClass<CObservationIMU>();
+    }
+    if (!obs) {
+      // Camera images: consumed by the photometric map-patch term, and
+      // ignored by every other part of the pipeline.
+      obs = sf->getObservationByClass<CObservationImage>();
     }
     if (!obs) {
       continue;

@@ -367,6 +367,43 @@ params:
     check_layer_name: "raw"
     minimum_point_count: "${MOLA_OBS_VALIDITY_MIN_POINTS|1000}"
 
+  # Photometric patches anchored to LiDAR map points: image patches attached to
+  # points of the local map and scored, inside the same ICP solve, against the
+  # current camera image. The camera contributes an observation OF THE MAP, so
+  # it adds no trajectory of its own to be fused with the LiDAR one.
+  # Requires an image stream (set MOLA_CAMERA_TOPIC for the rosbag readers)
+  # whose sensor label matches camera_sensor_label. OFF by default.
+  visual_patches:
+    enabled: "${MOLA_VISUAL_PATCHES|false}"
+    camera_sensor_label: "${MOLA_CAMERA_SENSOR_LABEL|camera}"
+    # Only needed when the images arrive without their camera_info:
+    camera_fx: ${MOLA_VP_CAMERA_FX|0}
+    camera_fy: ${MOLA_VP_CAMERA_FY|0}
+    camera_cx: ${MOLA_VP_CAMERA_CX|0}
+    camera_cy: ${MOLA_VP_CAMERA_CY|0}
+    camera_ncols: ${MOLA_VP_CAMERA_NCOLS|0}
+    camera_nrows: ${MOLA_VP_CAMERA_NROWS|0}
+    camera_distortion: "${MOLA_VP_CAMERA_DISTORTION|none}"
+    camera_distortion_coeffs: "${MOLA_VP_CAMERA_DIST_COEFFS|}"
+    # The points that may become anchors are the ones that enter the map:
+    points_layer: "${MOLA_VP_POINTS_LAYER|decimated_for_map}"
+    half_size: ${MOLA_VP_HALF_SIZE|3}
+    voxel_size: ${MOLA_VP_VOXEL_SIZE|0.75}
+    max_patches: ${MOLA_VP_MAX_PATCHES|4000}
+    max_patches_per_frame: ${MOLA_VP_MAX_PER_FRAME|250}
+    max_image_age: ${MOLA_VP_MAX_IMAGE_AGE|0.03}
+    min_gradient: ${MOLA_VP_MIN_GRADIENT|8.0}
+    occlusion_cell_px: ${MOLA_VP_OCCLUSION_CELL|12.0}
+    recapture_angle_deg: ${MOLA_VP_RECAPTURE_ANGLE|20.0}
+    max_view_angle_deg: ${MOLA_VP_MAX_VIEW_ANGLE|40.0}
+    min_depth: ${MOLA_VP_MIN_DEPTH|0.8}
+    max_depth: ${MOLA_VP_MAX_DEPTH|40.0}
+    prune_radius: ${MOLA_VP_PRUNE_RADIUS|80.0}
+    sigma_intensity: ${MOLA_VP_SIGMA|12.0}
+    huber_delta: ${MOLA_VP_HUBER|2.0}
+    max_rms_sigmas: ${MOLA_VP_MAX_RMS|6.0}
+    weight: ${MOLA_VP_WEIGHT|1.0}
+
 # re-localization method to use at start up:
 initial_localization:
   method: "${MOLA_LO_INITIAL_LOCALIZATION_METHOD|InitLocalization::FixedPose}"

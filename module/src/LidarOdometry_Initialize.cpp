@@ -237,6 +237,28 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       params_.observation_validity_checks.initialize(cfg["observation_validity_checks"]);
     }
 
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+    if (cfg.has("visual_patches")) {
+      params_.visual_patches.initialize(cfg["visual_patches"]);
+    }
+    if (params_.visual_patches.enabled) {
+      visual_patches_camera_label_.emplace(params_.visual_patches.camera_sensor_label);
+      state_.visual_patch_map.params = params_.visual_patches;
+      MRPT_LOG_INFO_FMT(
+        "Photometric map patches ENABLED: camera label regex '%s', %ux%u px patches, "
+        "up to %u per solve.",
+        params_.visual_patches.camera_sensor_label.c_str(),
+        2 * params_.visual_patches.half_size + 1, 2 * params_.visual_patches.half_size + 1,
+        params_.visual_patches.max_patches_per_frame);
+    }
+#else
+    if (cfg.has("visual_patches")) {
+      MRPT_LOG_WARN(
+        "'visual_patches' is configured but this build lacks "
+        "mp2p_icp::VisualPatchTerm; the section is ignored.");
+    }
+#endif
+
     if (cfg.has("imu_gravity_correction")) {
       params_.imu_gravity_correction.initialize(cfg["imu_gravity_correction"]);
 

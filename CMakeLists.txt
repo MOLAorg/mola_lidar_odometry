@@ -45,6 +45,8 @@ set(LIB_SRCS
   module/src/LidarOdometry_MapServer.cpp
   module/src/LidarOdometry_GUI.cpp
   module/src/LidarOdometry_SensorCallbacks.cpp
+  module/src/LidarOdometry_VisualPatches.cpp
+  module/src/VisualPatchMap.cpp
   module/src/LidarOdometry_Publish.cpp
   module/src/LidarOdometry_InitialLocalization.cpp
   # Last:
@@ -53,6 +55,7 @@ set(LIB_SRCS
 
 set(LIB_PUBLIC_HDRS
   module/include/mola_lidar_odometry/LidarOdometry.h
+  module/include/mola_lidar_odometry/VisualPatchMap.h
   module/include/mola_lidar_odometry/GravityMapAligner.h
   module/include/mola_lidar_odometry/MapFrameRelevel.h
 )

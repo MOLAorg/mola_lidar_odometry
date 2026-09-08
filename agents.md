@@ -631,6 +631,46 @@ a single YAML enough. When adding keys, keep KFM's *required* ones
 nanoflann >= 1.10.0. On distributions with an older one the class still exists
 and is registered, but instantiating it throws an explanatory error, so
 selecting it there fails with a clear message rather than silently falling back.
+## Photometric map patches (`params.visual_patches`)
+
+Image patches anchored to points of the local map, scored against the current
+camera image **inside the same ICP solve** as the geometric pairings (mp2p_icp's
+`VisualPatchTerm`; see that repo's agents.md for the residual). OFF by default,
+and inert without an image stream.
+
+The point is what it is *not*. A visual odometry fused as a second pose source
+brings its own drift, and averaging an unanchored estimator against the
+scan-to-map-anchored LiDAR one buys very little. A patch anchored to a map point
+has no trajectory of its own: it is an extra observation OF THE MAP, in the same
+class as scan-to-map registration.
+
+Flow, all in `module/src/LidarOdometry_VisualPatches.cpp` and `VisualPatchMap.cpp`:
+
+- `onImage()` runs inline on the input thread (like `onIMU()`), converts to
+  grayscale once and keeps only the newest frame.
+- Before ICP, `buildVisualPatchTerm()` offers the stored patches predicted
+  visible from the motion-model pose, one per image cell so they stay spread
+  over the frame.
+- After the scan is merged into the local map, `captureVisualPatches()` anchors
+  new patches on the points that just entered it, at the registered pose. A
+  coarse z-buffer keeps only the nearest candidate per image cell, which is
+  both the occlusion filter and the decimator; one patch per voxel; recaptured
+  only once the view direction has moved by `recapture_angle_deg`.
+
+Two things to know before using it:
+
+- **`sigma_intensity` does not set how much of the solve the camera takes.**
+  Measured on GrandTour `heap-1` with the shipped defaults, the term supplied
+  **99.8 %** of the information in the normal equations and ATE went from
+  0.0209 m to 2.95 m. The `weight` knob is what balances it, and
+  `visual_information_share` (logged per scan) is what to set it by. This is the
+  same trap as `imu_gravity_correction.sigma_deg`.
+- The images must actually reach the module: for the offline CLI set
+  `MOLA_CAMERA_TOPIC` (rosbag1/rosbag2), and `camera_sensor_label` must match
+  the sensor label the reader assigns. Readers that deliver images without
+  their `camera_info` need `camera_fx`/`fy`/`cx`/`cy` and the distortion model
+  filled in instead.
+
 ## IMU gravity correction
 
 `params.imu_gravity_correction` constrains the ICP solution's tilt from the
@@ -785,6 +825,17 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_GCW_SOFTNESS` | double | 10.0 | `pipelines/lidar3d-gicp.yaml` | Ramp width at the breakpoint, in the units of the class variable |
 | `MOLA_GCW_BREAKPOINT` | double | 60.0 | `pipelines/lidar3d-gicp.yaml` | Single class boundary: degrees for `incidence`, \|n.up\| for `verticality` |
 | `MOLA_GCW_W_LOW` / `MOLA_GCW_W_HIGH` | double | 1.0 / 1.0 | `pipelines/lidar3d-gicp.yaml` | Weights below/above the breakpoint. Both 1.0 is a no-op |
+| `MOLA_VISUAL_PATCHES` | bool | false | `pipelines/lidar3d-default.yaml` | Enables the photometric map-patch term. Needs an image stream (`MOLA_CAMERA_TOPIC`) |
+| `MOLA_CAMERA_TOPIC` | string | (empty) | `apps/mola-lidar-odometry-cli.cpp` | Camera topic for the rosbag1/rosbag2 offline readers. Empty installs no handler, so no JPEG is decoded |
+| `MOLA_CAMERA_SENSOR_LABEL` | string | `camera` | `apps/mola-lidar-odometry-cli.cpp` | Sensor label given to those images; must match `visual_patches.camera_sensor_label` |
+| `MOLA_VP_WEIGHT` | double | 1.0 | `pipelines/lidar3d-default.yaml` | Global multiplier on the photometric block. **The default is far too strong**: set it from the logged `info_share`, not from `sigma_intensity` |
+| `MOLA_VP_SIGMA` | double | 12.0 | `pipelines/lidar3d-default.yaml` | Photometric noise [gray levels]. Does NOT set the term's influence on its own |
+| `MOLA_VP_MAX_PER_FRAME` | uint | 250 | `pipelines/lidar3d-default.yaml` | Patches handed to one solve |
+| `MOLA_VP_MAX_PATCHES` | uint | 4000 | `pipelines/lidar3d-default.yaml` | Size cap of the patch store |
+| `MOLA_VP_VOXEL_SIZE` | double | 0.75 | `pipelines/lidar3d-default.yaml` | Edge [m] of the voxel holding at most one patch: this, not a detector, spreads them |
+| `MOLA_VP_HALF_SIZE` | uint | 3 | `pipelines/lidar3d-default.yaml` | Patch half-size [px]; each patch is (2h+1)^2 |
+| `MOLA_VP_CAMERA_FX` / `_FY` / `_CX` / `_CY` / `_NCOLS` / `_NROWS` | double | 0 | `pipelines/lidar3d-default.yaml` | Intrinsics override, for readers that deliver images without their `camera_info` |
+| `MOLA_VP_CAMERA_DISTORTION` | string | `none` | `pipelines/lidar3d-default.yaml` | `none`, `plumb_bob` or `kannala_brandt`, with `MOLA_VP_CAMERA_DIST_COEFFS` |
 | `MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | Start of a timestamp range for forcing ICP debug-log dumps (paired with `..._TO_TIMESTAMP`) |
 | `MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | End of the timestamp range above |
 | `MOLA_LO_DEBUG_ICP_QUALITY` | bool | false | `module/src/LidarOdometry_ProcessScan.cpp` | Trace ICP quality metrics per scan |

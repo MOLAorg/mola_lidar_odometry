@@ -301,15 +301,19 @@ mola_lo_profile_resolve() {
     fi
   fi
 
-  # The camera is a GUI preview only: nothing in the odometry consumes it, so
-  # a batch run would pay for decoding several GB of JPEG for nothing.
-  if [ "$MOLA_LO_MODE" = "gui" ] && [ -f "$camera_bag" ]; then
-    echo "  Camera bag: $camera_bag  ($MOLA_GRANDTOUR_CAMERA)"
-    bags+=("$camera_bag")
-    : "${MOLA_CAMERA_TOPIC:=$camera_topic}"
-    export MOLA_CAMERA_TOPIC
-  elif [ "$MOLA_LO_MODE" = "gui" ]; then
-    echo "  Camera bag: (not found: '$camera_bag'; no camera preview)"
+  # The camera is a GUI preview only, UNLESS something in the odometry
+  # consumes it: the photometric map-patch term does, and it is opted into by
+  # setting MOLA_CAMERA_TOPIC explicitly. Otherwise a batch run would pay for
+  # decoding several GB of JPEG for nothing.
+  if [ "$MOLA_LO_MODE" = "gui" ] || [ -n "${MOLA_CAMERA_TOPIC:-}" ]; then
+    if [ -f "$camera_bag" ]; then
+      echo "  Camera bag: $camera_bag  ($MOLA_GRANDTOUR_CAMERA)"
+      bags+=("$camera_bag")
+      : "${MOLA_CAMERA_TOPIC:=$camera_topic}"
+      export MOLA_CAMERA_TOPIC
+    else
+      echo "  Camera bag: (not found: '$camera_bag'; no camera images)"
+    fi
   fi
 
   # The LiDAR stream used here is the dataset's already-undistorted one, so

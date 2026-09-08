@@ -112,6 +112,16 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
     onOdometryAttitude(o);
   }
 
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+  // Is it the camera feeding the photometric map observation? Handled inline,
+  // like the IMU above: it only converts and stores the newest frame.
+  if (
+    params_.visual_patches.enabled && visual_patches_camera_label_ &&
+    std::regex_match(o->sensorLabel, *visual_patches_camera_label_)) {
+    onImage(o);
+  }
+#endif
+
   // Is it GNSS?
   if (
     params_.gnss_sensor_label &&

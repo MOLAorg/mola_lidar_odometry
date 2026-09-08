@@ -1058,6 +1058,17 @@ void LidarOdometry::processLidarScan(  // NOLINT
     }
 #endif
 
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+    // Photometric observation of the map: the patches already anchored to map
+    // points, scored against the newest camera image. Unlike a visual odometry
+    // fused as a second pose source, this reaches the solver as measurement
+    // information about the same map the pairings come from.
+    if (params_.visual_patches.enabled) {
+      in.visualPatches = buildVisualPatchTerm(
+        mrpt::Clock::toDouble(scan_ref_time), mrpt::poses::CPose3D(in.init_guess_local_wrt_global));
+    }
+#endif
+
     // Legacy path: fold the gravity-derived pitch/roll into the SE(3) prior.
     if (params_.imu_gravity_correction.enabled && !params_.imu_gravity_correction.use_rank2_prior) {
       // gravity_estimator is fed by the IMU thread; one consistent snapshot for
@@ -1250,7 +1261,11 @@ void LidarOdometry::processLidarScan(  // NOLINT
       }
 
       // Run ICP:
-#if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+      icpCase.icp->align(
+        *observation, *state_.local_map, current_solution, icp_params, icp_result, in.prior,
+        std::nullopt /*outputDebugInfo*/, in.gravityPrior, in.visualPatches);
+#elif defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
       icpCase.icp->align(
         *observation, *state_.local_map, current_solution, icp_params, icp_result, in.prior,
         std::nullopt /*outputDebugInfo*/, in.gravityPrior);
@@ -1313,6 +1328,18 @@ void LidarOdometry::processLidarScan(  // NOLINT
     } while (icp_result.terminationReason == mp2p_icp::IterTermReason::HookRequest);
 
     out.found_pose_to_wrt_from = icp_result.optimal_tf;
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+    if (in.visualPatches) {
+      // What the camera actually contributed, in the one unit comparable with
+      // the pairings: its share of the information in the normal equations.
+      MRPT_LOG_THROTTLE_INFO_FMT(
+        5.0, "Visual patches: offered=%zu used=%u rejected=%u info_share=%.4f store=%zu",
+        in.visualPatches->patches.size(), icp_result.visual_patches_used,
+        icp_result.visual_patches_rejected, icp_result.visual_information_share,
+        state_.visual_patch_map.size());
+    }
+#endif
+
     out.goodness = icp_result.quality;
     out.icp_iterations = icp_result.nIterations;
 
@@ -1711,6 +1738,15 @@ void LidarOdometry::processLidarScan(  // NOLINT
     tle3.stop();
 
     state_.mark_local_map_as_updated();
+
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+    // Anchor patches on the very points that just entered the map, using the
+    // registered pose: a patch is only worth keeping if its anchor is.
+    if (params_.visual_patches.enabled) {
+      captureVisualPatches(
+        mrpt::Clock::toDouble(scan_ref_time), state_.last_lidar_pose.mean, *observation);
+    }
+#endif
 
     tle2.stop();
 

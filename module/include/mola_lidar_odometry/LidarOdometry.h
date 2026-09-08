@@ -91,6 +91,16 @@
 #endif
 #endif
 
+// The photometric ("virtual patch") observation of the map is likewise only
+// available in recent mp2p_icp versions; older ones simply build without it.
+#if defined(__has_include)
+#if __has_include(<mp2p_icp/VisualPatches.h>)
+#include <mola_lidar_odometry/VisualPatchMap.h>
+#include <mp2p_icp/VisualPatches.h>
+#define MOLA_LO_HAS_MP2P_VISUAL_PATCHES 1
+#endif
+#endif
+
 // MRPT
 #include <mrpt/containers/circular_buffer.h>
 #include <mrpt/core/WorkerThreadsPool.h>
@@ -703,6 +713,12 @@ public:
 
     ObservationValidityChecks observation_validity_checks;
 
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+    /// Image patches anchored to LiDAR map points, scored photometrically
+    /// inside the same ICP solve. Disabled by default.
+    VisualPatchMap::Parameters visual_patches;
+#endif
+
     struct IMUGravityCorrection
     {
       /// Enable accelerometer-based pitch/roll correction of the ICP solution.
@@ -1099,6 +1115,11 @@ private:
     /// `prior`; see buildGravityPrior()). Only set when the rank-2 path is on.
     std::optional<mp2p_icp::GravityPrior> gravityPrior;
 #endif
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+    /// Photometric observation of the global map for this scan; empty when the
+    /// feature is off, or no fresh enough image reached this scan.
+    std::shared_ptr<const mp2p_icp::VisualPatchTerm> visualPatches;
+#endif
     id_t global_id = mola::INVALID_ID;
     id_t local_id = mola::INVALID_ID;
     double time_since_last_keyframe = 0;
@@ -1120,6 +1141,12 @@ private:
   struct MethodState
   {
     MethodState() = default;
+
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+    /// Patches anchored to map points. Lives with the local map: it is read
+    /// and written only from the LiDAR worker, under state_mtx_.
+    VisualPatchMap visual_patch_map;
+#endif
 
     // ------ these flags are protected by state_flags_mtx_  ---------
     bool initialized = false;
@@ -1683,6 +1710,25 @@ private:
   /// never be held while acquiring state_mtx_.
   mutable std::mutex local_map_content_mtx_;
 
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+  /// Guards `latest_image_` only. Taken by the input thread (to store) and by
+  /// the LiDAR worker (to read); never held while any other lock is.
+  mutable std::mutex visual_image_mtx_;
+
+  struct LatestImage
+  {
+    mrpt::img::CImage gray;
+    mrpt::img::TCamera camera;
+    mrpt::poses::CPose3D pose_on_vehicle;
+    double timestamp = 0;
+    bool valid = false;
+  };
+  LatestImage latest_image_;
+
+  /// Compiled once at initialize(), like the LiDAR and IMU label matchers.
+  std::optional<std::regex> visual_patches_camera_label_;
+#endif
+
   mutable std::mutex state_trajectory_mtx_;
   mutable std::recursive_mutex state_simplemap_mtx_;
   mutable std::mutex state_gui_mtx_;
@@ -1740,6 +1786,24 @@ private:
 
   void onGPS(const CObservation::ConstPtr & o);
   void onGPSImpl(const CObservation::ConstPtr & o);
+
+#if defined(MOLA_LO_HAS_MP2P_VISUAL_PATCHES)
+  /** Converts an incoming camera image to grayscale and keeps it as the newest
+   *  one. Runs inline on the caller's thread, like onIMU(): it only stores, so
+   *  what a scan sees stays a function of the input sequence. */
+  void onImage(const CObservation::ConstPtr & o);
+
+  /** The patches of the map predicted visible from `predictedVehiclePose`,
+   *  scored against the newest image, or an empty pointer if there is no image
+   *  close enough in time. */
+  [[nodiscard]] std::shared_ptr<const mp2p_icp::VisualPatchTerm> buildVisualPatchTerm(
+    double scanTime, const mrpt::poses::CPose3D & predictedVehiclePose) const;
+
+  /** Anchors new patches on the points of a just-registered scan. */
+  void captureVisualPatches(
+    double scanTime, const mrpt::poses::CPose3D & vehiclePose,
+    const mp2p_icp::metric_map_t & observation);
+#endif
 
   // Adaptive threshold method:
   void doUpdateAdaptiveThreshold();
