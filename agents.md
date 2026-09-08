@@ -315,6 +315,25 @@ keeps end-to-end latency near a single processing period (so the state-estimator
 prediction is queried only a little into the future) for both LO and LIO.
 `params_.max_lidar_queue_before_drop` now only bounds the IMU wait list.
 
+### Lossless mode: `drop_stale_scans: false` (`MOLA_DROP_STALE_SCANS`)
+
+That trade (data for latency) is the wrong one offline, where every scan must be
+processed and two runs over the same data must agree; how many scans get dropped
+otherwise depends on the replay rate and on host load. With
+`drop_stale_scans: false` (in all `pipelines/*.yaml`):
+
+- `submitReadyLidarScanToWorker()` waits for `worker_lidar_.pendingTasks() == 0`
+  instead of letting `POLICY_DROP_OLD` evict the queued scan, so the producer is
+  throttled to the pipeline's own rate.
+- `releaseLidarScansToWorker()` submits **every** ready scan in order, not only
+  the newest.
+- The `max_lidar_queue_before_drop` trim of the IMU wait list is skipped.
+
+`mola-lidar-odometry-cli` defaults it to false (`setenv(..., 0)`, so an explicit
+setting still wins), like `MOLA_ASYNC_BACKEND`. For `mola-cli` replays set it in
+the environment; note `time_warp_scale` above ~5 outruns the pipeline, and
+without this the excess simply becomes dropped scans.
+
 ## Adaptive-threshold sustained-failure recovery is ON by default
 
 `recover_on_sustained_failure` (all `pipelines/*.yaml`, `adaptive_threshold`
@@ -788,6 +807,7 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_DEBUG_DUMP_ICP_LOG_FROM_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | Start of a timestamp range for forcing ICP debug-log dumps (paired with `..._TO_TIMESTAMP`) |
 | `MOLA_DEBUG_DUMP_ICP_LOG_TO_TIMESTAMP` | double | 0 | `module/src/LidarOdometry_ProcessScan.cpp` | End of the timestamp range above |
 | `MOLA_LO_DEBUG_ICP_QUALITY` | bool | false | `module/src/LidarOdometry_ProcessScan.cpp` | Trace ICP quality metrics per scan |
+| `MOLA_DROP_STALE_SCANS` | bool | true | all `pipelines/*.yaml` | false = lossless input queue (producer blocks instead of the queue evicting the older scan). `mola-lidar-odometry-cli` defaults it to false |
 | `LO_PIPELINE_YAML` | string | (unset) | `test/test_lidar_odometry_rawlog.cpp`, `test/test_lidar_odometry_rosbag2.cpp` | Path to the LO pipeline YAML used by the test |
 | `LO_STATE_ESTIM_YAML` | string | (unset) | same tests | Path to the state-estimator YAML used by the test |
 | `LO_TEST_RAWLOG` | string | (unset) | `test/test_lidar_odometry_rawlog.cpp` | Path to the input rawlog dataset |
