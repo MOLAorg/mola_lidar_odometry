@@ -216,7 +216,6 @@ struct Cli
           "verticality reference of imu_gravity_correction.odometry_attitude). Without this the "
           "module reaches the odometry only through the state estimator's motion prior.")
         ->option_text("visual_odom_pose");
-
     arg_moduleParams.opt = cmd
                              .add_option(
                                "--module-param-file", arg_moduleParams.value,
@@ -939,7 +938,6 @@ int main_odometry(Cli & cli)
       "--module-pose-as-observation was given but no --module implements "
       "mola::LocalizationSourceBase");
   }
-
   for (size_t i = 0; i < extraModules.size(); i++) {
     extraModules[i]->setModuleInstanceName(extraModuleClasses[i]);
     auto modParams = mrpt::containers::yaml::FromFile(extraModuleParams[i]);

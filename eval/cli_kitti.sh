@@ -42,6 +42,30 @@ fi
 # on the rest of the corpus. A sweep that reports one aggregate number over
 # all sequences is therefore reporting a compromise; keep that in mind before
 # reading a small delta here as a pipeline improvement.
+#
+# CAVEAT ADDED 2026-08-21, and it is about the pipeline this script runs.
+# "A large prior is needed on seq 12" was established on `lidar3d-icp.yaml`.
+# This script exports MOLA_ODOMETRY_PIPELINE_YAML itself, defaulting to
+# `lidar3d-default.yaml` (GICP) -- overriding the ICP default that
+# scripts/lib/profiles/kitti.sh would otherwise apply -- and on GICP that claim
+# does not hold. Measured on the sparse 2D reference for seqs 11-15, ratio of
+# estimated to reference path length and RMSE after planar alignment:
+#
+#            seq 12 unseeded          VX=18 vs unseeded, seqs 11-15
+#   ICP      0.268 / 403 m            (the seed is what rescues it)
+#   GICP     0.995 / 4.82 m           worse on 4 of 5; its only gain is seq 12
+#                                     itself, 4.16 vs 4.82, inside the ~3 m
+#                                     noise floor of that reference
+#
+# So the seed is coupled to the PIPELINE, not to the dataset, and this script
+# currently pairs it with the pipeline that does not need it. The value is left
+# at 18.0 deliberately: the published numbers from this sweep were produced with
+# it, and changing it silently would break comparability with its own history --
+# which is the same reason the line above exists. Anyone re-baselining should
+# drop it, or switch this script to the ICP pipeline, rather than keep both.
+#
+# Full measurements: ~/plans/lio/detail/216_smoother_state_estimator_parity.md
+# section 11.
 parallel -j${NUM_THREADS} --lb --halt now,fail=1 \
   SEQ={} \
   MOLA_INITIAL_VX=18.0 \
