@@ -588,7 +588,10 @@ surface regularization, so leaving this at `1.0` makes the field block a few
 tenths of a percent of the information and reproduces `lidar3d-gicp.yaml`. The
 per-layer `weight` key inside a matcher's layer list is a legacy no-op in
 mp2p_icp and cannot be used for this. The `MOLA_TSDF_*` variables tune the
-field itself and are documented in the YAML.
+field itself and are documented in the YAML, `MOLA_TSDF_COLORMAP` /
+`MOLA_TSDF_COLOR_BY` / `MOLA_TSDF_RENDER_AS_MESH` its rendering (the last one
+draws a marching-tetrahedra surface instead of points: for figures, not for a
+live run).
 
 Measured on 13 Oxford Spires sequences against `lidar3d-gicp.yaml` under the
 same profile: pooled vertical drift +1.415 -> +0.166 mm/m (13/13 sequences
