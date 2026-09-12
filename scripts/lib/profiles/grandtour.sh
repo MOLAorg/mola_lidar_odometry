@@ -315,6 +315,21 @@ mola_lo_profile_resolve() {
   # The LiDAR stream used here is the dataset's already-undistorted one, so
   # deskewing it a second time would over-compensate the motion:
   : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::None}"
+
+  # For the same reason, do not re-reference the per-point timestamps to the
+  # middle of the sweep. These clouds arrive already undistorted, with
+  # per-point times that start at zero, so each observation is stamped at the
+  # instant of its own first point. Re-referencing to the middle subtracts half
+  # a sweep from every point, and the estimated pose then describes an instant
+  # half a sweep away from the timestamp it is reported with.
+  #
+  # At 10 Hz that is a ~40 ms error, purely along the direction of travel, and
+  # it is invisible from inside: ICP quality stays at its usual value because
+  # the scan still matches the map built the same way. Measured against the
+  # total-station reference on four missions, leaving the stamps alone lowers
+  # absolute trajectory error by 36-51%, and the residual best-fit time shift
+  # drops from -40 ms to under +10 ms.
+  : "${MOLA_SCAN_POINT_STAMPS_ADJUST_METHOD:=TimestampAdjustMethod::EarliestIsZero}"
   # Use a shorter minimum range since the robot body is small in this dataset:
   #
   # This one is on a cliff edge, so re-tune it only with measurements in hand:
@@ -335,7 +350,8 @@ mola_lo_profile_resolve() {
   #   MOLA_LOCALMAP_CLASS=mola::KeyframePointCloudMap
   : "${MOLA_LOCALMAP_CLASS:=mola::IncrementalPointCloud}"
 
-  export MOLA_DESKEW_METHOD MOLA_MINIMUM_RANGE_FILTER MOLA_LOCALMAP_CLASS
+  export MOLA_DESKEW_METHOD MOLA_SCAN_POINT_STAMPS_ADJUST_METHOD
+  export MOLA_MINIMUM_RANGE_FILTER MOLA_LOCALMAP_CLASS
 
   if [ "$MOLA_LO_MODE" = "gui" ]; then
     # This is a legged robot with a full joint tree in /tf, which is the whole
