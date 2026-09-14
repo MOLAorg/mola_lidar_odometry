@@ -32,6 +32,7 @@
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservationComment.h>
 #include <mrpt/obs/CObservationGPS.h>
+#include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/poses/Lie/SO.h>
 
@@ -2103,6 +2104,37 @@ void LidarOdometry::doUpdateSimpleMap(
     }
     if (closestGPS) {
       *keyframe_obs += std::const_pointer_cast<mrpt::obs::CObservationGPS>(closestGPS);
+    }
+
+    // insert IMU too? Same search as for GNSS above. Worth storing even
+    // though the live run has already consumed the reading: the IMU absolute
+    // attitude is the only azimuth observation that offline georeferencing of
+    // this simplemap can use, and it cannot be recovered from anything else
+    // saved here.
+    if (params_.simplemap.save_imu_max_age > 0) {
+      std::optional<double> closestImuTimeAbsDiff;
+      mrpt::obs::CObservationIMU::ConstPtr closestIMU;
+
+      {
+        auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+
+        for (const auto & [imuStamp, imuObs] : state_.last_imu_) {
+          const double timeDiff = std::abs(mrpt::system::timeDifference(imuStamp, curLidarStamp));
+
+          if (timeDiff > params_.simplemap.save_imu_max_age) {
+            continue;
+          }
+
+          if (!closestImuTimeAbsDiff || timeDiff < *closestImuTimeAbsDiff) {
+            closestImuTimeAbsDiff = timeDiff;
+            closestIMU = imuObs;
+          }
+        }
+      }
+
+      if (closestIMU) {
+        *keyframe_obs += std::const_pointer_cast<mrpt::obs::CObservationIMU>(closestIMU);
+      }
     }
   } else {
     // Otherwise (we are in here because add_non_keyframes_too).
