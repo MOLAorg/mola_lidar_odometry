@@ -194,6 +194,7 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     YAML_LOAD_OPT(params_, max_lidar_queue_before_drop, uint32_t);
     YAML_LOAD_OPT(params_, max_time_to_wait_for_imu, double);
     YAML_LOAD_OPT(params_, gnss_queue_max_size, uint32_t);
+    YAML_LOAD_OPT(params_, imu_queue_max_size, uint32_t);
     YAML_LOAD_OPT(params_, min_motion_model_xyz_cov_inv, double);
 
     YAML_LOAD_OPT(params_, optimize_twist, bool);
