@@ -688,7 +688,16 @@ localmap_generator:
           bootstrap_max_plane_deviation: ${MOLA_TSDF_BOOTSTRAP_MAX_DEV|0.5}
         likelihoodOpts: ~
         renderOpts:
-          point_size: 2.0
+          point_size: ${MOLA_TSDF_POINT_SIZE|2.0}
+          # The surface is drawn where the field changes sign, interpolated
+          # between the two voxels, so it is not quantized to the grid.
+          # Colored by "z" or by "weight" (how much evidence backs it);
+          # cmNONE falls back to the uniform points_color.
+          colormap: ${MOLA_TSDF_COLORMAP|cmHOT}
+          recolorize_by: "${MOLA_TSDF_COLOR_BY|z}"
+          # Draws a shaded surface instead of points: much prettier, much
+          # slower. For figures and for a close look, not for a live run.
+          render_as_mesh: ${MOLA_TSDF_RENDER_AS_MESH|false}
 
 observations_generator:
   # Generators:
