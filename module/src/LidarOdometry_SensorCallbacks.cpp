@@ -475,6 +475,18 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
     // Rate stats are pure instrumentation, so they are updated on arrival: they
     // must keep reporting a live IMU even while no scan is being processed.
     state_.append_imu_stamp(imu->timestamp, *this);
+
+    // Keep the latest IMU observations for simplemap insertion. Kept apart
+    // from pending_imu_ above, which is drained as the readings are consumed,
+    // and stored even when that one rejects a late arrival: an out-of-order
+    // reading is still a valid attitude measurement for a keyframe.
+    if (params_.simplemap.save_imu_max_age > 0) {
+      state_.last_imu_.emplace(imu->timestamp, imu);
+
+      while (state_.last_imu_.size() > params_.imu_queue_max_size) {
+        state_.last_imu_.erase(state_.last_imu_.begin());
+      }
+    }
   }
 
   if (!stored) {

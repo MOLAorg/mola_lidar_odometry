@@ -564,6 +564,21 @@ public:
              */
       double save_gnss_max_age = 1.0;  // [s]
 
+      /** Same as `save_gnss_max_age`, for the IMU: the IMU observation
+        * closest in time to the keyframe is stored in the simplemap
+        * CSensoryFrame, and this is the maximum age (seconds) for which
+        * one is still considered valid.
+        *
+        * Only the IMU *absolute attitude* observes the map azimuth
+        * independently of GNSS, and it is the simplemap, not the live
+        * run, that offline tools such as `mola-sm-georeferencing` see.
+        * Without it, the georeferenced yaw rests entirely on the GNSS
+        * position spread, which is ill-conditioned for short or noisy
+        * trajectories. The stored observation is a few hundred bytes
+        * next to a keyframe's point cloud.
+        */
+      double save_imu_max_age = 0.1;  // [s]
+
       /** If enabled, a directory will be create alongside the .simplemap
              *  and pointclouds will be externally serialized there, for much
              * faster loading and processing of simplemaps.
@@ -943,6 +958,8 @@ public:
     double max_time_to_wait_for_imu = 0.5;
 
     uint32_t gnss_queue_max_size = 100;
+
+    uint32_t imu_queue_max_size = 500;
 
     ///  Minimum inverse covariance in (X,Y,Z) for a valid motion model
     double min_motion_model_xyz_cov_inv = 1.0;
@@ -1445,6 +1462,11 @@ private:
     // GNSS: keep a list of recent observations to later on search the one
     // closest to each LIDAR observation:
     std::map<mrpt::Clock::time_point, std::shared_ptr<const mrpt::obs::CObservationGPS>> last_gnss_;
+
+    // IMU: same as last_gnss_ above, but for the simplemap only. Independent
+    // of pending_imu_, which the LiDAR worker drains as it consumes readings.
+    // Guarded by imu_state_mtx_.
+    std::map<mrpt::Clock::time_point, std::shared_ptr<const mrpt::obs::CObservationIMU>> last_imu_;
 
     // Visualization:
     // Cache only the *expensive*, read-only-after-load vehicle model

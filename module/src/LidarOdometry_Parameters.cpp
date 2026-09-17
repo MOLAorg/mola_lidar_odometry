@@ -263,6 +263,7 @@ void LidarOdometry::Parameters::SimpleMapOptions::initialize(const Yaml & cfg, P
   YAML_LOAD_OPT(add_non_keyframes_too, bool);
   YAML_LOAD_OPT(generate_lazy_load_scan_files, bool);
   YAML_LOAD_OPT(save_gnss_max_age, double);
+  YAML_LOAD_OPT(save_imu_max_age, double);
   YAML_LOAD_OPT(save_deskewed_scans, bool);
 }
 
