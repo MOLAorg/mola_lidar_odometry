@@ -506,8 +506,17 @@ localmap_generator:
           # insertion (Chebyshev distance, as in HashedVoxelPointCloud's
           # remove_voxels_farther_than). Unlike the keyframe map, EVERY point
           # inside this cube is kept in a single tree, so this is
-          # a much tighter budget than 'remove_frames_farther_than' below
-          remove_points_farther_than: "${MOLA_INCREMENTAL_MAP_MAX_SIZE|$f{max(100.0, 1.5*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
+          # a much tighter budget than 'remove_frames_farther_than' below:
+          # it is its own default, not a copy of the keyframe map's.
+          #
+          # Note the 100 m floor is a safety net for long-range outdoor
+          # sensors, NOT a recommendation: on short-range or indoor captures
+          # the whole trajectory fits inside it, nothing is ever evicted, and
+          # the local map silently becomes a global one. Symptoms are a
+          # storage/live point count that only grows and insertion times that
+          # climb with it. Set MOLA_INCREMENTAL_MAP_MAX_SIZE explicitly (a
+          # value near the observation radius) whenever that applies.
+          remove_points_farther_than: "${MOLA_INCREMENTAL_MAP_MAX_SIZE|$f{max(100.0, 1.0*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
           # Run the k-d tree balancing rebuilds on a background thread, so the
           # mapping thread never pays for them. Measured on Oxford Spires, this
           # takes local-map insertion from mean 28 ms / max 371 ms (with 9 calls

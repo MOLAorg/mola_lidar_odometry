@@ -644,7 +644,10 @@ a single YAML enough. When adding keys, keep KFM's *required* ones
   self-balancing k-d tree, no per-scan tree rebuild. **Odometry only** (a global
   SE(3) re-map would force a full rebuild). Tuned by `MOLA_INCREMENTAL_MAP_*`:
   `MAX_SIZE` (eviction cube **half-side** [m] -- a much tighter budget than KFM's
-  `remove_frames_farther_than`, which is a radius over keyframe centres),
+  `remove_frames_farther_than`, which is a radius over keyframe centres; its
+  100 m floor is a long-range-sensor safety net, and on a short-range or indoor
+  capture the whole trajectory fits inside it, so nothing is ever evicted and
+  the local map silently becomes a global one -- set it explicitly there),
   `ASYNC_REBUILD` (default `true`; moves the k-d tree rebuilds off the mapping
   thread and is what keeps insertion latency flat), `ALPHA_BALANCE`,
   `ALPHA_DELETED`, `RESERVE_POINTS`.
