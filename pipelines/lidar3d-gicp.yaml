@@ -575,6 +575,26 @@ localmap_generator:
           max_plane_deviation_for_cov: ${MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV|0}
           plane_regularization_lambda: ${MOLA_LOCALMAP_PLANE_REG_LAMBDA|0.001}
           # --- mola::IncrementalPointCloud only ---
+          # Neighbors a point must have been found with for its covariance to
+          # enter the cache. The map only ever gains points around an existing
+          # one, so an estimate made while the neighborhood was still thin is
+          # provisional: leaving it uncached costs one search per query until
+          # the neighborhood fills in, and avoids freezing an unreliable
+          # estimate (in particular the isotropic fallback returned below
+          # min_correspondences_for_cov) for the whole life of the point.
+          #
+          # 0 means k_correspondences_for_cov, i.e. only a full neighborhood is
+          # trusted; 1 caches everything, which is the behavior before this
+          # existed. Measured over seven sequences the default is ATE-neutral
+          # and its runtime cost is within the run-to-run spread, while it
+          # removes most of the covariance staleness (normals off by more than
+          # 5 deg against a from-scratch map: 45.5% -> 19.0% on a sliding
+          # window, 56.5% -> 0% after a densification).
+          #
+          # Note a narrower max_distance_for_cov interacts badly with this:
+          # asking for k neighbors inside a small radius is rarely satisfiable,
+          # so the cache stops admitting and every query re-searches.
+          min_neighbors_to_cache_cov: ${MOLA_LOCALMAP_MIN_NEIGHBORS_TO_CACHE_COV|0}
           # Half side [m] of the cube of points kept around the robot on each
           # insertion (Chebyshev distance, as in HashedVoxelPointCloud's
           # remove_voxels_farther_than). Unlike the keyframe map, EVERY point
