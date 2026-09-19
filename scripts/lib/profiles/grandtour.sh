@@ -53,7 +53,10 @@ mola_lo_profile_usage() {
   echo "                         ANYmal body itself, not the payload)"
   echo "  MOLA_ODOMETRY_TOPIC    the robot's legged kinematic-inertial odometry, fused"
   echo "                         by default (this adds <mission>_anymal_state.bag to"
-  echo "                         the inputs). Set it EMPTY to run LiDAR-inertial only"
+  echo "                         the inputs). Set it EMPTY to run LiDAR-inertial only,"
+  echo "                         which is what the COMFORT benchmark entry does: the"
+  echo "                         fusion helps on open terrain and hurts in the narrow,"
+  echo "                         stair-heavy missions that dominate that average"
   echo "  MOLA_ODOMETRY_OBS_CLASS  how to read that topic: 'CObservationRobotPose'"
   echo "                         (default, full SE(3) + covariance) or the planar"
   echo "                         'CObservationOdometry'"
@@ -382,8 +385,18 @@ mola_lo_profile_resolve() {
   #   MOLA_LOCALMAP_CLASS=mola::KeyframePointCloudMap
   : "${MOLA_LOCALMAP_CLASS:=mola::IncrementalPointCloud}"
 
+  # Point budgets that scale with the scene instead of being absolute, so the
+  # sampled density stays roughly constant as the scene opens up. Identity below
+  # the 45 m anchor, so confined missions are unchanged, and capped at 3x so a
+  # wide-open scene cannot run away with the CPU. Measured against the
+  # total-station reference, the gain grows with scene radius: nothing at 68 m,
+  # ~8-9% at 137-154 m.
+  : "${MOLA_DECIMATED_POINTS_ICP:=3000*max(1.0,min(3.0,ESTIMATED_OBSERVATION_RADIUS/45))}"
+  : "${MOLA_DECIMATED_POINTS_MAP:=10000*max(1.0,min(3.0,ESTIMATED_OBSERVATION_RADIUS/45))}"
+
   export MOLA_DESKEW_METHOD MOLA_SCAN_POINT_STAMPS_ADJUST_METHOD
   export MOLA_MINIMUM_RANGE_FILTER MOLA_LOCALMAP_CLASS
+  export MOLA_DECIMATED_POINTS_ICP MOLA_DECIMATED_POINTS_MAP
 
   if [ "$MOLA_LO_MODE" = "gui" ]; then
     # This is a legged robot with a full joint tree in /tf, which is the whole
@@ -401,6 +414,13 @@ mola_lo_profile_resolve() {
     : "${MOLA_LO_TF_TREE_EXCLUDE:=odom,enu_origin,dlio_odom,dlio_map}"
     export MOLA_LO_SHOW_TF_TREE MOLA_LO_TF_TREE_EXCLUDE
   fi
+
+  # A legged platform pitches on every step, and the IMU is what keeps the
+  # gravity direction honest between scans, so this profile selects the
+  # fixed-lag smoother rather than the lightweight filter, as the other
+  # IMU-carrying dataset profiles do. It roughly doubles CPU per scan and still
+  # runs faster than sensor time.
+  mola_lo_use_smoother || return 1
 
   mola_lo_bag_slots "${bags[@]}" || return 1
 
