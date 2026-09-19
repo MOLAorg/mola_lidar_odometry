@@ -22,7 +22,8 @@
   <depend>mola_pose_list</depend>
 
   <depend>cli11</depend>
-  <depend>mrpt_libmaps</depend>
+  <depend>mrpt_maps</depend>
+  <build_depend>eigen</build_depend>
 
   <!-- dataset input sources (all are actually optional) -->
   <depend>mola_input_kitti_dataset</depend>
@@ -55,6 +56,7 @@
   <test_depend>ament_cmake_xmllint</test_depend>
   <test_depend>ament_lint_cmake</test_depend>
   <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>mrpt_obs</test_depend>
   
   <!-- for C++ unit tests -->
   <!-- <test_depend>mola_state_estimation_simple</test_depend> -->

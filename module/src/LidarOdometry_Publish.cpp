@@ -24,6 +24,7 @@
 
 // MRPT:
 #include <mrpt/io/CMemoryStream.h>
+#include <mrpt/maps/CPointsMap.h>
 #include <mrpt/serialization/CArchive.h>
 #include <mrpt/system/datetime.h>
 
@@ -115,8 +116,8 @@ void LidarOdometry::doPublishUpdatedLocalMap(const mrpt::Clock::time_point & sca
 
       mu.map = mapCopy;
     }
-    // classes implementing getAsSimplePointsMap()
-    else if (auto * auxPts = layerMap->getAsSimplePointsMap(); auxPts) {
+    // any other map with a points-map representation:
+    else if (const auto * auxPts = mrpt::maps::asPointsMap(*layerMap); auxPts) {
       auto mapCopy = mrpt::maps::CSimplePointsMap::Create();
       mapCopy->insertAnotherMap(auxPts, mrpt::poses::CPose3D::Identity());
 

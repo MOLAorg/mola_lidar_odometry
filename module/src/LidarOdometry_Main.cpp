@@ -29,20 +29,19 @@
 #include <mrpt/containers/yaml.h>
 #include <mrpt/core/initializer.h>
 #include <mrpt/io/lazy_load_path.h>
-#include <mrpt/maps/CColouredPointsMap.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
-#include <mrpt/opengl/CAssimpModel.h>
-#include <mrpt/opengl/CGridPlaneXY.h>
-#include <mrpt/opengl/COpenGLScene.h>
-#include <mrpt/opengl/CText.h>
-#include <mrpt/opengl/stock_objects.h>
 #include <mrpt/poses/CPose3DPDFGaussian.h>
 #include <mrpt/random.h>
 #include <mrpt/system/datetime.h>
 #include <mrpt/system/filesystem.h>
 #include <mrpt/system/string_utils.h>
 #include <mrpt/topography/conversions.h>
+#include <mrpt/viz/CAssimpModel.h>
+#include <mrpt/viz/CGridPlaneXY.h>
+#include <mrpt/viz/CText.h>
+#include <mrpt/viz/Scene.h>
+#include <mrpt/viz/stock_objects.h>
 
 // STD:
 #include <chrono>

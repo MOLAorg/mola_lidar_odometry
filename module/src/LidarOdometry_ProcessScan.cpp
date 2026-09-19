@@ -769,8 +769,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
   // Cache sensor poses (in vehicle frame) for GUI visualization:
   for (const auto & o : sf) {
-    mrpt::poses::CPose3D sp;
-    o->getSensorPose(sp);
+    const mrpt::poses::CPose3D sp = o->getSensorPose();
     state_.last_lidar_sensor_poses[o->sensorLabel] = sp;
   }
 
@@ -971,8 +970,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
       state_.kf_decider_simplemap.emplace(params_.simplemap);
     }
     {
-      mrpt::poses::CPose3D sensorPoseInVehicle;
-      obs->getSensorPose(sensorPoseInVehicle);
+      const mrpt::poses::CPose3D sensorPoseInVehicle = obs->getSensorPose();
       state_.kf_decider_simplemap->insert(
         state_.last_lidar_pose.mean + sensorPoseInVehicle, mrpt::Clock::toDouble(obs->timestamp));
     }
@@ -1503,8 +1501,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
     // Use the lidar sensor pose (in world frame) as the distance-checker key.
     // This correctly handles moving lidars and non-repetitive scan patterns,
     // since the sensor itself -- not the base_link -- determines coverage.
-    mrpt::poses::CPose3D sensorPoseInVehicle;
-    obs->getSensorPose(sensorPoseInVehicle);
+    const mrpt::poses::CPose3D sensorPoseInVehicle = obs->getSensorPose();
     const mrpt::poses::CPose3D lidarPoseInWorld = state_.last_lidar_pose.mean + sensorPoseInVehicle;
 
     const double obsTimestamp = mrpt::Clock::toDouble(obs->timestamp);
