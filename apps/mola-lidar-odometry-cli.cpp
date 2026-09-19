@@ -117,6 +117,7 @@ struct Cli
   Opt<std::vector<std::string>> arg_moduleParams;
   Opt<std::string> arg_outPath;
   Opt<std::string> arg_outPathFused;
+  Opt<std::string> arg_outPathSmoothed;
   Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
   Opt<std::string> arg_outSimpleMap;
@@ -238,6 +239,16 @@ struct Cli
           "--output-tum-path saves the LiDAR odometry's own registered poses instead, which "
           "carry a second front-end's contribution only through the motion prior.")
         ->option_text("output-fused.txt");
+
+    arg_outPathSmoothed.opt =
+      cmd
+        .add_option(
+          "--output-tum-path-smoothed", arg_outPathSmoothed.value,
+          "Save the state estimator's SMOOTHED trajectory: each keyframe's pose as it left the "
+          "optimization window, i.e. its final value, instead of the newest (least optimized) "
+          "one. Needs an estimator implementing NavStateFilter::estimated_trajectory(); for the "
+          "smoother, set keep_finalized_trajectory (MOLA_SMOOTHER_KEEP_TRAJECTORY=true).")
+        ->option_text("output-smoothed.txt");
 
     arg_outTwist.opt =
       cmd
@@ -1317,6 +1328,30 @@ int main_odometry(Cli & cli)
               << " poses) in TUM format to: " << fil
               << std::endl;  // NOLINT(performance-avoid-endl)
     outFusedPath->saveToTextFile_TUM(fil);
+  }
+
+  if (cli.arg_outPathSmoothed.isSet()) {
+    const auto fil = cli.arg_outPathSmoothed.getValue();
+    ASSERTMSG_(
+      stateEstimatorAsNavState,
+      "--output-tum-path-smoothed needs a state estimator implementing mola::NavStateFilter");
+
+    // The whole run: the estimator returns whatever part of it it kept.
+    const auto traj = stateEstimatorAsNavState->estimated_trajectory(
+      mrpt::Clock::time_point::min(), mrpt::Clock::time_point::max(),
+      liodom->params_.publish_reference_frame);
+
+    if (traj.has_value()) {
+      std::cout << "\nSaving the state estimator's smoothed path (" << traj->size()
+                << " poses) in TUM format to: " << fil
+                << std::endl;  // NOLINT(performance-avoid-endl)
+      traj->saveToTextFile_TUM(fil);
+    } else {
+      std::cerr << "\nWARNING: the state estimator returned no smoothed trajectory; nothing "
+                   "written to "
+                << fil << ". For the smoother, it must run with keep_finalized_trajectory enabled."
+                << std::endl;  // NOLINT(performance-avoid-endl)
+    }
   }
 
   if (cli.arg_outSimpleMap.isSet()) {
