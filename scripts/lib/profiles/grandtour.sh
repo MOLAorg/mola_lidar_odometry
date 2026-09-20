@@ -51,9 +51,11 @@ mola_lo_profile_usage() {
   echo "                         IMU instead, and in a different bag),"
   echo "                         'livox' (Boxi payload) or 'velodyne' (mounted on the"
   echo "                         ANYmal body itself, not the payload)"
-  echo "  MOLA_ODOMETRY_TOPIC    the robot's legged kinematic-inertial odometry, fused"
-  echo "                         by default (this adds <mission>_anymal_state.bag to"
-  echo "                         the inputs). Set it EMPTY to run LiDAR-inertial only"
+  echo "  MOLA_ODOMETRY_TOPIC    the robot's legged kinematic-inertial odometry,"
+  echo "                         OPT-IN: set it to /anymal/state_estimator/odometry"
+  echo "                         to fuse it (this adds <mission>_anymal_state.bag to"
+  echo "                         the inputs). Off by default, which is also what the"
+  echo "                         benchmark entry runs"
   echo "  MOLA_ODOMETRY_OBS_CLASS  how to read that topic: 'CObservationRobotPose'"
   echo "                         (default, full SE(3) + covariance) or the planar"
   echo "                         'CObservationOdometry'"
@@ -285,10 +287,18 @@ mola_lo_profile_resolve() {
   fi
   export MOLA_IMU_TOPIC
 
-  # Legged kinematic-inertial odometry, ON by default for this dataset. Every
-  # other profile leaves odometry fusion opt-in, because a dataset is not opted
-  # in merely by carrying a pose topic; here it is enabled because it was
-  # measured to help, and the frame is known to be right.
+  # Legged kinematic-inertial odometry, OPT-IN, like every other profile: a
+  # dataset is not opted in merely by carrying a pose topic.
+  #
+  # It was ON here for a while, on the strength of a -13.3 % mean ATE across
+  # the missions with a reference. That average was driven almost entirely by
+  # the one mission that goes indoors, and that mission's reference turns out
+  # to cover only 28 % of its duration in scattered islands, which makes a
+  # single global alignment across the gaps ill-conditioned: identical
+  # configurations score 0.380 m and 1.550 m on it. Its number cannot carry a
+  # default. Re-measured on the three missions whose reference coverage is
+  # usable, fusing this source costs +1.09 mm mean ATE against a 0.09 mm
+  # run-to-run noise floor, so it is off unless a caller asks for it.
   #
   # `/anymal/state_estimator/odometry` is a nav_msgs/Odometry reported as
   # odom -> base, i.e. for the very frame this profile already uses as
@@ -305,12 +315,10 @@ mola_lo_profile_resolve() {
   # monotonically (0.3146 -> 0.3952 -> 0.6496 -> 0.7947 m ATE on arc-3 as the
   # linear sigma goes 1.0 -> 0.3 -> 0.1 -> 0.03).
   #
-  # Measured across the seven missions that have a reference: -13.3 % mean ATE,
-  # driven almost entirely by the one mission that goes indoors (arc-3,
-  # 0.3829 -> 0.3146). Set MOLA_ODOMETRY_TOPIC= (empty) to turn it off.
-  # Note "=" and not ":=": an explicitly empty MOLA_ODOMETRY_TOPIC is how a
-  # caller turns fusion off, and ":=" would treat that as unset and re-enable it.
-  : "${MOLA_ODOMETRY_TOPIC=/anymal/state_estimator/odometry}"
+  # Note "=" and not ":=": an explicitly empty MOLA_ODOMETRY_TOPIC stays empty,
+  # and ":=" would treat that as unset. The default is now empty either way,
+  # but the distinction still matters to a caller that sets it deliberately.
+  : "${MOLA_ODOMETRY_TOPIC=}"
   : "${MOLA_ODOMETRY_OBS_CLASS:=CObservationRobotPose}"
   : "${MOLA_NAVSTATE_SIGMA_WHEEL_ODOM_LINVEL:=1.0}"
   : "${MOLA_NAVSTATE_SIGMA_WHEEL_ODOM_ANGVEL:=0.5}"
@@ -382,8 +390,18 @@ mola_lo_profile_resolve() {
   #   MOLA_LOCALMAP_CLASS=mola::KeyframePointCloudMap
   : "${MOLA_LOCALMAP_CLASS:=mola::IncrementalPointCloud}"
 
+  # Point budgets that scale with the scene instead of being absolute, so the
+  # sampled density stays roughly constant as the scene opens up. Identity below
+  # the 45 m anchor, so confined missions are unchanged, and capped at 3x so a
+  # wide-open scene cannot run away with the CPU. Measured against the
+  # total-station reference, the gain grows with scene radius: nothing at 68 m,
+  # ~8-9% at 137-154 m.
+  : "${MOLA_DECIMATED_POINTS_ICP:=3000*max(1.0,min(3.0,ESTIMATED_OBSERVATION_RADIUS/45))}"
+  : "${MOLA_DECIMATED_POINTS_MAP:=10000*max(1.0,min(3.0,ESTIMATED_OBSERVATION_RADIUS/45))}"
+
   export MOLA_DESKEW_METHOD MOLA_SCAN_POINT_STAMPS_ADJUST_METHOD
   export MOLA_MINIMUM_RANGE_FILTER MOLA_LOCALMAP_CLASS
+  export MOLA_DECIMATED_POINTS_ICP MOLA_DECIMATED_POINTS_MAP
 
   if [ "$MOLA_LO_MODE" = "gui" ]; then
     # This is a legged robot with a full joint tree in /tf, which is the whole
@@ -401,6 +419,13 @@ mola_lo_profile_resolve() {
     : "${MOLA_LO_TF_TREE_EXCLUDE:=odom,enu_origin,dlio_odom,dlio_map}"
     export MOLA_LO_SHOW_TF_TREE MOLA_LO_TF_TREE_EXCLUDE
   fi
+
+  # A legged platform pitches on every step, and the IMU is what keeps the
+  # gravity direction honest between scans, so this profile selects the
+  # fixed-lag smoother rather than the lightweight filter, as the other
+  # IMU-carrying dataset profiles do. It roughly doubles CPU per scan and still
+  # runs faster than sensor time.
+  mola_lo_use_smoother || return 1
 
   mola_lo_bag_slots "${bags[@]}" || return 1
 
