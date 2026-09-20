@@ -530,6 +530,23 @@ icp_settings_with_vel:
         pointWeightRefRange: "${MOLA_POINT_WEIGHT_REF_RANGE|20.0}"
         pointWeightMin: "${MOLA_POINT_WEIGHT_MIN|0.01}"
         pointWeightMax: "${MOLA_POINT_WEIGHT_MAX|1.0}"
+        # Optional per-point weighting by beam incidence angle. alpha 0 (the
+        # default) weighs every point the same, i.e. today's behaviour.
+        #
+        # Independent of the range weighting above and composable with it:
+        # that one asks how far the point is, this one how squarely it was
+        # seen. A range at shallow incidence is biased, not just noisier, and
+        # a low-mounted sensor sees the far ground almost entirely that way,
+        # so the bias enters as a slow apparent change in surface height
+        # rather than as averageable noise.
+        #
+        # The floor is the safety parameter, not the ceiling: the grazing
+        # returns on such a platform ARE the ground, and discarding them
+        # outright leaves the vertical less constrained, not more.
+        incidenceWeightAlpha: "${MOLA_INCIDENCE_WEIGHT_ALPHA|0}"
+        incidenceWeightRefCos: "${MOLA_INCIDENCE_WEIGHT_REF_COS|0.5}"
+        incidenceWeightMin: "${MOLA_INCIDENCE_WEIGHT_MIN|0.05}"
+        incidenceWeightMax: "${MOLA_INCIDENCE_WEIGHT_MAX|1.0}"
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         # Both layers here must be of the very same cov-capable map class, the
