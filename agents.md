@@ -119,7 +119,7 @@ camera or the odometry in separate bag files therefore need no launch file of
 their own. `mola_lo_bag_slots` in `lib/dataset-profile.sh` fills these and the
 comma-joined spelling the offline CLI takes, from one list. The cap was raised
 from 4 to 5 for GrandTour: lidar + tf + imu + odometry + camera is 5 bags in
-GUI mode with odometry fusion on (its default).
+GUI mode once a caller opts into odometry fusion.
 
 ## Wheel odometry, GUI and offline CLI alike
 
@@ -146,10 +146,9 @@ cannot carry one, so the twist must already be expressed in `base_link`
 (`nav_msgs/Odometry`'s `child_frame_id`). `CObservationRobotPose` does carry a
 sensor pose, so that restriction does not apply to it.
 
-GrandTour is the one profile that turns odometry fusion on by default, and
-reads it as `CObservationRobotPose`; see `scripts/lib/profiles/grandtour.sh`
-for the
-measurements behind that and behind its loose velocity sigmas.
+GrandTour reads this source as `CObservationRobotPose`, but leaves fusion
+opt-in like every other profile; see `scripts/lib/profiles/grandtour.sh` for
+the measurements behind that and behind its loose velocity sigmas.
 
 ## Robot /tf tree visualization (opt-in)
 

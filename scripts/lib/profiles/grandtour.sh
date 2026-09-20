@@ -51,12 +51,11 @@ mola_lo_profile_usage() {
   echo "                         IMU instead, and in a different bag),"
   echo "                         'livox' (Boxi payload) or 'velodyne' (mounted on the"
   echo "                         ANYmal body itself, not the payload)"
-  echo "  MOLA_ODOMETRY_TOPIC    the robot's legged kinematic-inertial odometry, fused"
-  echo "                         by default (this adds <mission>_anymal_state.bag to"
-  echo "                         the inputs). Set it EMPTY to run LiDAR-inertial only,"
-  echo "                         which is what the COMFORT benchmark entry does: the"
-  echo "                         fusion helps on open terrain and hurts in the narrow,"
-  echo "                         stair-heavy missions that dominate that average"
+  echo "  MOLA_ODOMETRY_TOPIC    the robot's legged kinematic-inertial odometry,"
+  echo "                         OPT-IN: set it to /anymal/state_estimator/odometry"
+  echo "                         to fuse it (this adds <mission>_anymal_state.bag to"
+  echo "                         the inputs). Off by default, which is also what the"
+  echo "                         benchmark entry runs"
   echo "  MOLA_ODOMETRY_OBS_CLASS  how to read that topic: 'CObservationRobotPose'"
   echo "                         (default, full SE(3) + covariance) or the planar"
   echo "                         'CObservationOdometry'"
@@ -288,10 +287,18 @@ mola_lo_profile_resolve() {
   fi
   export MOLA_IMU_TOPIC
 
-  # Legged kinematic-inertial odometry, ON by default for this dataset. Every
-  # other profile leaves odometry fusion opt-in, because a dataset is not opted
-  # in merely by carrying a pose topic; here it is enabled because it was
-  # measured to help, and the frame is known to be right.
+  # Legged kinematic-inertial odometry, OPT-IN, like every other profile: a
+  # dataset is not opted in merely by carrying a pose topic.
+  #
+  # It was ON here for a while, on the strength of a -13.3 % mean ATE across
+  # the missions with a reference. That average was driven almost entirely by
+  # the one mission that goes indoors, and that mission's reference turns out
+  # to cover only 28 % of its duration in scattered islands, which makes a
+  # single global alignment across the gaps ill-conditioned: identical
+  # configurations score 0.380 m and 1.550 m on it. Its number cannot carry a
+  # default. Re-measured on the three missions whose reference coverage is
+  # usable, fusing this source costs +1.09 mm mean ATE against a 0.09 mm
+  # run-to-run noise floor, so it is off unless a caller asks for it.
   #
   # `/anymal/state_estimator/odometry` is a nav_msgs/Odometry reported as
   # odom -> base, i.e. for the very frame this profile already uses as
@@ -308,12 +315,10 @@ mola_lo_profile_resolve() {
   # monotonically (0.3146 -> 0.3952 -> 0.6496 -> 0.7947 m ATE on arc-3 as the
   # linear sigma goes 1.0 -> 0.3 -> 0.1 -> 0.03).
   #
-  # Measured across the seven missions that have a reference: -13.3 % mean ATE,
-  # driven almost entirely by the one mission that goes indoors (arc-3,
-  # 0.3829 -> 0.3146). Set MOLA_ODOMETRY_TOPIC= (empty) to turn it off.
-  # Note "=" and not ":=": an explicitly empty MOLA_ODOMETRY_TOPIC is how a
-  # caller turns fusion off, and ":=" would treat that as unset and re-enable it.
-  : "${MOLA_ODOMETRY_TOPIC=/anymal/state_estimator/odometry}"
+  # Note "=" and not ":=": an explicitly empty MOLA_ODOMETRY_TOPIC stays empty,
+  # and ":=" would treat that as unset. The default is now empty either way,
+  # but the distinction still matters to a caller that sets it deliberately.
+  : "${MOLA_ODOMETRY_TOPIC=}"
   : "${MOLA_ODOMETRY_OBS_CLASS:=CObservationRobotPose}"
   : "${MOLA_NAVSTATE_SIGMA_WHEEL_ODOM_LINVEL:=1.0}"
   : "${MOLA_NAVSTATE_SIGMA_WHEEL_ODOM_ANGVEL:=0.5}"
