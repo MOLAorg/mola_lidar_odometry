@@ -508,6 +508,30 @@ icp_settings_with_vel:
         thresholdFar: "${MOLA_MATCH_THRESHOLD_FAR|0}"
         thresholdKneeRange: "${MOLA_MATCH_THRESHOLD_KNEE|15.0}"
         thresholdTransitionWidth: "${MOLA_MATCH_THRESHOLD_WIDTH|5.0}"
+        # Per-point weighting of accepted pairings by the range at which the
+        # point was measured. Distinct from thresholdFar above: that one
+        # decides which pairings are ACCEPTED, this one what they WEIGH.
+        # pointWeightAlpha: 0 (the default) weighs every point the same, i.e.
+        # the behavior before this existed.
+        #
+        # Why the axis exists: a fixed-size decimation voxel can only equalize
+        # point density out to the range where the beam spacing reaches the
+        # voxel size, and past that it thins nothing at all. Measured on one
+        # scan at the shipped 0.15 m voxel, the near field (0-5 m) holds 47% of
+        # the raw points and contributes 16% of what reaches ICP, while beyond
+        # 40 m essentially every point survives. So the far field is
+        # over-represented exactly where each point is least certain (beam
+        # divergence puts ~15 cm of lateral spread at 50 m) and where its lever
+        # arm on attitude is longest.
+        #
+        # alpha = 1 matches the linear growth of the beam footprint; alpha = 2
+        # additionally accounts for a far point standing for more surface.
+        # Weights saturate at pointWeightMax below pointWeightRefRange and are
+        # floored at pointWeightMin, so no return is ever dropped outright.
+        pointWeightAlpha: "${MOLA_POINT_WEIGHT_ALPHA|0}"
+        pointWeightRefRange: "${MOLA_POINT_WEIGHT_REF_RANGE|20.0}"
+        pointWeightMin: "${MOLA_POINT_WEIGHT_MIN|0.01}"
+        pointWeightMax: "${MOLA_POINT_WEIGHT_MAX|1.0}"
         pairingsPerPoint: 1
         allowMatchAlreadyMatchedGlobalPoints: true # faster
         # Both layers here must be of the very same cov-capable map class, the
