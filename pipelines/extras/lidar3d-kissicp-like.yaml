@@ -37,6 +37,10 @@ params:
     enabled: "${MOLA_MAPPING_ENABLED|true}"
     min_translation_between_keyframes: 0 # [m]
     min_rotation_between_keyframes: 0 # [deg]
+    # Publishing deep-copies the whole local map and does not check for
+    # subscribers, so a batch run pays for it with nobody listening. The
+    # offline CLI defaults this off; a live node should leave it on.
+    publish_local_map: ${MOLA_PUBLISH_LOCAL_MAP|true}
 
   # Minimum ICP quality to insert it into the map:
   min_icp_goodness: 0.30

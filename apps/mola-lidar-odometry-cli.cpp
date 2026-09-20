@@ -868,6 +868,13 @@ int main_odometry(Cli & cli)
   // every scan must be processed and two runs over the same data must agree.
   setenv("MOLA_DROP_STALE_SCANS", "false", 0 /* do not overwrite */);
 
+  // Publishing the local map deep-copies it and deliberately does not check
+  // whether anyone is subscribed, so that a late subscriber still gets a map.
+  // Offline that subscriber never arrives, and the copy lands on the critical
+  // path: measured at 7% of the run on a large scene. Off by default here,
+  // overridable for the case of a --module that does consume the map.
+  setenv("MOLA_PUBLISH_LOCAL_MAP", "false", 0 /* do not overwrite */);
+
   // Declare any additional modules (e.g. a second front-end):
   // ------------------------------------------
   const auto & extraModuleClasses = cli.arg_moduleClasses.getValue();

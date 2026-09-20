@@ -333,6 +333,22 @@ setting still wins), like `MOLA_ASYNC_BACKEND`. For `mola-cli` replays set it in
 the environment; note `time_warp_scale` above ~5 outruns the pipeline, and
 without this the excess simply becomes dropped scans.
 
+## Local-map publishing is OFF in the offline CLI (`MOLA_PUBLISH_LOCAL_MAP`)
+
+`doPublishUpdatedLocalMap()` deep-copies the whole local map, and it
+deliberately does NOT check `anyUpdateMapSubscriber()`: a subscriber arriving
+late should still receive a map, which matters for latched ROS topics. That
+trade is right for a live node and wrong for a batch run, where no subscriber
+ever appears and the copy sits on the critical path under the state mutex.
+Measured on a 136 m scene: 133 calls at 610 ms mean, 81 s, about 7% of the run.
+
+`publish_local_map` (all `pipelines/*.yaml`, `local_map_updates` block)
+defaults to **true**, and `mola-lidar-odometry-cli` defaults it to false with
+`setenv(..., 0)` so an explicit setting still wins, like `MOLA_ASYNC_BACKEND`
+and `MOLA_DROP_STALE_SCANS`. Set `MOLA_PUBLISH_LOCAL_MAP=true` if a `--module`
+in the same process consumes the map. Geo-referencing publication is
+unaffected: it happens before this gate.
+
 ## Adaptive-threshold sustained-failure recovery is ON by default
 
 `recover_on_sustained_failure` (all `pipelines/*.yaml`, `adaptive_threshold`

@@ -315,6 +315,18 @@ public:
              */
       uint32_t publish_map_updates_every_n = 5;
 
+      /** Whether to publish the local map at all via mola::MapSourceBase.
+             *
+             * Publishing deep-copies the whole local map, which on a large
+             * scene costs a noticeable fraction of the per-scan budget, and
+             * it is done unconditionally: there is deliberately no check for
+             * whether anyone is subscribed, so that a subscriber arriving
+             * late still receives a map. That trade is right for a live node
+             * and wrong for a batch run, where no subscriber will ever
+             * appear, so the offline CLI defaults this off.
+             */
+      bool publish_local_map = true;
+
       /** If non-empty, the local map will be loaded from the given `*.mm`
              * file instead of generating it from scratch.
              * This can be used for multi-session SLAM, or for
