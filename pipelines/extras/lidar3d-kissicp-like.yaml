@@ -1,6 +1,18 @@
-# This file holds parameters for mola::LidarOdometry,
-# for use either programmatically calling initialize(), or from a MOLA system
-# launch file. See "launch/*" examples.
+# =====================================================================================
+# Pipeline: KISS-ICP-like point-to-point 3D ICP
+#
+# A minimal, self-contained reference pipeline: fixed decimation voxel sizes
+# (no adaptive decimation), a flat (non-annealed) matching threshold, single-
+# pass deskew+decimate. Not tuned or validated against a benchmark.
+#
+# Kept standalone rather than as a $import overlay of lidar3d-icp.yaml: the
+# current base pipeline now REQUIRES observations_filter_2nd_pass (it splits
+# decimation and deskewing across two stages) and $import has no way to
+# delete/unset a key the base defines, so there is no clean way to suppress
+# that stage for this pipeline's simpler single-pass design. Adopting the
+# base's decimate-before-deskew order instead would change this pipeline's
+# actual behavior, not just deduplicate text.
+# =====================================================================================
 
 params:
   # These sensor labels will be handled as LIDAR observations:
@@ -34,6 +46,10 @@ params:
     enabled: true
     initial_sigma: 2.0
     min_motion: 0.10
+    # kp/alpha have no KISS-ICP-specific tuning: same values as the shipped
+    # default pipeline's controller.
+    kp: 2.0
+    alpha: 0.90
 
   # If enabled, a map will be stored in RAM and (if using the CLI) stored
   # to a ".simplemap" file for later use for localization, etc.
