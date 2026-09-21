@@ -1518,6 +1518,14 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
     if (icpIsGood) {
       state_.last_lidar_pose = out.found_pose_to_wrt_from;
+    } else if (!registrationPlausible && hasMotionModel) {
+      // A refused registration must still advance the pose. Freezing it leaves
+      // a hole that any downstream resampling fills by interpolating straight
+      // through the interval, which reintroduces the very motion that was
+      // refused and spreads it over the neighbours as well. The motion model's
+      // own prediction is the best remaining estimate of where the vehicle
+      // went, and it is what the refusal decided to trust.
+      state_.last_lidar_pose.copyFrom(state_.last_motion_model_output->pose);
     }
 
     // Update velocity model:
@@ -1543,8 +1551,10 @@ void LidarOdometry::processLidarScan(  // NOLINT
       // Do not reset state estimation in order to allow it to fuse other sensor sources.
     }
 
-    // Update trajectory too:
-    if (icpIsGood) {
+    // Update trajectory too. A refused registration contributes the prediction
+    // instead of nothing: an estimated pose is better than a gap, which the
+    // consumer would have to fill by guessing anyway.
+    if (icpIsGood || (!registrationPlausible && hasMotionModel)) {
       auto lck = mrpt::lockHelper(state_trajectory_mtx_);
       state_.estimated_trajectory.insert(scan_ref_time, state_.last_lidar_pose.mean);
     }
