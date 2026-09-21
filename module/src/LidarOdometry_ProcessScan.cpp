@@ -29,6 +29,7 @@
 // MRPT:
 #include <mrpt/core/get_env.h>
 #include <mrpt/maps/CGenericPointsMap.h>
+#include <mrpt/math/wrap2pi.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservationComment.h>
 #include <mrpt/obs/CObservationGPS.h>
@@ -88,6 +89,49 @@ std::ostream * mapGateStream()
 }
 
 uint64_t mapGateScanCounter = 0;
+
+/** Optional diagnostic: append, for every scan that runs ICP, how far the
+ *  registration ended up from the prediction it started from, together with
+ *  the statistics a rejection gate could be built on.
+ *
+ *  Enabled only if MOLA_LO_REG_GATE_LOG names a writable path, following the
+ *  same convention as the map-gate log above.
+ *
+ *  The quality figure alone cannot tell a good registration from a confident
+ *  one onto the wrong surface, so the columns here record the size of the
+ *  correction as well: in meters, in sigmas of the prediction, and as the
+ *  speed it implies. Which of those separates the two cases is exactly what
+ *  the log is meant to answer.
+ *
+ *  Not thread-safe by design: it is for single-threaded diagnostic runs.
+ */
+std::ostream * regGateStream()
+{
+  static std::unique_ptr<std::ofstream> s_file = []() -> std::unique_ptr<std::ofstream> {
+    const char * path = ::getenv("MOLA_LO_REG_GATE_LOG");
+    if (!path || !path[0]) {
+      return {};
+    }
+    auto f = std::make_unique<std::ofstream>(path, std::ios::out | std::ios::app);
+    if (!f->is_open()) {
+      return {};
+    }
+    *f << "# scan\ttimestamp\tdt\tquality\titers\thas_motion_model"
+          "\tdx\tdy\tdz\td_trans\td_rot_deg\tmahalanobis\tmaha_trans"
+          "\timplied_speed\tpred_sigma_xyz\ticp_sigma_xyz\ticp_good\n";
+    if (!f->good()) {
+      return {};
+    }
+    return f;
+  }();
+  if (s_file && !s_file->good()) {
+    s_file.reset();
+  }
+  return s_file ? s_file.get() : nullptr;
+}
+
+uint64_t regGateScanCounter = 0;
+double regGateLastStamp = 0;
 }  // namespace
 
 bool LidarOdometry::isPipelineUsingIMU() const
@@ -1350,7 +1394,115 @@ void LidarOdometry::processLidarScan(  // NOLINT
     // (end, run ICP)
     // ------------------------------------------------------
 
-    const bool icpIsGood = (out.goodness >= params_.min_icp_goodness);
+    // How far this registration landed from the prediction it started from.
+    // Computed when the diagnostic log is on, and whenever the gate below is
+    // armed, since the gate is exactly a threshold on these numbers.
+    std::ostream * rgs = regGateStream();
+    const bool gateArmed = params_.max_registration_mahalanobis > 0;
+    double regMahalanobis = 0;
+    if (rgs != nullptr || gateArmed) {
+      const double stamp = mrpt::Clock::toDouble(scan_ref_time);
+      double scanDt = 0;
+      if (regGateLastStamp > 0) {
+        scanDt = stamp - regGateLastStamp;
+      }
+      regGateLastStamp = stamp;
+
+      const auto & found = out.found_pose_to_wrt_from.mean;
+      double dx = 0;
+      double dy = 0;
+      double dz = 0;
+      double dRotDeg = 0;
+      double maha = 0;
+      double mahaTrans = 0;
+      double predSigma = 0;
+
+      if (hasMotionModel) {
+        const auto & pred = state_.last_motion_model_output->pose.mean;
+        const auto & covInv = state_.last_motion_model_output->pose.cov_inv;
+        dx = found.x() - pred.x();
+        dy = found.y() - pred.y();
+        dz = found.z() - pred.z();
+
+        // MRPT parameterizes these covariances as [x y z yaw pitch roll].
+        mrpt::math::CVectorFixedDouble<6> v;
+        v[0] = dx;
+        v[1] = dy;
+        v[2] = dz;
+        v[3] = mrpt::math::wrapToPi(found.yaw() - pred.yaw());
+        v[4] = mrpt::math::wrapToPi(found.pitch() - pred.pitch());
+        v[5] = mrpt::math::wrapToPi(found.roll() - pred.roll());
+        dRotDeg = mrpt::RAD2DEG(std::sqrt(v[3] * v[3] + v[4] * v[4] + v[5] * v[5]));
+
+        double q = 0;
+        for (int i = 0; i < 6; i++) {
+          for (int j = 0; j < 6; j++) {
+            q += v[i] * covInv(i, j) * v[j];
+          }
+        }
+        maha = std::sqrt(std::max(0.0, q));
+
+        // Translation-only figure, from the conditional (not marginal) block:
+        // cheaper than inverting, and enough to rank scans against each other.
+        double qt = 0;
+        for (int i = 0; i < 3; i++) {
+          for (int j = 0; j < 3; j++) {
+            qt += v[i] * covInv(i, j) * v[j];
+          }
+        }
+        mahaTrans = std::sqrt(std::max(0.0, qt));
+
+        for (int i = 0; i < 3; i++) {
+          if (covInv(i, i) > 0) {
+            predSigma = std::max(predSigma, 1.0 / std::sqrt(covInv(i, i)));
+          }
+        }
+      }
+
+      const double dTrans = std::sqrt(dx * dx + dy * dy + dz * dz);
+      const double stepDist =
+        (found.translation() - state_.last_lidar_pose.mean.translation()).norm();
+      double impliedSpeed = 0;
+      if (scanDt > 1e-6) {
+        impliedSpeed = stepDist / scanDt;
+      }
+      double icpSigma = 0;
+      for (int i = 0; i < 3; i++) {
+        icpSigma = std::max(icpSigma, std::sqrt(out.found_pose_to_wrt_from.cov(i, i)));
+      }
+
+      regMahalanobis = maha;
+
+      if (rgs != nullptr) {
+        *rgs << regGateScanCounter++ << '\t' << mrpt::format("%.6f", stamp) << '\t'
+             << mrpt::format("%.4f", scanDt) << '\t' << mrpt::format("%.4f", out.goodness) << '\t'
+             << out.icp_iterations << '\t' << (hasMotionModel ? 1 : 0) << '\t'
+             << mrpt::format("%.5f", dx) << '\t' << mrpt::format("%.5f", dy) << '\t'
+             << mrpt::format("%.5f", dz) << '\t' << mrpt::format("%.5f", dTrans) << '\t'
+             << mrpt::format("%.5f", dRotDeg) << '\t' << mrpt::format("%.4f", maha) << '\t'
+             << mrpt::format("%.4f", mahaTrans) << '\t' << mrpt::format("%.4f", impliedSpeed)
+             << '\t' << mrpt::format("%.5f", predSigma) << '\t' << mrpt::format("%.5f", icpSigma)
+             << '\t' << (out.goodness >= params_.min_icp_goodness ? 1 : 0) << '\n';
+      }
+    }
+
+    // A registration can be self-consistent and still be wrong: ICP reports a
+    // perfect quality when it settles onto a plausible surface that is not the
+    // one the robot is on. Quality cannot see that, because it measures how
+    // well the pairings agree, not whether the answer is where the vehicle
+    // could possibly be. The distance from the prediction can, so an
+    // implausible correction is refused here and the existing "bad ICP" path
+    // keeps the motion model instead.
+    bool registrationPlausible = true;
+    if (gateArmed && hasMotionModel && regMahalanobis > params_.max_registration_mahalanobis) {
+      registrationPlausible = false;
+      state_.registration_gate_rejected++;
+      MRPT_LOG_WARN_FMT(
+        "Registration refused: %.2f sigmas from the prediction (limit %.2f), ICP quality %.3f.",
+        regMahalanobis, params_.max_registration_mahalanobis, out.goodness);
+    }
+
+    const bool icpIsGood = (out.goodness >= params_.min_icp_goodness) && registrationPlausible;
 
     state_.last_icp_was_good = icpIsGood;
     if (!icpIsGood) {
@@ -1457,7 +1609,13 @@ void LidarOdometry::processLidarScan(  // NOLINT
     // enough correspondences to recover. When enabled, after a streak of bad
     // ICPs we grow sigma multiplicatively (capped at maximum_sigma) to enlarge
     // the correspondence search radius for the next attempt.
-    if (icpIsGood) {
+    // A plausibility rejection is not an ICP failure and must not feed this
+    // rule. ICP found correspondences and converged; the answer was refused
+    // for being somewhere the vehicle could not be. Widening the search radius
+    // in response is exactly backwards, and counting it as sustained failure
+    // drives sigma to its maximum, which is the documented way to lock onto a
+    // self-consistent but wrong registration.
+    if (icpIsGood || !registrationPlausible) {
       state_.consecutive_bad_icps = 0;
     } else {
       state_.consecutive_bad_icps++;
