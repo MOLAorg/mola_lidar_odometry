@@ -69,8 +69,8 @@ params:
   # If enabled, vehicle twist will be optimized during ICP
   # enabling better and more robust odometry in high dynamics motion without an IMU.
   # NOTE: Disabled for more efficient deskew in the GICP pipeline with IMU.
-  # If using LO without IMU, try lidar3d-gicp-optimize-twist.yaml to enable optimize_twist if needed.
-  optimize_twist: false
+  # If using LO without IMU, set MOLA_OPTIMIZE_TWIST=true to enable it.
+  optimize_twist: ${MOLA_OPTIMIZE_TWIST|false}
 
   # IMU accelerometer-based verticality correction:
   # Uses averaged accelerometer readings to constrain ICP pitch/roll.

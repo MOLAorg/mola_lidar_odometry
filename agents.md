@@ -561,6 +561,41 @@ over multiple frames. Two consequences for pipeline tuning:
 See `mola-cli-launchs/lidar_odometry_from_botanicgarden_livox.yaml` for a
 complete example with all three env vars set.
 
+## `pipelines/*.yaml` hygiene: `$import` over full copies
+
+`mola_yaml` (>=3.0.0) supports `$import: <file>` (deep-merge a base file, sibling
+keys override it) and `$define: {VAR: value}` (rebind a `${VAR|default}` hook for
+the whole imported subtree; see `mola_yaml`'s README/tests). Every pipeline that
+is a small delta over `lidar3d-gicp.yaml`/`-icp.yaml`/`-ndt.yaml` is written as an
+overlay: `default-voxelavg`, `icp-blend`, `ndt-blend`, `fastlio-matching`, and
+`gicp-dual-tsdf` (see their own sections below/above) all just `$import` the base
+and restate only the block that actually changes -- a `$define` when the base
+already exposes the knob as a `${VAR|default}` hook, a sibling key otherwise.
+Whole-file copies rot silently: a hand-kept-in-sync duplicate falls behind every
+feature the base gains later (this is why several older variants had drifted
+years out of date -- missing IMU gravity correction, tf-tree viz, diagnostics --
+before being converted), and nobody notices until someone diffs the two by hand.
+
+Before adding a new pipeline file, or when tempted to `cp` an existing one:
+
+- If the difference is expressible as one or a few `${VAR}` overrides, or as
+  restating one map/matcher/filter list entry, write it as `$import` + `$define`
+  (or a small sibling override), not a full copy. `$import`'s deep-merge only
+  replaces sequences (a matcher list, a layer list) wholesale, not element-wise,
+  so overriding one matcher still means restating that whole list -- still far
+  smaller than the whole file.
+- A one-off ablation/benchmark config (answering "does axis X matter for
+  dataset Y") belongs in that benchmark's own write-up (with the exact
+  `$import`+`$define` recipe to reproduce it), not as a committed file under
+  `pipelines/`. `git log` and the benchmark doc keep the record; a committed
+  YAML nobody imports from just accumulates.
+- Before trusting a new overlay, resolve both the old and new file with
+  `mola-yaml-parser` (built by `mola_launcher`) and diff the two: any surviving
+  difference should be exactly the change you intended (plus inert comment/
+  key-ordering noise from the merge, which drops file-level header comments and
+  the odd trailing inline comment -- harmless, since neither reaches the
+  running config).
+
 ## `pipelines/lidar3d-ndt-blend.yaml`
 
 Same as `lidar3d-ndt.yaml` except that `mp2p_icp::Matcher_Point2Plane` is replaced
