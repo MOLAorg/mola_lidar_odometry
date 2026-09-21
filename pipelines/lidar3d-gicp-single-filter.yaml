@@ -154,6 +154,10 @@ params:
     check_for_removal_every_n: 100
     min_nearby_poses_occupied: ${MOLA_MIN_NEARBY_POSES_OCCUPIED|1}
     publish_map_updates_every_n: ${MOLA_PUBLISH_LOCAL_MAP_UPDATES_EVERY_N|40}
+    # Publishing deep-copies the whole local map and does not check for
+    # subscribers, so a batch run pays for it with nobody listening. The
+    # offline CLI defaults this off; a live node should leave it on.
+    publish_local_map: ${MOLA_PUBLISH_LOCAL_MAP|true}
 
   # Minimum ICP quality to insert it into the map:
   min_icp_goodness: ${MOLA_MINIMUM_ICP_QUALITY|0.50}

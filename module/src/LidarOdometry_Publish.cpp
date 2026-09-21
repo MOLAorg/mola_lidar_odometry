@@ -71,6 +71,10 @@ void LidarOdometry::doPublishUpdatedLocalMap(const mrpt::Clock::time_point & sca
   // Publish geo-referenced data for the map, if applicable.
   publishMetricMapGeoreferencingData();
 
+  if (!params_.local_map_updates.publish_local_map) {
+    return;
+  }
+
   if (!state_.local_map_needs_publish) {
     return;
   }
