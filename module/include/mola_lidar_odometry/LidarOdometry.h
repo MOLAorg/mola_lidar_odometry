@@ -353,6 +353,16 @@ public:
          * accepted during regular lidar odometry & mapping */
     double min_icp_goodness = 0.4;
 
+    /** Multiplies the information matrix of the pose prior handed to the ICP
+         * solver. The prior contributes ONE residual against as many residuals
+         * as there are pairings, so at unit weight it acts as a tie-breaker
+         * rather than a constraint: a registration can settle far from the
+         * prediction while the prior barely resists. Raising this makes the
+         * prediction an actual constraint on where the registration may land,
+         * which is what a platform with a trustworthy motion source wants.
+         * 1.0, the default, changes nothing. */
+    double icp_prior_weight = 1.0;
+
     /** Largest distance, in sigmas of the motion-model prediction, that a
          * registration may sit from that prediction and still be accepted.
          * ICP quality only measures how well the pairings agree, so a
