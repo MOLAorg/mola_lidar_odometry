@@ -353,6 +353,14 @@ public:
          * accepted during regular lidar odometry & mapping */
     double min_icp_goodness = 0.4;
 
+    /** Largest distance, in sigmas of the motion-model prediction, that a
+         * registration may sit from that prediction and still be accepted.
+         * ICP quality only measures how well the pairings agree, so a
+         * registration that settles on a plausible but wrong surface scores
+         * perfectly; this bounds how far the answer may move instead.
+         * Zero disables the check. */
+    double max_registration_mahalanobis = 0;
+
     /** If defined, .icplog files will be saved if ICP quality drops below the given threshold */
     std::optional<double> write_debug_icp_log_if_quality_under;
 
@@ -1405,6 +1413,7 @@ private:
     size_t registrations_attempted = 0;
     size_t registration_no_motion_model = 0;
     size_t registration_icp_rejected = 0;
+    size_t registration_gate_rejected = 0;
 
     // Automatic estimation of the observation bounding-radius (measured from
     // base_link, not from the sensor — see ESTIMATED_OBSERVATION_RADIUS docs):
