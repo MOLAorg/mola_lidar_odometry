@@ -1502,10 +1502,15 @@ void LidarOdometry::processLidarScan(  // NOLINT
         regMahalanobis, params_.max_registration_mahalanobis, out.goodness);
     }
 
-    const bool icpIsGood = (out.goodness >= params_.min_icp_goodness) && registrationPlausible;
+    // Plausibility failures are a distinct rejection reason, tracked via
+    // registration_gate_rejected above: they must not count as a bad ICP,
+    // since that would also trip the empty-map bootstrap restart below on a
+    // registration whose quality was actually fine.
+    const bool icpQualityGood = out.goodness >= params_.min_icp_goodness;
+    const bool icpIsGood = icpQualityGood && registrationPlausible;
 
-    state_.last_icp_was_good = icpIsGood;
-    if (!icpIsGood) {
+    state_.last_icp_was_good = icpQualityGood;
+    if (!icpQualityGood) {
       state_.registration_icp_rejected++;
     }
     state_.last_icp_quality = out.goodness;
