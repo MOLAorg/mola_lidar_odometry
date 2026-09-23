@@ -225,6 +225,22 @@ public:
          */
     std::optional<std::regex> gnss_sensor_label;
 
+    /** If set (non-empty), the linear velocity written to the pipelines'
+     *  dynamic variables (vx,vy,vz), which FilterDeskew uses to de-skew scans,
+     *  is the mean velocity of this odometry source (CObservationRobotPose or
+     *  CObservationOdometry, exact sensor label) over each LiDAR sweep, instead
+     *  of the state estimator's. The angular part (wx,wy,wz) stays the
+     *  estimator's.
+     *
+     *  The estimator's twist is derived from this module's own registrations, so
+     *  de-skewing with it closes a loop: a de-skew error shifts the registered
+     *  pose, which shifts the next velocity. Keeping that loop stable takes a
+     *  heavily filtered velocity, which then lags the real motion. An
+     *  independent source such as leg or wheel odometry has no such loop.
+     *  If the source does not cover a sweep, the estimator's twist is used.
+     */
+    std::optional<std::string> deskew_odometry_sensor_label;
+
     /** Minimum time (seconds) between scans for being attempted to be
          * aligned. Scans faster than this rate will be just silently ignored.
          */
@@ -1320,6 +1336,18 @@ private:
     /// Protected by imu_state_mtx_.
     OdometryAttitudeState odom_attitude;
 
+    /// Recent poses of the `deskew_odometry_sensor_label` source, keyed by
+    /// timestamp [s]. Protected by imu_state_mtx_.
+    std::map<double, mrpt::poses::CPose3D> deskew_odometry_poses;
+
+    /// Timestamp [s] of the previous scan, to estimate the sweep duration used
+    /// with `deskew_odometry_sensor_label`. Protected by imu_state_mtx_.
+    std::optional<double> deskew_prev_scan_stamp;
+
+    /// Whether the current scan's twist variables came from the de-skew
+    /// odometry source. Protected by imu_state_mtx_.
+    bool deskew_twist_from_odometry = false;
+
     /// True when the map-origin verticality reference was captured from the
     /// odometry attitude source. The per-scan reading is then taken from that
     /// same source and from nowhere else: a reading referenced against a
@@ -1608,6 +1636,17 @@ private:
   /// disabled, has produced nothing yet, or its newest reading is older than
   /// `odometry_attitude.max_age_seconds`. Caller must hold imu_state_mtx_.
   [[nodiscard]] std::optional<mrpt::math::TVector3D> odometryUpBody() const;
+
+  /// Stores a pose of the `deskew_odometry_sensor_label` source. Called inline
+  /// from onNewObservation(), like onIMU(), so what a scan sees depends only on
+  /// the input sequence.
+  void onDeskewOdometry(const mrpt::obs::CObservation::ConstPtr & o);
+
+  /// Mean twist (vehicle frame) of the de-skew odometry source over
+  /// [t0, t0+span], or over its available part if it covers at least half of
+  /// it. Caller must hold imu_state_mtx_.
+  [[nodiscard]] std::optional<mrpt::math::TTwist3D> deskewTwistFromOdometry(
+    double t0, double span) const;
 
   /// Captures the map-origin verticality reference from the accelerometer, if
   /// it has not been captured yet and an average is available. Safe (and

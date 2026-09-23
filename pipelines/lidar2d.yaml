@@ -25,6 +25,11 @@ params:
   # These sensor labels will be handled as GNSS (GPS) (For storage in simplemap only)
   gnss_sensor_label: "gps"
 
+  # If not empty, de-skew with this odometry source's velocity over each
+  # sweep (e.g. leg or wheel odometry) instead of the state estimator's, which
+  # is derived from this odometry's own registrations:
+  deskew_odometry_sensor_label: "${MOLA_DESKEW_ODOMETRY_NAME|}"
+
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 1e-3 # [seconds]
 

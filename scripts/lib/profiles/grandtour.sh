@@ -47,15 +47,17 @@ mola_lo_profile_usage() {
   echo "Optional environment variables:"
   echo "  MOLA_GRANDTOUR_LIDAR   which LiDAR to use: 'hesai' (default, Boxi payload),"
   echo "                         'hesai_raw' (the same sensor before the dataset's own"
-  echo "                         leg-odometry motion compensation; de-skewed from the"
-  echo "                         IMU instead, and in a different bag),"
+  echo "                         leg-odometry motion compensation, in a different bag;"
+  echo "                         de-skewed here from the IMU and the leg odometry),"
   echo "                         'livox' (Boxi payload) or 'velodyne' (mounted on the"
   echo "                         ANYmal body itself, not the payload)"
   echo "  MOLA_ODOMETRY_TOPIC    the robot's legged kinematic-inertial odometry,"
   echo "                         OPT-IN: set it to /anymal/state_estimator/odometry"
   echo "                         to fuse it (this adds <mission>_anymal_state.bag to"
   echo "                         the inputs). Off by default, which is also what the"
-  echo "                         benchmark entry runs"
+  echo "                         benchmark entry runs. With MOLA_GRANDTOUR_LIDAR=hesai_raw"
+  echo "                         it defaults to that topic, and the raw clouds are"
+  echo "                         de-skewed with its motion (MOLA_DESKEW_ODOMETRY_NAME)"
   echo "  MOLA_ODOMETRY_OBS_CLASS  how to read that topic: 'CObservationRobotPose'"
   echo "                         (default, full SE(3) + covariance) or the planar"
   echo "                         'CObservationOdometry'"
@@ -333,6 +335,16 @@ mola_lo_profile_resolve() {
   # Note "=" and not ":=": an explicitly empty MOLA_ODOMETRY_TOPIC stays empty,
   # and ":=" would treat that as unset. The default is now empty either way,
   # but the distinction still matters to a caller that sets it deliberately.
+  #
+  # Exception: the raw Hesai stream is de-skewed here, and that wants a velocity
+  # independent of this odometry's own registrations (see
+  # deskew_odometry_sensor_label in the pipeline). Measured on 11 missions with
+  # a prism reference, de-skewing the raw cloud with the leg odometry's motion
+  # matches the dataset's own undistorted clouds (-1.5% ATE), where the state
+  # estimator's twist is +18% worse.
+  if [ "$MOLA_GRANDTOUR_LIDAR" = "hesai_raw" ]; then
+    : "${MOLA_ODOMETRY_TOPIC=/anymal/state_estimator/odometry}"
+  fi
   : "${MOLA_ODOMETRY_TOPIC=}"
   : "${MOLA_ODOMETRY_OBS_CLASS:=CObservationRobotPose}"
   : "${MOLA_NAVSTATE_SIGMA_WHEEL_ODOM_LINVEL:=1.0}"
@@ -344,6 +356,10 @@ mola_lo_profile_resolve() {
     if [ -f "$odom_bag" ]; then
       echo "  Odometry bag: $odom_bag"
       bags+=("$odom_bag")
+      if [ "$MOLA_GRANDTOUR_LIDAR" = "hesai_raw" ]; then
+        : "${MOLA_DESKEW_ODOMETRY_NAME:=${MOLA_ODOM_SENSOR_LABEL:-odom_wheels}}"
+        export MOLA_DESKEW_ODOMETRY_NAME
+      fi
     else
       echo "  Odometry bag: (not found: '$odom_bag'; MOLA_ODOMETRY_TOPIC matches nothing)"
     fi
@@ -366,6 +382,10 @@ mola_lo_profile_resolve() {
   # IMU. Either default is overridable.
   if [ "$MOLA_GRANDTOUR_LIDAR" = "hesai_raw" ]; then
     : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
+    # Integrating the accelerometer over the sweep does not improve on a good
+    # initial velocity, and was measured to add noise on this platform:
+    : "${MOLA_DESKEW_IGNORE_ACCELEROMETER:=true}"
+    export MOLA_DESKEW_IGNORE_ACCELEROMETER
   else
     : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::None}"
   fi
