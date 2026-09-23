@@ -1,0 +1,46 @@
+# =====================================================================================
+# Pipeline block: early de-skew of the whole scan
+#
+# Shared by the pipelines/*.yaml files through `$import`. See the
+# "Pipeline blocks" section in the docs for how to override it.
+# =====================================================================================
+
+# Early deskew of the full raw cloud.
+# Runs once; result is reused for decimation, viz, publish, simplemap.
+# Skipped at runtime when !hasIMU && optimize_twist (fallback to 2nd-pass deskew).
+observations_deskew_pass:
+  # Drop near returns to remove "noise" from the vehicle body, a person
+  # standing next to the robot (e.g. with a joystick), etc., and clamp
+  # very far returns where small angular errors blow up into large
+  # translational errors. metric_l_infinity → axis-aligned cube; center
+  # is unset → anchored at base_link (the vehicle origin), *not* at the
+  # sensor — this is intentional so the deadzone covers the whole
+  # vehicle footprint regardless of where the sensor is mounted on it.
+  # If you also need a sensor-anchored cut (e.g. the sensor's blind
+  # sphere when it is mounted significantly off base_link), add an
+  # extra filter via observations_prefilter_file.
+  - class_name: mp2p_icp_filters::FilterByRange
+    params:
+      input_pointcloud_layer: "raw"
+      output_layer_between: "raw_range_filtered"
+      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
+      range_max: "${MOLA_MAXIMUM_RANGE_FILTER|1.2*ESTIMATED_OBSERVATION_RADIUS}"
+      metric_l_infinity: true
+
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      name: "FilterDeskew (early)"
+      input_pointcloud_layer: "raw_range_filtered"
+      output_pointcloud_layer: "deskewed"
+      method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
+      ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|false}"
+      silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
+      output_layer_class: "mrpt::maps::CGenericPointsMap" # Keep intensity, ring, time channels
+
+      # These (vx,...,wz) are variable names that must be defined via the
+      # mp2p_icp::Parameterizable API to update them dynamically.
+      twist: [vx, vy, vz, wx, wy, wz]
+
+  - class_name: mp2p_icp_filters::FilterDeleteLayer
+    params:
+      pointcloud_layer_to_remove: ["raw_range_filtered"]

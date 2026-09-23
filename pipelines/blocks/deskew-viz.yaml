@@ -1,0 +1,37 @@
+# =====================================================================================
+# Pipeline block: de-skew for visualization
+#
+# Shared by the pipelines/*.yaml files through `$import`. See the
+# "Pipeline blocks" section in the docs for how to override it.
+# =====================================================================================
+
+# Pipeline starting from raw observations (passed through "Generator"), to be
+# sent out for visualization of the sliding-window of recent clouds as a dense local map
+# This is ONLY run when not using "use_early_deskew", that is: not using IMU, and enabling "optimize_twist"
+observations_filter_deskew_for_visualization:
+  - class_name: mp2p_icp_filters::FilterByRange
+    params:
+      input_pointcloud_layer: "raw"
+      output_layer_between: "raw_filtered"
+      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
+      range_max: 1.2*ESTIMATED_OBSERVATION_RADIUS
+      metric_l_infinity: true
+
+  - class_name: mp2p_icp_filters::FilterDeskew
+    params:
+      name: "FilterDeskew (viz)"
+      input_pointcloud_layer: "raw_filtered"
+      output_pointcloud_layer: "viz"
+      method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
+      ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|false}"
+      silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
+      output_layer_class: "mrpt::maps::CGenericPointsMap" # Keep intensity only
+
+      # These (vx,...,wz) are variable names that must be defined via the
+      # mp2p_icp::Parameterizable API to update them dynamically.
+      twist: [vx, vy, vz, wx, wy, wz]
+
+  # Remove raw layer so it's not visible
+  - class_name: mp2p_icp_filters::FilterDeleteLayer
+    params:
+      pointcloud_layer_to_remove: ["raw", "raw_filtered"]

@@ -1,0 +1,29 @@
+# =====================================================================================
+# Pipeline block: acceptance of registration results
+#
+# Shared by the pipelines/*.yaml files through `$import`. See the
+# "Pipeline blocks" section in the docs for how to override it.
+# =====================================================================================
+
+params:
+  # Minimum ICP quality to insert it into the map:
+  min_icp_goodness: ${MOLA_MINIMUM_ICP_QUALITY|0.50}
+
+  # ICP quality measures how well the pairings agree, not whether the answer is
+  # somewhere the vehicle could be, so a registration that settles on a
+  # plausible but wrong surface reports a perfect score. This bounds how far a
+  # registration may sit from the motion-model prediction, in sigmas of that
+  # prediction. Only meaningful if the state estimator reports an honest
+  # covariance; zero disables it.
+  # The pose prior contributes one residual to the ICP solve, against as many
+  # residuals as there are pairings, so at unit weight it breaks ties rather
+  # than constraining anything: a registration can settle far from the
+  # prediction while the prior barely resists. Raise this where the motion
+  # source is worth more than one point pairing. 1.0 changes nothing.
+  icp_prior_weight: ${MOLA_ICP_PRIOR_WEIGHT|1.0}
+
+  max_registration_mahalanobis: ${MOLA_MAX_REGISTRATION_MAHALANOBIS|0}
+
+  # If defined, ".icplog" files will be saved if ICP quality drops below the given threshold.
+  # Useful to debug mapping issues. If empty, only the env var MP2P_ICP_GENERATE_DEBUG_FILES and the icp.params setting will define when to save logs.
+  write_debug_icp_log_if_quality_under: ${MOLA_WRITE_DEBUG_ICP_LOG_IF_QUALITY_UNDER|""}

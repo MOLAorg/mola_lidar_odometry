@@ -1,0 +1,21 @@
+# =====================================================================================
+# Pipeline block: point timestamps and user pre-filter
+#
+# Shared by the pipelines/*.yaml files through `$import`. See the
+# "Pipeline blocks" section in the docs for how to override it.
+# =====================================================================================
+
+# this pipeline is required so "SENSOR_TIME_OFFSET" has a different value for each independent LiDAR sensor
+# in setups with multiple LiDARs:
+observations_filter_adjust_timestamps:
+  # If twist estimation within ICP is enabled, this defines
+  # the moment for which twist is estimated:
+  - class_name: mp2p_icp_filters::FilterAdjustTimestamps
+    params:
+      pointcloud_layer: "raw"
+      silently_ignore_no_timestamps: true
+      time_offset: "SENSOR_TIME_OFFSET"
+      method: "${MOLA_SCAN_POINT_STAMPS_ADJUST_METHOD|TimestampAdjustMethod::MiddleIsZero}"
+
+# Path to an (optional) user-customizable pipeline definition file. Default: empty = none.
+observations_prefilter_file: ${MOLA_LO_OBS_PREFILTER_PIPELINE_FILE|""}

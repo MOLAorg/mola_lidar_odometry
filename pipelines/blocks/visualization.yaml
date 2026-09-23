@@ -1,0 +1,69 @@
+# =====================================================================================
+# Pipeline block: GUI visualization
+#
+# Shared by the pipelines/*.yaml files through `$import`. See the
+# "Pipeline blocks" section in the docs for how to override it.
+# =====================================================================================
+
+params:
+  # If run within a mola-cli container, and mola_viz is present, use these options
+  # to show live progress:
+  visualization:
+    map_update_decimation: ${MOLA_GUI_MAP_UPDATE_DECIMATION|10}
+    show_trajectory: ${MOLA_GUI_SHOW_TRAJECTORY|true}
+    trajectory_rgba: [0.1, 0.1, 0.1, 1.0]
+
+    # Camera tracks the vehicle. Exposed as an env hook so an integrator (e.g.
+    # mola_mapper, where the mapper module owns the camera) can disable it here
+    # without editing this pipeline. Default true (standalone LIO behavior).
+    camera_follows_vehicle: ${MOLA_GUI_CAMERA_FOLLOWS_VEHICLE|true}
+
+    # Enable or disable each of the three GUI panels:
+    show_tab_status: ${MOLA_GUI_SHOW_TAB_STATUS|true}
+    show_tab_control: ${MOLA_GUI_SHOW_TAB_CONTROL|true}
+    show_tab_view: ${MOLA_GUI_SHOW_TAB_VIEW|true}
+
+    show_current_observation: ${MOLA_GUI_SHOW_CURRENT_OBS|false} # shows "live deskewed" LiDAR points
+    show_last_deskewed_observations_decay: ${MOLA_GUI_SHOW_DESKEWED_DECAY|true} # shows "live deskewed" LiDAR points over time
+    last_deskewed_observations_point_size: ${MOLA_GUI_LAST_CLOUDS_POINT_SIZE|1.0}
+    last_deskewed_observations_colormap: ${MOLA_GUI_LAST_CLOUDS_COLORMAP|cmJET} # mrpt::img::TColormap
+    last_deskewed_observations_color_by_field: ${MOLA_GUI_LAST_CLOUDS_COLOR_FIELD|intensity}
+    observations_initial_alpha: 0.10
+    observations_decay_seconds: ${MOLA_GUI_CLOUDS_DECAY_SECS|10.0} # For deskewed clouds above
+    current_observation_point_size: ${MOLA_GUI_CURRENT_CLOUD_POINT_SIZE|2.0}
+    current_observation_colormap: ${MOLA_GUI_CURRENT_CLOUD_COLORMAP|cmHOT} # mrpt::img::TColormap
+    current_observation_color_by_field: ${MOLA_GUI_CURRENT_CLOUD_COLOR_FIELD|intensity}
+    current_observation_alpha: 0.20
+    show_gravity_align_vector: ${MOLA_GUI_SHOW_ESTIMATED_GRAVITY_VECTOR|false}
+
+    background_color_gray_level: "${MOLA_GUI_BACKGROUND_GRAY_LEVEL|0.3}"
+
+    show_localmap: ${MOLA_GUI_SHOW_LOCAL_MAP|true}
+    local_map_point_size: 1
+
+    show_ground_grid: ${MOLA_GUI_SHOW_GROUND_GRID|true}
+    ground_grid_spacing: 5.0 # [m]
+    current_pose_corner_size: ${MOLA_LO_CURRENT_POSE_CORNER_SIZE|1.5} # [m]
+    #sensor_poses_corner_size: 0.5  # XYZ corner for each LiDAR sensor pose; 0 to disable
+    show_current_pose_corner: ${MOLA_LO_SHOW_CURRENT_POSE_CORNER|true} # Set to false to hide the current-pose XYZ corner (e.g. for a first-person camera)
+
+    # Robot /tf tree (e.g. a legged robot's joints). Requires the data source
+    # to implement mola::TransformTreeSource (rosbag1/rosbag2 inputs and the
+    # ROS 2 bridge do). All of these can also be toggled at runtime, in the
+    # GUI's "View" tab.
+    show_tf_tree: ${MOLA_LO_SHOW_TF_TREE|false}
+    tf_tree_root_frame: ${MOLA_LO_TF_TREE_ROOT|''} # empty: use the data source's base_link frame
+    tf_tree_corner_size: ${MOLA_LO_TF_TREE_CORNER_SIZE|0.1} # [m]
+    tf_tree_show_links: ${MOLA_LO_TF_TREE_SHOW_LINKS|true}
+    tf_tree_link_radius: ${MOLA_LO_TF_TREE_LINK_RADIUS|0.02} # [m], cylinder radius for tf links
+    tf_tree_show_names: ${MOLA_LO_TF_TREE_SHOW_NAMES|false}
+    tf_tree_exclude_frames: ${MOLA_LO_TF_TREE_EXCLUDE|''} # comma-separated; drops each frame and its subtree
+
+    model:
+      - file: ${MOLA_VEHICLE_MODEL_FILE|""} # Default: none
+        tf.x: ${MOLA_VEHICLE_MODEL_X|0.0} # deg
+        tf.y: ${MOLA_VEHICLE_MODEL_Y|0.0} # deg
+        tf.z: ${MOLA_VEHICLE_MODEL_Z|0.0} # deg
+        tf.yaw: ${MOLA_VEHICLE_MODEL_YAW|0.0} # deg
+        tf.pitch: ${MOLA_VEHICLE_MODEL_PITCH|0.0} # deg
+        tf.roll: ${MOLA_VEHICLE_MODEL_ROLL|90.0} # deg
