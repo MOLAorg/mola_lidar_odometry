@@ -61,7 +61,8 @@ void LidarOdometry::doPublishUpdatedLocalization(const mrpt::Clock::time_point &
   lu.timestamp = scan_ref_time;
   lu.pose = state_.last_lidar_pose.mean.asTPose();
   lu.cov = state_.last_lidar_pose.cov;
-  lu.quality = state_.last_icp_quality;
+  // A pose that did not come from an accepted registration carries no ICP quality:
+  lu.quality = state_.last_pose_from_prediction ? 0.0 : state_.last_icp_quality;
 
   advertiseUpdatedLocalization(lu);
 }

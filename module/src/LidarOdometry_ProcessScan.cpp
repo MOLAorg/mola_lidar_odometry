@@ -933,6 +933,9 @@ void LidarOdometry::processLidarScan(  // NOLINT
   bool updateSimpleMap = false;
   bool distance_enough_sm = false;
 
+  // A bad ICP right after an empty-map start restarts the map from scratch:
+  bool restartFromScratch = false;
+
 #if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
   // Whether this scan's keyframe will be pushed to a central-map backend
   // (e.g. mola_mapper_3d), at the same sparsity as the self-written simplemap
@@ -1523,8 +1526,22 @@ void LidarOdometry::processLidarScan(  // NOLINT
     state_.last_icp_quality = out.goodness;
     state_.last_icp_iterations = out.icp_iterations;
 
+    restartFromScratch = !icpQualityGood && state_.estimated_trajectory.size() == 1 &&
+                         params_.local_map_updates.enabled && !state_.map_has_been_loaded;
+
+    // A registration that is not accepted, either for its low quality or for
+    // being refused, must still advance the pose. Freezing it leaves a hole
+    // that any downstream resampling fills by interpolating straight through
+    // the interval, which reintroduces the very motion that was rejected and
+    // spreads it over the neighbors as well. The motion model's own
+    // prediction is the best remaining estimate of where the vehicle went.
+    const bool usePrediction = !icpIsGood && hasMotionModel && !restartFromScratch;
+    state_.last_pose_from_prediction = usePrediction;
+
     if (icpIsGood) {
       state_.last_lidar_pose = out.found_pose_to_wrt_from;
+    } else if (usePrediction) {
+      state_.last_lidar_pose.copyFrom(state_.last_motion_model_output->pose);
     }
 
     // Update velocity model:
@@ -1550,8 +1567,10 @@ void LidarOdometry::processLidarScan(  // NOLINT
       // Do not reset state estimation in order to allow it to fuse other sensor sources.
     }
 
-    // Update trajectory too:
-    if (icpIsGood) {
+    // Update trajectory too. A rejected registration contributes the prediction
+    // instead of nothing: an estimated pose is better than a gap, which the
+    // consumer would have to fill by guessing anyway.
+    if (icpIsGood || usePrediction) {
       auto lck = mrpt::lockHelper(state_trajectory_mtx_);
       state_.estimated_trajectory.insert(scan_ref_time, state_.last_lidar_pose.mean);
     }
@@ -1800,9 +1819,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
   // If this was a bad ICP, and we just started with an empty map, re-start again.
   // Do NOT restart if a starting map was loaded (from start-up config, or via
   // a runtime map_load() service call): that would wipe the loaded map.
-  if (
-    !state_.last_icp_was_good && state_.estimated_trajectory.size() == 1 &&
-    params_.local_map_updates.enabled && !state_.map_has_been_loaded) {
+  if (restartFromScratch) {
     // Re-start the local map:
     {
       auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
@@ -1933,8 +1950,8 @@ void LidarOdometry::processLidarScan(  // NOLINT
 #endif
 
   // In any case, publish the vehicle pose, no matter if it's a keyframe or not,
-  // if ICP quality was good enough:
-  if (state_.last_icp_was_good) {
+  // either from an accepted ICP or, otherwise, from the motion model prediction:
+  if (state_.last_icp_was_good || state_.last_pose_from_prediction) {
     doPublishUpdatedLocalization(scan_ref_time);
   }
 
