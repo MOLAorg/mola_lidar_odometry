@@ -1351,6 +1351,9 @@ private:
     std::map<std::string, mrpt::poses::CPose3D> last_lidar_sensor_poses;  //!< sensor pose per label
     bool last_icp_was_good = true;
     double last_icp_quality = .0;
+    /// True if last_lidar_pose is the motion model prediction, since the
+    /// registration was not accepted:
+    bool last_pose_from_prediction = false;
     std::size_t last_icp_iterations = 0;
 
     std::optional<mrpt::Clock::time_point> first_ever_timestamp;
