@@ -589,6 +589,28 @@ over multiple frames. Two consequences for pipeline tuning:
 See `mola-cli-launchs/lidar_odometry_from_botanicgarden_livox.yaml` for a
 complete example with all three env vars set.
 
+## `pipelines/blocks/`: the 3D pipelines are assembled from blocks
+
+`lidar3d-{gicp,icp,ndt}.yaml` are short files whose root `$import:` lists
+`blocks/*.yaml`, one per concept (inputs, runtime, acceptance, adaptive
+threshold, simplemap, visualization, initial localization, ICP, local map,
+observations, de-skew), each entry written as
+`${MOLA_LO_BLOCK_<NAME>|blocks/<file>.yaml}` so a user can swap one block for
+their own file. Blocks merge in list order and the pipeline file's own keys win.
+Shared blocks are used by all three; `icp-*`, `localmap-*` and `observations-*`
+have one file per method and share the env var name (`MOLA_LO_BLOCK_ICP`, ...).
+A shared block adopted by icp/ndt may only add keys equal to the C++ defaults;
+real per-pipeline values are restated in the pipeline file (see `lidar3d-ndt.yaml`'s
+`visualization` overrides). Lists merge wholesale, so every list-valued key
+must live in exactly one block. `lidar2d.yaml` and `extras/` stay standalone.
+`test_pipelines_load` resolves every shipped pipeline and checks a block
+override via its env var.
+
+To check a refactor of these files, resolve each pipeline with
+`mola-yaml-parser` before and after, load both into a canonical form (parsed,
+keys sorted: `$import` reorders keys) and diff; do it also with a few `MOLA_*`
+variables set, since `$define`/override changes only show once resolved.
+
 ## `pipelines/*.yaml` hygiene: `$import` over full copies
 
 `mola_yaml` (>=3.0.0) supports `$import: <file>` (deep-merge a base file, sibling
@@ -683,13 +705,17 @@ different cell sizes: measured on KITTI, a coarse map voxel wins from 400 m of
 travel onward while a finer one wins at 100-300 m, so a single value cannot
 express both drift accumulation and short-range precision.
 
-It lives in a separate file
+It is an overlay that `$import`s `lidar3d-gicp.yaml` and replaces only
+`observations_filter_1st_pass`. It lives in a separate file
 only because `outputs` needs an mp2p_icp newer than the current release; fold it
 back into `lidar3d-gicp.yaml` and delete it once mp2p_icp is re-released. It is
-deliberately NOT wired into `test/CMakeLists.txt`, which must keep building
-against the released mp2p_icp.
+deliberately NOT run by any test in `test/CMakeLists.txt`, which must keep
+building against the released mp2p_icp (`test_pipelines_load` only resolves
+its YAML, which instantiates no filter).
 
-## Selectable local-map class in `pipelines/lidar3d-gicp.yaml`
+## Selectable local-map class in the GICP pipeline
+
+(`pipelines/blocks/localmap-gicp.yaml` and `observations-gicp.yaml`.)
 
 `${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}` picks the class used for
 both the `localmap` layer and the `observation` (scan) layer -- `Matcher_Cov2Cov`
