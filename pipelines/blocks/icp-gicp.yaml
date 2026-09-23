@@ -1,0 +1,152 @@
+# =====================================================================================
+# Pipeline block: ICP settings, GICP (cov-to-cov)
+#
+# Shared by the pipelines/*.yaml files through `$import`. See the
+# "Pipeline blocks" section in the docs for how to override it.
+# =====================================================================================
+
+# If "icp_settings_without_vel" is not defined, it defaults to 'icp_settings_with_vel'.
+
+# ICP parameters for a regular time step:
+icp_settings_with_vel:
+  # mp2p_icp ICP pipeline configuration file, for use in ICP
+  # odometry and SLAM packages.
+  #
+  # YAML configuration file for use with the CLI tool mp2p-icp-run or
+  # programmatically from function mp2p_icp::icp_pipeline_from_yaml()
+  #
+  class_name: mp2p_icp::ICP
+
+  # See: mp2p_icp::Parameter
+  params:
+    # With gicp, more than ~10 iters tend to mean there is an issue with deskew or scan data quality. It does not make sense to iterate >20ish
+    maxIterations: ${MOLA_MAX_ICP_ITERATIONS|16}
+    minAbsStep_trans: 1e-3
+    minAbsStep_rot: 1e-4
+
+    #debugPrintIterationProgress: true  # Print iteration progress
+    #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
+    saveIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS|false} # Store partial solutions and pairings for each ICP iteration
+    decimationIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS_DECIMATION|3}
+    debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
+    decimationDebugFiles: ${MP2P_ICP_LOG_FILES_DECIMATION|10}
+
+    # Post-optimization SE(3) covariance estimation (see mp2p_icp::covariance).
+    # Censi3D is the realistic sandwich estimator for cov2cov pipelines;
+    # the per-axis floor absorbs unmodelled errors and keeps downstream
+    # filters numerically stable.
+    covariance:
+      method: ${MOLA_ICP_COVARIANCE_METHOD|Censi3D}
+      defaultPointSigma: ${MOLA_ICP_COV_DEFAULT_POINT_SIGMA|0.01} # [m]
+      floor_sigma_xyz: ${MOLA_ICP_COV_FLOOR_XYZ|0.001} # [m]
+      floor_sigma_angles_deg: ${MOLA_ICP_COV_FLOOR_ANGLES_DEG|0.1} # [deg]
+
+  solvers:
+    - class: mp2p_icp::Solver_GaussNewton
+      params:
+        # Inner Gauss-Newton iterations per ICP iteration. Exposed so an
+        # ablation can compare this solver against the annealed multi-iteration
+        # one used by the point-to-point pipeline without editing YAML.
+        maxIterations: ${MOLA_LO_SOLVER_MAX_ITERS|1}
+        robustKernel: "${MOLA_LO_ROBUST_KERNEL|RobustKernel::GemanMcClure}"
+        robustKernelScale: "${MOLA_LO_ROBUST_KERNEL_SCALE|2.449489742783178}" # [sigmas] In GICP, errors are normalized by covariance. sqrt(6.0): the value this was tuned at, before the kernel scale was squared
+        # Blend [0,1] for the robust kernel residual reference toward the prior
+        # mean pose (0=current iterate only, 1=prior mean only). See mp2p_icp.
+        robustKernelPriorRefBlend: "${MOLA_LO_ROBUST_KERNEL_PRIOR_REF_BLEND|0.0}"
+        #innerLoopVerbose: true
+
+        # Extra per-pairing weight by the geometry class of the map surface.
+        # Disabled by default, and bit-exactly inert while the weights are all
+        # ones: these numbers do NOT transfer between scene classes, so they
+        # belong in a dataset profile and never in this file's defaults. Read
+        # mp2p_icp's GeometryClassWeights docs before enabling; in particular
+        # 'verticality' is gravity-referenced and needs a gravity source.
+        geometry_class_weights:
+          enabled: ${MOLA_GCW_ENABLED|false}
+          variable: "${MOLA_GCW_VARIABLE|incidence}"
+          gravity_source: "${MOLA_GCW_GRAVITY_SOURCE|map_frame}"
+          softness: ${MOLA_GCW_SOFTNESS|10.0}
+          # Block sequences, not flow ones: the YAML is parsed before the ${}
+          # substitution runs, and a ${..|..} inside [ ] is a parse error.
+          breakpoints:
+            - ${MOLA_GCW_BREAKPOINT|60.0}
+          weights:
+            - ${MOLA_GCW_W_LOW|1.0}
+            - ${MOLA_GCW_W_HIGH|1.0}
+
+        # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
+        # instances to pair geometric entities between pointclouds.
+  matchers:
+    - class: mp2p_icp::Matcher_Cov2Cov
+      params:
+        threshold: "2.0*ADAPTIVE_THRESHOLD_SIGMA"
+        # Optional range-adaptive matching distance. thresholdFar: 0 (the
+        # default) keeps the flat threshold above, i.e. today's behaviour
+        # exactly. When set, the matching distance ramps from `threshold` near
+        # the sensor to `thresholdFar` beyond `thresholdKneeRange`.
+        #
+        # Why the axis exists: a pose-prediction error `dtheta` displaces a
+        # point at range `r` by `dtheta*r`, so a flat threshold rejects far
+        # returns first, precisely when the prediction is worst. Measured: at a
+        # flat 0.34 m, 1 deg of yaw error takes beyond-25 m acceptance from 82%
+        # to 4.6% while r<10 m stays at 99%; a 1.0 m far window keeps 94%. Those
+        # far returns carry most of the rotation and along-track leverage.
+        #
+        # Note this is a no-op while ADAPTIVE_THRESHOLD_SIGMA sits at its
+        # initial 0.5, where the near value already equals a 1.0 m far value:
+        # it interacts with adaptive_threshold.initial_sigma and .min_motion and
+        # cannot be swept independently of them.
+        thresholdFar: "${MOLA_MATCH_THRESHOLD_FAR|0}"
+        thresholdKneeRange: "${MOLA_MATCH_THRESHOLD_KNEE|15.0}"
+        thresholdTransitionWidth: "${MOLA_MATCH_THRESHOLD_WIDTH|5.0}"
+        # Per-point weighting of accepted pairings by the range at which the
+        # point was measured. Distinct from thresholdFar above: that one
+        # decides which pairings are ACCEPTED, this one what they WEIGH.
+        # pointWeightAlpha: 0 (the default) weighs every point the same, i.e.
+        # the behavior before this existed.
+        #
+        # Why the axis exists: a fixed-size decimation voxel can only equalize
+        # point density out to the range where the beam spacing reaches the
+        # voxel size, and past that it thins nothing at all. Measured on one
+        # scan at the shipped 0.15 m voxel, the near field (0-5 m) holds 47% of
+        # the raw points and contributes 16% of what reaches ICP, while beyond
+        # 40 m essentially every point survives. So the far field is
+        # over-represented exactly where each point is least certain (beam
+        # divergence puts ~15 cm of lateral spread at 50 m) and where its lever
+        # arm on attitude is longest.
+        #
+        # alpha = 1 matches the linear growth of the beam footprint; alpha = 2
+        # additionally accounts for a far point standing for more surface.
+        # Weights saturate at pointWeightMax below pointWeightRefRange and are
+        # floored at pointWeightMin, so no return is ever dropped outright.
+        pointWeightAlpha: "${MOLA_POINT_WEIGHT_ALPHA|0}"
+        pointWeightRefRange: "${MOLA_POINT_WEIGHT_REF_RANGE|20.0}"
+        pointWeightMin: "${MOLA_POINT_WEIGHT_MIN|0.01}"
+        pointWeightMax: "${MOLA_POINT_WEIGHT_MAX|1.0}"
+        # Optional per-point weighting by beam incidence angle. alpha 0 (the
+        # default) weighs every point the same, i.e. today's behaviour.
+        #
+        # Independent of the range weighting above and composable with it:
+        # that one asks how far the point is, this one how squarely it was
+        # seen. A range at shallow incidence is biased, not just noisier, and
+        # a low-mounted sensor sees the far ground almost entirely that way,
+        # so the bias enters as a slow apparent change in surface height
+        # rather than as averageable noise.
+        #
+        # The floor is the safety parameter, not the ceiling: the grazing
+        # returns on such a platform ARE the ground, and discarding them
+        # outright leaves the vertical less constrained, not more.
+        incidenceWeightAlpha: "${MOLA_INCIDENCE_WEIGHT_ALPHA|0}"
+        incidenceWeightRefCos: "${MOLA_INCIDENCE_WEIGHT_REF_COS|0.5}"
+        incidenceWeightMin: "${MOLA_INCIDENCE_WEIGHT_MIN|0.05}"
+        incidenceWeightMax: "${MOLA_INCIDENCE_WEIGHT_MAX|1.0}"
+        pairingsPerPoint: 1
+        allowMatchAlreadyMatchedGlobalPoints: true # faster
+        # Both layers here must be of the very same cov-capable map class, the
+        # one selected by ${MOLA_LOCALMAP_CLASS} in blocks/localmap-gicp.yaml.
+        layerMatches:
+          - { global: "${MOLA_LOCALMAP_LAYER_NAME|localmap}", local: "observation" }
+
+  quality:
+    - class: mp2p_icp::QualityEvaluator_PairedRatio
+      params: ~ # none required

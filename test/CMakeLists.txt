@@ -15,6 +15,12 @@ target_link_libraries(test_map_frame_relevel mola::mola_lidar_odometry mrpt::mrp
 ament_add_gtest(test_imu_scan_sync test_imu_scan_sync.cpp)
 target_link_libraries(test_imu_scan_sync mola::mola_lidar_odometry mrpt::mrpt_obs)
 
+# Every shipped pipeline, with its blocks, must resolve to a complete config:
+ament_add_gtest(test_pipelines_load test_pipelines_load.cpp
+  ENV LO_PIPELINES_DIR=${mola_lidar_odometry_SOURCE_DIR}/pipelines
+)
+target_link_libraries(test_pipelines_load mola::mola_lidar_odometry mola::mola_yaml)
+
 # -----------------------------------------------------------------------
 # Data-dependent integration tests (require optional packages):
 # -----------------------------------------------------------------------

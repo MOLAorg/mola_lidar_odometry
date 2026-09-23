@@ -1,0 +1,28 @@
+# =====================================================================================
+# Pipeline block: local map update policy
+#
+# Shared by the pipelines/*.yaml files through `$import`. See the
+# "Pipeline blocks" section in the docs for how to override it.
+# =====================================================================================
+
+params:
+  # How often to update the local map model:
+  local_map_updates:
+    enabled: "${MOLA_MAPPING_ENABLED|true}"
+    load_existing_local_map: ${MOLA_LOAD_MM|""}
+    load_map_after_gui_init: ${MOLA_LO_LOAD_MAP_AFTER_GUI|false}
+    save_final_local_map: ${MOLA_SAVE_MM|""} # If not empty, saves the final local metric map to a ".mm" file
+
+    # Idea: don't integrate scans with a high rotational speed since they are probably not correctly deskewed:
+    min_translation_between_keyframes: "${MOLA_MIN_XYZ_BETWEEN_MAP_UPDATES|(0.1e-2 + sqrt(wx^2+wy^2+wz^2)*0.1)*ESTIMATED_OBSERVATION_RADIUS}" # [m]
+    min_rotation_between_keyframes: "${MOLA_MIN_ROT_BETWEEN_MAP_UPDATES|(15 + sqrt(wx^2+wy^2+wz^2)*5 )}" # [deg]
+
+    # Should match the "remove farther than" option of the local metric map. "0" means deletion of distant key-frames is disabled
+    max_distance_to_keep_keyframes: "${MOLA_LOCAL_MAP_MAX_SIZE|max(100.0, 1.50*ESTIMATED_OBSERVATION_RADIUS)}" # [m]
+    check_for_removal_every_n: 100
+    min_nearby_poses_occupied: ${MOLA_MIN_NEARBY_POSES_OCCUPIED|1}
+    publish_map_updates_every_n: ${MOLA_PUBLISH_LOCAL_MAP_UPDATES_EVERY_N|40}
+    # Publishing deep-copies the whole local map and does not check for
+    # subscribers, so a batch run pays for it with nobody listening. The
+    # offline CLI defaults this off; a live node should leave it on.
+    publish_local_map: ${MOLA_PUBLISH_LOCAL_MAP|true}

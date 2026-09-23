@@ -1,0 +1,60 @@
+# =====================================================================================
+# Pipeline block: ICP settings, point-to-point
+#
+# Shared by the pipelines/*.yaml files through `$import`. See the
+# "Pipeline blocks" section in the docs for how to override it.
+# =====================================================================================
+
+# If "icp_settings_without_vel" is not defined, it defaults to 'icp_settings_with_vel'.
+
+# ICP parameters for a regular time step:
+icp_settings_with_vel:
+  # mp2p_icp ICP pipeline configuration file, for use in ICP
+  # odometry and SLAM packages.
+  #
+  # YAML configuration file for use with the CLI tool mp2p-icp-run or
+  # programmatically from function mp2p_icp::icp_pipeline_from_yaml()
+  #
+  class_name: mp2p_icp::ICP
+
+  # See: mp2p_icp::Parameter
+  params:
+    maxIterations: 300
+    minAbsStep_trans: 1e-4
+    minAbsStep_rot: 5e-5
+
+    #debugPrintIterationProgress: true  # Print iteration progress
+    #generateDebugFiles: true  # Can be override with env var "MP2P_ICP_GENERATE_DEBUG_FILES=1"
+    saveIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS|false} # Store partial solutions and pairings for each ICP iteration
+    decimationIterationDetails: ${MP2P_ICP_LOG_FILES_SAVE_DETAILS_DECIMATION|3}
+    debugFileNameFormat: "icp-logs/icp-run-${SEQ|NO_SEQ}-$UNIQUE_ID-local_$LOCAL_ID$LOCAL_LABEL-to-global_$GLOBAL_ID$GLOBAL_LABEL.icplog"
+    decimationDebugFiles: ${MP2P_ICP_LOG_FILES_DECIMATION|10}
+
+  solvers:
+    - class: mp2p_icp::Solver_GaussNewton
+      params:
+        maxIterations: 2
+        robustKernel: "RobustKernel::GemanMcClure"
+        #robustKernelScale: 'sqrt(0.5*ADAPTIVE_THRESHOLD_SIGMA)'
+        robustKernelScale: "sqrt(0.5*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-0.5*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30))" # sqrt() keeps the schedule this was tuned at, now that the scale is squared
+        # Blend [0,1] for the robust kernel residual reference toward the prior
+        # mean pose (0=current iterate only, 1=prior mean only). See mp2p_icp.
+        robustKernelPriorRefBlend: "${MOLA_LO_ROBUST_KERNEL_PRIOR_REF_BLEND|0.0}"
+        #innerLoopVerbose: true
+
+  # Sequence of one or more pairs (class, params) defining mp2p_icp::Matcher
+  # instances to pair geometric entities between pointclouds.
+  matchers:
+    - class: mp2p_icp::Matcher_Points_DistanceThreshold
+      params:
+        threshold: "2.0*max(ADAPTIVE_THRESHOLD_SIGMA, 2.0*ADAPTIVE_THRESHOLD_SIGMA-(2.0*ADAPTIVE_THRESHOLD_SIGMA-0.5*ADAPTIVE_THRESHOLD_SIGMA)*ICP_ITERATION/30)"
+        #threshold: '2.0*ADAPTIVE_THRESHOLD_SIGMA'
+        thresholdAngularDeg: 0 # deg
+        pairingsPerPoint: 1
+        allowMatchAlreadyMatchedGlobalPoints: true # faster
+        pointLayerMatches:
+          - { global: "${MOLA_LOCALMAP_LAYER_NAME|localmap}", local: "decimated_for_icp", weight: 1.0 }
+
+  quality:
+    - class: mp2p_icp::QualityEvaluator_PairedRatio
+      params: ~ # none required

@@ -1,0 +1,124 @@
+# =====================================================================================
+# Pipeline block: IMU and odometry-based verticality
+#
+# Shared by the pipelines/*.yaml files through `$import`. See the
+# "Pipeline blocks" section in the docs for how to override it.
+# =====================================================================================
+
+params:
+  # IMU accelerometer-based verticality correction:
+  # Uses averaged accelerometer readings to constrain ICP pitch/roll.
+  imu_gravity_correction:
+    enabled: ${MOLA_IMU_GRAVITY_CORRECTION|true}
+    # Yaw-free, rank-2 verticality constraint solved by mp2p_icp. Set to false
+    # only to reproduce results from the legacy path, which folded tilt into
+    # the SE(3) pose prior.
+    use_rank2_prior: ${MOLA_IMU_GRAVITY_RANK2|true}
+    # Widen sigma_deg by the measured dispersion of the accelerometer
+    # directions, so the constraint stands down when the readings are not
+    # actually gravity (braking, cornering, vibration).
+    adaptive_sigma: ${MOLA_IMU_GRAVITY_ADAPTIVE_SIGMA|true}
+    sigma_deg: ${MOLA_IMU_GRAVITY_SIGMA_DEG|2.0}
+    averaging_samples: ${MOLA_IMU_GRAVITY_AVG_SAMPLES|20}
+    max_age_seconds: ${MOLA_IMU_GRAVITY_MAX_AGE|2.0}
+    # The one-shot map-origin verticality capture defines the map's vertical
+    # for the whole run, so it is deferred to a later scan while the buffered
+    # accelerometer directions disagree by more than this (i.e. the reading is
+    # motion, not gravity), and taken as-is after the timeout.
+    map_origin_max_dispersion_deg: ${MOLA_IMU_GRAVITY_MAP_ORIGIN_MAX_DISPERSION|1.0}
+    map_origin_capture_timeout: ${MOLA_IMU_GRAVITY_MAP_ORIGIN_TIMEOUT|3.0}
+    # NOTE: averaging_samples must fit inside max_age_seconds at the actual IMU
+    # rate, or estimatedPitchRoll() returns nothing and the constraint is
+    # silently inactive (at 400 Hz, 2.0 s holds only ~800 samples).
+    #
+    # Take the verticality reading from an odometry source's ABSOLUTE attitude
+    # instead of the accelerometer. Only the "up" axis is used: the source's
+    # frame differs from the map frame by an unknown yaw and translation, and
+    # neither moves the vertical, so that one direction transfers exactly while
+    # the position and heading do not.
+    #
+    # An accelerometer only measures gravity while quasi-static, so on a
+    # platform that accelerates continuously `adaptive_sigma` correctly stands
+    # the constraint down nearly always, leaving the vertical unconstrained. A
+    # kinematic-inertial estimator on the platform has no such limitation.
+    # The map-origin reference is captured from the same source, so the
+    # constant offset between the two verticals stays a gauge instead of
+    # becoming a growing tilt.
+    odometry_attitude:
+      enabled: ${MOLA_ODOM_VERTICALITY|false}
+      # The VALUE here must equal the label the odometry observation is
+      # published under, which the shipped launch files set through their own
+      # MOLA_ODOM_SENSOR_LABEL variable; the two variables are separate on
+      # purpose, since the verticality source need not be the fused one. That
+      # observation must also be a CObservationRobotPose: planar odometry has
+      # no pitch or roll to offer.
+      sensor_label: "${MOLA_ODOM_VERTICALITY_LABEL|odom_wheels}"
+      sigma_deg: ${MOLA_ODOM_VERTICALITY_SIGMA_DEG|1.0}
+      max_age_seconds: ${MOLA_ODOM_VERTICALITY_MAX_AGE|0.5}
+
+    # Estimate the map-frame vertical online instead of freezing it from one
+    # accelerometer average at the first keyframe. See
+    # mola::imu::MapGravityEstimator: it solves for gravity in the map frame
+    # (plus IMU biases) from preintegrated IMU and this odometry's own relative
+    # attitudes/velocities, so platform acceleration cancels and no
+    # quasi-static window is required.
+    map_gravity:
+      enabled: ${MOLA_IMU_MAP_GRAVITY|false}
+      # Compute and log the estimate without letting it affect the verticality
+      # reference, so it can be scored against ground truth on a new dataset
+      # without its own feedback contaminating the map frame it is estimating.
+      log_only: ${MOLA_IMU_MAP_GRAVITY_LOG_ONLY|false}
+      solve_every_n: ${MOLA_IMU_MAP_GRAVITY_SOLVE_EVERY_N|5}
+      # Rotate the MAP FRAME itself, once, so it becomes gravity-aligned,
+      # instead of only feeding the per-scan verticality prior. The map frame is
+      # the initial body frame, so a platform that starts tilted produces a map
+      # that leans by that tilt forever: measured on a handheld dataset, a
+      # median of 8.7 deg (max 20.7). This is a gauge change - local map,
+      # simplemap, trajectory, state estimator and the published `odom` frame
+      # all rotate together about the map origin - so no relative quantity
+      # moves. OFF by default: it changes the frame every product of the run is
+      # expressed in.
+      relevel_map_frame: ${MOLA_IMU_MAP_GRAVITY_RELEVEL|false}
+      # Readiness for the re-level, as an interval count. Note this is NOT
+      # min_intervals_for_convergence below: that one gates the per-scan prior,
+      # where the later, more settled estimate is what matters. For leveling the
+      # map once, the estimate is at its BEST at the first solve (measured 0.72
+      # deg at ~5.6 s) and slowly degrades from there, so waiting costs accuracy.
+      # 5 intervals is the first solve under solve_every_n above.
+      relevel_min_intervals: ${MOLA_IMU_MAP_GRAVITY_RELEVEL_MIN_INTERVALS|5}
+      # Magnitude gate: only re-level when there is enough tilt that removing it
+      # beats the error of the estimate doing the removing. Measured at the
+      # firing point on a handheld dataset, that error is 0.63 deg median,
+      # 1.43 deg p90, 1.75 deg worst. Note the gate tests the ESTIMATE while the
+      # quantity that must be large is the TRUE tilt, and the two differ by
+      # exactly that error, so the threshold is ~2x the p90 rather than 1x:
+      # gating at 2 deg let one near-level sequence through (estimate 2.8 deg
+      # against a true 1.1 deg) and made it 0.7 deg worse. Below the threshold
+      # the re-level stands down permanently (and says so in the log) instead of
+      # retrying, which is what keeps an already-level dataset untouched.
+      relevel_min_tilt_deg: ${MOLA_IMU_MAP_GRAVITY_RELEVEL_MIN_TILT|3.0}
+      # NOTE: there is deliberately no ACCURACY threshold here. The estimator
+      # reports every usable estimate with its earned pitch/roll sigma, which is
+      # added in quadrature to the gravity prior's sigma.
+      #
+      # CAUTION: "a weak estimate silences itself" is NOT established. A later
+      # measurement on a handheld dataset put the error/sigma ratio at 8.4
+      # median and 19.0 worst case, i.e. the reported sigma is roughly an order
+      # of magnitude tighter than the estimate is accurate, and no better
+      # calibrated after the interval gate below than before it. Do not use
+      # those sigmas as a confidence gate until that is understood; the
+      # re-level trigger above deliberately does not.
+      #
+      # There IS a data-quantity precondition, which is a different thing. Until
+      # the window holds enough intervals the solution is pulled by the |g|
+      # constraint and the bias priors, and that pull is a BIAS the linearized
+      # covariance cannot see, so the estimate is not merely uncertain, it is
+      # confidently wrong. Until then the accelerometer capture is the better
+      # reference, and this keeps LO on it. This gates the PER-SCAN PRIOR only:
+      # the one-off map-frame re-level above has the opposite need (its estimate
+      # is best at the first solve) and uses its own, much shorter, gate.
+      min_intervals_for_convergence: ${MOLA_IMU_MAP_GRAVITY_MIN_INTERVALS|130}
+      # Sliding-window length. The whole point is that verticality information
+      # ACCUMULATES, so this wants to be much longer than the estimator default.
+      window_size: ${MOLA_IMU_MAP_GRAVITY_WINDOW|200}
+      min_interval_seconds: ${MOLA_IMU_MAP_GRAVITY_MIN_INTERVAL|1.0}

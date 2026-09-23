@@ -17,7 +17,7 @@
   <!-- core dependencies -->
   <depend>mola_common</depend>
   <depend>mola_kernel</depend>
-  <depend>mola_yaml</depend>
+  <depend version_gte="3.1.0">mola_yaml</depend>
   <depend>mp2p_icp</depend>
   <depend>mola_pose_list</depend>
 

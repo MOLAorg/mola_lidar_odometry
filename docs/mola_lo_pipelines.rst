@@ -19,6 +19,8 @@ Users can design new systems by learning how to modify the provided pipeline fil
 
 The best way to understand the different parts of this file is to browse the YAML file of :ref:`the default GICP pipeline <mola_3d_gicp_pipeline>`
 provided for 3D LiDARs. Most of the times, comments in the YAML are self-explanatory.
+The 3D pipeline files are short: each one lists the :ref:`pipeline blocks <mola_lo_pipeline_blocks>` it is made of,
+and each block holds one part of the configuration (sensor inputs, ICP, local map, ...).
 In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLAorg/mola/issues>`_ to ask.
 
 .. note::
@@ -195,6 +197,8 @@ Tuning is done through the ``MOLA_INCREMENTAL_MAP_*`` variables, see
     .. literalinclude:: ../../../mola_lidar_odometry/pipelines/lidar3d-gicp.yaml
        :language: yaml
 
+    See :ref:`mola_lo_pipeline_blocks` for the contents of each block.
+
 |
 
 ____________________________________________
@@ -221,10 +225,12 @@ and filtering pipelines to **downsample** incoming raw LiDAR data.
 .. dropdown:: YAML listing
     :icon: code-review
 
-    File: `mola_lidar_odometry/pipelines/lidar3d-default.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/lidar3d-default.yaml>`_
+    File: `mola_lidar_odometry/pipelines/lidar3d-icp.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/lidar3d-icp.yaml>`_
 
-    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/lidar3d-default.yaml
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/lidar3d-icp.yaml
        :language: yaml
+
+    See :ref:`mola_lo_pipeline_blocks` for the contents of each block.
 
 
 |
@@ -265,6 +271,8 @@ This pipeline exploits the **point-to-plane pairings**.
     .. literalinclude:: ../../../mola_lidar_odometry/pipelines/lidar3d-ndt.yaml
        :language: yaml
 
+    See :ref:`mola_lo_pipeline_blocks` for the contents of each block.
+
 
 |
 
@@ -294,6 +302,238 @@ If it recommended to use wheels-based odometry to help the mapping process.
     .. literalinclude:: ../../../mola_lidar_odometry/pipelines/lidar2d.yaml
        :language: yaml
 
+
+|
+
+____________________________________________
+
+|
+
+.. _mola_lo_pipeline_blocks:
+
+Pipeline blocks
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The 3D pipeline files (``lidar3d-gicp.yaml``, ``lidar3d-icp.yaml``, ``lidar3d-ndt.yaml``) are assembled from
+**blocks**: small YAML files under ``pipelines/blocks/``, each holding one part of the configuration.
+A pipeline file lists its blocks under the ``$import`` key, and then sets only what is particular to it:
+
+.. code-block:: yaml
+
+   $import:
+     - ${MOLA_LO_BLOCK_INPUTS|blocks/inputs.yaml}
+     - ${MOLA_LO_BLOCK_ICP|blocks/icp-gicp.yaml}
+     # [...]
+
+   params:
+     pipeline_name: "GICP (Generalized ICP) with cov-to-cov pairings"
+
+The blocks are merged in the order they are listed, and the keys written in the pipeline file itself override them all.
+Maps are merged key by key, while lists (e.g. a sequence of filters) are replaced as a whole, so each list belongs to exactly one block.
+Blocks shared by several pipelines are what keeps them from drifting apart: a new option added to, e.g., ``inputs.yaml``
+reaches every pipeline at once.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 22 38 12
+
+   * - Block file(s)
+     - Environment variable
+     - Contents
+     - Used by
+   * - ``inputs.yaml``
+     - ``MOLA_LO_BLOCK_INPUTS``
+     - LiDAR, IMU and GNSS sensor labels, multi-LiDAR synchronization, observation radius estimation
+     - all 3D
+   * - ``imu-gravity.yaml``
+     - ``MOLA_LO_BLOCK_IMU_GRAVITY``
+     - Verticality prior from the IMU (or from an odometry source), and online map-frame gravity estimation
+     - GICP
+   * - ``runtime.yaml``
+     - ``MOLA_LO_BLOCK_RUNTIME``
+     - Published frame names, diagnostics thresholds, trajectory output, profiling, debug traces, scan validity checks
+     - all 3D
+   * - ``acceptance.yaml``
+     - ``MOLA_LO_BLOCK_ACCEPTANCE``
+     - Acceptance of registration results: minimum ICP quality, pose prior weight, Mahalanobis gate, debug ICP logs
+     - all 3D
+   * - ``adaptive-threshold.yaml``
+     - ``MOLA_LO_BLOCK_ADAPTIVE_THRESHOLD``
+     - Adaptive matching threshold controller
+     - all 3D
+   * - ``simplemap.yaml``
+     - ``MOLA_LO_BLOCK_SIMPLEMAP``
+     - Keyframe map (simplemap) generation
+     - all 3D
+   * - ``visualization.yaml``
+     - ``MOLA_LO_BLOCK_VISUALIZATION``
+     - GUI options
+     - all 3D
+   * - ``initial-localization.yaml``
+     - ``MOLA_LO_BLOCK_INITIAL_LOCALIZATION``
+     - Initial localization method and its parameters
+     - all 3D
+   * - ``icp-gicp.yaml``, ``icp-pt2pt.yaml``, ``icp-ndt.yaml``
+     - ``MOLA_LO_BLOCK_ICP``
+     - ICP settings: solver, matchers, quality evaluators (one file per method)
+     - one each
+   * - ``localmap-updates.yaml``
+     - ``MOLA_LO_BLOCK_LOCALMAP_UPDATES``
+     - When to insert keyframes into the local map, and how far to keep them
+     - all 3D
+   * - ``localmap-gicp.yaml``, ``localmap-pt2pt.yaml``, ``localmap-ndt.yaml``
+     - ``MOLA_LO_BLOCK_LOCALMAP``
+     - Local map class and options, and how observations are inserted into it (one file per method)
+     - one each
+   * - ``observations-common.yaml``
+     - ``MOLA_LO_BLOCK_OBSERVATIONS_COMMON``
+     - Per-point timestamp adjustment and the optional user pre-filter
+     - all 3D
+   * - ``observations-gicp.yaml``, ``observations-pt2pt.yaml``, ``observations-ndt.yaml``
+     - ``MOLA_LO_BLOCK_OBSERVATIONS``
+     - Observation generators and filter passes (decimation, de-skew) (one file per method)
+     - one each
+   * - ``deskew-early.yaml``
+     - ``MOLA_LO_BLOCK_DESKEW_EARLY``
+     - Range filter and de-skew of the whole raw scan, before decimation
+     - GICP
+   * - ``deskew-viz.yaml``
+     - ``MOLA_LO_BLOCK_DESKEW_VIZ``
+     - De-skew of the raw scan for visualization only
+     - GICP, ICP
+
+**Replacing a block.** Each block can be replaced by your own file by setting its environment variable, without editing
+or copying any shipped file. The simplest replacement file imports the stock block and changes only what you need:
+
+.. code-block:: yaml
+
+   # my-adaptive-threshold.yaml
+   $import: $(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/blocks/adaptive-threshold.yaml
+
+   params:
+     adaptive_threshold:
+       kp: 1.0
+
+.. code-block:: bash
+
+   MOLA_LO_BLOCK_ADAPTIVE_THRESHOLD=/path/to/my-adaptive-threshold.yaml \
+   mola-lo-gui-rosbag2 /path/to/dataset.mcap
+
+Use an **absolute path** in the environment variable: a relative one is resolved against the directory of the
+pipeline file, not the current directory.
+
+**Deriving a new pipeline.** To change more than one block, write a new pipeline file that imports a shipped one and
+overrides what it needs, as ``lidar3d-gicp-single-filter.yaml``, ``lidar3d-gicp-dual-tsdf.yaml`` or
+``lidar3d-icp-blend.yaml`` do. Copying a pipeline file to another directory no longer works on its own,
+since its blocks are referenced by relative paths: import it instead.
+
+.. dropdown:: YAML listings of all blocks
+    :icon: code-review
+
+    File: `pipelines/blocks/acceptance.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/acceptance.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/acceptance.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/adaptive-threshold.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/adaptive-threshold.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/adaptive-threshold.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/deskew-early.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/deskew-early.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/deskew-early.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/deskew-viz.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/deskew-viz.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/deskew-viz.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/icp-gicp.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/icp-gicp.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/icp-gicp.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/icp-ndt.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/icp-ndt.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/icp-ndt.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/icp-pt2pt.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/icp-pt2pt.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/icp-pt2pt.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/imu-gravity.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/imu-gravity.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/imu-gravity.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/initial-localization.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/initial-localization.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/initial-localization.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/inputs.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/inputs.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/inputs.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/localmap-gicp.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/localmap-gicp.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/localmap-gicp.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/localmap-ndt.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/localmap-ndt.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/localmap-ndt.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/localmap-pt2pt.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/localmap-pt2pt.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/localmap-pt2pt.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/localmap-updates.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/localmap-updates.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/localmap-updates.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/observations-common.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/observations-common.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/observations-common.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/observations-gicp.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/observations-gicp.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/observations-gicp.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/observations-ndt.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/observations-ndt.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/observations-ndt.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/observations-pt2pt.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/observations-pt2pt.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/observations-pt2pt.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/runtime.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/runtime.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/runtime.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/simplemap.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/simplemap.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/simplemap.yaml
+       :language: yaml
+
+    File: `pipelines/blocks/visualization.yaml <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/pipelines/blocks/visualization.yaml>`_
+
+    .. literalinclude:: ../../../mola_lidar_odometry/pipelines/blocks/visualization.yaml
+       :language: yaml
 
 |
 
