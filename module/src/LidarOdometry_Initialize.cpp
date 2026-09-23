@@ -159,6 +159,13 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       params_.gnss_sensor_label = cfg["gnss_sensor_label"].as<std::string>();
     }
 
+    if (cfg.has("deskew_odometry_sensor_label")) {
+      const auto label = cfg["deskew_odometry_sensor_label"].as<std::string>();
+      if (!label.empty()) {
+        params_.deskew_odometry_sensor_label = label;
+      }
+    }
+
     ASSERT_(cfg.has("local_map_updates"));
     params_.local_map_updates.initialize(cfg["local_map_updates"], params_);
 

@@ -83,7 +83,9 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
   siblings by the `<mission>_<topic>.bag` naming. The robot carries three
   LiDARs -- Hesai and Livox on the Boxi payload, Velodyne on the ANYmal body
   itself -- selected with `MOLA_GRANDTOUR_LIDAR=hesai|livox|velodyne` (default
-  `hesai`); all three "_undist" streams are plain `sensor_msgs/PointCloud2`,
+  `hesai`), or `hesai_raw` for the uncompensated Hesai cloud, which this
+  profile de-skews with the IMU plus the leg odometry's velocity (see "Wheel
+  odometry" below); all three "_undist" streams are plain `sensor_msgs/PointCloud2`,
   so no per-sensor message handling was needed. Body frame is `base`, not
   `base_link`. Extrinsics come from the mission's own `/tf_static`, so no
   fixed poses are set. The LiDAR stream is already undistorted, so deskewing
@@ -146,9 +148,19 @@ cannot carry one, so the twist must already be expressed in `base_link`
 (`nav_msgs/Odometry`'s `child_frame_id`). `CObservationRobotPose` does carry a
 sensor pose, so that restriction does not apply to it.
 
+`deskew_odometry_sensor_label` (`MOLA_DESKEW_ODOMETRY_NAME`, empty by default)
+names an odometry source whose velocity over each sweep replaces the state
+estimator's linear velocity in the de-skew twist variables (`vx,vy,vz`). The
+estimator's velocity comes from this module's own registrations, so de-skewing
+with it is a feedback loop that needs heavy filtering to stay stable, and then
+lags. Linear part only: replacing the angular part with an odometry's gait-rate
+angular velocity destabilized a GrandTour mission.
+
 GrandTour reads this source as `CObservationRobotPose`, but leaves fusion
 opt-in like every other profile; see `scripts/lib/profiles/grandtour.sh` for
-the measurements behind that and behind its loose velocity sigmas.
+the measurements behind that and behind its loose velocity sigmas. The one
+exception is `MOLA_GRANDTOUR_LIDAR=hesai_raw`, which turns it on and uses it
+for de-skewing.
 
 ## Robot /tf tree visualization (opt-in)
 

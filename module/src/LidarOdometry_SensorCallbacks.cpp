@@ -115,6 +115,14 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
     onOdometryAttitude(o);
   }
 
+  // Is it the odometry source for de-skew velocities? Inline, for the same
+  // reason as the IMU above.
+  if (
+    params_.deskew_odometry_sensor_label &&
+    o->sensorLabel == params_.deskew_odometry_sensor_label.value()) {
+    onDeskewOdometry(o);
+  }
+
   // Is it GNSS?
   if (
     params_.gnss_sensor_label &&
@@ -140,6 +148,37 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
   }
 
   MRPT_TRY_END
+}
+
+void LidarOdometry::onDeskewOdometry(const CObservation::ConstPtr & o)
+{
+  mrpt::poses::CPose3D pose;
+  if (const auto rp = std::dynamic_pointer_cast<const mrpt::obs::CObservationRobotPose>(o); rp) {
+    // Same sensor-to-vehicle correction as the state estimators apply:
+    pose = rp->pose.mean + (-rp->sensorPose);
+  } else if (const auto od = std::dynamic_pointer_cast<const mrpt::obs::CObservationOdometry>(o);
+             od) {
+    pose = mrpt::poses::CPose3D(od->odometry);
+  } else {
+    MRPT_LOG_THROTTLE_WARN_FMT(
+      5.0,
+      "deskew_odometry_sensor_label='%s' matched an observation of class '%s', which is neither "
+      "CObservationRobotPose nor CObservationOdometry. Ignoring it.",
+      o->sensorLabel.c_str(), o->GetRuntimeClass()->className);
+    return;
+  }
+
+  // A few seconds of history is plenty: sweeps are ~0.1 s long.
+  constexpr double HISTORY_SECONDS = 5.0;
+
+  const double t = mrpt::Clock::toDouble(o->timestamp);
+
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+  auto & poses = state_.deskew_odometry_poses;
+  poses[t] = pose;
+  while (!poses.empty() && poses.begin()->first < poses.rbegin()->first - HISTORY_SECONDS) {
+    poses.erase(poses.begin());
+  }
 }
 
 void LidarOdometry::onOdometryAttitude(const CObservation::ConstPtr & o)

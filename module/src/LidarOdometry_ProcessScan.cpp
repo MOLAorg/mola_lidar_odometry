@@ -1347,7 +1347,12 @@ void LidarOdometry::processLidarScan(  // NOLINT
         // are updated but not realized yet.
         {
           auto lckImu = mrpt::lockHelper(imu_state_mtx_);
-          updatePipelineTwistVariables(tw);
+          // An independent de-skew odometry twist stays in charge: replacing it
+          // with one derived from this registration would reintroduce the
+          // feedback it exists to avoid.
+          if (!state_.deskew_twist_from_odometry) {
+            updatePipelineTwistVariables(tw);
+          }
           // Make all changes effective and evaluate the variables now:
           state_.parameter_source.realize();
         }

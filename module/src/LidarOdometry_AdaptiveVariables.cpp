@@ -27,6 +27,7 @@
 #include <mrpt/core/exceptions.h>
 #include <mrpt/maps/CPointsMap.h>
 #include <mrpt/math/TTwist3D.h>
+#include <mrpt/math/slerp.h>
 #include <mrpt/obs/CObservation.h>
 #include <mrpt/poses/Lie/SO.h>
 #include <mrpt/system/COutputLogger.h>
@@ -39,6 +40,7 @@
 // Std:
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <memory>
 
 namespace
@@ -79,6 +81,39 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
     mrpt::math::TTwist3D twistForIcpVars = {0, 0, 0, 0, 0, 0};
     if (state_.last_motion_model_output) {
       twistForIcpVars = state_.last_motion_model_output->twist;
+    }
+
+    // Optionally, take the linear velocity from an independent odometry source
+    // instead, averaged over this sweep, whose duration is taken as the time
+    // since the previous scan:
+    state_.deskew_twist_from_odometry = false;
+    if (params_.deskew_odometry_sensor_label) {
+      constexpr double DEFAULT_SWEEP = 0.1;  // [s]
+      double sweep = DEFAULT_SWEEP;
+      if (state_.deskew_prev_scan_stamp) {
+        const double dt = stamp_s - *state_.deskew_prev_scan_stamp;
+        if (dt > 0.01 && dt < 0.5) {
+          sweep = dt;
+        }
+      }
+      state_.deskew_prev_scan_stamp = stamp_s;
+
+      if (const auto tw = deskewTwistFromOdometry(stamp_s, sweep); tw) {
+        // Linear part only: the IMU de-skew methods take rotation from the
+        // gyroscope, and the angular variables also drive other decisions
+        // (e.g. keyframe thresholds), which an odometry's raw, gait-rate
+        // angular velocity was measured to destabilize.
+        twistForIcpVars.vx = tw->vx;
+        twistForIcpVars.vy = tw->vy;
+        twistForIcpVars.vz = tw->vz;
+        state_.deskew_twist_from_odometry = true;
+      } else {
+        MRPT_LOG_THROTTLE_WARN_FMT(
+          5.0,
+          "De-skew odometry '%s' does not cover the sweep at t=%.3f; using the state "
+          "estimator's velocity for this scan.",
+          params_.deskew_odometry_sensor_label->c_str(), stamp_s);
+      }
     }
 
     this->updatePipelineTwistVariables(twistForIcpVars);
@@ -318,6 +353,63 @@ void LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_ma
   MRPT_LOG_DEBUG(
     "Estimated observation radius could NOT be updated, no points layer "
     "found in observation metric_map_t");
+}
+
+std::optional<mrpt::math::TTwist3D> LidarOdometry::deskewTwistFromOdometry(
+  const double t0, const double span) const
+{
+  // Caller holds imu_state_mtx_.
+  const auto & poses = state_.deskew_odometry_poses;
+  if (poses.size() < 2 || span <= 0) {
+    return {};
+  }
+
+  // Pose at time t, interpolated between the two bracketing samples:
+  const auto poseAt = [&](const double t) -> std::optional<mrpt::poses::CPose3D> {
+    auto it1 = poses.lower_bound(t);
+    if (it1 == poses.end()) {
+      return {};
+    }
+    if (it1->first == t) {
+      return it1->second;
+    }
+    if (it1 == poses.begin()) {
+      return {};
+    }
+    const auto it0 = std::prev(it1);
+    const double frac = (t - it0->first) / (it1->first - it0->first);
+    mrpt::math::TPose3D p;
+    mrpt::math::slerp(it0->second.asTPose(), it1->second.asTPose(), frac, p);
+    return mrpt::poses::CPose3D(p);
+  };
+
+  // The sweep may not be fully covered: its end, e.g. online, when the scan
+  // arrives before the odometry of its last instants; its start, when the
+  // odometry begins mid-sweep. Use the covered part if it is at least half.
+  const double ta = std::max(t0, poses.begin()->first);
+  const double tb = std::min(t0 + span, poses.rbegin()->first);
+  if (tb - ta < 0.5 * span) {
+    return {};
+  }
+
+  const auto pa = poseAt(ta);
+  const auto pb = poseAt(tb);
+  if (!pa || !pb) {
+    return {};
+  }
+
+  const double dt = tb - ta;
+  const auto incr = *pb - *pa;  // in the vehicle frame at ta
+  const auto logRot = mrpt::poses::Lie::SO<3>::log(incr.getRotationMatrix());
+
+  mrpt::math::TTwist3D tw;
+  tw.vx = incr.x() / dt;
+  tw.vy = incr.y() / dt;
+  tw.vz = incr.z() / dt;
+  tw.wx = logRot[0] / dt;
+  tw.wy = logRot[1] / dt;
+  tw.wz = logRot[2] / dt;
+  return tw;
 }
 
 void LidarOdometry::updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw)
