@@ -136,6 +136,12 @@ mola_lo_use_smoother() {
     return 0
   fi
 
+  # The smoother's factor graph needs the first pose pinned when nothing else
+  # (e.g. GNSS) anchors the map frame: without it the very first update fails
+  # as an indeterminant linear system and every later observation is dropped.
+  : "${MOLA_LINK_FIRST_POSE_SIGMA:=1e-6}"
+  export MOLA_LINK_FIRST_POSE_SIGMA
+
   if [ -n "${MOLA_STATE_ESTIMATOR_YAML:-}" ]; then
     : "${MOLA_STATE_ESTIMATOR:=mola::state_estimation_smoother::StateEstimationSmoother}"
     export MOLA_STATE_ESTIMATOR
