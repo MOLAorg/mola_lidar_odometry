@@ -206,6 +206,13 @@ params:
   # registration may sit from the motion-model prediction, in sigmas of that
   # prediction. Only meaningful if the state estimator reports an honest
   # covariance; zero disables it.
+  # The pose prior contributes one residual to the ICP solve, against as many
+  # residuals as there are pairings, so at unit weight it breaks ties rather
+  # than constraining anything: a registration can settle far from the
+  # prediction while the prior barely resists. Raise this where the motion
+  # source is worth more than one point pairing. 1.0 changes nothing.
+  icp_prior_weight: ${MOLA_ICP_PRIOR_WEIGHT|1.0}
+
   max_registration_mahalanobis: ${MOLA_MAX_REGISTRATION_MAHALANOBIS|0}
 
   # If defined, ".icplog" files will be saved if ICP quality drops below the given threshold.

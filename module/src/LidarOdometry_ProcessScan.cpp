@@ -1040,6 +1040,13 @@ void LidarOdometry::processLidarScan(  // NOLINT
         // Send it to the ICP solver:
         in.prior.emplace(state_.last_motion_model_output->pose);
 
+        // One prior residual against thousands of pairing residuals is a
+        // tie-breaker, not a constraint. Scale it when the motion source is
+        // worth more than that.
+        if (params_.icp_prior_weight != 1.0) {
+          in.prior->cov_inv *= params_.icp_prior_weight;
+        }
+
         // Special case: 2D lidars mean we are working on SE(2):
         if (std::dynamic_pointer_cast<const mrpt::obs::CObservation2DRangeScan>(obs)) {
           // fix: z, pitch (rot_y), roll (rot_x):

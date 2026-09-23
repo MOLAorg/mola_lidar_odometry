@@ -176,6 +176,7 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
 
     YAML_LOAD_OPT(params_, min_time_between_scans, double);
     YAML_LOAD_REQ(params_, min_icp_goodness, double);
+    YAML_LOAD_OPT(params_, icp_prior_weight, double);
     YAML_LOAD_OPT(params_, max_registration_mahalanobis, double);
     // Accept the deprecated *_sensor_* keys as fallbacks before reading the new
     // canonical names, so a YAML that only sets the old key keeps working and a
