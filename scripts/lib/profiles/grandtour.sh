@@ -13,8 +13,8 @@
 #   <mission>_anymal_velodyne_undist.bag /anymal/velodyne/points_undistorted 10 Hz (opt-in alternative LiDAR)
 #   <mission>_tf_minimal.bag    /tf, /tf_static                          (optional)
 #   <mission>_tf_model.bag      /tf, /tf_static                          (only for the STIM320, see below)
-#   <mission>_adis.bag          /boxi/adis/imu                   200 Hz  (optional, default IMU)
-#   <mission>_stim320_imu.bag   /boxi/stim320/imu                500 Hz  (opt-in alternative IMU)
+#   <mission>_adis.bag          /boxi/adis/imu                   200 Hz  (fallback IMU)
+#   <mission>_stim320_imu.bag   /boxi/stim320/imu                500 Hz  (default IMU, if present)
 #   <mission>_hdr_<tag>.bag     /boxi/hdr/<tag>/image_raw/...    10 Hz   (optional, GUI only)
 #   <mission>_alphasense.bag    /boxi/alphasense/<tag>/image_...  10 Hz   (optional, GUI only)
 #   <mission>_anymal_state.bag  /anymal/state_estimator/odometry         (opt-in, see below)
@@ -59,10 +59,12 @@ mola_lo_profile_usage() {
   echo "  MOLA_ODOMETRY_OBS_CLASS  how to read that topic: 'CObservationRobotPose'"
   echo "                         (default, full SE(3) + covariance) or the planar"
   echo "                         'CObservationOdometry'"
-  echo "  MOLA_GRANDTOUR_IMU     which IMU to use: 'adis' (default, 200 Hz) or"
-  echo "                         'stim320' (500 Hz, tactical grade). The STIM320 also"
-  echo "                         requires <mission>_tf_model.bag, since its frame is"
-  echo "                         absent from the smaller tf_minimal.bag"
+  echo "  MOLA_GRANDTOUR_IMU     which IMU to use: 'stim320' (500 Hz, tactical grade)"
+  echo "                         or 'adis' (200 Hz). Default: the STIM320 when both"
+  echo "                         <mission>_stim320_imu.bag and <mission>_tf_model.bag"
+  echo "                         are present (its frame is absent from the smaller"
+  echo "                         tf_minimal.bag), the ADIS otherwise. The ADIS gyro"
+  echo "                         in this dataset reads ~11% low"
   echo "  MOLA_GRANDTOUR_CAMERA  which camera to preview in the GUI (ignored in CLI"
   echo "                         mode): 'hdr_front' (default), 'hdr_left', 'hdr_right',"
   echo "                         or one of the five Alphasense cameras"
@@ -146,14 +148,27 @@ mola_lo_profile_resolve() {
     return 1
   fi
 
-  # Which IMU: the ADIS16475 by default, or the higher-grade STIM320.
+  # Which IMU: the STIM320 when available, the ADIS16475 otherwise.
+  #
+  # The ADIS gyro stream in this dataset reads ~11% low: its gain against the
+  # STIM320 is ~0.89, flat across frequency and on every axis, and the STIM320
+  # agrees with the LiDAR odometry's own rotation to within 0.5%. Anything
+  # integrating the gyro over a sweep (IMU de-skew) or between keyframes
+  # inherits that error, so the ADIS is only a fallback.
   #
   # The two are not interchangeable as far as /tf goes. `tf_minimal.bag`
   # publishes the ADIS's frame but NOT the STIM320's, so selecting the
   # STIM320 also selects the full `tf_model.bag`, which carries every
   # sensor frame (verified: it has base, hesai_lidar, prism, adis16475_imu
   # and stim320_imu, and the same /tf and /tf_static message counts).
-  : "${MOLA_GRANDTOUR_IMU:=adis}"
+  if [ -z "${MOLA_GRANDTOUR_IMU:-}" ]; then
+    if [ -f "${prefix}_stim320_imu.bag" ] && [ -f "${prefix}_tf_model.bag" ]; then
+      MOLA_GRANDTOUR_IMU=stim320
+    else
+      echo "  Note: STIM320 or tf_model.bag not found; falling back to the ADIS IMU."
+      MOLA_GRANDTOUR_IMU=adis
+    fi
+  fi
   local tf_bag=${prefix}_tf_minimal.bag
   local imu_bag=${prefix}_adis.bag
   local imu_topic=/boxi/adis/imu
