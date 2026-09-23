@@ -383,22 +383,23 @@ std::optional<mrpt::math::TTwist3D> LidarOdometry::deskewTwistFromOdometry(
     return mrpt::poses::CPose3D(p);
   };
 
-  // The end of the sweep may not be covered yet (e.g. online, when the scan
-  // arrives before the odometry of its last instants): use as much of it as is
-  // available, if that is at least half.
-  const double t1 = std::min(t0 + span, poses.rbegin()->first);
-  if (t1 - t0 < 0.5 * span) {
+  // The sweep may not be fully covered: its end, e.g. online, when the scan
+  // arrives before the odometry of its last instants; its start, when the
+  // odometry begins mid-sweep. Use the covered part if it is at least half.
+  const double ta = std::max(t0, poses.begin()->first);
+  const double tb = std::min(t0 + span, poses.rbegin()->first);
+  if (tb - ta < 0.5 * span) {
     return {};
   }
 
-  const auto p0 = poseAt(t0);
-  const auto p1 = poseAt(t1);
-  if (!p0 || !p1) {
+  const auto pa = poseAt(ta);
+  const auto pb = poseAt(tb);
+  if (!pa || !pb) {
     return {};
   }
 
-  const double dt = t1 - t0;
-  const auto incr = *p1 - *p0;  // in the vehicle frame at t0
+  const double dt = tb - ta;
+  const auto incr = *pb - *pa;  // in the vehicle frame at ta
   const auto logRot = mrpt::poses::Lie::SO<3>::log(incr.getRotationMatrix());
 
   mrpt::math::TTwist3D tw;
