@@ -390,6 +390,17 @@ reopened, ICP locked onto a self-consistent but WRONG registration (a
 sudden ~30-40 deg yaw error that then persisted for the rest of the run,
 instead of a brief quality dip that recovers to the true pose).
 
+## `ESTIMATED_OBSERVATION_RADIUS` is fed back through the range filter
+
+The radius is an EMA updated from the first non-empty point layer of the
+**filtered** observation, and that filtering clips at
+`1.2*ESTIMATED_OBSERVATION_RADIUS` (L-infinity cube, `blocks/deskew-early.yaml`).
+So it can only grow by a few percent per scan. When the scene outgrows it
+faster (a drone taking off from 3 m ranges at ~7 m/s), every point is cut and
+the radius could never update again: permanent `NoPairings`. When no filtered
+layer yields a radius, `processLidarScan()` now updates it from the raw scan
+instead; behavior is unchanged whenever any filtered layer has points.
+
 
 ## Local-map locking: `state_mtx_` vs `local_map_content_mtx_`
 

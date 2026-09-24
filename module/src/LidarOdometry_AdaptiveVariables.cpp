@@ -307,7 +307,7 @@ void LidarOdometry::doInitializeEstimatedObservationRadius(const mrpt::obs::CObs
                                     << " (instantaneous=" << radius << ")");
 }
 
-void LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_map_t & m)
+bool LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_map_t & m)
 {
   const double ALPHA = params_.observation_radius_filter_coefficient;
 
@@ -348,11 +348,12 @@ void LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_ma
                                       << " (instantaneous=" << radius << ")");
 
     // one layer is enough:
-    return;
+    return true;
   }
   MRPT_LOG_DEBUG(
     "Estimated observation radius could NOT be updated, no points layer "
     "found in observation metric_map_t");
+  return false;
 }
 
 std::optional<mrpt::math::TTwist3D> LidarOdometry::deskewTwistFromOdometry(
