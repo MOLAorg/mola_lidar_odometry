@@ -553,6 +553,12 @@ void LidarOdometry::consumePendingImu(const double upToTime)
 {
   auto lckImu = mrpt::lockHelper(imu_state_mtx_);
 
+  // Only the generators' side effect (feeding the de-skew velocity buffer) is
+  // wanted from IMU readings. A generator with a custom map definition still
+  // creates its (empty) target layer on every call, so the output map is
+  // shared by all samples to build that layer at most once.
+  mp2p_icp::metric_map_t dummy_map;
+
   for (const auto & imuPtr : pending_imu_.take_up_to(upToTime)) {
     const auto & imu = *imuPtr;
 
@@ -565,10 +571,7 @@ void LidarOdometry::consumePendingImu(const double upToTime)
     //    LocalVelocityBuffer inside the ParameterSource.
     //    The LocalVelocityBuffer also needs velocity and orientation estimations, which are sent
     //    out in updatePipelineDynamicVariables()
-    {
-      mp2p_icp::metric_map_t dummy_map;
-      mp2p_icp_filters::apply_generators(state_.obs_generators, imu, dummy_map);
-    }
+    mp2p_icp_filters::apply_generators(state_.obs_generators, imu, dummy_map);
 
     // 3) Gravity estimation for ICP verticality correction:
     if (params_.imu_gravity_correction.enabled) {
