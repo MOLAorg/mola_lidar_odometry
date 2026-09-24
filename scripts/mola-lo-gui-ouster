@@ -2,9 +2,11 @@
 # For usage instructions, see: https://docs.mola-slam.org/latest/
 #
 # Runs MOLA LiDAR odometry on an Ouster sensor via mola_input_ouster (no ROS
-# required): a live sensor, or a PCAP/OSF recording. The input is selected by
-# environment variable, not by an argument -- run with no variables set for
-# the list.
+# required): a live sensor, or a PCAP/OSF recording. Pass an .osf recording as
+# the first argument, or select the input by environment variable -- run with
+# no arguments nor variables set for the list.
+#
+# For Rev8 high-resolution sensors, use mola-lo-gui-ouster-rev8 instead.
 #
 # There is no mola-lo-cli-ouster counterpart: mola_input_ouster is a live
 # source, not an OfflineDatasetSource, so the offline batch CLI cannot read it.

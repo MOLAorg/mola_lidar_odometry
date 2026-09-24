@@ -280,7 +280,7 @@ set(MOLA_LO_DATASET_WRAPPERS
     tiers-livox-avia
 )
 
-set(MOLA_LO_WRAPPER_PATHS scripts/mola-lo-gui-ouster)
+set(MOLA_LO_WRAPPER_PATHS scripts/mola-lo-gui-ouster scripts/mola-lo-gui-ouster-rev8)
 foreach(ds ${MOLA_LO_DATASET_WRAPPERS})
   list(APPEND MOLA_LO_WRAPPER_PATHS
        scripts/mola-lo-gui-${ds}

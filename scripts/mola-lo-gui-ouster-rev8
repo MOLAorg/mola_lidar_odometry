@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# For usage instructions, see: https://docs.mola-slam.org/latest/
+#
+# LiDAR-inertial odometry (GUI) for Ouster Rev8 high-resolution sensors
+# (e.g. OS-1-MAX, 4096x256 @ 5 Hz), via mola_input_ouster (no ROS required).
+#
+# Usage:
+#   mola-lo-gui-ouster-rev8 recording.osf
+#   OUSTER_HOSTNAME=os-xxxx.local mola-lo-gui-ouster-rev8
+#
+# Same inputs and variables as mola-lo-gui-ouster, plus these defaults, tuned
+# for real-time GUI use (see lib/profiles/ouster.sh for the measurements):
+#   OUSTER_DECIMATE_COLUMNS=4   4096 -> 1024 columns (use 2 in 2048-column modes,
+#                               1 to keep every column on a fast enough machine)
+#   MOLA_DESKEW_METHOD=MotionCompensationMethod::IMU
+#   MOLA_LO_INITIAL_LOCALIZATION_METHOD=InitLocalization::PitchAndRollFromIMU
+# Any of them can be overridden by exporting it first.
+set -euo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+MOLA_LO_LIB="$SCRIPT_DIR/lib/dataset-profile.sh"
+if [ ! -f "$MOLA_LO_LIB" ]; then
+  MOLA_LO_LIB="$SCRIPT_DIR/../share/mola_lidar_odometry/scripts-lib/dataset-profile.sh"
+fi
+# shellcheck source=lib/dataset-profile.sh
+source "$MOLA_LO_LIB"
+
+MOLA_LO_MODE=gui
+export OUSTER_VARIANT=rev8
+mola_lo_load_profile ouster "$@" || exit $?
+mola_lo_exec_gui
