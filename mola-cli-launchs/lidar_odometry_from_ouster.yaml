@@ -28,6 +28,8 @@
 #   OUSTER_UDP_DEST            UDP destination override [live]
 #   OUSTER_LIDAR_PORT          LiDAR UDP port (default: 0 = auto) [live]
 #   OUSTER_IMU_PORT            IMU UDP port (default: 0 = auto) [live]
+#   OUSTER_DECIMATE_COLUMNS    Keep every N-th column of each scan (default: 1)
+#   OUSTER_DECIMATE_ROWS       Keep every N-th row (beam) of each scan (default: 1)
 #   SENSOR_POSE_{X,Y,Z,YAW,PITCH,ROLL}  Sensor housing mounting pose on vehicle (default: 0)
 #   MOLA_WITH_GUI              Enable/disable GUI (default: true)
 #   MOLA_ODOMETRY_PIPELINE_YAML  Override LIDAR odometry pipeline YAML
@@ -82,6 +84,10 @@ modules:
 
       # --- Common ---
       time_warp_scale: ${MOLA_TIME_WARP|1.0}
+
+      # Keep every N-th column / row of each scan (1 = all):
+      decimate_columns: ${OUSTER_DECIMATE_COLUMNS|1}
+      decimate_rows: ${OUSTER_DECIMATE_ROWS|1}
 
       lidar_sensor_label: "${MOLA_LIDAR_NAME|lidar}"
       imu_sensor_label: "${MOLA_IMU_NAME|imu}"

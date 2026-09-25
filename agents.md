@@ -111,6 +111,10 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
 - **oxford-spires** stitches multipart sequences, ordering the `raw/ros2bag/`
   parts by their trailing `_<n>` numerically.
 - **ouster** is gui-only: a live source, which the offline CLI cannot read.
+  An `.osf` may be given as the first argument. `mola-lo-gui-ouster-rev8`
+  (`OUSTER_VARIANT=rev8`) adds measured real-time LIO defaults for Rev8
+  4096-column sensors, chiefly `OUSTER_DECIMATE_COLUMNS=4` (decimation at the
+  source, before the per-point conversion); the numbers are in the profile.
 
 ## `lidar_odometry_from_rosbag1.yaml`: up to 5 bags replayed jointly
 
@@ -452,6 +456,11 @@ The IMU samples a scan sees are therefore a function of the timestamps alone,
 never of how the sensor callbacks interleaved, which is what makes two identical
 offline runs produce identical trajectories. `mola_state_estimation_simple`
 buffers IMU readings the same way for the same reason.
+
+`consumePendingImu()` shares one output map across all the samples it feeds
+to `obs_generators`: a generator with a custom map definition creates its
+(empty) target layer on every call, which with a fresh map per sample cost
+~250 us per IMU reading (65% of a core with a 2.5 kHz IMU).
 
 Limits: the gate only engages after the first IMU reading, so scans preceding it
 are processed straight away. Reproducibility also assumes no scan is dropped for
