@@ -14,6 +14,13 @@
 #                               1 to keep every column on a fast enough machine)
 #   MOLA_DESKEW_METHOD=MotionCompensationMethod::IMU
 #   MOLA_LO_INITIAL_LOCALIZATION_METHOD=InitLocalization::PitchAndRollFromIMU
+#   MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud
+#   OUSTER_GUI_COLOR_BY_RGB=true  GUI clouds, local map and sensor preview show
+#                               the per-point RGB of "-RGB" models; set it to
+#                               false for sensors without color. It sets
+#                               MOLA_GUI_{LAST_CLOUDS,CURRENT_CLOUD}_COLOR_FIELD,
+#                               MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE (=rgb) and
+#                               MOLA_GUI_PREVIEW_COLOR_FROM_Z (=false).
 # Any of them can be overridden by exporting it first.
 set -euo pipefail
 

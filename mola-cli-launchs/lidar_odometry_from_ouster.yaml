@@ -32,6 +32,8 @@
 #   OUSTER_DECIMATE_ROWS       Keep every N-th row (beam) of each scan (default: 1)
 #   SENSOR_POSE_{X,Y,Z,YAW,PITCH,ROLL}  Sensor housing mounting pose on vehicle (default: 0)
 #   MOLA_WITH_GUI              Enable/disable GUI (default: true)
+#   MOLA_GUI_PREVIEW_COLOR_FROM_Z  Color the sensor preview by height (default: true);
+#                              false shows the cloud's own per-point RGB
 #   MOLA_ODOMETRY_PIPELINE_YAML  Override LIDAR odometry pipeline YAML
 #   MOLA_STATE_ESTIMATOR         Override state estimator type
 #   MOLA_STATE_ESTIMATOR_YAML    Override state estimator params YAML
@@ -65,6 +67,8 @@ modules:
         decimation: 1
         enabled: ${MOLA_WITH_GUI|true}
         win_pos: 5 5 400 400
+        # false: use the cloud's own colors (per-point RGB, if the sensor has it):
+        color_from_z: ${MOLA_GUI_PREVIEW_COLOR_FROM_Z|true}
 
     params:
       # --- Live mode ---
