@@ -1007,8 +1007,10 @@ Visualization
    - ``MOLA_GUI_BACKGROUND_GRAY_LEVEL`` (Default: ``0.3``): Background brightness for the 3D view (0=black, 1=white).
    - ``MOLA_GUI_SHOW_LOCAL_MAP`` (Default: ``true``): Whether to render the local map in the GUI.
    - ``MOLA_GUI_SHOW_GROUND_GRID`` (Default: ``true``): Whether to show the ground reference grid in the GUI.
-   - ``MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE`` (Default: ``intensity``; GICP pipeline only): Point field used to
+   - ``MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE`` (Default: ``intensity``): Point field used to
      colorize the local map in the GUI (e.g. ``x``, ``y``, ``z``, ``ring``, ``intensity``).
+   - All the ``*_COLOR_FIELD`` variables and ``MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE`` also accept ``rgb``,
+     to show the per-point ``color_r/g/b`` fields of RGB LiDARs (e.g. Ouster Rev8 "-RGB" models) instead of a colormap.
 
 
 Motion model

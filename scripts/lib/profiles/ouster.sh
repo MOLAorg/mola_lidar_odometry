@@ -37,11 +37,27 @@ mola_lo_profile_usage() {
 #     stays within run-to-run noise of a lossless full-resolution run. For a
 #     2048-column mode, use 2 to get the same 1024 columns.
 #   - IMU de-skew and initial pitch/roll from the IMU: this is a LIO launcher.
+#   - mola::IncrementalPointCloud local map: on fast, long-range motion (a
+#     drone flight) it rejected ~32% of scans versus ~87% for the keyframe map.
+#   - GUI colors from the per-point RGB of "-RGB" models, for the live clouds,
+#     the local map and the sensor preview. Set OUSTER_GUI_COLOR_BY_RGB=false
+#     for sensors without RGB, to get the intensity colormaps back.
 mola_lo_ouster_rev8_defaults() {
   : "${OUSTER_DECIMATE_COLUMNS:=4}"
   : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
   : "${MOLA_LO_INITIAL_LOCALIZATION_METHOD:=InitLocalization::PitchAndRollFromIMU}"
-  export OUSTER_DECIMATE_COLUMNS MOLA_DESKEW_METHOD MOLA_LO_INITIAL_LOCALIZATION_METHOD
+  : "${MOLA_LOCALMAP_CLASS:=mola::IncrementalPointCloud}"
+  export OUSTER_DECIMATE_COLUMNS MOLA_DESKEW_METHOD MOLA_LO_INITIAL_LOCALIZATION_METHOD \
+    MOLA_LOCALMAP_CLASS
+
+  if [ "${OUSTER_GUI_COLOR_BY_RGB:-true}" = true ]; then
+    : "${MOLA_GUI_LAST_CLOUDS_COLOR_FIELD:=rgb}"
+    : "${MOLA_GUI_CURRENT_CLOUD_COLOR_FIELD:=rgb}"
+    : "${MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE:=rgb}"
+    : "${MOLA_GUI_PREVIEW_COLOR_FROM_Z:=false}"
+    export MOLA_GUI_LAST_CLOUDS_COLOR_FIELD MOLA_GUI_CURRENT_CLOUD_COLOR_FIELD \
+      MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE MOLA_GUI_PREVIEW_COLOR_FROM_Z
+  fi
 }
 
 mola_lo_profile_resolve() {

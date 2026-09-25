@@ -27,7 +27,7 @@ params:
     show_last_deskewed_observations_decay: ${MOLA_GUI_SHOW_DESKEWED_DECAY|true} # shows "live deskewed" LiDAR points over time
     last_deskewed_observations_point_size: ${MOLA_GUI_LAST_CLOUDS_POINT_SIZE|1.0}
     last_deskewed_observations_colormap: ${MOLA_GUI_LAST_CLOUDS_COLORMAP|cmJET} # mrpt::img::TColormap
-    last_deskewed_observations_color_by_field: ${MOLA_GUI_LAST_CLOUDS_COLOR_FIELD|intensity}
+    last_deskewed_observations_color_by_field: ${MOLA_GUI_LAST_CLOUDS_COLOR_FIELD|intensity} # or `rgb`, for per-point color
     observations_initial_alpha: 0.10
     observations_decay_seconds: ${MOLA_GUI_CLOUDS_DECAY_SECS|10.0} # For deskewed clouds above
     current_observation_point_size: ${MOLA_GUI_CURRENT_CLOUD_POINT_SIZE|2.0}
@@ -40,6 +40,11 @@ params:
 
     show_localmap: ${MOLA_GUI_SHOW_LOCAL_MAP|true}
     local_map_point_size: 1
+    # Point field to color point-cloud local maps (e.g. mola::IncrementalPointCloud)
+    # by. mola::KeyframePointCloudMap renders itself instead, from its own
+    # renderOpts.recolorByPointField, which reads the same variable.
+    # Besides any field name, `rgb` uses the per-point color_{r,g,b} fields.
+    local_map_colormap_color_by_field: ${MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE|intensity}
 
     show_ground_grid: ${MOLA_GUI_SHOW_GROUND_GRID|true}
     ground_grid_spacing: 5.0 # [m]
