@@ -115,7 +115,9 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
   (`OUSTER_VARIANT=rev8`) adds measured real-time LIO defaults for Rev8
   4096-column sensors, chiefly `OUSTER_DECIMATE_COLUMNS=4` (decimation at the
   source, before the per-point conversion), the `mola::IncrementalPointCloud`
-  local map, and GUI coloring by the per-point RGB (`rgb` color field, gated by
+  local map, ICP acceptance/convergence for narrow-FOV fast motion
+  (`MOLA_MINIMUM_ICP_QUALITY=0.3`, `MOLA_MAX_ICP_ITERATIONS=50`: ICP quality
+  is scan-to-map overlap, not correctness), and GUI coloring by the per-point RGB (`rgb` color field, gated by
   `OUSTER_GUI_COLOR_BY_RGB`); the numbers are in the profile.
 
 ## `lidar_odometry_from_rosbag1.yaml`: up to 5 bags replayed jointly
