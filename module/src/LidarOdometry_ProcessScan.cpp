@@ -882,7 +882,13 @@ void LidarOdometry::processLidarScan(  // NOLINT
   }
 
   // Update sensor max range from the obs map layers:
-  doUpdateEstimatedObservationRadius(*observation);
+  if (!doUpdateEstimatedObservationRadius(*observation)) {
+    // Every filtered layer is empty. The range filter is derived from this
+    // same radius, so when the scene outgrows it faster than the radius can
+    // follow (e.g. a fast climb away from nearby surroundings) all points are
+    // cut and the radius would never update again. Recover from the raw scan.
+    doUpdateEstimatedObservationRadius(observationRawForViz);
+  }
 
   profiler_.enter("onLidar.2.copy_vars");
 
