@@ -39,22 +39,24 @@ mola_lo_profile_usage() {
 #   - IMU de-skew and initial pitch/roll from the IMU: this is a LIO launcher.
 #   - mola::IncrementalPointCloud local map: on fast, long-range motion (a
 #     drone flight) it rejected ~32% of scans versus ~87% for the keyframe map.
-#   - ICP acceptance and convergence (MOLA_MINIMUM_ICP_QUALITY=0.3,
-#     MOLA_MAX_ICP_ITERATIONS=50). ICP quality is the fraction of points that
+#   - Inertial propagation in the state estimator
+#     (MOLA_NAVSTATE_IMU_PROPAGATION=true): the ICP initial guess comes from
+#     the gyroscope and accelerometer instead of a constant twist, and keeps
+#     coming across a few rejected scans. With a constant twist, fast drone
+#     flights were mispredicted: 60-95% of registrations hit the ICP iteration
+#     cap unconverged, which showed up as along-track jitter, and one bad scan
+#     froze the pose until tracking was lost.
+#   - MOLA_MINIMUM_ICP_QUALITY=0.3: ICP quality is the fraction of points that
 #     found a pairing, i.e. scan-to-map overlap. With a narrow azimuth window,
 #     a correct registration right after a fast rotation overlaps a young map
-#     by only ~40%, the default 0.5 rejects it, and since rejected scans never
-#     extend the map, odometry is lost for good. And on dynamic sequences
-#     (drones, fast off-road driving) 60-95% of registrations stopped at the
-#     default 16 iterations unconverged, which showed up as along-track jitter.
+#     by only ~40%; the default 0.5 rejects it, and since rejected scans never
+#     extend the map, odometry is lost for good. Still needed with inertial
+#     propagation: without it, every drone flight lost track.
 #     Over six Rev8 recordings (4 drone, 2 car; one drone flight held out from
-#     tuning), this pair took the drone flights from losing track (85% of
-#     scans rejected on the held-out one) to 1-8% rejected over the whole
-#     flight, cut drone jitter (scan-to-scan velocity change vs. the
-#     accelerometer) 4-8x, and left the easy car recordings unchanged. It
-#     costs ~2x the default ICP time: 132 ms/scan mean (322 ms max) for the
-#     200 ms period, in real time with no scan dropped. Reducing
-#     MOLA_DECIMATED_POINTS_ICP to recover time degraded tracking.
+#     tuning), the pair took the drone flights from losing track (85% of scans
+#     rejected on the held-out one) to 0.4-7% rejected over the whole flight,
+#     cut drone jitter (scan-to-scan velocity change vs. the accelerometer)
+#     up to 12x, and left the easy car recordings unchanged.
 #   - GUI colors from the per-point RGB of "-RGB" models, for the live clouds,
 #     the local map and the sensor preview. Set OUSTER_GUI_COLOR_BY_RGB=false
 #     for sensors without RGB, to get the intensity colormaps back.
@@ -64,9 +66,9 @@ mola_lo_ouster_rev8_defaults() {
   : "${MOLA_LO_INITIAL_LOCALIZATION_METHOD:=InitLocalization::PitchAndRollFromIMU}"
   : "${MOLA_LOCALMAP_CLASS:=mola::IncrementalPointCloud}"
   : "${MOLA_MINIMUM_ICP_QUALITY:=0.3}"
-  : "${MOLA_MAX_ICP_ITERATIONS:=50}"
+  : "${MOLA_NAVSTATE_IMU_PROPAGATION:=true}"
   export OUSTER_DECIMATE_COLUMNS MOLA_DESKEW_METHOD MOLA_LO_INITIAL_LOCALIZATION_METHOD \
-    MOLA_LOCALMAP_CLASS MOLA_MINIMUM_ICP_QUALITY MOLA_MAX_ICP_ITERATIONS
+    MOLA_LOCALMAP_CLASS MOLA_MINIMUM_ICP_QUALITY MOLA_NAVSTATE_IMU_PROPAGATION
 
   if [ "${OUSTER_GUI_COLOR_BY_RGB:-true}" = true ]; then
     : "${MOLA_GUI_LAST_CLOUDS_COLOR_FIELD:=rgb}"
