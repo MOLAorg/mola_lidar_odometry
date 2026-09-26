@@ -46,6 +46,12 @@ mola_lo_profile_usage() {
 #     flights were mispredicted: 60-95% of registrations hit the ICP iteration
 #     cap unconverged, which showed up as along-track jitter, and one bad scan
 #     froze the pose until tracking was lost.
+#     Along the direction of flight the scan geometry carries ~100x less
+#     information than across it, yet the thousands of pairings still outweigh
+#     the prediction there; MOLA_ICP_PRIOR_WEIGHT=30 lets the (now good)
+#     prediction hold that direction. Validated with ground truth on Oxford
+#     Spires (APE 0.065 -> 0.062 m and 0.312 -> 0.268 m, simple estimator);
+#     with the constant-twist prediction, strong priors broke tracking instead.
 #   - MOLA_MINIMUM_ICP_QUALITY=0.3: ICP quality is the fraction of points that
 #     found a pairing, i.e. scan-to-map overlap. With a narrow azimuth window,
 #     a correct registration right after a fast rotation overlaps a young map
@@ -67,8 +73,10 @@ mola_lo_ouster_rev8_defaults() {
   : "${MOLA_LOCALMAP_CLASS:=mola::IncrementalPointCloud}"
   : "${MOLA_MINIMUM_ICP_QUALITY:=0.3}"
   : "${MOLA_NAVSTATE_IMU_PROPAGATION:=true}"
+  : "${MOLA_ICP_PRIOR_WEIGHT:=30}"
   export OUSTER_DECIMATE_COLUMNS MOLA_DESKEW_METHOD MOLA_LO_INITIAL_LOCALIZATION_METHOD \
-    MOLA_LOCALMAP_CLASS MOLA_MINIMUM_ICP_QUALITY MOLA_NAVSTATE_IMU_PROPAGATION
+    MOLA_LOCALMAP_CLASS MOLA_MINIMUM_ICP_QUALITY MOLA_NAVSTATE_IMU_PROPAGATION \
+    MOLA_ICP_PRIOR_WEIGHT
 
   if [ "${OUSTER_GUI_COLOR_BY_RGB:-true}" = true ]; then
     : "${MOLA_GUI_LAST_CLOUDS_COLOR_FIELD:=rgb}"

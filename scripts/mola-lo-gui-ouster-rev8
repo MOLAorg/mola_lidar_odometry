@@ -17,6 +17,7 @@
 #   MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud
 #   MOLA_MINIMUM_ICP_QUALITY=0.3  accept low-overlap registrations (narrow FOV)
 #   MOLA_NAVSTATE_IMU_PROPAGATION=true  predict motion with the IMU (fast drones)
+#   MOLA_ICP_PRIOR_WEIGHT=30      let that prediction hold weakly observed directions
 #   OUSTER_GUI_COLOR_BY_RGB=true  GUI clouds, local map and sensor preview show
 #                               the per-point RGB of "-RGB" models; set it to
 #                               false for sensors without color. It sets

@@ -117,7 +117,8 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
   source, before the per-point conversion), the `mola::IncrementalPointCloud`
   local map, `MOLA_MINIMUM_ICP_QUALITY=0.3` (ICP quality is scan-to-map
   overlap, not correctness; narrow FOV), inertial motion prediction
-  (`MOLA_NAVSTATE_IMU_PROPAGATION=true`, simple estimator), and GUI coloring by
+  (`MOLA_NAVSTATE_IMU_PROPAGATION=true`, simple estimator) with
+  `MOLA_ICP_PRIOR_WEIGHT=30` (only sensible with that prediction), and GUI coloring by
   the per-point RGB (`rgb` color field, gated by
   `OUSTER_GUI_COLOR_BY_RGB`); the numbers are in the profile.
 
