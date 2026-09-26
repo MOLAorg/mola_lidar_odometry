@@ -17,6 +17,16 @@ params:
 
   sigma_imu_angular_velocity: ${MOLA_NAVSTATE_SIGMA_IMU_ANG_VEL|0.05} # [rad/s]
 
+  # Inertial propagation between pose updates: predict with the gyroscope and
+  # the accelerometer (minus gravity) instead of a constant twist, which also
+  # keeps predicting across a few rejected scans. Needs an IMU with
+  # accelerometer and a map frame with +Z up (e.g. initialized from IMU
+  # pitch/roll). Silently ignored by estimator builds that predate it.
+  imu_propagation: ${MOLA_NAVSTATE_IMU_PROPAGATION|false}
+  imu_propagation_max_time: ${MOLA_NAVSTATE_IMU_PROPAGATION_MAX_TIME|2.0} # [s]
+  imu_propagation_sigma_acc: ${MOLA_NAVSTATE_IMU_PROPAGATION_SIGMA_ACC|0.5} # [m/s²]
+  imu_propagation_sigma_bias: ${MOLA_NAVSTATE_IMU_PROPAGATION_SIGMA_BIAS|0.1} # [m/s²/sqrt(s)]
+
   # Wheel-odometry velocity fusion (CObservationOdometry with hasVelocities=true).
   # Kept tighter than sigma_relative_pose_* above: wheel encoders give a direct
   # per-cycle velocity reading, more trustworthy than a pose difference from a

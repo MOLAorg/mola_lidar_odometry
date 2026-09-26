@@ -39,16 +39,71 @@ mola_lo_profile_usage() {
 #   - IMU de-skew and initial pitch/roll from the IMU: this is a LIO launcher.
 #   - mola::IncrementalPointCloud local map: on fast, long-range motion (a
 #     drone flight) it rejected ~32% of scans versus ~87% for the keyframe map.
+#   - Inertial propagation in the state estimator
+#     (MOLA_NAVSTATE_IMU_PROPAGATION=true): the ICP initial guess comes from
+#     the gyroscope and accelerometer instead of a constant twist, and keeps
+#     coming across a few rejected scans. With a constant twist, fast drone
+#     flights were mispredicted: 60-95% of registrations hit the ICP iteration
+#     cap unconverged, which showed up as along-track jitter, and one bad scan
+#     froze the pose until tracking was lost.
+#     Along the direction of flight the scan geometry carries ~100x less
+#     information than across it, yet the thousands of pairings still outweigh
+#     the prediction there; MOLA_ICP_PRIOR_WEIGHT=30 lets the (now good)
+#     prediction hold that direction. Validated with ground truth on Oxford
+#     Spires (APE 0.065 -> 0.062 m and 0.312 -> 0.268 m, simple estimator);
+#     with the constant-twist prediction, strong priors broke tracking instead.
+#   - MOLA_MINIMUM_ICP_QUALITY=0.3: ICP quality is the fraction of points that
+#     found a pairing, i.e. scan-to-map overlap. With a narrow azimuth window,
+#     a correct registration right after a fast rotation overlaps a young map
+#     by only ~40%; the default 0.5 rejects it, and since rejected scans never
+#     extend the map, odometry is lost for good. Still needed with inertial
+#     propagation: without it, every drone flight lost track.
+#     Over six Rev8 recordings (4 drone, 2 car; one drone flight held out from
+#     tuning), the pair took the drone flights from losing track (85% of scans
+#     rejected on the held-out one) to 0.4-7% rejected over the whole flight,
+#     cut drone jitter (scan-to-scan velocity change vs. the accelerometer)
+#     up to 12x, and left the easy car recordings unchanged.
 #   - GUI colors from the per-point RGB of "-RGB" models, for the live clouds,
 #     the local map and the sensor preview. Set OUSTER_GUI_COLOR_BY_RGB=false
 #     for sensors without RGB, to get the intensity colormaps back.
+# Whether the installed simple state estimator supports inertial propagation.
+# Older builds silently ignore the parameter, and the strong ICP prior below
+# would then pin a constant-twist prediction, which breaks fast motion.
+mola_lo_simple_estimator_has_imu_propagation() {
+  local IFS=:
+  local p
+  for p in ${AMENT_PREFIX_PATH:-} ${CMAKE_PREFIX_PATH:-}; do
+    local f
+    for f in "$p/include/mola_state_estimation_simple/Parameters.h" \
+      "$p/include/mola_state_estimation_simple/mola_state_estimation_simple/Parameters.h"; do
+      if [ -f "$f" ]; then
+        grep -q imu_propagation "$f"
+        return
+      fi
+    done
+  done
+  return 1
+}
+
 mola_lo_ouster_rev8_defaults() {
   : "${OUSTER_DECIMATE_COLUMNS:=4}"
   : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
   : "${MOLA_LO_INITIAL_LOCALIZATION_METHOD:=InitLocalization::PitchAndRollFromIMU}"
   : "${MOLA_LOCALMAP_CLASS:=mola::IncrementalPointCloud}"
+  : "${MOLA_MINIMUM_ICP_QUALITY:=0.3}"
+  : "${MOLA_NAVSTATE_IMU_PROPAGATION:=true}"
+  if [ "$MOLA_NAVSTATE_IMU_PROPAGATION" = true ]; then
+    if mola_lo_simple_estimator_has_imu_propagation; then
+      : "${MOLA_ICP_PRIOR_WEIGHT:=30}"
+    else
+      echo "Warning: the installed mola_state_estimation_simple has no inertial propagation" \
+        "(MOLA_NAVSTATE_IMU_PROPAGATION is ignored): fast motion, e.g. drones, will be" \
+        "tracked poorly. Update mola_state_estimation." >&2
+    fi
+  fi
   export OUSTER_DECIMATE_COLUMNS MOLA_DESKEW_METHOD MOLA_LO_INITIAL_LOCALIZATION_METHOD \
-    MOLA_LOCALMAP_CLASS
+    MOLA_LOCALMAP_CLASS MOLA_MINIMUM_ICP_QUALITY MOLA_NAVSTATE_IMU_PROPAGATION \
+    MOLA_ICP_PRIOR_WEIGHT
 
   if [ "${OUSTER_GUI_COLOR_BY_RGB:-true}" = true ]; then
     : "${MOLA_GUI_LAST_CLOUDS_COLOR_FIELD:=rgb}"
