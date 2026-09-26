@@ -66,6 +66,25 @@ mola_lo_profile_usage() {
 #   - GUI colors from the per-point RGB of "-RGB" models, for the live clouds,
 #     the local map and the sensor preview. Set OUSTER_GUI_COLOR_BY_RGB=false
 #     for sensors without RGB, to get the intensity colormaps back.
+# Whether the installed simple state estimator supports inertial propagation.
+# Older builds silently ignore the parameter, and the strong ICP prior below
+# would then pin a constant-twist prediction, which breaks fast motion.
+mola_lo_simple_estimator_has_imu_propagation() {
+  local IFS=:
+  local p
+  for p in ${AMENT_PREFIX_PATH:-} ${CMAKE_PREFIX_PATH:-}; do
+    local f
+    for f in "$p/include/mola_state_estimation_simple/Parameters.h" \
+      "$p/include/mola_state_estimation_simple/mola_state_estimation_simple/Parameters.h"; do
+      if [ -f "$f" ]; then
+        grep -q imu_propagation "$f"
+        return
+      fi
+    done
+  done
+  return 1
+}
+
 mola_lo_ouster_rev8_defaults() {
   : "${OUSTER_DECIMATE_COLUMNS:=4}"
   : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
@@ -73,7 +92,15 @@ mola_lo_ouster_rev8_defaults() {
   : "${MOLA_LOCALMAP_CLASS:=mola::IncrementalPointCloud}"
   : "${MOLA_MINIMUM_ICP_QUALITY:=0.3}"
   : "${MOLA_NAVSTATE_IMU_PROPAGATION:=true}"
-  : "${MOLA_ICP_PRIOR_WEIGHT:=30}"
+  if [ "$MOLA_NAVSTATE_IMU_PROPAGATION" = true ]; then
+    if mola_lo_simple_estimator_has_imu_propagation; then
+      : "${MOLA_ICP_PRIOR_WEIGHT:=30}"
+    else
+      echo "Warning: the installed mola_state_estimation_simple has no inertial propagation" \
+        "(MOLA_NAVSTATE_IMU_PROPAGATION is ignored): fast motion, e.g. drones, will be" \
+        "tracked poorly. Update mola_state_estimation." >&2
+    fi
+  fi
   export OUSTER_DECIMATE_COLUMNS MOLA_DESKEW_METHOD MOLA_LO_INITIAL_LOCALIZATION_METHOD \
     MOLA_LOCALMAP_CLASS MOLA_MINIMUM_ICP_QUALITY MOLA_NAVSTATE_IMU_PROPAGATION \
     MOLA_ICP_PRIOR_WEIGHT
