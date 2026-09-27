@@ -2,6 +2,79 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* viz: expose grid spacing as env var
+* Ouster Rev8 launcher: accept low-overlap ICP, predict motion with the IMU (`#190 <https://github.com/MOLAorg/mola_lidar_odometry/issues/190>`_)
+* Ouster Rev8 launcher: incremental local map and per-point RGB coloring by default
+* add rosbag1 as build dep for binaries to have this functionality
+* ci: add GitHub release workflow on version tags
+* Recover the observation radius from the raw scan when every filtered layer is empty
+* Add mola-lo-gui-ouster-rev8, accept an .osf argument in the Ouster wrappers
+* Feed IMU samples to the generators through one shared output map
+* Test that every pipeline resolves; document pipeline blocks
+* Pipelines: rebuild the single-filter GICP variant as an overlay
+* Pipelines: assemble the 3D pipelines from shared blocks
+* deskewTwistFromOdometry: use the covered interval when odometry starts mid-sweep
+* Launchers: pin the first pose when selecting the smoother
+* De-skew with an independent odometry's velocity (deskew_odometry_sensor_label)
+* feat: expose a weight on the pose prior handed to the ICP solver
+* feat: a refused registration contributes the prediction, not a gap
+* feat: optional Mahalanobis gate on the ICP registration result
+* offline CLI: do not publish the local map by default
+* GrandTour pipeline: expose the cov2cov incidence and per-point range weighting
+* pipelines: use $import/$define to collapse thin variants, drop stale experiments
+* GrandTour: select the smoother and a scene-adaptive point budget
+* feat: add --output-tum-path-smoothed to the offline CLI
+* Default pipeline: enable the local map's covariance cache admission gate
+* IncrementalPointCloud: own default for the eviction cube, 1.0x radius
+* Publisher: reach the points-map view via mrpt::maps::asPointsMap()
+* remove obsolete rgbd pipeline (refer to mola_vision)
+* gicp pipeline: new default max icp iters 25->16
+* store IMU readings in simplemaps for attitude aid in georef (`#173 <https://github.com/MOLAorg/mola_lidar_odometry/issues/173>`_)
+* Move the pipelines to the renamed, squared robust-kernel scale
+* Expose the TSDF layer's rendering knobs in the dual-map pipeline
+* GrandTour: add a 'hesai_raw' LiDAR selector for the uncompensated cloud
+* GrandTour: keep the scan point timestamps at their own reference
+* cli: --module, to run a second front-end in the batch tool
+* Add drop_stale_scans: a lossless input queue for offline runs
+* Optional, env-gated log of the local-map insert/skip decision
+* KITTI eval: record that MOLA_INITIAL_VX is coupled to the pipeline, not the dataset
+* KITTI: run the shipped pipeline, which halves absolute trajectory error
+* Stop refusing recordings with more bags than launch-file slots
+* FIX: a manual relocalization request was ignored unless the configured init method was FixedPose
+* Add a pipeline that carries a point map and a TSDF at once
+* cli: expose the fused trajectory, and bridge a module's pose to the odometry
+* P7: port mola_lidar_odometry to MRPT 3.x
+* Fail loudly instead of running with no extrinsics or no lidar topic
+* Keep the odometry vertical reference consistent when the source goes quiet
+* GrandTour: optional second LiDAR, and a TF-bag override
+* Offline CLI: accept several lidar labels, one sensors entry each
+* Allow the verticality reading to come from an odometry source's attitude
+* GrandTour: add a MOLA_GRANDTOUR_LIDAR selector (hesai/livox/velodyne)
+* Raise rosbag1 launch bag-slot cap to 5, honor MOLA_ODOMETRY_OBS_CLASS in GUI YAMLs
+* GrandTour: fuse the legged odometry by default, as SE(3)
+* Offline CLI: allow fusing a 3D odometry source as SE(3)
+* CI: check this repo's docs pages against the full doc set
+* Offline CLI: allow wheel-odometry fusion from a ROS 2 bag
+* docs: fix the inverted visualizer table and the PIPELINE_YAML variable that does not exist
+* GICP pipeline: expose current-pose XYZ corner size via MOLA_LO_CURRENT_POSE_CORNER_SIZE
+* GrandTour: let the GUI preview camera be selected
+* GrandTour: default to the incremental local map
+* KITTI/Oxford Spires: raise the smoother's relative-pose prior floor
+* GrandTour: allow selecting, and default to, the STIM320 IMU when its bags are present
+* README: fix the broken Docs badge link
+* Oxford Spires: keep the accelerometer in the IMU deskew
+* KITTI profile: incremental local map plus the map-side planarity gate
+* Reach mp2p_icp's surface-geometry-class pairing weight from the pipeline
+* Expose the plane-regularization options of the cov-capable map classes
+* Add a Newer College dataset profile
+* Add a GEODE dataset profile
+* Add a Hilti 2022 / Hilti-Oxford dataset profile (renamed from hilti)
+* GrandTour: optional legged odometry input
+* Give the observation layer a 2.0 m covariance neighborhood by default, expose its per-point covariance options
+* Contributors: Jose Luis Blanco-Claraco
+
 3.2.0 (2026-08-21)
 ------------------
 * Offline CLI Enhancements: Made the offline CLI state estimator deterministic by default, added run totals at shutdown, and exposed range-adaptive matcher thresholds.
