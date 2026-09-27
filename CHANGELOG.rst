@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+3.3.0 (2026-09-28)
+------------------
 * viz: expose grid spacing as env var
 * Ouster Rev8 launcher: accept low-overlap ICP, predict motion with the IMU (`#190 <https://github.com/MOLAorg/mola_lidar_odometry/issues/190>`_)
 * Ouster Rev8 launcher: incremental local map and per-point RGB coloring by default
