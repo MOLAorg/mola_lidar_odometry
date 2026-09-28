@@ -828,7 +828,9 @@ The following only apply when ``MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud`
 - ``MOLA_INCREMENTAL_MAP_ASYNC_REBUILD`` (Default: ``true``): Run the k-d tree balancing rebuilds on a background
   thread, so the mapping thread never pays for them. Measured on the Oxford Spires dataset, this takes local map
   insertion from mean 28 ms / max 371 ms down to mean 10 ms / max 38 ms, removing all latency spikes. Costs
-  roughly twice the index memory plus one worker thread; set to ``false`` on core-constrained targets.
+  roughly twice the index memory plus one worker thread; set to ``false`` on core-constrained targets. Makes runs
+  depend on thread scheduling, so ``mola-lidar-odometry-cli`` defaults it to ``false`` (an explicit setting still
+  wins).
 
 - ``MOLA_INCREMENTAL_MAP_RESERVE_POINTS`` (Default: ``2000000``): Point storage reserved up front. With
   ``ASYNC_REBUILD`` enabled this also prevents the mapping thread from ever having to wait for the background

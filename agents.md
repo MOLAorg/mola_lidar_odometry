@@ -763,7 +763,8 @@ a single YAML enough. When adding keys, keep KFM's *required* ones
   capture the whole trajectory fits inside it, so nothing is ever evicted and
   the local map silently becomes a global one -- set it explicitly there),
   `ASYNC_REBUILD` (default `true`; moves the k-d tree rebuilds off the mapping
-  thread and is what keeps insertion latency flat), `ALPHA_BALANCE`,
+  thread and is what keeps insertion latency flat; nondeterministic, so
+  `mola-lidar-odometry-cli` defaults it to `false`), `ALPHA_BALANCE`,
   `ALPHA_DELETED`, `RESERVE_POINTS`.
 
 `mola::IncrementalPointCloud` needs `mola_metric_maps` built against

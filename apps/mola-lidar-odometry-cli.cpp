@@ -868,6 +868,13 @@ int main_odometry(Cli & cli)
   // every scan must be processed and two runs over the same data must agree.
   setenv("MOLA_DROP_STALE_SCANS", "false", 0 /* do not overwrite */);
 
+  // mola::IncrementalPointCloud rebalances its k-d tree on a background thread
+  // that nearest-neighbor queries never wait for, so the tree a query sees, and
+  // how ties between equidistant neighbors resolve, depend on the scheduler.
+  // Fine for real time, but it makes two offline runs disagree. No effect on
+  // pipelines using other local map classes.
+  setenv("MOLA_INCREMENTAL_MAP_ASYNC_REBUILD", "false", 0 /* do not overwrite */);
+
   // Publishing the local map deep-copies it and deliberately does not check
   // whether anyone is subscribed, so that a late subscriber still gets a map.
   // Offline that subscriber never arrives, and the copy lands on the critical
