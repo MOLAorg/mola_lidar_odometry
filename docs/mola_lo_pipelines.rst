@@ -885,11 +885,22 @@ They have no effect on the ICP or NDT pipelines.
 - ``MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV`` (Default: ``20``): Number of nearest neighbors used to estimate
   per-point covariance in the local map.
 
-- ``MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER`` (Default: ``true``): Enable filtering of candidate keyframes by
-  view direction, to avoid matching from very different angles.
+- ``MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER`` (Default: ``true``): Master switch of the view-direction filter,
+  which rejects cov-to-cov pairs of points seen from opposite sides of a thin surface (e.g. the two faces of a
+  wall). It uses the per-point ``view_x/y/z`` fields added by the observation generator. Applies to both local map
+  classes; ``false`` disables it whatever ``MOLA_LOCALMAP_VIEW_DIRECTION_FILTER`` says.
 
-- ``MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG`` (Default: ``120`` [deg]): Maximum angular difference allowed
-  between the current view direction and a candidate keyframe to be considered for matching.
+- ``MOLA_LOCALMAP_VIEW_DIRECTION_FILTER`` (Default: empty, i.e. each class's own default): How pairs are judged,
+  one of ``ViewDirectionFilter::None``, ``ViewDirectionFilter::MaxAngle`` (reject pairs whose view directions are
+  more than ``MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG`` apart) or ``ViewDirectionFilter::SurfaceSide``
+  (reject pairs seen from opposite sides of the matched point's surface, as given by its covariance normal). The
+  class defaults are ``MaxAngle`` for ``mola::KeyframePointCloudMap`` and ``None`` for
+  ``mola::IncrementalPointCloud``: that map keeps the whole area around the robot, where ``MaxAngle`` also rejects
+  the same surface seen from very different azimuths (e.g. ground), and it measured consistently worse there on
+  hand-held sequences.
+
+- ``MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG`` (Default: ``120`` [deg]): Maximum angle between the view
+  directions of a pair, for ``ViewDirectionFilter::MaxAngle`` only.
 
 - ``MOLA_LOCALMAP_DIVERSE_KEYFRAMES`` (Default: ``1``): Number of diverse keyframes to force into the candidate set
   regardless of proximity. Must be less than ``MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES``.

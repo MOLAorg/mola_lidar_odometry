@@ -60,6 +60,21 @@ localmap_generator:
           # See mola::KeyframePointCloudMap's docs before enabling it.
           max_plane_deviation_for_cov: ${MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV|0}
           plane_regularization_lambda: ${MOLA_LOCALMAP_PLANE_REG_LAMBDA|0.001}
+          # View-direction filter of cov-to-cov pairs (see mola::ViewDirectionFilter):
+          # rejects pairs of points seen from opposite sides of a thin surface.
+          # Needs the view_x/y/z fields the observation generator adds.
+          # - use_view_direction_filter: master switch, false disables it.
+          # - view_direction_filter: None, MaxAngle or SurfaceSide (e.g.
+          #   MOLA_LOCALMAP_VIEW_DIRECTION_FILTER=ViewDirectionFilter::SurfaceSide).
+          #   Left empty, each class keeps its own default: MaxAngle for the
+          #   keyframe map, None for the incremental one. The incremental map
+          #   keeps the whole area around the robot, where MaxAngle also rejects
+          #   the same surface seen from very different azimuths (e.g. ground),
+          #   and measured consistently worse there on hand-held sequences.
+          # - max_view_angle_deg: threshold of MaxAngle only.
+          use_view_direction_filter: ${MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER|true}
+          view_direction_filter: "${MOLA_LOCALMAP_VIEW_DIRECTION_FILTER|}"
+          max_view_angle_deg: ${MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG|120}
           # --- mola::IncrementalPointCloud only ---
           # Neighbors a point must have been found with for its covariance to
           # enter the cache. The map only ever gains points around an existing
@@ -109,8 +124,6 @@ localmap_generator:
           reserve_points: ${MOLA_INCREMENTAL_MAP_RESERVE_POINTS|2000000}
           # --- mola::KeyframePointCloudMap only ---
           max_search_keyframes: ${MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES|3}
-          use_view_direction_filter: ${MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER|true}
-          max_view_angle_deg: ${MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG|120}
           rotation_distance_weight: 2.0
           num_diverse_keyframes: ${MOLA_LOCALMAP_DIVERSE_KEYFRAMES|1} # Must be < max_search_keyframes
           # If true, cov-to-cov ICP matching (Matcher_Cov2Cov) queries each active
