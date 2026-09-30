@@ -894,10 +894,11 @@ They have no effect on the ICP or NDT pipelines.
   one of ``ViewDirectionFilter::None``, ``ViewDirectionFilter::MaxAngle`` (reject pairs whose view directions are
   more than ``MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG`` apart) or ``ViewDirectionFilter::SurfaceSide``
   (reject pairs seen from opposite sides of the matched point's surface, as given by its covariance normal). The
-  class defaults are ``MaxAngle`` for ``mola::KeyframePointCloudMap`` and ``None`` for
+  class defaults are ``MaxAngle`` for ``mola::KeyframePointCloudMap`` and ``SurfaceSide`` for
   ``mola::IncrementalPointCloud``: that map keeps the whole area around the robot, where ``MaxAngle`` also rejects
   the same surface seen from very different azimuths (e.g. ground), and it measured consistently worse there on
-  hand-held sequences.
+  hand-held sequences. ``SurfaceSide`` only rejects a pair when the matched point's neighborhood is actually flat
+  and both views are clearly (more than ~14.5 deg) off its plane.
 
 - ``MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG`` (Default: ``120`` [deg]): Maximum angle between the view
   directions of a pair, for ``ViewDirectionFilter::MaxAngle`` only.

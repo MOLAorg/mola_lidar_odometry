@@ -67,10 +67,12 @@ localmap_generator:
           # - view_direction_filter: None, MaxAngle or SurfaceSide (e.g.
           #   MOLA_LOCALMAP_VIEW_DIRECTION_FILTER=ViewDirectionFilter::SurfaceSide).
           #   Left empty, each class keeps its own default: MaxAngle for the
-          #   keyframe map, None for the incremental one. The incremental map
-          #   keeps the whole area around the robot, where MaxAngle also rejects
-          #   the same surface seen from very different azimuths (e.g. ground),
-          #   and measured consistently worse there on hand-held sequences.
+          #   keyframe map, SurfaceSide for the incremental one. The incremental
+          #   map keeps the whole area around the robot, where MaxAngle also
+          #   rejects the same surface seen from very different azimuths (e.g.
+          #   ground), and measured consistently worse there on hand-held
+          #   sequences; SurfaceSide was neutral on most sequences and much
+          #   better on a few hard ones.
           # - max_view_angle_deg: threshold of MaxAngle only.
           use_view_direction_filter: ${MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER|true}
           view_direction_filter: "${MOLA_LOCALMAP_VIEW_DIRECTION_FILTER|}"
