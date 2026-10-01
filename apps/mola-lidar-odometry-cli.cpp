@@ -1376,7 +1376,7 @@ int main_odometry(Cli & cli)
     std::cout << "\nSaving reconstructed map with " << sm.size() << " keyframes to: " << fil
               << std::endl;  // NOLINT(performance-avoid-endl)
 
-    sm.saveToFile(fil);
+    ASSERTMSG_(sm.saveToFile(fil), "Error saving reconstructed simplemap file");
   }
 
   if (outTwist) {

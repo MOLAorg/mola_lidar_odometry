@@ -383,7 +383,7 @@ void LidarOdometry::saveReconstructedMapToFile() const
                                    << " keyframes to file '" << fil << "'...");
   std::cout.flush();
 
-  state_.reconstructed_simplemap.saveToFile(fil);
+  ASSERTMSG_(state_.reconstructed_simplemap.saveToFile(fil), "Error saving final simplemap file");
 
   MRPT_LOG_INFO("Final simplemap saved.");
 }
