@@ -105,3 +105,24 @@ TEST(Relocalization, FromGnssRestoresStateEstimatorMethod)
   EXPECT_EQ(
     f.liodom->params_.initial_localization.method, mola::InitLocalization::FromStateEstimator);
 }
+
+// Poses fused into the state estimator before a relocalization from GNSS (e.g.
+// LO running at its default initial pose) must not be what it relocalizes to.
+TEST(Relocalization, FromGnssForgetsPreviouslyFusedPoses)
+{
+  Fixture f;
+  const auto & frame = f.liodom->params_.publish_reference_frame;
+
+  mrpt::poses::CPose3DPDFGaussian atOrigin;
+  atOrigin.cov.setDiagonal(1e-4);
+  const auto t = mrpt::Clock::now();
+  f.stateEstimator->fuse_pose(
+    mrpt::Clock::fromDouble(mrpt::Clock::toDouble(t) - 0.1), atOrigin, frame);
+  f.stateEstimator->fuse_pose(t, atOrigin, frame);
+  ASSERT_TRUE(f.stateEstimator->estimated_navstate(t, frame).has_value());
+
+  f.liodom->relocalize_from_gnss();
+  f.runPendingRequests();
+
+  EXPECT_FALSE(f.stateEstimator->estimated_navstate(t, frame).has_value());
+}

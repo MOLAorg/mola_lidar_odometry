@@ -226,7 +226,10 @@ request is typically what is used when the automatic source cannot converge
 (e.g. poor GNSS coverage).
 
 `relocalize_from_gnss()` moves the method back to `FromStateEstimator`, so the
-two entry points can be alternated at runtime.
+two entry points can be alternated at runtime. It also resets the state
+estimator: the ICP poses LO fused before being localized (e.g. at the default
+initial pose) would otherwise look like a converged estimate, and LO would
+relocalize to its own guess instead of the GNSS/IMU one.
 
 ## State estimator integration
 

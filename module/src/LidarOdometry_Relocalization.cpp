@@ -89,6 +89,13 @@ void LidarOdometry::relocalize_from_gnss_impl()
   state_.initial_localization_done = false;
   il.method = InitLocalization::FromStateEstimator;
 
+  // The state estimator may hold poses we fused before being localized (e.g.
+  // at the default initial pose): forget them, so it converges from GNSS/IMU
+  // alone, not from our own guess.
+  if (state_.navstate_fuse) {
+    state_.navstate_fuse->reset();
+  }
+
   // Reset adaptive sigma to initial value:
   state_.adapt_thres_sigma = params_.adaptive_threshold.initial_sigma;
 
