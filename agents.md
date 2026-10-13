@@ -172,6 +172,19 @@ the measurements behind that and behind its loose velocity sigmas. The one
 exception is `MOLA_GRANDTOUR_LIDAR=hesai_raw`, which turns it on and uses it
 for de-skewing.
 
+## Attitude-only IMU for the simplemap (`attitude_imu_sensor_label`)
+
+Keyframes store the IMU reading closest in time (`simplemap.save_imu_max_age`),
+which is what gives `mola-sm-georeferencing` an azimuth observation. The LiDAR's
+built-in IMU is the right one for de-skew but carries no orientation, so an
+external AHRS can be named with `attitude_imu_sensor_label`
+(`MOLA_ATTITUDE_IMU_NAME`): its readings feed only `last_imu_`, and the main IMU
+then stops feeding it. The rosbag2 inputs (offline CLI and
+`lidar_odometry_from_rosbag2.yaml`) read it from `MOLA_ATTITUDE_IMU_TOPIC` with
+label `imu_attitude`; the CLI sets `MOLA_ATTITUDE_IMU_NAME` itself when the topic
+is given. Observations still reach the state estimator too: exclude the label
+there (`do_process_imu_labels_re`) unless fusing its absolute attitude is wanted.
+
 ## Robot /tf tree visualization (opt-in)
 
 `visualization.show_tf_tree` draws the subtree of coordinate frames below

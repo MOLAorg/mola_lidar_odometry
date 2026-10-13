@@ -105,6 +105,14 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
     onIMU(o);
   }
 
+  // Is it the IMU whose readings are only stored in simplemap keyframes
+  // (absolute attitude for geo-referencing)? Inline, it only buffers.
+  if (
+    params_.attitude_imu_sensor_label &&
+    std::regex_match(o->sensorLabel, params_.attitude_imu_sensor_label.value())) {
+    onAttitudeIMU(o);
+  }
+
   // Is it the odometry source whose absolute attitude provides the verticality
   // reading? Handled inline for the same reason as the IMU above: it only
   // stores the newest value, so doing it on the caller's thread keeps what a
@@ -519,12 +527,9 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
     // from pending_imu_ above, which is drained as the readings are consumed,
     // and stored even when that one rejects a late arrival: an out-of-order
     // reading is still a valid attitude measurement for a keyframe.
-    if (params_.simplemap.save_imu_max_age > 0) {
-      state_.last_imu_.emplace(imu->timestamp, imu);
-
-      while (state_.last_imu_.size() > params_.imu_queue_max_size) {
-        state_.last_imu_.erase(state_.last_imu_.begin());
-      }
+    // A dedicated attitude IMU, if configured, takes this role instead.
+    if (!params_.attitude_imu_sensor_label) {
+      storeImuForSimplemap(imu);
     }
   }
 
@@ -547,6 +552,37 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
 
   // Finally, release any waiting LiDAR scan now fully covered by received IMU data:
   releaseReadyLidarScansToWorker();
+}
+
+void LidarOdometry::onAttitudeIMU(const CObservation::ConstPtr & o)
+{
+  ASSERT_(o);
+
+  auto imu = std::dynamic_pointer_cast<const mrpt::obs::CObservationIMU>(o);
+  if (!imu) {
+    MRPT_LOG_THROTTLE_WARN_FMT(
+      5.0,
+      "Observation '%s' is configured as 'attitude_imu_sensor_label' but is not a "
+      "CObservationIMU (it is '%s'). Ignoring it.",
+      o->sensorLabel.c_str(), o->GetRuntimeClass()->className);
+    return;
+  }
+
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+  storeImuForSimplemap(imu);
+}
+
+void LidarOdometry::storeImuForSimplemap(const mrpt::obs::CObservationIMU::ConstPtr & imu)
+{
+  if (params_.simplemap.save_imu_max_age <= 0) {
+    return;
+  }
+
+  state_.last_imu_.emplace(imu->timestamp, imu);
+
+  while (state_.last_imu_.size() > params_.imu_queue_max_size) {
+    state_.last_imu_.erase(state_.last_imu_.begin());
+  }
 }
 
 void LidarOdometry::consumePendingImu(const double upToTime)
