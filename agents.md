@@ -1048,6 +1048,14 @@ We use colcon, the ROS2 build tool, and mola_common with utility cmake helpers.
   Humble/Jazzy, each stable + testing, and runs `setup ROS environment`
   unconditionally for both.
 - Style: enforced with `.clang-format` and `.clang-tidy`
+- `test_mola_cli_*` (`test/run_mola_cli_dataset.py`): complete, headless
+  `mola-cli` runs of the shipped `lidar_odometry_from_{rawlog,rosbag2}.yaml` on
+  the `mola_test_datasets` fragments (KITTI, MulRan, an rslidar MCAP), with
+  `MOLA_WITH_GUI=false`, `MOLA_QUIT_ON_DATASET_END=true` and a lossless queue.
+  Poses are compared in order against the same reference `.tum` as the
+  in-process tests (the rosbag2 source stamps scans ~50 ms later).
+  `MOLA_MODULES_LIB_PATH` points at the build tree so the module under test is
+  loaded. Every launch YAML must keep its GUI behind `MOLA_WITH_GUI`.
 
 ## Code style
 
