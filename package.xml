@@ -76,6 +76,7 @@
 
   <!-- Test datasets to run on them: -->
   <test_depend>mola_test_datasets</test_depend>
+  <test_depend>mola_launcher</test_depend> <!-- mola-cli, for the integration tests -->
   <test_depend>mola_metric_maps</test_depend>
   <test_depend>rosbag2_storage_mcap</test_depend> <!-- Needed to be able to open mcap test files -->
 

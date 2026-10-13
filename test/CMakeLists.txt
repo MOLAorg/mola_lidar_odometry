@@ -180,3 +180,55 @@ if(EXISTS "${RSLIDAR_DATASET_FILE}")
 else()
   message(STATUS "Skipping test for missing dataset: ${RSLIDAR_DATASET_FILE}")
 endif()
+
+# -----------------------------------------------------------------------------
+# Integration tests: complete, headless mola-cli runs of the shipped launch
+# files on the datasets above, as a user would launch them. Unlike the tests
+# above, these also cover module loading, YAML launch files and their variable
+# expansion, the dataset source modules, threading and shutdown.
+# -----------------------------------------------------------------------------
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+ament_index_has_resource(MOLA_LAUNCHER_PREFIX packages mola_launcher)
+find_program(MOLA_CLI_EXECUTABLE mola-cli
+  PATHS ${MOLA_LAUNCHER_PREFIX}/bin
+  NO_DEFAULT_PATH)
+
+# mola_lo_add_cli_test(<name> <launch yaml> <reference tum> [ENV VAR=value ...])
+function(mola_lo_add_cli_test NAME LAUNCH REFERENCE)
+  cmake_parse_arguments(ARG "" "" "ENV" ${ARGN})
+  ament_add_test(${NAME}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/run_mola_cli_dataset.py
+      --mola-cli ${MOLA_CLI_EXECUTABLE}
+      --launch ${mola_lidar_odometry_SOURCE_DIR}/mola-cli-launchs/${LAUNCH}
+      --reference ${REFERENCE}
+    TIMEOUT 300
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    # The module under test, found before any other installed copy of it:
+    ENV MOLA_MODULES_LIB_PATH=$<TARGET_FILE_DIR:mola_lidar_odometry>
+      ${ARG_ENV}
+  )
+endfunction()
+
+if(NOT MOLA_CLI_EXECUTABLE)
+  message(STATUS "Skipping mola-cli integration tests: mola-cli not found")
+else()
+  mola_lo_add_cli_test(test_mola_cli_kitti lidar_odometry_from_rawlog.yaml ${KITTI00_GT_TUM}
+    ENV MOLA_INPUT_RAWLOG=${KITTI00_DATASET_FILE}
+  )
+  if(EXISTS ${MULRAN_KAIST01_DATASET_FILE})
+    mola_lo_add_cli_test(test_mola_cli_mulran lidar_odometry_from_rawlog.yaml
+      ${MULRAN_KAIST01_GT_TUM}
+      ENV MOLA_INPUT_RAWLOG=${MULRAN_KAIST01_DATASET_FILE}
+          MOLA_DESKEW_METHOD=MotionCompensationMethod::IMU
+    )
+  endif()
+  if(EXISTS ${RSLIDAR_DATASET_FILE})
+    mola_lo_add_cli_test(test_mola_cli_rslidar_mcap lidar_odometry_from_rosbag2.yaml
+      ${RSLIDAR_GT_TUM}
+      ENV MOLA_INPUT_ROSBAG2=${RSLIDAR_DATASET_FILE}
+          MOLA_LIDAR_TOPIC=${RSLIDAR_TOPIC}
+          MOLA_USE_FIXED_LIDAR_POSE=true
+          MOLA_IGNORE_NO_POINT_STAMPS=${IGNORE_POINT_STAMPS}
+    )
+  endif()
+endif()
