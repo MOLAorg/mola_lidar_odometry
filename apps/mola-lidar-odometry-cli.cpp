@@ -258,7 +258,9 @@ struct Cli
     arg_outSimpleMap.opt = cmd
                              .add_option(
                                "--output-simplemap", arg_outSimpleMap.value,
-                               "Enables building and saving the simplemap for the mapping session")
+                               "Enables building and saving the simplemap for the mapping "
+                               "session. Note: incompatible with lazy-load simplemaps; for those, "
+                               "use MOLA_GENERATE_SIMPLEMAP=true and MOLA_SIMPLEMAP_OUTPUT instead")
                              ->option_text("output-map.simplemap");
 
     arg_firstN.opt = cmd
@@ -1036,6 +1038,16 @@ int main_odometry(Cli & cli)
     // don't save within the LidarOdometry object, we will do it here in
     // this cli app:
     liodom->params_.simplemap.save_final_map_to_file.clear();
+
+    // Lazy-load scan files are written next to save_final_map_to_file, which
+    // was just cleared, so the module silently keeps every scan in RAM:
+    if (liodom->params_.simplemap.generate_lazy_load_scan_files) {
+      std::cerr << "[mola-lidar-odometry-cli] Warning: lazy-load simplemap generation "
+                   "(MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD) is ignored with --output-simplemap: all "
+                   "scans are kept in RAM and saved inside the .simplemap. Use "
+                   "MOLA_GENERATE_SIMPLEMAP=true and MOLA_SIMPLEMAP_OUTPUT=<file> instead."
+                << std::endl;  // NOLINT(performance-avoid-endl)
+    }
   }
 
   if (cli.arg_lidarLabel.isSet()) {

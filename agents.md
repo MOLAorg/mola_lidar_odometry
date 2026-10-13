@@ -379,6 +379,18 @@ setting still wins), like `MOLA_ASYNC_BACKEND`. For `mola-cli` replays set it in
 the environment; note `time_warp_scale` above ~5 outruns the pipeline, and
 without this the excess simply becomes dropped scans.
 
+## `--output-simplemap` disables lazy-load simplemaps in the offline CLI
+
+With `--output-simplemap`, `mola-lidar-odometry-cli` clears
+`simplemap.save_final_map_to_file` and saves the map itself at the end. Lazy-load
+scan files are written next to that path (`<map>_Images/`), and
+`handleUnloadSinglePastObservation()` returns early when it is empty, so
+`MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD=true` has no effect: every scan stays in RAM
+and ends up inside the `.simplemap`. The CLI now warns about it. For long
+datasets use `MOLA_GENERATE_SIMPLEMAP=true` + `MOLA_SIMPLEMAP_OUTPUT=<file>`
+without `--output-simplemap`; tools such as `sm2mm` find `<map>_Images/` by
+themselves.
+
 ## Local-map publishing is OFF in the offline CLI (`MOLA_PUBLISH_LOCAL_MAP`)
 
 `doPublishUpdatedLocalMap()` deep-copies the whole local map, and it
