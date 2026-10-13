@@ -326,6 +326,10 @@ void LidarOdometry::Parameters::InitialLocalizationOptions::initialize(const Yam
   YAML_LOAD_OPT(from_state_estimator_max_orientation_sigma_deg, double);
   YAML_LOAD_OPT(from_state_estimator_timeout, double);
 
+  if (cfg.has("global_search")) {
+    global_search.initialize(cfg["global_search"]);
+  }
+
   if (cfg.has("fixed_initial_pose")) {
     ASSERT_(
       cfg["fixed_initial_pose"].isSequence() && cfg["fixed_initial_pose"].asSequence().size() == 6);
@@ -338,6 +342,31 @@ void LidarOdometry::Parameters::InitialLocalizationOptions::initialize(const Yam
       p[i] = (i < 3) ? v : mrpt::DEG2RAD(v);
     }
   }
+}
+
+void LidarOdometry::Parameters::InitialLocalizationOptions::GlobalSearch::initialize(
+  const Yaml & cfg)
+{
+  YAML_LOAD_OPT(enabled, bool);
+  YAML_LOAD_OPT(icp_basin_xy, double);
+  YAML_LOAD_OPT(icp_basin_yaw_deg, double);
+  YAML_LOAD_OPT(sigma_factor, double);
+  YAML_LOAD_OPT(min_half_width_xy, double);
+  YAML_LOAD_OPT(max_half_width_xy, double);
+  YAML_LOAD_OPT(max_position_sigma, double);
+  YAML_LOAD_OPT(resolution_xy, double);
+  YAML_LOAD_OPT(resolution_yaw_deg, double);
+  YAML_LOAD_OPT(icp_threshold, double);
+  YAML_LOAD_OPT(refine_icp_threshold, double);
+  YAML_LOAD_OPT(min_quality, double);
+  YAML_LOAD_OPT(same_mode_max_distance, double);
+  YAML_LOAD_OPT(same_mode_max_yaw_deg, double);
+  YAML_LOAD_OPT(min_quality_margin, double);
+  YAML_LOAD_OPT(retry_period, double);
+
+  ASSERT_GT_(resolution_xy, 0);
+  ASSERT_GT_(resolution_yaw_deg, 0);
+  ASSERT_LE_(min_half_width_xy, max_half_width_xy);
 }
 
 void LidarOdometry::Parameters::ObservationValidityChecks::initialize(const Yaml & cfg)

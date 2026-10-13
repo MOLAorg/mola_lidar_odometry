@@ -23,6 +23,13 @@
 #include <mola_lidar_odometry/LidarOdometry.h>
 #include <mrpt/obs/CObservationIMU.h>
 
+#if __has_include(<mola_relocalization/relocalization.h>)
+#include <mola_relocalization/relocalization.h>
+#endif
+
+#include <algorithm>
+#include <cmath>
+
 namespace mola
 {
 
@@ -312,13 +319,31 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
 #endif
 
   // Additional covariance check with our own thresholds
+  const auto & gs = il.global_search;
+  bool needsGlobalSearch = false;
   if (converged) {
     const double pos_sigma_max = std::sqrt(
       std::max({estimatedPose.cov(0, 0), estimatedPose.cov(1, 1), estimatedPose.cov(2, 2)}));
     const double ori_sigma_max_deg = mrpt::RAD2DEG(std::sqrt(
       std::max({estimatedPose.cov(3, 3), estimatedPose.cov(4, 4), estimatedPose.cov(5, 5)})));
 
-    if (
+    if (gs.enabled) {
+      // Search if the uncertainty region may exceed ICP's convergence basin:
+      const double xySigma = std::sqrt(std::max(estimatedPose.cov(0, 0), estimatedPose.cov(1, 1)));
+      const double yawSigmaDeg = mrpt::RAD2DEG(std::sqrt(estimatedPose.cov(3, 3)));
+      needsGlobalSearch =
+        std::max(gs.sigma_factor * xySigma, gs.min_half_width_xy) > gs.icp_basin_xy ||
+        gs.sigma_factor * yawSigmaDeg > gs.icp_basin_yaw_deg;
+    }
+
+    if (needsGlobalSearch) {
+      if (pos_sigma_max > gs.max_position_sigma) {
+        converged = false;
+        MRPT_LOG_THROTTLE_DEBUG_FMT(
+          5.0, "State estimator converged but too uncertain to search around: pos_sigma=%.3f m",
+          pos_sigma_max);
+      }
+    } else if (
       pos_sigma_max > il.from_state_estimator_max_position_sigma ||
       ori_sigma_max_deg > il.from_state_estimator_max_orientation_sigma_deg) {
       converged = false;
@@ -346,7 +371,15 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
     << estimatedPose.mean << " (sigmas: " << std::sqrt(estimatedPose.cov(0, 0)) << ", "
     << std::sqrt(estimatedPose.cov(1, 1)) << ", " << std::sqrt(estimatedPose.cov(2, 2)) << " m)");
 
-  handleInitialLocalizationDoInitFromPose(estimatedPose, false);
+  if (needsGlobalSearch) {
+    // The next scan, once filtered, is matched against the map around this
+    // pose (see doGlobalSearchForInitialPose()):
+    state_.global_search_prior = estimatedPose;
+    state_.last_global_search_attempt.reset();
+    MRPT_LOG_INFO("Its uncertainty may exceed ICP's convergence basin: searching around it.");
+  } else {
+    handleInitialLocalizationDoInitFromPose(estimatedPose, false);
+  }
   doRemoveCloudsWithDecay();
 
   state_.initial_localization_done = true;
@@ -360,6 +393,127 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
       MRPT_LOG_INFO("Auto-transitioning to active mode after state estimator convergence.");
     }
   }
+}
+
+bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & observation)
+{
+#if defined(MOLA_RELOCALIZATION_HAS_CANDIDATES)
+  const auto & gs = params_.initial_localization.global_search;
+  ASSERT_(state_.global_search_prior);
+  ASSERT_(state_.global_search_icp);
+  ASSERT_(state_.local_map);
+
+  // Rate limit the attempts, in sensor time (also right for offline datasets):
+  ASSERT_(state_.last_obs_timestamp);
+  const auto now = *state_.last_obs_timestamp;
+  if (
+    state_.last_global_search_attempt &&
+    mrpt::system::timeDifference(*state_.last_global_search_attempt, now) < gs.retry_period) {
+    return false;
+  }
+  state_.last_global_search_attempt = now;
+
+  // Search around the latest state estimator pose:
+  if (mrpt::poses::CPose3DPDFGaussian latest;
+      state_.navstate_fuse->has_converged_localization(latest)) {
+    state_.global_search_prior = latest;
+  }
+  const auto & prior = *state_.global_search_prior;
+  const auto & cov = prior.cov;
+  const double xySigma = std::sqrt(std::max(cov(0, 0), cov(1, 1)));
+  const double halfXY =
+    std::clamp(gs.sigma_factor * xySigma, gs.min_half_width_xy, gs.max_half_width_xy);
+  const double halfYaw =
+    gs.sigma_factor * std::sqrt(cov(3, 3)) > mrpt::DEG2RAD(gs.icp_basin_yaw_deg)
+      ? std::min(gs.sigma_factor * std::sqrt(cov(3, 3)), M_PI)
+      : 0.0;
+
+  mola::RelocalizationICP_SE2::Input in;
+  in.reference_map = *state_.local_map;
+  in.local_map = observation;
+  in.icp_pipeline = {state_.global_search_icp};
+  in.icp_parameters = state_.global_search_icp_params;
+  in.icp_minimum_quality = gs.min_quality;
+
+  // The search ICPs use the same variables as the regular one, but their own
+  // matching thresholds:
+  for (const auto & [source, threshold] :
+       {std::pair{state_.global_search_param_source.get(), gs.icp_threshold},
+        {state_.global_search_refine_param_source.get(), gs.refine_icp_threshold}}) {
+    for (const auto & [name, value] : state_.parameter_source.getVariableValues()) {
+      source->updateVariable(name, value);
+    }
+    source->updateVariable("ADAPTIVE_THRESHOLD_SIGMA", threshold);
+  }
+
+  const auto p = prior.mean.asTPose();
+  auto & lat = in.initial_guess_lattice;
+  lat.corner_min = {p.x - halfXY, p.y - halfXY, p.yaw - halfYaw};
+  lat.corner_max = {p.x + halfXY, p.y + halfXY, p.yaw + halfYaw};
+  lat.resolution_xy = gs.resolution_xy;
+  lat.resolution_phi = mrpt::DEG2RAD(gs.resolution_yaw_deg);
+  lat.z = p.z;
+  lat.pitch = p.pitch;
+  lat.roll = p.roll;
+
+  const auto out = mola::RelocalizationICP_SE2::run(in);
+
+  mola::CandidateSelectionParameters sp;
+  sp.same_mode_max_distance = gs.same_mode_max_distance;
+  sp.same_mode_max_yaw = mrpt::DEG2RAD(gs.same_mode_max_yaw_deg);
+  sp.min_quality_margin = gs.min_quality_margin;
+  // Tell the hypotheses apart with a stricter ICP:
+  const double t0 = mrpt::Clock::nowDouble();
+  auto refined = mola::refine_relocalization_candidates(
+    out.candidates, observation, *state_.local_map, *state_.global_search_refine_icp,
+    state_.global_search_icp_params, sp);
+  refined.erase(
+    std::remove_if(
+      refined.begin(), refined.end(),
+      [&gs](const mola::RelocalizationICP_SE2::Candidate & c) {
+        return c.quality < gs.min_quality;
+      }),
+    refined.end());
+  const auto sel = mola::select_relocalization_candidate(refined, sp);
+
+  MRPT_LOG_INFO_FMT(
+    "Global search around %s (+-%.2f m, +-%.1f deg): %zu good ICP results in %zu hypotheses "
+    "(%.2f s), refined: best quality %.3f, runner-up %.3f (%.2f s)",
+    prior.mean.asString().c_str(), halfXY, mrpt::RAD2DEG(halfYaw), out.candidates.size(),
+    refined.size(), out.time_cost, sel.best ? sel.best->quality : 0.0,
+    sel.runner_up ? sel.runner_up->quality : 0.0, mrpt::Clock::nowDouble() - t0);
+
+  if (!sel.best) {
+    MRPT_LOG_WARN("Global search: no good match in the map. Will try again.");
+    return false;
+  }
+  if (!sel.unambiguous) {
+    MRPT_LOG_WARN_STREAM(
+      "Global search: ambiguous, " << sel.best->pose << " vs " << sel.runner_up->pose
+                                   << ". Will try again.");
+    return false;
+  }
+
+  mrpt::poses::CPose3DPDFGaussian found;
+  found.mean = mrpt::poses::CPose3D(sel.best->pose);
+  found.cov.setDiagonal(std::vector<double>(
+    {mrpt::square(0.1), mrpt::square(0.1), mrpt::square(0.1), mrpt::square(mrpt::DEG2RAD(2.0)),
+     mrpt::square(mrpt::DEG2RAD(2.0)), mrpt::square(mrpt::DEG2RAD(2.0))}));
+
+  MRPT_LOG_INFO_STREAM("Global search: localized at " << found.mean);
+
+  handleInitialLocalizationDoInitFromPose(found, true);
+  state_.global_search_prior.reset();
+  return true;
+#else
+  (void)observation;
+  MRPT_LOG_ERROR(
+    "initial_localization.global_search requires a mola_relocalization with "
+    "select_relocalization_candidate(): using the state estimator pose as is.");
+  handleInitialLocalizationDoInitFromPose(*state_.global_search_prior, false);
+  state_.global_search_prior.reset();
+  return true;
+#endif
 }
 
 }  // namespace mola

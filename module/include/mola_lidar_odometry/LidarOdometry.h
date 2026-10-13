@@ -762,6 +762,61 @@ public:
       /// If <=0, wait indefinitely
       double from_state_estimator_timeout = 60.0;  // [s]
 
+      /// Used when method == FromStateEstimator. A state estimator pose may be
+      /// too uncertain for ICP to converge from it (e.g. plain GNSS, or no
+      /// heading at all). Then, search for the pose in the map around it, and
+      /// only accept an unambiguous match.
+      struct GlobalSearch
+      {
+        bool enabled = false;
+
+        /// The state estimator pose is used directly if its uncertainty
+        /// region (sigma_factor sigmas) fits inside ICP's convergence basin:
+        double icp_basin_xy = 0.5;        //!< half-width [m]
+        double icp_basin_yaw_deg = 10.0;  //!< half-width [deg]
+        double sigma_factor = 3.0;
+
+        /// Half-width of the searched XY region: sigma_factor sigmas, within
+        /// these limits. The minimum covers biases the estimator doesn't
+        /// model (e.g. GNSS multipath).
+        double min_half_width_xy = 0.0;   // [m]
+        double max_half_width_xy = 20.0;  // [m]
+
+        /// While searching, accept state estimator poses up to this position
+        /// sigma, instead of from_state_estimator_max_position_sigma. Its
+        /// orientation sigma is not checked: yaw is searched if needed.
+        double max_position_sigma = 5.0;  // [m]
+
+        /// Spacing of the initial guesses
+        double resolution_xy = 1.0;        // [m]
+        double resolution_yaw_deg = 30.0;  // [deg]
+
+        /// Value of ADAPTIVE_THRESHOLD_SIGMA for the ICP runs of the search
+        /// (which use the "icp_settings_without_vel" pipeline)
+        double icp_threshold = 1.0;  // [m]
+
+        /// The best result of each pose hypothesis is refined with a
+        /// stricter ICP (this ADAPTIVE_THRESHOLD_SIGMA), whose quality tells
+        /// nearby hypotheses apart
+        double refine_icp_threshold = 0.2;  // [m]
+
+        /// ICP results below this quality are discarded
+        double min_quality = 0.5;
+
+        /// Results closer than this are the same pose hypothesis (mode)
+        double same_mode_max_distance = 1.0;  // [m]
+        double same_mode_max_yaw_deg = 15.0;  // [deg]
+
+        /// The best mode must beat any other one by this quality margin
+        double min_quality_margin = 0.1;
+
+        /// After an ambiguous or failed search, wait this long (sensor time) to try again
+        double retry_period = 2.0;  // [s]
+
+        void initialize(const Yaml & c);
+      };
+      GlobalSearch global_search;
+
       void initialize(const Yaml & c);
     };
 
@@ -1521,6 +1576,17 @@ private:
     /// To handle post-re-localization. >0 means we are "recovering" from a request to re-localize:
     uint32_t step_counter_post_relocalization = 0;
 
+    /// State estimator pose to search around, while a global search for the
+    /// initial pose is pending (see InitialLocalizationOptions::GlobalSearch)
+    std::optional<mrpt::poses::CPose3DPDFGaussian> global_search_prior;
+    std::optional<mrpt::Clock::time_point> last_global_search_attempt;
+    mp2p_icp::ICP::Ptr global_search_icp;
+    mp2p_icp::Parameters global_search_icp_params;
+    /// Own variables for global_search_icp (ICP writes into its source)
+    std::shared_ptr<mp2p_icp::ParameterSource> global_search_param_source;
+    mp2p_icp::ICP::Ptr global_search_refine_icp;
+    std::shared_ptr<mp2p_icp::ParameterSource> global_search_refine_param_source;
+
     // GNSS: keep a list of recent observations to later on search the one
     // closest to each LIDAR observation:
     std::map<mrpt::Clock::time_point, std::shared_ptr<const mrpt::obs::CObservationGPS>> last_gnss_;
@@ -1821,6 +1887,10 @@ private:
   // never touch these mutexes directly.
   void relocalize_near_pose_pdf_impl(const mrpt::poses::CPose3DPDFGaussian & p);
   void relocalize_from_gnss_impl();
+
+  /// Runs the pending global search for the initial pose with this
+  /// (filtered) observation. Returns true once localized.
+  bool doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & observation);
   MapServer::ReturnStatus map_load_impl(const std::string & path);
   MapServer::ReturnStatus map_save_impl(const std::string & path);
 
