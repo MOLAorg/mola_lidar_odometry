@@ -673,6 +673,13 @@ Sensor inputs: GPS (GNSS) (optional)
      by ``MOLA_GNSS_TOPIC`` (see :ref:`the sensor-input environment variables <mola_lo_ros_mola-cli-env-vars>`). These are two different variables:
      ``MOLA_GPS_NAME`` is the internal sensor label; ``MOLA_GNSS_TOPIC`` is the ROS topic.
 
+- ``MOLA_ATTITUDE_IMU_NAME`` (Default: empty, disabled): **Sensor label** (or regex) of a second IMU whose
+  readings are only stored into simple-map keyframes, instead of those of ``MOLA_IMU_NAME``. Use it for an external
+  AHRS providing absolute attitude (azimuth), which ``mola-sm-georeferencing`` uses to observe the map yaw, while
+  the LiDAR's own IMU keeps doing de-skew and gravity alignment.
+  With ``mola-lidar-odometry-cli`` and rosbag2 input, setting the topic in ``MOLA_ATTITUDE_IMU_TOPIC`` is enough
+  (the label ``imu_attitude`` is assigned automatically).
+
 
 Scan de-skew options
 ^^^^^^^^^^^^^^^^^^^^^^

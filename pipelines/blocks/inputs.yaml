@@ -20,6 +20,12 @@ params:
   # These sensor labels will be handled as GNSS (GPS) (For storage in simplemap only)
   gnss_sensor_label: "${MOLA_GPS_NAME|gps}"
 
+  # Optional IMU whose readings are only stored into simplemap keyframes
+  # (instead of those of imu_sensor_label), e.g. an external AHRS giving
+  # absolute attitude (azimuth) for offline geo-referencing. Not used for
+  # de-skew nor gravity alignment. Empty = disabled.
+  attitude_imu_sensor_label: "${MOLA_ATTITUDE_IMU_NAME|}"
+
   # If not empty, de-skew with this odometry source's velocity over each
   # sweep (e.g. leg or wheel odometry) instead of the state estimator's, which
   # is derived from this odometry's own registrations:

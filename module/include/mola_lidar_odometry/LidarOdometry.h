@@ -225,6 +225,16 @@ public:
          */
     std::optional<std::regex> gnss_sensor_label;
 
+    /** Sensor labels or regex of an IMU whose readings are ONLY stored into
+     *  simplemap keyframes (see `simplemap.save_imu_max_age`), typically an
+     *  external AHRS providing absolute attitude (azimuth) for offline
+     *  geo-referencing. They are never used for de-skew nor gravity alignment,
+     *  which keep using `imu_sensor_label`. If set, the keyframes store
+     *  readings from this IMU instead of from `imu_sensor_label`.
+     *  Empty (default) = disabled.
+     */
+    std::optional<std::regex> attitude_imu_sensor_label;
+
     /** If set (non-empty), the linear velocity written to the pipelines'
      *  dynamic variables (vx,vy,vz), which FilterDeskew uses to de-skew scans,
      *  is the mean velocity of this odometry source (CObservationRobotPose or
@@ -1915,6 +1925,14 @@ private:
 
   void onIMU(const CObservation::ConstPtr & o);
   void onIMUImpl(const CObservation::ConstPtr & o);
+
+  /** Handles an observation from `attitude_imu_sensor_label`: only keeps it
+   *  for simplemap keyframes. Inline on the caller's thread, like onIMU(). */
+  void onAttitudeIMU(const CObservation::ConstPtr & o);
+
+  /** Keeps `imu` in last_imu_ for simplemap keyframes, if enabled.
+   *  Caller must hold imu_state_mtx_. */
+  void storeImuForSimplemap(const mrpt::obs::CObservationIMU::ConstPtr & imu);
 
   /** Stores the "up" direction implied by an odometry observation's absolute
    *  attitude, for use as the verticality reading. Like onIMU(), it only

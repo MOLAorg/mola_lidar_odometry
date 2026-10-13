@@ -114,6 +114,15 @@ modules:
           # reset. Default false.
           use_bag_recv_time_as_timestamp: ${MOLA_IMU_USE_BAG_RECV_TIME|false}
 
+        # Optional second IMU, only stored into simplemap keyframes (absolute
+        # attitude for geo-referencing). Disabled unless MOLA_ATTITUDE_IMU_TOPIC
+        # is set; also set MOLA_ATTITUDE_IMU_NAME=imu_attitude so the odometry
+        # uses it (mola-lidar-odometry-cli does this by itself).
+        - topic: ${MOLA_ATTITUDE_IMU_TOPIC|''}
+          sensorLabel: ${MOLA_ATTITUDE_IMU_NAME|imu_attitude}
+          type: CObservationIMU
+          is_optional: true
+
         # Wheel/robot odometry (disabled by default). CObservationOdometry is
         # planar: (x, y, yaw) plus a 2D twist. For a 3D odometry source
         # (legged robot, VIO, aerial platform) set

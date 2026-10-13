@@ -29,6 +29,7 @@
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/core/Clock.h>
 #include <mrpt/core/exceptions.h>
+#include <mrpt/core/get_env.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservation3DRangeScan.h>
 #include <mrpt/obs/CObservationGPS.h>
@@ -546,6 +547,13 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg''
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
+        # Optional second IMU, only stored into simplemap keyframes (absolute
+        # attitude for geo-referencing), see attitude_imu_sensor_label in the
+        # pipeline. Disabled unless MOLA_ATTITUDE_IMU_TOPIC is set.
+        - topic: ${MOLA_ATTITUDE_IMU_TOPIC|''}
+          sensorLabel: ${MOLA_ATTITUDE_IMU_NAME|imu_attitude}
+          type: CObservationIMU
+          is_optional: true
         # Wheel odometry, disabled unless MOLA_ODOMETRY_TOPIC is set: same
         # name and empty-by-default convention as dataset_from_rosbag1()
         # below and as lidar_odometry_from_rosbag2.yaml, rather than opting
@@ -883,6 +891,12 @@ int main_odometry(Cli & cli)
   // path: measured at 7% of the run on a large scene. Off by default here,
   // overridable for the case of a --module that does consume the map.
   setenv("MOLA_PUBLISH_LOCAL_MAP", "false", 0 /* do not overwrite */);
+
+  // Naming an attitude-only IMU topic is enough to enable it: give the
+  // odometry the same label the rosbag2 input assigns to it.
+  if (!mrpt::get_env<std::string>("MOLA_ATTITUDE_IMU_TOPIC", "").empty()) {
+    setenv("MOLA_ATTITUDE_IMU_NAME", "imu_attitude", 0 /* do not overwrite */);
+  }
 
   // Declare any additional modules (e.g. a second front-end):
   // ------------------------------------------
