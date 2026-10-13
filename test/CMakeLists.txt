@@ -55,9 +55,11 @@ if(mola_metric_maps_FOUND AND mola_state_estimation_simple_FOUND AND
   # The smoother's exported target names GTSAM by bare name:
   find_package(GTSAM QUIET)
   find_package(GTSAM_UNSTABLE QUIET)
+  # Its config may be under lib/<arch>/, so locate its share/ via the ament index:
+  ament_index_has_resource(SMOOTHER_PREFIX packages mola_state_estimation_smoother)
   find_file(SMOOTHER_PARAMS_YAML state-estimation-smoother.yaml
-    PATHS ${mola_state_estimation_smoother_DIR}/../params
-          ${mola_state_estimation_smoother_DIR}/../../../share/mola_state_estimation_smoother/params
+    PATHS ${SMOOTHER_PREFIX}/share/mola_state_estimation_smoother/params
+          ${mola_state_estimation_smoother_DIR}/../params
     NO_DEFAULT_PATH)
   ament_add_gtest(test_initial_global_search test_initial_global_search.cpp
     TIMEOUT 900
@@ -71,6 +73,7 @@ if(mola_metric_maps_FOUND AND mola_state_estimation_simple_FOUND AND
     mrpt::mrpt_obs
     mola::mola_state_estimation_simple
     mola::mola_lidar_odometry
+    mola::mola_relocalization
     "-Wl,--no-as-needed"
     mola::mola_state_estimation_smoother
     "-Wl,--as-needed"

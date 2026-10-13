@@ -246,7 +246,11 @@ the `icp_settings_without_vel` pipeline with its own `ParameterSource` (an ICP
 writes `ICP_ITERATION` into its source), and runs sequentially:
 `KeyframePointCloudMap` prepares one search submap per ICP run. Tested in
 `test/test_initial_global_search.cpp` with the real smoother on synthetic
-worlds and sensor data generated on the fly.
+worlds and sensor data generated on the fly (skipped unless both
+`MOLA_RELOCALIZATION_HAS_CANDIDATES` and
+`MOLA_STATE_ESTIMATION_SMOOTHER_HAS_ORIENTATION_GAUGE` are defined). With an
+empty local map (mapping from scratch) there is nothing to search in, so the
+estimator pose is used directly.
 
 ## State estimator integration
 

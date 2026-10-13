@@ -327,7 +327,8 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
     const double ori_sigma_max_deg = mrpt::RAD2DEG(std::sqrt(
       std::max({estimatedPose.cov(3, 3), estimatedPose.cov(4, 4), estimatedPose.cov(5, 5)})));
 
-    if (gs.enabled) {
+    // Nothing to search in without a map: initialize directly from the estimator.
+    if (gs.enabled && state_.local_map && !state_.local_map->empty()) {
       // Search if the uncertainty region may exceed ICP's convergence basin:
       const double xySigma = std::sqrt(std::max(estimatedPose.cov(0, 0), estimatedPose.cov(1, 1)));
       const double yawSigmaDeg = mrpt::RAD2DEG(std::sqrt(estimatedPose.cov(3, 3)));
@@ -437,10 +438,14 @@ bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
 
   // The search ICPs use the same variables as the regular one, but their own
   // matching thresholds:
+  const auto mainVariables = [this]() {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    return state_.parameter_source.getVariableValues();
+  }();
   for (const auto & [source, threshold] :
        {std::pair{state_.global_search_param_source.get(), gs.icp_threshold},
         {state_.global_search_refine_param_source.get(), gs.refine_icp_threshold}}) {
-    for (const auto & [name, value] : state_.parameter_source.getVariableValues()) {
+    for (const auto & [name, value] : mainVariables) {
       source->updateVariable(name, value);
     }
     source->updateVariable("ADAPTIVE_THRESHOLD_SIGMA", threshold);

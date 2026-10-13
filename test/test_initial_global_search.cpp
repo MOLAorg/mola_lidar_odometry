@@ -43,6 +43,14 @@
 #include <future>
 #include <thread>
 
+// The global search and these scenarios need recent enough dependencies:
+#if __has_include(<mola_relocalization/relocalization.h>)
+#include <mola_relocalization/relocalization.h>
+#endif
+#if __has_include(<mola_state_estimation_smoother/Parameters.h>)
+#include <mola_state_estimation_smoother/Parameters.h>
+#endif
+
 namespace
 {
 // ---------------------------------------------------------------------------
@@ -457,9 +465,21 @@ Scenario hall_scenario()
 }
 }  // namespace
 
+class InitialGlobalSearch : public ::testing::Test
+{
+protected:
+  void SetUp() override
+  {
+#if !defined(MOLA_RELOCALIZATION_HAS_CANDIDATES) || \
+  !defined(MOLA_STATE_ESTIMATION_SMOOTHER_HAS_ORIENTATION_GAUGE)
+    GTEST_SKIP() << "mola_relocalization or mola_state_estimation_smoother too old";
+#endif
+  }
+};
+
 // The GNSS bias puts the state estimator ~2 m off: without a search, LO
 // starts from there.
-TEST(InitialGlobalSearch, BiasedGnssWithoutSearchStartsOff)
+TEST_F(InitialGlobalSearch, BiasedGnssWithoutSearchStartsOff)
 {
   auto sc = hall_scenario();
   sc.globalSearch = false;
@@ -483,13 +503,13 @@ void expect_localized(const Result & r, const mrpt::poses::CPose3D & truth)
   }
 }
 
-TEST(InitialGlobalSearch, BiasedGnssWithImu)
+TEST_F(InitialGlobalSearch, BiasedGnssWithImu)
 {
   expect_localized(localize(hall_scenario()), hall_scenario().truth);
 }
 
 // No heading source at all: yaw is searched too.
-TEST(InitialGlobalSearch, BiasedGnssWithoutImu)
+TEST_F(InitialGlobalSearch, BiasedGnssWithoutImu)
 {
   auto sc = hall_scenario();
   sc.withImu = false;
@@ -499,7 +519,7 @@ TEST(InitialGlobalSearch, BiasedGnssWithoutImu)
 
 // Identical rows, GNSS off by more than one row: the match is ambiguous, and
 // LO must not report a pose.
-TEST(InitialGlobalSearch, AmbiguousRowsAreNotLocalized)
+TEST_F(InitialGlobalSearch, AmbiguousRowsAreNotLocalized)
 {
   const double pitch = 1.8;
   Scenario sc;
