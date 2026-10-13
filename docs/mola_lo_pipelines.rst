@@ -938,6 +938,9 @@ Simple-map generation
 
 - ``MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD`` (Default: ``false``): If enabled, generated simple-map files will be much
   smaller since all heavy observations will be stored in external files, making those maps faster to process later.
+  The external files go to ``<map>_Images/`` next to ``MOLA_SIMPLEMAP_OUTPUT``. With ``mola-lidar-odometry-cli``,
+  this is ignored if ``--output-simplemap`` is used: set ``MOLA_GENERATE_SIMPLEMAP=true`` and
+  ``MOLA_SIMPLEMAP_OUTPUT`` instead.
 
 - ``MOLA_SIMPLEMAP_ALSO_NON_KEYFRAMES`` (Default: ``false``): If enabled, all LiDAR observations will generate a
   KeyFrame in the simple-map, but without raw sensory data if the keyframe does not fulfill the minimum distance
