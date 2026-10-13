@@ -20,6 +20,7 @@
   <depend version_gte="3.1.0">mola_yaml</depend>
   <depend>mp2p_icp</depend>
   <depend>mola_pose_list</depend>
+  <depend>mola_relocalization</depend>
 
   <depend>cli11</depend>
   <depend>mrpt_maps</depend>

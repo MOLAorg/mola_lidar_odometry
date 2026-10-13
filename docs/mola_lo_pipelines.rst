@@ -990,6 +990,24 @@ Initial localization
 - ``MOLA_LO_INIT_SE_TIMEOUT`` (Default: ``60.0`` [s]): Timeout for ``InitLocalization::FromStateEstimator``.
   If the state estimator does not converge within this time, initialization falls back to ``FixedPose``.
 
+- ``MOLA_LO_INIT_GLOBAL_SEARCH`` (Default: ``false``): For ``InitLocalization::FromStateEstimator``, if the state
+  estimator pose may be too uncertain for ICP to converge from it (e.g. plain GNSS, or no heading at all), search
+  for the pose in the map around it (with ``mola_relocalization``), and only accept an unambiguous match. Yaw is
+  searched too if uncertain. While searching, the state estimator pose is accepted up to
+  ``MOLA_LO_INIT_GLOBAL_SEARCH_MAX_POS_SIGMA`` (Default: ``5.0`` [m]) of position uncertainty, and its
+  orientation uncertainty is not checked.
+
+- ``MOLA_LO_INIT_GLOBAL_SEARCH_MIN_XY`` / ``MOLA_LO_INIT_GLOBAL_SEARCH_MAX_XY`` (Default: ``0.0`` / ``20.0`` [m]):
+  Limits of the half-width of the searched region (3 sigmas otherwise). The minimum covers biases the state
+  estimator doesn't model, e.g. GNSS multipath.
+
+- ``MOLA_LO_INIT_GLOBAL_SEARCH_RES_XY``, ``MOLA_LO_INIT_GLOBAL_SEARCH_RES_YAW`` (Default: ``1.0`` [m],
+  ``30.0`` [deg]): Spacing of the initial guesses of the search.
+
+- ``MOLA_LO_INIT_GLOBAL_SEARCH_MIN_QUALITY``, ``MOLA_LO_INIT_GLOBAL_SEARCH_MIN_MARGIN`` (Default: ``0.5``, ``0.1``):
+  Minimum ICP quality of a match, and by how much the best match must beat any other distinct pose. Otherwise
+  (e.g. identical crop rows), the search is retried later and no pose is reported.
+
 
 Visualization
 ^^^^^^^^^^^^^^^^^^^

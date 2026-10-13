@@ -231,6 +231,27 @@ estimator: the ICP poses LO fused before being localized (e.g. at the default
 initial pose) would otherwise look like a converged estimate, and LO would
 relocalize to its own guess instead of the GNSS/IMU one.
 
+## Global search for the initial pose
+
+With `initial_localization.global_search.enabled` (`FromStateEstimator` only),
+a converged state estimator pose whose 3-sigma region (or
+`min_half_width_xy`, for unmodeled GNSS biases) exceeds the ICP convergence
+basin is not used directly: the next filtered scan is matched against the map
+from a lattice of initial guesses around it (`mola::RelocalizationICP_SE2`,
+yaw too if uncertain, e.g. no IMU), see `doGlobalSearchForInitialPose()`. Only
+an unambiguous best match (`mola::select_relocalization_candidate()`) is
+accepted, and then it resets the state estimator to it; otherwise LO reports
+nothing and retries every `retry_period`. The search ICP is its own instance of
+the `icp_settings_without_vel` pipeline with its own `ParameterSource` (an ICP
+writes `ICP_ITERATION` into its source), and runs sequentially:
+`KeyframePointCloudMap` prepares one search submap per ICP run. Tested in
+`test/test_initial_global_search.cpp` with the real smoother on synthetic
+worlds and sensor data generated on the fly (skipped unless both
+`MOLA_RELOCALIZATION_HAS_CANDIDATES` and
+`MOLA_STATE_ESTIMATION_SMOOTHER_HAS_ORIENTATION_GAUGE` are defined). With an
+empty local map (mapping from scratch) there is nothing to search in, so the
+estimator pose is used directly.
+
 ## State estimator integration
 
 Per LiDAR scan, `LidarOdometry` queries the configured `mola::NavStateFilter`

@@ -45,6 +45,41 @@ if(mola_metric_maps_FOUND AND mola_state_estimation_simple_FOUND)
   )
 endif()
 
+# Test: initial localization from a poor GNSS (with or without IMU), with the
+# real smoother and a global search. Synthetic world and sensor data are
+# generated on the fly: no dataset needed.
+# ------------------------------------------------------------------------------
+find_package(mola_state_estimation_smoother QUIET)
+if(mola_metric_maps_FOUND AND mola_state_estimation_simple_FOUND AND
+   mola_state_estimation_smoother_FOUND)
+  # The smoother's exported target names GTSAM by bare name:
+  find_package(GTSAM QUIET)
+  find_package(GTSAM_UNSTABLE QUIET)
+  # Its config may be under lib/<arch>/, so locate its share/ via the ament index:
+  ament_index_has_resource(SMOOTHER_PREFIX packages mola_state_estimation_smoother)
+  find_file(SMOOTHER_PARAMS_YAML state-estimation-smoother.yaml
+    PATHS ${SMOOTHER_PREFIX}/share/mola_state_estimation_smoother/params
+          ${mola_state_estimation_smoother_DIR}/../params
+    NO_DEFAULT_PATH)
+  ament_add_gtest(test_initial_global_search test_initial_global_search.cpp
+    TIMEOUT 900
+    ENV LO_PIPELINE_YAML=${mola_lidar_odometry_SOURCE_DIR}/pipelines/lidar3d-default.yaml
+    ENV LO_STATE_ESTIM_SIMPLE_YAML=${mola_lidar_odometry_SOURCE_DIR}/state-estimator-params/state-estimation-simple.yaml
+    ENV LO_STATE_ESTIM_SMOOTHER_YAML=${SMOOTHER_PARAMS_YAML}
+    ENV MOLA_PROFILER=false
+  )
+  # The smoother is only created by class name: keep it linked.
+  target_link_libraries(test_initial_global_search
+    mrpt::mrpt_obs
+    mola::mola_state_estimation_simple
+    mola::mola_lidar_odometry
+    mola::mola_relocalization
+    "-Wl,--no-as-needed"
+    mola::mola_state_estimation_smoother
+    "-Wl,--as-needed"
+  )
+endif()
+
 if((NOT mola_test_datasets_FOUND) OR
    (NOT mola_metric_maps_FOUND) OR
    (NOT mola_input_rosbag2_FOUND) OR

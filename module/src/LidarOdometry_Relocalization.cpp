@@ -63,6 +63,7 @@ void LidarOdometry::relocalize_near_pose_pdf_impl(const mrpt::poses::CPose3DPDFG
   // already stopped scans from being processed. That is precisely the case
   // where a manual re-localization is needed, e.g. poor GNSS coverage.
   il.method = InitLocalization::FixedPose;
+  state_.global_search_prior.reset();
 
   // Reset adaptive sigma to initial value:
   state_.adapt_thres_sigma = std::sqrt(p.cov.asEigen().block<2, 2>(0, 0).trace());
@@ -88,6 +89,7 @@ void LidarOdometry::relocalize_from_gnss_impl()
   // Enforce re-localization on the next iteration:
   state_.initial_localization_done = false;
   il.method = InitLocalization::FromStateEstimator;
+  state_.global_search_prior.reset();
 
   // The state estimator may hold poses we fused before being localized (e.g.
   // at the default initial pose): forget them, so it converges from GNSS/IMU

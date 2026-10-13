@@ -330,6 +330,23 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       params_.icp[AlignKind::NoMotionModel] = params_.icp[AlignKind::RegularOdometry];
     }
 
+    // Own ICP pipeline instance for the initial pose global search:
+    if (params_.initial_localization.global_search.enabled) {
+      const auto & icpCfg = c.has("icp_settings_without_vel") ? c["icp_settings_without_vel"]
+                                                              : c["icp_settings_with_vel"];
+      const auto [icp, icpParams] = mp2p_icp::icp_pipeline_from_yaml(icpCfg);
+      state_.global_search_icp = icp;
+      state_.global_search_icp_params = icpParams;
+      state_.global_search_param_source = std::make_shared<mp2p_icp::ParameterSource>();
+      icp->attachToParameterSource(*state_.global_search_param_source);
+
+      const auto [refineIcp, refineIcpParams] = mp2p_icp::icp_pipeline_from_yaml(icpCfg);
+      (void)refineIcpParams;
+      state_.global_search_refine_icp = refineIcp;
+      state_.global_search_refine_param_source = std::make_shared<mp2p_icp::ParameterSource>();
+      refineIcp->attachToParameterSource(*state_.global_search_refine_param_source);
+    }
+
     for (auto & [kind, icpCase] : params_.icp) {
       icpCase.icp->profiler().enable(params_.icp_profiler_enabled);
       icpCase.icp->profiler().enableKeepWholeHistory(params_.icp_profiler_full_history);

@@ -30,6 +30,7 @@ find_package(mp2p_icp REQUIRED)
 find_package(mp2p_icp_filters REQUIRED)
 find_package(mola_pose_list REQUIRED)
 find_package(mola_imu_preintegration REQUIRED)
+find_package(mola_relocalization REQUIRED)
 
 # -----------------------
 # define lib:
@@ -71,6 +72,7 @@ mola_add_library(
     mola::mola_imu_preintegration
   PRIVATE_LINK_LIBRARIES
     Eigen3::Eigen
+    mola::mola_relocalization
   CMAKE_DEPENDENCIES
     mola_kernel
     mola_yaml
