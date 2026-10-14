@@ -824,33 +824,8 @@ ICP settings
   both the local map and the per-scan observation layer. The alternative is ``mola::IncrementalPointCloud``
   (odometry only, no loop closure). See :ref:`gicp_localmap_class`.
 
-The following only apply when ``MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud``:
-
-- ``MOLA_INCREMENTAL_MAP_MAX_SIZE`` (Default: ``max(25.0, 0.5*ESTIMATED_OBSERVATION_RADIUS)`` [m]): **Half side**
-  of the axis-aligned cube of points kept around the robot; everything outside it is evicted on each map update.
-  Note this is a much tighter budget than the keyframe map's ``MOLA_LOCAL_MAP_MAX_SIZE``, which is a radius over
-  keyframe *centers*: here every point inside the cube is kept in a single tree and rendered, so setting it too
-  large makes the local map accumulate scans instead of sliding.
-
-- ``MOLA_INCREMENTAL_MAP_ASYNC_REBUILD`` (Default: ``true``): Run the k-d tree balancing rebuilds on a background
-  thread, so the mapping thread never pays for them. Measured on the Oxford Spires dataset, this takes local map
-  insertion from mean 28 ms / max 371 ms down to mean 10 ms / max 38 ms, removing all latency spikes. Costs
-  roughly twice the index memory plus one worker thread; set to ``false`` on core-constrained targets. Makes runs
-  depend on thread scheduling, so ``mola-lidar-odometry-cli`` defaults it to ``false`` (an explicit setting still
-  wins).
-
-- ``MOLA_INCREMENTAL_MAP_RESERVE_POINTS`` (Default: ``2000000``): Point storage reserved up front. With
-  ``ASYNC_REBUILD`` enabled this also prevents the mapping thread from ever having to wait for the background
-  worker, which it must do before the point buffers can be reallocated.
-
-- ``MOLA_INCREMENTAL_MAP_ALPHA_BALANCE`` (Default: ``0.75``): A subtree is rebuilt when its larger child holds
-  more than this fraction of its points. Lower values keep queries faster at the price of more frequent rebuilds.
-
-- ``MOLA_INCREMENTAL_MAP_ALPHA_DELETED`` (Default: ``0.5``): A subtree is rebuilt, physically dropping evicted
-  points, once this fraction of it is dead. Lower values reclaim memory more aggressively.
-
-- ``MOLA_LO_ROBUST_KERNEL`` (Default: ``RobustKernel::GemanMcClure``): Robust kernel type used in the ICP
-  Gauss-Newton solver.
+- ``MOLA_LO_ROBUST_KERNEL`` (Default: ``RobustKernel::GemanMcClure``; GICP pipeline only): Robust kernel type
+  used in the ICP Gauss-Newton solver.
 
 - ``MOLA_LO_ROBUST_KERNEL_SCALE`` (Default: ``2.449489742783178``): Scale of the robust kernel: the residual
   size at which down-weighting sets in, in sigmas of the whitened residual (normalized covariance units for
@@ -878,6 +853,31 @@ The following only apply when ``MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud`
 
 - ``MOLA_ICP_COV_FLOOR_ANGLES_DEG`` (Default: ``0.1`` [deg]; GICP pipeline only): Floor on the angular diagonal
   of the output covariance.
+
+
+The following only apply when ``MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud``:
+
+- ``MOLA_INCREMENTAL_MAP_MAX_SIZE`` (Default: ``max(100.0, 1.0*ESTIMATED_OBSERVATION_RADIUS)`` [m]): **Half side**
+  of the axis-aligned cube of points kept around the robot; everything outside it is evicted on each map update.
+  Unlike the keyframe map's ``MOLA_LOCAL_MAP_MAX_SIZE``, which is a radius over keyframe *centers*, here every
+  point inside the cube is kept in a single tree and rendered, so memory and matching cost grow with this size.
+
+- ``MOLA_INCREMENTAL_MAP_ASYNC_REBUILD`` (Default: ``true``): Run the k-d tree balancing rebuilds on a background
+  thread, so the mapping thread never pays for them. Measured on the Oxford Spires dataset, this takes local map
+  insertion from mean 28 ms / max 371 ms down to mean 10 ms / max 38 ms, removing all latency spikes. Costs
+  roughly twice the index memory plus one worker thread; set to ``false`` on core-constrained targets. Makes runs
+  depend on thread scheduling, so ``mola-lidar-odometry-cli`` defaults it to ``false`` (an explicit setting still
+  wins).
+
+- ``MOLA_INCREMENTAL_MAP_RESERVE_POINTS`` (Default: ``2000000``): Point storage reserved up front. With
+  ``ASYNC_REBUILD`` enabled this also prevents the mapping thread from ever having to wait for the background
+  worker, which it must do before the point buffers can be reallocated.
+
+- ``MOLA_INCREMENTAL_MAP_ALPHA_BALANCE`` (Default: ``0.75``): A subtree is rebuilt when its larger child holds
+  more than this fraction of its points. Lower values keep queries faster at the price of more frequent rebuilds.
+
+- ``MOLA_INCREMENTAL_MAP_ALPHA_DELETED`` (Default: ``0.5``): A subtree is rebuilt, physically dropping evicted
+  points, once this fraction of it is dead. Lower values reclaim memory more aggressively.
 
 
 GICP local map parameters
