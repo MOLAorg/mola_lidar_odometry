@@ -127,7 +127,9 @@ public:
     std::vector<Entry> ret;
     for (auto it = list_.begin(); it != list_.end();) {
       if (latestImuTime < it->second.imu_coverage_end_time) {
-        // The list is sorted by timestamp: no later scan can qualify either.
+        // Scans must reach the worker in timestamp order, so a later scan
+        // waits for this one even if its own span is already covered (with
+        // several LiDARs, each has its own coverage end).
         break;
       }
       ret.push_back(it->second);

@@ -657,7 +657,7 @@ bool version_greater(const std::string & a, const std::string & b)  // NOLINT
   return false;  // equal or smaller
 }
 
-void check_new_version(mrpt::config::CConfigFile & cfg, mrpt::system::COutputLogger * logger)
+void check_new_version(mrpt::config::CConfigFile & cfg)
 {
   // Do we need to check today?
   const auto lastTim = cfg.read_double("config", "last_version_check", 0);
@@ -665,25 +665,19 @@ void check_new_version(mrpt::config::CConfigFile & cfg, mrpt::system::COutputLog
   if (now < lastTim + 24 * 60 * 60) {
     return;
   }
-  // Check in a detached thread:
-  std::thread([logger]() {
+  // Check in a detached thread, which may outlive this module: it must not
+  // reference it. Any failure is silently ignored.
+  std::thread([]() {
     try {
       auto response = http_get("docs.mola-slam.org", "/latest/mola_lidar_odometry.version");
       std::string body;
-      if (parse_http_response(response, body)) {
-        if (version_greater(MOLA_LO_VERSION, body)) {
-          logger->logFmt(
-            mrpt::system::LVL_DEBUG,
-            "[mola-lidar-odometry module] There is a newer version of mola_lidar_odometry "
-            "available online: '%s' vs current '%s'",
-            body.c_str(), MOLA_LO_VERSION);
-        }
-
-      } else {
-        std::cout << "[FAIL] Invalid response\n";
+      if (parse_http_response(response, body) && version_greater(body, MOLA_LO_VERSION)) {
+        std::cerr << mrpt::format(
+          "[mola-lidar-odometry] A newer version of mola_lidar_odometry is available: '%s' "
+          "(current: '%s')\n",
+          body.c_str(), MOLA_LO_VERSION);
       }
-    } catch (const std::exception & e) {
-      logger->logFmt(mrpt::system::LVL_DEBUG, "[check_new_version] Error: %s", e.what());
+    } catch (const std::exception &) {
     }
   }).detach();
 
@@ -705,7 +699,7 @@ void LidarOdometry::onInitializePersistentState()
 
     // Handle printing a notice of newer versions available:
 #if defined(MOLA_LO_HAS_ONLINE_VERSION_CHECK)
-    check_new_version(appCfg, this);
+    check_new_version(appCfg);
 #endif
 
   } catch (const std::exception & e) {

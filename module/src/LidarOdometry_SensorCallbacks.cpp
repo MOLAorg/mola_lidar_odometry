@@ -294,19 +294,20 @@ void LidarOdometry::sendLidarScanToProcessQueue(const CObservation::ConstPtr & o
   {
     auto lck = mrpt::lockHelper(worker_lidar_wait_for_imu_list_mtx_);
 
-    // Estimate the scan period from consecutive *arrival* timestamps (EMA), so
-    // it reflects the true sensor rate even while scans are being dropped:
-    if (last_lidar_arrival_stamp_ > 0) {
-      const double dt = thisStamp - last_lidar_arrival_stamp_;
+    // Estimate this sensor's scan period from consecutive *arrival* timestamps
+    // (EMA), so it reflects the true sensor rate even while scans are being
+    // dropped:
+    auto & sp = lidar_scan_periods_[o->sensorLabel];
+    if (sp.last_arrival_stamp > 0) {
+      const double dt = thisStamp - sp.last_arrival_stamp;
       if (dt > 0 && dt < 1.0) {
-        const double prev = lidar_scan_period_.load();
-        lidar_scan_period_.store(0.9 * prev + 0.1 * dt);
+        sp.period = 0.9 * sp.period + 0.1 * dt;
       }
     }
-    last_lidar_arrival_stamp_ = thisStamp;
+    sp.last_arrival_stamp = thisStamp;
 
     // The scan's IMU window ends at its estimated end of sweep:
-    worker_lidar_wait_for_imu_list_.add(thisStamp, {o, thisStamp + lidar_scan_period_.load()});
+    worker_lidar_wait_for_imu_list_.add(thisStamp, {o, thisStamp + sp.period});
 
     // Safety cap: if IMU data lags badly, keep the wait list from growing without
     // bound by dropping the oldest still-waiting scans (they would be the most

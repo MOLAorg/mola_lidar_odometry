@@ -95,6 +95,11 @@ void LidarOdometry::Parameters::AdaptiveThreshold::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(recover_growth_factor, double);
 
   ASSERTMSG_(
+    min_motion <= maximum_sigma,
+    mrpt::format(
+      "adaptive_threshold: min_motion (%f) must not exceed maximum_sigma (%f)", min_motion,
+      maximum_sigma));
+  ASSERTMSG_(
     recover_after_n_bad >= 1,
     mrpt::format("adaptive_threshold: recover_after_n_bad (%d) must be >= 1", recover_after_n_bad));
   ASSERTMSG_(
