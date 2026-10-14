@@ -1411,7 +1411,8 @@ void LidarOdometry::processLidarScan(  // NOLINT
         profiler_.registerUserMeasure("onLidar.twist_corrections", 1.0);
       }
 
-    } while (icp_result.terminationReason == mp2p_icp::IterTermReason::HookRequest);
+    } while (icp_result.terminationReason == mp2p_icp::IterTermReason::HookRequest &&
+             remainingIcpIters > 0);
 
     // The hook captures locals of this function by reference:
     icpCase.icp->setIterationHook({});
