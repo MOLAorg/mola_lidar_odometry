@@ -1891,6 +1891,12 @@ void LidarOdometry::processLidarScan(  // NOLINT
     updateLocalMap = false;
     state_.last_icp_was_good = true;
 
+    // The vehicle may have moved since the estimator gave the initial pose:
+    // ask it again for the new first keyframe.
+    if (params_.initial_localization.method == InitLocalization::FromStateEstimator) {
+      state_.initial_localization_done = false;
+    }
+
     MRPT_LOG_WARN("Bad first ICP, re-starting from scratch with a new local map");
   }
 
