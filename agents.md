@@ -562,7 +562,9 @@ through `onQuit()`; `mola-lidar-odometry-cli` calls it directly after the replay
 loop, because it reads `estimatedTrajectory()` before that point. Note that
 `isBusy()` deliberately does **not** count the wait list: callers poll it between
 observations, and a parked scan is only released by a later observation, so
-counting it there would deadlock.
+counting it there would deadlock. What it does count is every scan enqueued on
+`worker_lidar_` until it finishes or the pool drops it (`lidar_tasks_alive_`, a
+token owned by the task), so there is no gap between dequeuing and running.
 
 ## `imu_state_mtx_`: the sensor input no longer waits on the LiDAR worker
 
@@ -575,9 +577,11 @@ straight back into scan-submission latency.
 
 `imu_state_mtx_` (recursive) now guards exactly the state the two threads share:
 `pending_imu_`, `imu_initializer`, `gravity_estimator`, `map_gravity`,
-`recent_imu_stamps`, `parameter_source` (variable map, `realize()` flags, and the
+`recent_imu_stamps`, the simplemap GNSS/IMU buffers (`last_gnss_`, `last_imu_`,
+`recent_gnss_stamps`), `parameter_source` (variable map, `realize()` flags, and the
 `localVelocityBuffer` that IMU samples write and the deskew stage reads), and
-any *invocation* of `obs_generators`. `onIMU()` takes only this mutex; the LiDAR
+any *invocation* of `obs_generators`. GNSS is handled inline like IMU (it only
+buffers). `onIMU()` takes only this mutex; the LiDAR
 thread takes it in short windows on top of `state_mtx_`. Result on the same
 sequence: `onIMU` mean 957 -> 349 us, max 138.6 -> 9.7 ms, total 33.1 -> 12.4 s,
 with `onLidar` unchanged.
@@ -594,7 +598,9 @@ Full lock order: `state_mtx_` -> `local_map_content_mtx_` -> `imu_state_mtx_`.
 Never the reverse. The sensor input takes only `imu_state_mtx_` and the local-map
 render worker only `local_map_content_mtx_`, so neither can invert it. Anything
 that replaces `state_` wholesale (`reset()`) or rebuilds the pipelines
-(`initialize()`) must hold `state_mtx_` **and** `imu_state_mtx_`.
+(`initialize()`) must hold `state_mtx_` **and** `imu_state_mtx_`. `reset()` also
+bumps `session_id_`, so scans enqueued before it are discarded, and resets only
+the parameter declarations of `params_` (the input thread may be reading the rest).
 
 
 ## Keyframe-creation policy (shared by local map and simplemap)

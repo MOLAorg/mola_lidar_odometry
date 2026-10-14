@@ -48,6 +48,22 @@ namespace
 /// IMU observation is dropped. Only reached when no LiDAR scan is being
 /// processed, since each scan consumes everything up to its own end of sweep.
 constexpr double kPendingImuMaxAge = 2.0;
+
+/// Increments a counter while alive.
+class LiveTaskToken
+{
+public:
+  explicit LiveTaskToken(std::atomic<int> & counter) : counter_(counter) { counter_++; }
+  ~LiveTaskToken() { counter_--; }
+
+  LiveTaskToken(const LiveTaskToken &) = delete;
+  LiveTaskToken & operator=(const LiveTaskToken &) = delete;
+  LiveTaskToken(LiveTaskToken &&) = delete;
+  LiveTaskToken & operator=(LiveTaskToken &&) = delete;
+
+private:
+  std::atomic<int> & counter_;
+};
 }  // namespace
 
 void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
@@ -131,16 +147,11 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
     onDeskewOdometry(o);
   }
 
-  // Is it GNSS?
+  // Is it GNSS? Inline, for the same reason as the IMU above: it only buffers.
   if (
     params_.gnss_sensor_label &&
     std::regex_match(o->sensorLabel, params_.gnss_sensor_label.value())) {
-    {
-      auto lck = mrpt::lockHelper(is_busy_mtx_);
-      state_.worker_tasks_others++;
-    }
-    auto fut = worker_others_.enqueue(&LidarOdometry::onGPS, this, o);
-    (void)fut;
+    onGPS(o);
   }
 
   // Is it a LIDAR obs?
@@ -413,8 +424,7 @@ std::future<void> LidarOdometry::submitReadyLidarScanToWorker(
       getDropStats() * 100.0);
   }
 
-  return worker_lidar_.enqueue(
-    &LidarOdometry::onLidar, this, o, mrpt::Clock::nowDouble(), imuCoverageEndTime);
+  return enqueueLidarScan(o, imuCoverageEndTime);
 }
 
 std::future<void> LidarOdometry::submitLidarScanLossless_locked(
@@ -434,13 +444,28 @@ std::future<void> LidarOdometry::submitLidarScanLossless_locked(
     std::this_thread::sleep_for(std::chrono::microseconds(500));
   }
 
-  return worker_lidar_.enqueue(
-    &LidarOdometry::onLidar, this, o, mrpt::Clock::nowDouble(), imuCoverageEndTime);
+  return enqueueLidarScan(o, imuCoverageEndTime);
+}
+
+std::future<void> LidarOdometry::enqueueLidarScan(
+  const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime)
+{
+  // The token lives as long as the task: until it has run, or until the pool
+  // drops it unexecuted and destroys its callable.
+  auto token = std::make_shared<LiveTaskToken>(lidar_tasks_alive_);
+
+  return worker_lidar_.enqueue([this, token, o, readyTimestamp = mrpt::Clock::nowDouble(),
+                                imuCoverageEndTime, session = session_id_.load()]() mutable {
+    onLidar(o, readyTimestamp, imuCoverageEndTime, session);
+    // Explicitly, since a caller holding the task's future keeps its
+    // callable alive:
+    token.reset();
+  });
 }
 
 void LidarOdometry::onLidar(
   const CObservation::ConstPtr & o, const double readyTimestamp,
-  const std::optional<double> imuCoverageEndTime)
+  const std::optional<double> imuCoverageEndTime, const uint64_t session)
 {
   const bool abort_running = [this]() {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
@@ -463,7 +488,7 @@ void LidarOdometry::onLidar(
   // top-level try-catch:
   try {
     addDropStats(false);
-    processLidarScan(o, imuCoverageEndTime);
+    processLidarScan(o, imuCoverageEndTime, session);
   } catch (const std::exception & e) {
     MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
     auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
@@ -627,19 +652,13 @@ void LidarOdometry::consumePendingImu(const double upToTime)
 
 void LidarOdometry::onGPS(const CObservation::ConstPtr & o)
 {
-  // All methods that are enqueued into a thread pool should have its own
-  // top-level try-catch:
+  // Keep a top-level try-catch, as for the methods running on a thread pool:
   try {
     onGPSImpl(o);
   } catch (const std::exception & e) {
     MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
     auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
     state_.fatal_error = true;
-  }
-
-  {
-    auto lck = mrpt::lockHelper(is_busy_mtx_);
-    state_.worker_tasks_others--;
   }
 }
 
@@ -667,6 +686,9 @@ void LidarOdometry::onGPSImpl(const CObservation::ConstPtr & o)
       return;
     }
   }
+
+  // The GNSS buffers are read by the LiDAR worker (simplemap) and the GUI:
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
 
   // for rate stats:
   state_.append_gnss_stamp(gps->timestamp, *this);

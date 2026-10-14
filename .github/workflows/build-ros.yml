@@ -174,10 +174,13 @@ jobs:
           # Inject coverage instrumentation flags
           if [ "${{ matrix.coverage_run }}" = "true" ]; then
             echo "Enabling coverage instrumentation..."
+            # Atomic counters: multithreaded tests otherwise corrupt them.
             EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS \
               -DCMAKE_BUILD_TYPE=Debug \
               -DCMAKE_CXX_FLAGS=--coverage \
               -DCMAKE_C_FLAGS=--coverage \
+              -DCMAKE_CXX_FLAGS_DEBUG=-fprofile-update=atomic \
+              -DCMAKE_C_FLAGS_DEBUG=-fprofile-update=atomic \
               -DCMAKE_EXE_LINKER_FLAGS=--coverage \
               -DCMAKE_SHARED_LINKER_FLAGS=--coverage"
           fi

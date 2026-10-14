@@ -83,9 +83,9 @@ void LidarOdometry::onQuit() { shutdownCleanup(); }
 //
 // onQuit() is invoked by MolaLauncherApp::executor_thread() for every module,
 // before any module is destroyed (see ExecutableBase::onQuit() docs). This
-// matters because worker_lidar_/worker_others_/worker_viz_/
-// worker_viz_local_map_ may have an in-flight task (e.g. onLidar(), or the
-// local-map render) that calls back into other modules, e.g.
+// matters because worker_lidar_/worker_viz_/worker_viz_local_map_ may have an
+// in-flight task (e.g. onLidar(), or the local-map render) that calls back
+// into other modules, e.g.
 // BridgeROS2's TF broadcaster via VizInterface/LocalizationSourceBase. If
 // that task is still running when another module's destructor runs (which
 // previously only happened from ~LidarOdometry(), after other modules may
@@ -116,7 +116,6 @@ void LidarOdometry::shutdownCleanup()
       std::this_thread::sleep_for(100ms);
     }
     worker_lidar_.clear();
-    worker_others_.clear();
     worker_viz_.clear();
     worker_viz_local_map_.clear();
 
@@ -227,6 +226,12 @@ void LidarOdometry::reset()
 {
   ASSERTMSG_(!lastInitConfig_.empty(), "initialize() must be called first.");
 
+  // Stop accepting new observations until initialize() is done:
+  {
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+    state_.initialized = false;
+  }
+
   // Reset the state under the lock, then re-initialize without holding it:
   // initialize() (via initialize_frontend()) takes state_mtx_ itself, and
   // state_mtx_ is a plain (non-recursive) mutex.
@@ -237,6 +242,12 @@ void LidarOdometry::reset()
     // thread reaches without state_mtx_:
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     state_ = MethodState();
+    session_id_++;
+    // The compiled parameter formulas in params_ reference variables owned by
+    // the parameter source destroyed above: drop them, initialize() declares
+    // them again. The rest of params_ is kept, since the input thread may be
+    // reading it.
+    static_cast<mp2p_icp::Parameterizable &>(params_) = mp2p_icp::Parameterizable();
     pending_imu_.clear();
     latest_imu_time_ = 0;
     latest_obs_time_ = 0;
@@ -255,35 +266,28 @@ void LidarOdometry::flushPendingLidarScans()
 
   // Infinity: release regardless of IMU coverage. The scans are waiting for
   // data that will never arrive, so the alternative is to discard them.
-  auto fut = releaseLidarScansToWorker(std::numeric_limits<double>::infinity());
+  {
+    auto fut = releaseLidarScansToWorker(std::numeric_limits<double>::infinity());
 
-  // Wait on the scan's own task, not on the busy counters: onLidar() only
-  // raises worker_tasks_lidar once it is already running, so there is a window
-  // in which the task is dequeued but no counter shows it, and the caller could
-  // move on (and shutdownCleanup() set destructor_called_) before it starts.
-  if (fut.valid()) {
-    try {
-      fut.get();
-    } catch (const std::future_error &) {
-      // The pool discarded the task under its "keep freshest" policy, which
-      // breaks the promise. Nothing to wait for then.
+    if (fut.valid()) {
+      try {
+        fut.get();
+      } catch (const std::future_error &) {
+        // The pool discarded the task under its "keep freshest" policy, which
+        // breaks the promise. Nothing to wait for then.
+      }
     }
+    // The future goes out of scope here: a held future keeps the callable of
+    // a discarded task, hence its busy token, alive.
   }
 
-  // Anything else still in flight (e.g. a GNSS task) is covered by the counters:
+  // Anything else still in flight:
   while (isBusy()) {
     std::this_thread::sleep_for(1ms);
   }
 }
 
-bool LidarOdometry::isBusy() const
-{
-  bool b = false;
-  is_busy_mtx_.lock();
-  b = (state_.worker_tasks_lidar != 0) || (state_.worker_tasks_others != 0);
-  is_busy_mtx_.unlock();
-  return b || worker_lidar_.pendingTasks() != 0 || worker_others_.pendingTasks() != 0;
-}
+bool LidarOdometry::isBusy() const { return lidar_tasks_alive_.load() != 0; }
 
 bool LidarOdometry::isActive() const
 {

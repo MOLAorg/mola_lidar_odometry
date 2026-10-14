@@ -110,20 +110,26 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     }
 
     ENSURE_YAML_ENTRY_EXISTS(cfg, "lidar_sensor_labels");
+    std::vector<std::regex> lidarLabels;
     if (cfg["lidar_sensor_labels"].isSequence()) {
       const auto lsl = cfg["lidar_sensor_labels"].asSequenceRange();
       for (const auto & sl : lsl) {
         const auto s = sl.as<std::string>();
         MRPT_LOG_DEBUG_STREAM("Adding as input lidar sensor label: " << s);
-        params_.lidar_sensor_labels.emplace_back(s);
+        lidarLabels.emplace_back(s);
       }
     } else {
       ASSERT_(cfg["lidar_sensor_labels"].isScalar());
       const auto s = cfg["lidar_sensor_labels"].as<std::string>();
       MRPT_LOG_DEBUG_STREAM("Adding as input lidar sensor label: " << s);
-      params_.lidar_sensor_labels.emplace_back(s);
+      lidarLabels.emplace_back(s);
     }
-    ASSERT_(!params_.lidar_sensor_labels.empty());
+    ASSERT_(!lidarLabels.empty());
+    // reset() runs this again with the same configuration: keep the list
+    // then, since the input thread may be iterating over it.
+    if (params_.lidar_sensor_labels.empty()) {
+      params_.lidar_sensor_labels = std::move(lidarLabels);
+    }
 
     // Obs2map merge pipeline:
     ASSERT_(c["insert_observation_into_local_map"].isSequence());
@@ -521,6 +527,10 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       "crash on the first LiDAR scan. Either provide a map to load, or enable mapping.");
   }
 
+  // Services found in other modules. Under state_mtx_, since a scan queued
+  // before a reset() may be processed concurrently:
+  auto lckServices = mrpt::lockHelper(state_mtx_);
+
   // Attach to the state estimation module, which since MOLA-LO v0.5.0,
   // must run as a separate MOLA module:
   {
@@ -563,19 +573,26 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   }
 #endif
 
+  const auto navStateFuse = state_.navstate_fuse;
+  lckServices.unlock();
+
   // If using FromStateEstimator initialization, also subscribe to map updates
-  // from the state estimator to receive geo-referencing information:
-  if (params_.initial_localization.method == InitLocalization::FromStateEstimator) {
+  // from the state estimator to receive geo-referencing information.
+  // Only once: the callbacks outlive a reset(), which calls initialize() again.
+  if (
+    params_.initial_localization.method == InitLocalization::FromStateEstimator &&
+    !estimator_subscriptions_done_) {
+    estimator_subscriptions_done_ = true;
+
     // The state estimator may also be a MapSourceBase (for geo-ref publishing)
-    if (auto mapSrc = std::dynamic_pointer_cast<MapSourceBase>(state_.navstate_fuse); mapSrc) {
+    if (auto mapSrc = std::dynamic_pointer_cast<MapSourceBase>(navStateFuse); mapSrc) {
       mapSrc->subscribeToMapUpdates(
         [this](const MapSourceBase::MapUpdate & mu) { onExternalMapUpdate(mu); });
       MRPT_LOG_DEBUG("Subscribed to state estimator's map updates for geo-referencing");
     }
 
     // Also subscribe to localization updates for pose convergence checking
-    if (auto locSrc = std::dynamic_pointer_cast<LocalizationSourceBase>(state_.navstate_fuse);
-        locSrc) {
+    if (auto locSrc = std::dynamic_pointer_cast<LocalizationSourceBase>(navStateFuse); locSrc) {
       locSrc->subscribeToLocalizationUpdates(
         [this](const LocalizationSourceBase::LocalizationUpdate & lu) {
           onExternalLocalizationUpdate(lu);

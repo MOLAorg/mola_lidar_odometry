@@ -312,7 +312,9 @@ bool LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_ma
   const double ALPHA = params_.observation_radius_filter_coefficient;
 
   auto & maxRange = state_.estimated_observation_radius;
-  ASSERT_(maxRange.has_value());  // this method is for subsequent calls only
+  if (!maxRange.has_value()) {
+    return false;  // doInitializeEstimatedObservationRadius() has not succeeded yet
+  }
 
   for (const auto & [layerName, layer] : m.layers) {
     auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layer);

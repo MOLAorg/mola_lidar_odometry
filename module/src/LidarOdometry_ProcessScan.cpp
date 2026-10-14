@@ -698,7 +698,8 @@ double LidarOdometry::effectiveGravitySigmaRad() const
 
 // here happens the main stuff:
 void LidarOdometry::processLidarScan(  // NOLINT
-  const CObservation::ConstPtr & obs, const std::optional<double> imuCoverageEndTime)
+  const CObservation::ConstPtr & obs, const std::optional<double> imuCoverageEndTime,
+  const uint64_t session)
 {
   using namespace std::string_literals;
 
@@ -749,6 +750,18 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
   std::unique_lock<std::mutex> lckState(state_mtx_);
 
+  // Discard scans queued before a reset(), whose initialize() may not even
+  // be done yet:
+  if (session != session_id_.load()) {
+    return;
+  }
+  {
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+    if (!state_.initialized) {
+      return;
+    }
+  }
+
   // Feed all the IMU data belonging to this scan's time span into the
   // IMU-derived state, in timestamp order, before anything reads it. The scan
   // was held back until that data existed (see sendLidarScanToProcessQueue),
@@ -798,12 +811,22 @@ void LidarOdometry::processLidarScan(  // NOLINT
     }
   }
 
-  state_.last_obs_tim_by_label[obs->sensorLabel] = this_obs_tim;
-
   // Use the observation to update the estimated sensor range:
   if (!state_.estimated_observation_radius.has_value()) {
     doInitializeEstimatedObservationRadius(*obs);
+
+    // An empty scan (e.g. from a driver still spinning up) carries no range
+    // information: wait for one that does.
+    if (!state_.estimated_observation_radius.has_value()) {
+      MRPT_LOG_THROTTLE_WARN(
+        5.0, "Skipping LiDAR scan with no valid points: cannot estimate the observation radius.");
+      return;
+    }
   }
+
+  // Only after the scan is known to be usable, so a skipped one does not
+  // count for min_time_between_scans:
+  state_.last_obs_tim_by_label[obs->sensorLabel] = this_obs_tim;
 
   // Handle multiple simultaneous LIDARs:
   const mrpt::obs::CSensoryFrame sf = collectRawObservations(obs);
@@ -1251,7 +1274,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
       if (
         deltaTrans > params_.optimize_twist_rerun_min_trans ||
         deltaRot > mrpt::DEG2RAD(params_.optimize_twist_rerun_min_rot_deg)) {
-        params_.optimize_twist_max_corrections++;
+        twistCorrectionCount++;
 
         MRPT_LOG_DEBUG_STREAM(
           "ICP hook: " << ih.currentIteration << " solutionDelta: trans=" << deltaTrans
@@ -1323,9 +1346,15 @@ void LidarOdometry::processLidarScan(  // NOLINT
         *observation, *state_.local_map, current_solution, icp_params, icp_result, in.prior);
 #endif
 
-      if (icp_result.nIterations <= remainingIcpIters) {
-        remainingIcpIters -= icp_result.nIterations;
-      } else {  // who knows?...
+      // A hook stop leaves the loop before its counter increments, so the
+      // stopped iteration is not included in nIterations: count it here, or a
+      // stop at the first iteration would never consume the budget.
+      const size_t usedIters =
+        icp_result.nIterations +
+        (icp_result.terminationReason == mp2p_icp::IterTermReason::HookRequest ? 1 : 0);
+      if (usedIters <= remainingIcpIters) {
+        remainingIcpIters -= usedIters;
+      } else {
         remainingIcpIters = 0;
       }
 
@@ -1349,7 +1378,10 @@ void LidarOdometry::processLidarScan(  // NOLINT
         MRPT_LOG_DEBUG_STREAM(
           "ICP hook dt=" << At << ":\nnew estimated twist:" << tw.asString() << "\n"
                          << "old estimated twist:"
-                         << state_.last_motion_model_output->twist.asString() << "\n");
+                         << (state_.last_motion_model_output
+                               ? state_.last_motion_model_output->twist.asString()
+                               : std::string("(none)"))
+                         << "\n");
 
         // Update twist dynamic variables, then re-run pipelines.
         // One lock for the update AND the realize(): the accessor takes
@@ -1379,7 +1411,11 @@ void LidarOdometry::processLidarScan(  // NOLINT
         profiler_.registerUserMeasure("onLidar.twist_corrections", 1.0);
       }
 
-    } while (icp_result.terminationReason == mp2p_icp::IterTermReason::HookRequest);
+    } while (icp_result.terminationReason == mp2p_icp::IterTermReason::HookRequest &&
+             remainingIcpIters > 0);
+
+    // The hook captures locals of this function by reference:
+    icpCase.icp->setIterationHook({});
 
     out.found_pose_to_wrt_from = icp_result.optimal_tf;
     out.goodness = icp_result.quality;
@@ -2290,16 +2326,21 @@ void LidarOdometry::doUpdateSimpleMap(
     std::optional<double> closestTimeAbsDiff;
     mrpt::obs::CObservationGPS::ConstPtr closestGPS;
 
-    for (const auto & [gpsStamp, gpsObs] : state_.last_gnss_) {
-      const double timeDiff = std::abs(mrpt::system::timeDifference(gpsStamp, curLidarStamp));
+    {
+      // Appended to by the sensor-input thread:
+      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
 
-      if (timeDiff > params_.simplemap.save_gnss_max_age) {
-        continue;
-      }
+      for (const auto & [gpsStamp, gpsObs] : state_.last_gnss_) {
+        const double timeDiff = std::abs(mrpt::system::timeDifference(gpsStamp, curLidarStamp));
 
-      if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff) {
-        closestTimeAbsDiff = timeDiff;
-        closestGPS = gpsObs;
+        if (timeDiff > params_.simplemap.save_gnss_max_age) {
+          continue;
+        }
+
+        if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff) {
+          closestTimeAbsDiff = timeDiff;
+          closestGPS = gpsObs;
+        }
       }
     }
     if (closestGPS) {
