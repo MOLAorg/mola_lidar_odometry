@@ -236,11 +236,13 @@ void LidarOdometry::reset()
   // initialize() (via initialize_frontend()) takes state_mtx_ itself, and
   // state_mtx_ is a plain (non-recursive) mutex.
   {
-    auto lck = mrpt::lockHelper(state_mtx_);
-    // Replacing state_ wholesale also destroys the parameter source, the
-    // gravity estimator and the rest of the IMU-derived state, which the input
-    // thread reaches without state_mtx_:
-    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    // Replacing state_ wholesale also replaces the parts guarded by their own
+    // mutexes, which other threads access without state_mtx_ (IMU-derived
+    // state, flags, trajectory, simplemap, busy counters, drop stats).
+    // std::scoped_lock acquires them all without deadlock risk:
+    std::scoped_lock lck(
+      state_mtx_, imu_state_mtx_, state_flags_mtx_, state_trajectory_mtx_, state_simplemap_mtx_,
+      is_busy_mtx_, drop_stats_mtx_);
     state_ = MethodState();
     session_id_++;
     // The compiled parameter formulas in params_ reference variables owned by
@@ -349,13 +351,17 @@ double LidarOdometry::lastIcpQuality() const
 
 void LidarOdometry::saveEstimatedTrajectoryToFile() const
 {
-  if (params_.estimated_trajectory.output_file.empty()) {
+  // A queued request may change the file name concurrently:
+  std::string fil;
+  {
+    auto lckState = mrpt::lockHelper(state_mtx_);
+    fil = params_.estimated_trajectory.output_file;
+  }
+  if (fil.empty()) {
     return;
   }
 
   auto lck = mrpt::lockHelper(state_trajectory_mtx_);
-
-  const auto fil = params_.estimated_trajectory.output_file;
 
   MRPT_LOG_INFO_STREAM(
     "Saving estimated trajectory with " << state_.estimated_trajectory.size()
@@ -368,7 +374,13 @@ void LidarOdometry::saveEstimatedTrajectoryToFile() const
 
 void LidarOdometry::saveReconstructedMapToFile() const
 {
-  if (params_.simplemap.save_final_map_to_file.empty()) {
+  // A queued request may change the file name concurrently:
+  std::string fil;
+  {
+    auto lckState = mrpt::lockHelper(state_mtx_);
+    fil = params_.simplemap.save_final_map_to_file;
+  }
+  if (fil.empty()) {
     return;
   }
 
@@ -376,11 +388,9 @@ void LidarOdometry::saveReconstructedMapToFile() const
   // so if we have this feature enabled, all SF entries have been
   // "externalized" to make reading them much faster and less RAM
   // intensive:
-  unloadPastSimplemapObservations(0 /* unload until queue is empty */);
+  unloadPastSimplemapObservations(0 /* unload until queue is empty */, fil);
 
   auto lck = mrpt::lockHelper(state_simplemap_mtx_);
-
-  const auto fil = params_.simplemap.save_final_map_to_file;
 
   MRPT_LOG_INFO_STREAM(
     "Saving final simplemap with " << state_.reconstructed_simplemap.size()
@@ -413,7 +423,8 @@ void LidarOdometry::saveLocalMapToFile() const
   }
 }
 
-void LidarOdometry::unloadPastSimplemapObservations(const size_t maxSizeUnloadQueue) const
+void LidarOdometry::unloadPastSimplemapObservations(
+  const size_t maxSizeUnloadQueue, const std::string & simplemapFile) const
 {
   auto lck = mrpt::lockHelper(state_simplemap_mtx_);
 
@@ -421,14 +432,15 @@ void LidarOdometry::unloadPastSimplemapObservations(const size_t maxSizeUnloadQu
 
   while (pso.size() > maxSizeUnloadQueue) {
     for (auto & o : *pso.begin()->second) {
-      handleUnloadSinglePastObservation(o);
+      handleUnloadSinglePastObservation(o, simplemapFile);
     }
 
     pso.erase(pso.begin());
   }
 }
 
-void LidarOdometry::handleUnloadSinglePastObservation(mrpt::obs::CObservation::Ptr & o) const
+void LidarOdometry::handleUnloadSinglePastObservation(
+  mrpt::obs::CObservation::Ptr & o, const std::string & simplemapFile) const
 {
   using mrpt::obs::CObservationPointCloud;
 
@@ -446,7 +458,7 @@ void LidarOdometry::handleUnloadSinglePastObservation(mrpt::obs::CObservation::P
     return;  // already external, do nothing.
   }
 
-  if (params_.simplemap.save_final_map_to_file.empty()) {
+  if (simplemapFile.empty()) {
     return;  // no generation of simplemap requested by the user
   }
 
@@ -461,11 +473,9 @@ void LidarOdometry::handleUnloadSinglePastObservation(mrpt::obs::CObservation::P
     mrpt::Clock::toDouble(oPts->timestamp));
 
   // Create the default "/Images" directory.
-  const auto & smFile = params_.simplemap.save_final_map_to_file;
-
   const std::string out_basedir = mrpt::system::pathJoin(
-    {mrpt::system::extractFileDirectory(smFile),
-     mrpt::system::extractFileName(smFile) + std::string("_Images")});
+    {mrpt::system::extractFileDirectory(simplemapFile),
+     mrpt::system::extractFileName(simplemapFile) + std::string("_Images")});
 
   if (!mrpt::system::directoryExists(out_basedir)) {
     const bool dirCreatedOk = mrpt::system::createDirectory(out_basedir);
@@ -500,6 +510,14 @@ void LidarOdometry::enqueue_request(const std::function<void()> & userRequest)
 {
   auto lck = mrpt::lockHelper(requests_mtx_);
   requests_.push_back(userRequest);
+}
+
+void LidarOdometry::enqueue_locked_request(const std::function<void()> & userRequest)
+{
+  enqueue_request([this, userRequest]() {
+    auto lck = mrpt::lockHelper(state_mtx_);
+    userRequest();
+  });
 }
 
 void LidarOdometry::processPendingUserRequests()

@@ -597,10 +597,16 @@ appends; that is a `mola_imu_preintegration` change, not one for this repo.
 Full lock order: `state_mtx_` -> `local_map_content_mtx_` -> `imu_state_mtx_`.
 Never the reverse. The sensor input takes only `imu_state_mtx_` and the local-map
 render worker only `local_map_content_mtx_`, so neither can invert it. Anything
-that replaces `state_` wholesale (`reset()`) or rebuilds the pipelines
-(`initialize()`) must hold `state_mtx_` **and** `imu_state_mtx_`. `reset()` also
-bumps `session_id_`, so scans enqueued before it are discarded, and resets only
-the parameter declarations of `params_` (the input thread may be reading the rest).
+that rebuilds the pipelines (`initialize()`) must hold `state_mtx_` **and**
+`imu_state_mtx_`. `reset()` replaces `state_` wholesale, so it takes every mutex
+guarding a part of it at once (`std::scoped_lock`). It also bumps `session_id_`,
+so scans enqueued before it are discarded, and resets only the parameter
+declarations of `params_` (the input thread may be reading the rest).
+
+Queued requests (`enqueue_request()`) run on the executor thread (`spinOnce()`)
+or on the LiDAR worker before a scan, so one may run while the other thread
+processes a scan. A request that writes `params_` or `state_` must be queued with
+`enqueue_locked_request()`, which holds `state_mtx_` while it runs.
 
 
 ## Keyframe-creation policy (shared by local map and simplemap)
