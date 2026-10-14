@@ -1839,6 +1839,10 @@ private:
   /// The configuration used in the last call to initialize()
   Yaml lastInitConfig_;
 
+  /// Set once the state estimator callbacks are registered, so a reset()
+  /// does not register them again.
+  bool estimator_subscriptions_done_ = false;
+
   bool destructor_called_ = false;
   mutable std::mutex is_busy_mtx_;
   /// Guards MethodState::drop_frames_stats_* (see addDropStats()/getDropStats()).

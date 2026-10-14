@@ -749,6 +749,15 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
   std::unique_lock<std::mutex> lckState(state_mtx_);
 
+  // A reset() may have run while this scan was queued, and its initialize()
+  // may not be done yet:
+  {
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+    if (!state_.initialized) {
+      return;
+    }
+  }
+
   // Feed all the IMU data belonging to this scan's time span into the
   // IMU-derived state, in timestamp order, before anything reads it. The scan
   // was held back until that data existed (see sendLidarScanToProcessQueue),

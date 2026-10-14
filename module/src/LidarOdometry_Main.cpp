@@ -227,6 +227,12 @@ void LidarOdometry::reset()
 {
   ASSERTMSG_(!lastInitConfig_.empty(), "initialize() must be called first.");
 
+  // Stop accepting new observations until initialize() is done:
+  {
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+    state_.initialized = false;
+  }
+
   // Reset the state under the lock, then re-initialize without holding it:
   // initialize() (via initialize_frontend()) takes state_mtx_ itself, and
   // state_mtx_ is a plain (non-recursive) mutex.
@@ -237,6 +243,10 @@ void LidarOdometry::reset()
     // thread reaches without state_mtx_:
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     state_ = MethodState();
+    // The compiled parameter formulas in params_ reference variables owned by
+    // the parameter source destroyed above, and initialize() appends to
+    // several params_ containers: start both from scratch.
+    params_ = Parameters();
     pending_imu_.clear();
     latest_imu_time_ = 0;
     latest_obs_time_ = 0;
