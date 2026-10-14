@@ -467,8 +467,9 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
         export FASTRTPS_DEFAULT_PROFILES_FILE=/path/to/fastdds_large_msgs.xml
 
-    In that simulation, the ``/tf`` delay dropped to below 0.3 s. Each process reserves one
-    segment in ``/dev/shm``: in Docker, whose default ``/dev/shm`` is 64 MB, raise it
+    In that simulation, the ``/tf`` delay dropped to below 0.3 s. Each DDS participant (one per
+    process in ROS 2, by default) reserves one segment in ``/dev/shm``: in Docker, whose
+    default ``/dev/shm`` is 64 MB, raise it
     (``shm_size: "1gb"`` in compose, or ``docker run --shm-size=1g``), or Fast DDS falls back to
     UDP. The UDP buffer sizes above are capped by the kernel limits
     (``net.core.rmem_max``, ``net.core.wmem_max``). Another ROS 2 middleware (e.g. Cyclone DDS)
