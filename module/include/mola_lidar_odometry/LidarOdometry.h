@@ -1451,11 +1451,15 @@ private:
     /// the quasi-static gate rejects most of those on a moving platform. It is
     /// therefore retried on later scans, and the reading has to be transported
     /// through the pose it was taken at to still refer to the map frame.
-    /// Equals `fixed_initial_pose` when the first attempt succeeds, which is
-    /// what makes the retry a strict extension of the original behavior.
+    /// Equals `initial_pose` when the first attempt succeeds, which is what
+    /// makes the retry a strict extension of the original behavior.
     std::optional<mrpt::poses::CPose3D> gravity_calib_pose;
 
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
+
+    /// Pose set by the last initial localization, whatever its method. The
+    /// first keyframe of an empty local map is placed here.
+    std::optional<mrpt::poses::CPose3D> initial_pose;
 
     std::map<std::string, mrpt::Clock::time_point> last_obs_tim_by_label;
     std::map<std::string, mrpt::poses::CPose3D> last_lidar_sensor_poses;  //!< sensor pose per label
@@ -1860,6 +1864,13 @@ private:
   /// does not register them again.
   bool estimator_subscriptions_done_ = false;
 
+  /// Latest geo-referencing received from the state estimator. The estimator
+  /// may deliver it from inside a call LO makes with state_mtx_ held, so the
+  /// callback takes only this leaf mutex. Kept outside state_ so it survives
+  /// reset(): the estimator does not necessarily publish it again.
+  std::optional<mola::Georeferencing> received_external_georef_;
+  std::mutex received_external_georef_mtx_;
+
   bool destructor_called_ = false;
   mutable std::mutex is_busy_mtx_;
   /// Guards MethodState::drop_frames_stats_* (see addDropStats()/getDropStats()).
@@ -2024,6 +2035,10 @@ private:
   [[nodiscard]] std::string vizParentFrame() const;
 
   void onExternalMapUpdate(const MapSourceBase::MapUpdate & mu);
+
+  /// Applies the latest geo-referencing received by onExternalMapUpdate() to
+  /// state_ and, if it has none yet, to the local map. Call with state_mtx_ held.
+  void applyReceivedExternalGeoref();
   void onExternalLocalizationUpdate(const LocalizationSourceBase::LocalizationUpdate & lu);
 
   void doPublishUpdatedLocalization(const mrpt::Clock::time_point & scan_ref_time);

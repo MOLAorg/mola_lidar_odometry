@@ -283,6 +283,18 @@ For OFFLINE / reproducible batch runs set `MOLA_ASYNC_BACKEND=false` (async
 serving is non-deterministic). Full parameter table: `mola_state_estimation`'s
 AGENTS.md ("Real-time setup").
 
+The estimator may deliver its geo-referencing (`onExternalMapUpdate()`) from
+inside one of those calls, i.e. with `state_mtx_` held by the LiDAR worker, so
+the callback only stores it under its own mutex; `processLidarScan()` applies it
+at the start of the next scan. It is kept outside `state_`, so a `reset()` does
+not lose it.
+
+With `FromStateEstimator` and an empty local map, the first keyframe is placed at
+the estimator pose (`state_.initial_pose`, set by every initial localization
+method) and is not fused back into the estimator. With `estimate_geo_reference`,
+the smoother anchors the map frame where the vehicle starts, so that pose is the
+origin unless the vehicle moved before the first scan.
+
 ### REP-105 `map -> odom` published directly (jitter-free)
 
 By default, under `publish_localization_following_rep105: true` the bridge

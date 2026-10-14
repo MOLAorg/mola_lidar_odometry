@@ -63,6 +63,7 @@ void LidarOdometry::handleInitialLocalizationDoInitFromPose(
 
   // also, keep it as the last pose for subsequent ICP runs:
   state_.last_lidar_pose = initPose;
+  state_.initial_pose = initPose.mean;
 }
 
 void LidarOdometry::handleInitialLocalization()
@@ -230,22 +231,35 @@ void LidarOdometry::onExternalMapUpdate(const MapSourceBase::MapUpdate & mu)
     return;
   }
 
-  auto lck = mrpt::lockHelper(state_mtx_);
-
-  // Store the external geo-reference
-  state_.external_georef = mu.georeferencing;
+  // Not state_mtx_: this may be called back from within a call into the
+  // estimator made with state_mtx_ held. Applied before the next scan.
+  {
+    auto lck = mrpt::lockHelper(received_external_georef_mtx_);
+    received_external_georef_ = mu.georeferencing;
+  }
 
   MRPT_LOG_INFO_STREAM(
     "Received external geo-referencing from state estimator: "
     << "lat=" << mu.georeferencing->geo_coord.lat.getAsString()
     << ", lon=" << mu.georeferencing->geo_coord.lon.getAsString()
     << ", T_enu_to_map=" << mu.georeferencing->T_enu_to_map.mean.asString());
+}
+
+void LidarOdometry::applyReceivedExternalGeoref()
+{
+  {
+    auto lck = mrpt::lockHelper(received_external_georef_mtx_);
+    if (!received_external_georef_) {
+      return;
+    }
+    state_.external_georef = received_external_georef_;
+  }
 
   // If we don't have geo-ref in local map yet, set it:
-  if (!state_.local_map->georeferencing.has_value()) {
+  if (state_.local_map && !state_.local_map->georeferencing.has_value()) {
     state_.local_map->georeferencing.emplace();
-    state_.local_map->georeferencing->geo_coord = mu.georeferencing->geo_coord;
-    state_.local_map->georeferencing->T_enu_to_map = mu.georeferencing->T_enu_to_map;
+    state_.local_map->georeferencing->geo_coord = state_.external_georef->geo_coord;
+    state_.local_map->georeferencing->T_enu_to_map = state_.external_georef->T_enu_to_map;
 
     state_.mark_local_map_georef_as_updated();
     MRPT_LOG_INFO("Applied external geo-referencing to local map");
@@ -289,25 +303,11 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
   mrpt::poses::CPose3DPDFGaussian estimatedPose;
 
   // Note: state_mtx_ is already held by the caller (processLidarScan), which
-  // also serializes us against onExternalMapUpdate (writes
-  // state_.external_georef from another thread under the same mutex).
-  {
-    const bool hasGeoRef =
-      state_.local_map->georeferencing.has_value() || state_.external_georef.has_value();
-
-    if (!hasGeoRef) {
-      MRPT_LOG_THROTTLE_INFO(
-        5.0, "Waiting for geo-referencing (from loaded map or state estimator)...");
-      return;  // Not ready yet
-    }
-
-    // Apply external georef to local map if needed
-    if (!state_.local_map->georeferencing.has_value() && state_.external_georef.has_value()) {
-      state_.local_map->georeferencing.emplace();
-      state_.local_map->georeferencing->geo_coord = state_.external_georef->geo_coord;
-      state_.local_map->georeferencing->T_enu_to_map = state_.external_georef->T_enu_to_map;
-      state_.mark_local_map_georef_as_updated();
-    }
+  // has already applied any geo-referencing received from the estimator.
+  if (!state_.local_map->georeferencing.has_value()) {
+    MRPT_LOG_THROTTLE_INFO(
+      5.0, "Waiting for geo-referencing (from loaded map or state estimator)...");
+    return;  // Not ready yet
   }
 
   // Now check if state estimator has converged

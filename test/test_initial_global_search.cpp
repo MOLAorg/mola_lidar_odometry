@@ -145,8 +145,10 @@ std::vector<mrpt::poses::CPose3D> straight_path(double x0, double y0, double x1,
 struct Scenario
 {
   World world;
-  std::string mapBase;
-  mrpt::poses::CPose3D truth;  //!< static vehicle
+  std::string mapBase;         //!< empty: no prebuilt map, mapping from scratch
+  mrpt::poses::CPose3D truth;  //!< vehicle pose at the start
+  double speed = 0;            //!< [m/s] straight ahead from `truth`
+  double lidarStart = 0;       //!< [s] LiDAR scans start arriving this late
   mrpt::math::TPoint2D gnssBias;
   double gnssSigma = 0.5;
   bool withImu = true;
@@ -163,8 +165,11 @@ struct Result
 
 Result localize(const Scenario & sc)
 {
-  set_env("MOLA_MAPPING_ENABLED", "false");
-  set_env("MOLA_LOAD_MM", sc.mapBase + ".mm");
+  const bool fromScratch = sc.mapBase.empty();
+  // Without a map, the geo-reference can only come from the estimator:
+  set_env("MOLA_ESTIMATE_GEO_REF", fromScratch ? "true" : "false");
+  set_env("MOLA_MAPPING_ENABLED", fromScratch ? "true" : "false");
+  set_env("MOLA_LOAD_MM", fromScratch ? "" : sc.mapBase + ".mm");
   set_env("MOLA_LO_INITIAL_LOCALIZATION_METHOD", "InitLocalization::FromStateEstimator");
   set_env("MOLA_LO_INIT_GLOBAL_SEARCH", sc.globalSearch ? "true" : "false");
   set_env("MOLA_LO_INIT_GLOBAL_SEARCH_MIN_XY", std::to_string(sc.minHalfWidthXY));
@@ -189,7 +194,9 @@ Result localize(const Scenario & sc)
     mrpt::get_env<bool>("VERBOSE", false) ? mrpt::system::LVL_DEBUG : mrpt::system::LVL_WARN);
   smoother->initialize(
     mola::load_yaml_file(mrpt::get_env<std::string>("LO_STATE_ESTIM_SMOOTHER_YAML")));
-  smoother->set_geo_reference(make_georef());
+  if (!fromScratch) {
+    smoother->set_geo_reference(make_georef());
+  }
 
   liodom->setMinLoggingLevel(
     mrpt::get_env<bool>("VERBOSE", false) ? mrpt::system::LVL_DEBUG : mrpt::system::LVL_INFO);
@@ -202,16 +209,21 @@ Result localize(const Scenario & sc)
   // 10 Hz lidar, wheel odometry and IMU; 1 Hz GNSS:
   const auto steps = static_cast<int>(sc.duration * 10);
   for (int i = 0; i < steps; i++) {
-    const double t = 1000.0 + 0.1 * i;
-    smoother->fuse_odometry(*odometry(mrpt::poses::CPose2D(), t), "odom_wheels");
+    const double dt = 0.1 * i;
+    const double t = 1000.0 + dt;
+    const auto vehicle = sc.truth + mrpt::poses::CPose3D::FromTranslation(sc.speed * dt, 0, 0);
+    smoother->fuse_odometry(*odometry(mrpt::poses::CPose2D(sc.speed * dt, 0, 0), t), "odom_wheels");
     if (sc.withImu) {
-      smoother->fuse_imu(*imu(sc.truth, t));
+      smoother->fuse_imu(*imu(vehicle, t));
     }
     if (i % 10 == 0) {
-      smoother->fuse_gnss(*gnss(georef, sc.truth, sc.gnssBias, sc.gnssSigma, t));
+      smoother->fuse_gnss(*gnss(georef, vehicle, sc.gnssBias, sc.gnssSigma, t));
     }
     smoother->spinOnce();
-    liodom->onNewObservation(scan(sc.world, sc.truth, t));
+    if (dt < sc.lidarStart) {
+      continue;
+    }
+    liodom->onNewObservation(scan(sc.world, vehicle, t));
     wait_idle(*liodom);
     liodom->spinOnce();
   }
@@ -331,6 +343,33 @@ TEST_F(InitialGlobalSearch, AmbiguousRowsAreNotLocalized)
     std::cout << "Rows: " << r.last->asString() << "\n";
   }
   EXPECT_FALSE(r.last.has_value());
+}
+
+// Without a prebuilt map there is nothing to search in: the estimator
+// geo-references a map frame anchored where the vehicle starts, and LO must
+// start its map at the estimator pose, even if the vehicle has already moved
+// by the time the first scan arrives.
+TEST_F(InitialGlobalSearch, EmptyMapStartsAtEstimatorPose)
+{
+  auto sc = hall_scenario();
+  sc.mapBase.clear();
+  sc.gnssBias = {0, 0};
+  sc.gnssSigma = 0.1;
+  sc.speed = 0.5;
+  sc.lidarStart = 3.0;
+  sc.duration = 8.0;
+  const auto r = localize(sc);
+  ASSERT_TRUE(r.first.has_value());
+  ASSERT_TRUE(r.last.has_value());
+
+  // Expected poses, in the map frame anchored at the start pose:
+  const auto expectedFirst = mrpt::poses::CPose3D::FromTranslation(sc.speed * sc.lidarStart, 0, 0);
+  const auto expectedLast =
+    mrpt::poses::CPose3D::FromTranslation(sc.speed * (sc.duration - 0.1), 0, 0);
+  std::cout << "First pose: " << r.first->asString() << " last: " << r.last->asString() << "\n";
+  EXPECT_LT(xy_error(*r.first, expectedFirst), 0.3);
+  EXPECT_LT(xy_error(*r.last, expectedLast), 0.3);
+  EXPECT_LT(yaw_error_deg(*r.last, expectedLast), 2.0);
 }
 
 int main(int argc, char ** argv)

@@ -470,7 +470,7 @@ std::optional<mp2p_icp::GravityPrior> LidarOdometry::buildGravityPrior() const
   }
 
   // Gravity direction expressed in the MAP frame. The map origin is not
-  // necessarily level (nonzero fixed_initial_pose, or starting on a slope), so
+  // necessarily level (a tilted initial pose, or starting on a slope), so
   // rotate the tilt captured there into map coordinates. No Euler algebra is
   // involved: this is a plain vector rotation, valid at any yaw.
   double extraSigmaRad = 0;
@@ -762,6 +762,8 @@ void LidarOdometry::processLidarScan(  // NOLINT
     }
   }
 
+  applyReceivedExternalGeoref();
+
   // Feed all the IMU data belonging to this scan's time span into the
   // IMU-derived state, in timestamp order, before anything reads it. The scan
   // was held back until that data existed (see sendLidarScanToProcessQueue),
@@ -1012,7 +1014,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
     // Skip ICP.
     MRPT_LOG_DEBUG("First pointcloud: skipping ICP and directly adding to local map.");
 
-    // Create a first KF (at origin)
+    // Create a first KF at the initial localization pose:
     updateLocalMap = true;
     updateSimpleMap = true;     // update SimpleMap too
     distance_enough_sm = true;  // and treat this one as a KeyFrame with SF
@@ -1020,27 +1022,32 @@ void LidarOdometry::processLidarScan(  // NOLINT
     pushToSharedKeyframeMapNow = static_cast<bool>(state_.shared_keyframe_map_sink);
 #endif
 
+    const auto firstKfPose = state_.initial_pose.value_or(
+      mrpt::poses::CPose3D(params_.initial_localization.fixed_initial_pose));
+
     // Update trajectory too:
     {
       auto lck = mrpt::lockHelper(state_trajectory_mtx_);
-      state_.estimated_trajectory.insert(
-        scan_ref_time, params_.initial_localization.fixed_initial_pose);
+      state_.estimated_trajectory.insert(scan_ref_time, firstKfPose);
     }
 
     // Record, once, the absolute IMU-derived tilt at the map origin (if
     // available yet). This is the calibration offset needed to later
     // re-express absolute IMU tilt readings relative to this (possibly
     // non-level) map frame instead of true vertical:
-    captureMapOriginVerticality(
-      mrpt::poses::CPose3D(params_.initial_localization.fixed_initial_pose));
+    captureMapOriginVerticality(firstKfPose);
 
-    // Define the current robot pose at the origin with minimal uncertainty
+    // Define the current robot pose at the first KF with minimal uncertainty
     // (cannot be zero).
     mrpt::poses::CPose3DPDFGaussian initPose;
-    initPose.mean = mrpt::poses::CPose3D(params_.initial_localization.fixed_initial_pose);
+    initPose.mean = firstKfPose;
     initPose.cov.setDiagonal(1e-12);
 
-    state_.navstate_fuse->fuse_pose(scan_ref_time, initPose, params_.publish_reference_frame);
+    // A pose that came from the state estimator is not fused back into it:
+    // it would count the same information twice, with a near-zero covariance.
+    if (params_.initial_localization.method != InitLocalization::FromStateEstimator) {
+      state_.navstate_fuse->fuse_pose(scan_ref_time, initPose, params_.publish_reference_frame);
+    }
 
     // Seed last_lidar_pose and the simplemap keyframe decider with the origin
     // so the next scan's distance check starts from here rather than from
@@ -1160,7 +1167,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
         // The gravity estimator reports *absolute* tilt w.r.t. true vertical,
         // but the map/global frame may not itself be exactly level (e.g. a
-        // nonzero `fixed_initial_pose` orientation, or the vehicle starting
+        // tilted initial pose, or the vehicle starting
         // on a slope). Re-express the absolute IMU tilt relative to the map
         // frame using the tilt recorded at the map origin as a calibration
         // offset. Both readings share the same (gauge) yaw=0 convention, which
@@ -1886,6 +1893,12 @@ void LidarOdometry::processLidarScan(  // NOLINT
     state_.gravity_calib_first_available_time.reset();
     updateLocalMap = false;
     state_.last_icp_was_good = true;
+
+    // The vehicle may have moved since the estimator gave the initial pose:
+    // ask it again for the new first keyframe.
+    if (params_.initial_localization.method == InitLocalization::FromStateEstimator) {
+      state_.initial_localization_done = false;
+    }
 
     MRPT_LOG_WARN("Bad first ICP, re-starting from scratch with a new local map");
   }
