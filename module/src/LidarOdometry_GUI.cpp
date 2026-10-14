@@ -195,10 +195,11 @@ mola::gui::Tab LidarOdometry::buildTabControl()
                                       });
                                     }});
 
-  tab.widgets.emplace_back(CheckBox{
-    "Mapping enabled", params_.local_map_updates.enabled, [this](bool checked) {
-      this->enqueue_request([this, checked]() { params_.local_map_updates.enabled = checked; });
-    }});
+  tab.widgets.emplace_back(
+    CheckBox{"Mapping enabled", params_.local_map_updates.enabled, [this](bool checked) {
+               this->enqueue_locked_request(
+                 [this, checked]() { params_.local_map_updates.enabled = checked; });
+             }});
 
   {
     Label lbl;
@@ -212,12 +213,12 @@ mola::gui::Tab LidarOdometry::buildTabControl()
     Row row;
     row.widgets.emplace_back(
       CheckBox{"Save trajectory", params_.estimated_trajectory.save_to_file, [this](bool checked) {
-                 this->enqueue_request(
+                 this->enqueue_locked_request(
                    [this, checked]() { params_.estimated_trajectory.save_to_file = checked; });
                }});
     row.widgets.emplace_back(TextBox{
       "", params_.estimated_trajectory.output_file, 13, [this](std::string f) {  // NOLINT
-        this->enqueue_request([this, f]() { params_.estimated_trajectory.output_file = f; });
+        this->enqueue_locked_request([this, f]() { params_.estimated_trajectory.output_file = f; });
         return true;
       }});
     tab.widgets.emplace_back(std::move(row));
@@ -225,13 +226,13 @@ mola::gui::Tab LidarOdometry::buildTabControl()
 
   {
     Row row;
-    row.widgets.emplace_back(
-      CheckBox{"Generate simplemap", params_.simplemap.generate, [this](bool checked) {
-                 this->enqueue_request([this, checked]() { params_.simplemap.generate = checked; });
-               }});
+    row.widgets.emplace_back(CheckBox{
+      "Generate simplemap", params_.simplemap.generate, [this](bool checked) {
+        this->enqueue_locked_request([this, checked]() { params_.simplemap.generate = checked; });
+      }});
     row.widgets.emplace_back(TextBox{
       "", params_.simplemap.save_final_map_to_file, 13, [this](std::string f) {  // NOLINT
-        this->enqueue_request([this, f]() { params_.simplemap.save_final_map_to_file = f; });
+        this->enqueue_locked_request([this, f]() { params_.simplemap.save_final_map_to_file = f; });
         return true;
       }});
     tab.widgets.emplace_back(std::move(row));
@@ -266,62 +267,65 @@ mola::gui::Tab LidarOdometry::buildTabView()
 
   tab.widgets.emplace_back(CheckBox{
     "Orthographic camera", params_.visualization.camera_orthographic, [this](bool checked) {
-      this->enqueue_request([this, checked]() {
+      this->enqueue_locked_request([this, checked]() {
         params_.visualization.camera_orthographic = checked;
         visualizer_->update_viewport_camera_orthographic(checked);
       });
     }});
 
-  tab.widgets.emplace_back(CheckBox{
-    "Show trajectory", params_.visualization.show_trajectory, [this](bool checked) {
-      this->enqueue_request([this, checked]() { params_.visualization.show_trajectory = checked; });
-    }});
+  tab.widgets.emplace_back(
+    CheckBox{"Show trajectory", params_.visualization.show_trajectory, [this](bool checked) {
+               this->enqueue_locked_request(
+                 [this, checked]() { params_.visualization.show_trajectory = checked; });
+             }});
 
   tab.widgets.emplace_back(CheckBox{
     "Show raw observation", params_.visualization.show_current_observation, [this](bool checked) {
-      this->enqueue_request(
+      this->enqueue_locked_request(
         [this, checked]() { params_.visualization.show_current_observation = checked; });
     }});
 
   tab.widgets.emplace_back(CheckBox{
     "Show dense local map (decaying)", params_.visualization.show_last_deskewed_observations_decay,
     [this](bool checked) {
-      this->enqueue_request([this, checked]() {
+      this->enqueue_locked_request([this, checked]() {
         params_.visualization.show_last_deskewed_observations_decay = checked;
       });
     }});
 
-  tab.widgets.emplace_back(CheckBox{
-    "Show local map", params_.visualization.show_localmap, [this](bool checked) {
-      this->enqueue_request([this, checked]() { params_.visualization.show_localmap = checked; });
-    }});
+  tab.widgets.emplace_back(
+    CheckBox{"Show local map", params_.visualization.show_localmap, [this](bool checked) {
+               this->enqueue_locked_request(
+                 [this, checked]() { params_.visualization.show_localmap = checked; });
+             }});
 
   tab.widgets.emplace_back(CheckBox{
     "Camera follows vehicle", params_.visualization.camera_follows_vehicle, [this](bool checked) {
-      this->enqueue_request(
+      this->enqueue_locked_request(
         [this, checked]() { params_.visualization.camera_follows_vehicle = checked; });
     }});
 
   tab.widgets.emplace_back(CheckBox{
     "Camera rotates with vehicle", params_.visualization.camera_rotates_with_vehicle,
     [this](bool checked) {
-      this->enqueue_request(
+      this->enqueue_locked_request(
         [this, checked]() { params_.visualization.camera_rotates_with_vehicle = checked; });
     }});
 
   tab.widgets.emplace_back(CheckBox{
     "Show gravity-alignment vector", params_.visualization.show_gravity_align_vector,
     [this](bool checked) {
-      this->enqueue_request(
+      this->enqueue_locked_request(
         [this, checked]() { params_.visualization.show_gravity_align_vector = checked; });
     }});
 
   {
     Row row;
-    row.widgets.emplace_back(CheckBox{
-      "Show /tf tree", params_.visualization.show_tf_tree, [this](bool checked) {
-        this->enqueue_request([this, checked]() { params_.visualization.show_tf_tree = checked; });
-      }});
+    row.widgets.emplace_back(
+      CheckBox{"Show /tf tree", params_.visualization.show_tf_tree, [this](bool checked) {
+                 this->enqueue_locked_request(
+                   [this, checked]() { params_.visualization.show_tf_tree = checked; });
+               }});
     row.widgets.emplace_back(TextBox{
       "size", std::to_string(params_.visualization.tf_tree_corner_size), 5,
       [this](std::string s) {  // NOLINT
@@ -334,7 +338,8 @@ mola::gui::Tab LidarOdometry::buildTabView()
         if (v < 0) {
           return false;
         }
-        this->enqueue_request([this, v]() { params_.visualization.tf_tree_corner_size = v; });
+        this->enqueue_locked_request(
+          [this, v]() { params_.visualization.tf_tree_corner_size = v; });
         return true;
       }});
     tab.widgets.emplace_back(std::move(row));
@@ -344,12 +349,12 @@ mola::gui::Tab LidarOdometry::buildTabView()
     Row row;
     row.widgets.emplace_back(
       CheckBox{"tf links", params_.visualization.tf_tree_show_links, [this](bool checked) {
-                 this->enqueue_request(
+                 this->enqueue_locked_request(
                    [this, checked]() { params_.visualization.tf_tree_show_links = checked; });
                }});
     row.widgets.emplace_back(
       CheckBox{"tf names", params_.visualization.tf_tree_show_names, [this](bool checked) {
-                 this->enqueue_request(
+                 this->enqueue_locked_request(
                    [this, checked]() { params_.visualization.tf_tree_show_names = checked; });
                }});
     row.widgets.emplace_back(TextBox{
@@ -364,7 +369,8 @@ mola::gui::Tab LidarOdometry::buildTabView()
         if (v < 0) {
           return false;
         }
-        this->enqueue_request([this, v]() { params_.visualization.tf_tree_link_radius = v; });
+        this->enqueue_locked_request(
+          [this, v]() { params_.visualization.tf_tree_link_radius = v; });
         return true;
       }});
     tab.widgets.emplace_back(std::move(row));
@@ -374,13 +380,14 @@ mola::gui::Tab LidarOdometry::buildTabView()
     Row row;
     row.widgets.emplace_back(TextBox{
       "tf root", params_.visualization.tf_tree_root_frame, 13, [this](std::string f) {  // NOLINT
-        this->enqueue_request([this, f]() { params_.visualization.tf_tree_root_frame = f; });
+        this->enqueue_locked_request([this, f]() { params_.visualization.tf_tree_root_frame = f; });
         return true;
       }});
     row.widgets.emplace_back(TextBox{
       "exclude", params_.visualization.tf_tree_exclude_frames, 13,
       [this](std::string f) {  // NOLINT
-        this->enqueue_request([this, f]() { params_.visualization.tf_tree_exclude_frames = f; });
+        this->enqueue_locked_request(
+          [this, f]() { params_.visualization.tf_tree_exclude_frames = f; });
         return true;
       }});
     tab.widgets.emplace_back(std::move(row));
@@ -391,7 +398,7 @@ mola::gui::Tab LidarOdometry::buildTabView()
                                   : 0.5f;
   tab.widgets.emplace_back(
     CheckBox{"Show sensor poses", sensorPosesSize > 0.0f, [this, sensorPosesSize](bool checked) {
-               this->enqueue_request([this, checked, sensorPosesSize]() {
+               this->enqueue_locked_request([this, checked, sensorPosesSize]() {
                  params_.visualization.sensor_poses_corner_size = checked ? sensorPosesSize : 0.0f;
                });
              }});
@@ -578,7 +585,7 @@ void vizUpsert3D(
 void LidarOdometry::setDeskewedColoring(
   mrpt::img::TColormap colormap, const std::string & colorByField)
 {
-  enqueue_request([this, colormap, colorByField]() {
+  enqueue_locked_request([this, colormap, colorByField]() {
     params_.visualization.current_observation_colormap = colormap;
     params_.visualization.current_observation_color_by_field = colorByField;
     params_.visualization.last_deskewed_observations_colormap = colormap;
@@ -589,7 +596,7 @@ void LidarOdometry::setDeskewedColoring(
 void LidarOdometry::setLocalMapColoring(
   mrpt::img::TColormap colormap, const std::string & colorByField)
 {
-  enqueue_request([this, colormap, colorByField]() {
+  enqueue_locked_request([this, colormap, colorByField]() {
     params_.visualization.local_map_colormap = colormap;
     params_.visualization.local_map_colormap_color_by_field = colorByField;
   });
@@ -597,7 +604,7 @@ void LidarOdometry::setLocalMapColoring(
 
 void LidarOdometry::setTrajectoryVisualization(bool show, const std::vector<float> & rgba)
 {
-  enqueue_request([this, show, rgba]() {
+  enqueue_locked_request([this, show, rgba]() {
     params_.visualization.show_trajectory = show;
     if (rgba.size() == 4) {
       params_.visualization.trajectory_rgba = rgba;
@@ -607,7 +614,7 @@ void LidarOdometry::setTrajectoryVisualization(bool show, const std::vector<floa
 
 void LidarOdometry::setCurrentPoseCornerVisualization(bool show)
 {
-  enqueue_request([this, show]() { params_.visualization.show_current_pose_corner = show; });
+  enqueue_locked_request([this, show]() { params_.visualization.show_current_pose_corner = show; });
 }
 
 std::string LidarOdometry::vizParentFrame() const

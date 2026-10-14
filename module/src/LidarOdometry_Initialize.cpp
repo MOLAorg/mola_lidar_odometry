@@ -620,11 +620,13 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
 
 void LidarOdometry::doPreloadLocalMap()
 {
+  // May run deferred from spinOnce(), while the LiDAR worker is running:
+  auto lckState = mrpt::lockHelper(state_mtx_);
+
   if (!params_.local_map_updates.load_existing_local_map.empty()) {
     MRPT_LOG_INFO_STREAM(
       "Loading map from file: '" << params_.local_map_updates.load_existing_local_map << "'...");
 
-    auto lckState = mrpt::lockHelper(state_mtx_);
     // Guards the map contents against a concurrent visualization render,
     // which runs without state_mtx_ (see local_map_content_mtx_ docs):
     auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);

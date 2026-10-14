@@ -15,8 +15,9 @@
 /**
  * @file   test_robustness.cpp
  * @brief  Error and concurrency paths of LidarOdometry on synthetic data:
- *         empty scans, reset(), optimize_twist, GNSS input and map saving
- *         while scans are being processed. Best run under ASan/TSan too.
+ *         empty scans, reset(), optimize_twist, GNSS input, map saving and
+ *         settings changes while scans are being processed. Best run under
+ *         ASan/TSan too.
  */
 
 #include <gtest/gtest.h>
@@ -273,4 +274,76 @@ TEST(Robustness, MapSaveWhileProcessing)
     EXPECT_TRUE(mm.load_from_file(f.tmpBase + "_save" + std::to_string(k) + ".mm"));
     EXPECT_FALSE(mm.empty());
   }
+}
+
+// Settings changed from other threads (as a GUI does) apply while the LiDAR
+// worker and the executor thread run, and their readers see consistent values.
+TEST(Robustness, SettingsChangedWhileProcessing)
+{
+  Fixture f(true /*simplemap*/);
+  f.feedScans(0, 3);
+
+  std::atomic_bool done = false;
+  std::thread spinThread([&]() {
+    while (!done) {
+      f.liodom->spinOnce();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  });
+  std::thread settingsThread([&]() {
+    for (int k = 0; !done; k++) {
+      const std::string smFile = f.tmpBase + "_sm" + std::to_string(k % 2) + ".simplemap";
+      f.liodom->enqueue_locked_request([&f, smFile]() {
+        f.liodom->params_.simplemap.save_final_map_to_file = smFile;
+        f.liodom->params_.estimated_trajectory.output_file = smFile + ".tum";
+      });
+      f.liodom->setTrajectoryVisualization(k % 2 == 0, {1.0f, 0.0f, 0.0f, 1.0f});
+      f.liodom->setLocalMapColoring(mrpt::img::cmJET, k % 2 == 0 ? "z" : "intensity");
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+  });
+  std::thread saveThread([&]() {
+    while (!done) {
+      f.liodom->saveEstimatedTrajectoryToFile();
+      f.liodom->saveReconstructedMapToFile();
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+  });
+
+  f.feedScans(3, kNumScans);
+
+  done = true;
+  spinThread.join();
+  settingsThread.join();
+  saveThread.join();
+
+  f.expectTrackedPath(kNumScans / 2);
+}
+
+// reset() replaces the whole state while other threads read the trajectory,
+// the simplemap and the flags through the public, thread-safe accessors.
+TEST(Robustness, ResetWhileReading)
+{
+  Fixture f(true /*simplemap*/);
+
+  std::atomic_bool done = false;
+  std::thread readerThread([&]() {
+    while (!done) {
+      (void)f.liodom->estimatedTrajectory();
+      (void)f.liodom->reconstructedMap();
+      (void)f.liodom->isActive();
+      (void)f.liodom->isBusy();
+    }
+  });
+
+  for (int r = 0; r < 3; r++) {
+    f.feedScans(0, 5);
+    f.liodom->reset();
+  }
+  f.feedScans(0, kNumScans);
+
+  done = true;
+  readerThread.join();
+
+  f.expectTrackedPath(kNumScans / 2);
 }

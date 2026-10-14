@@ -1877,7 +1877,10 @@ void LidarOdometry::processLidarScan(  // NOLINT
       auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
       state_.local_map->clear();
     }
-    state_.estimated_trajectory.clear();
+    {
+      auto lckTraj = mrpt::lockHelper(state_trajectory_mtx_);
+      state_.estimated_trajectory.clear();
+    }
     state_.gravity_calib_pitch_roll.reset();  // new map origin: recapture at next first KF
     state_.gravity_calib_pose.reset();
     state_.gravity_calib_first_available_time.reset();
@@ -2414,7 +2417,7 @@ void LidarOdometry::doUpdateSimpleMap(
 
   // (2/2) Unload old lazy-load observations to save RAM, if applicable:
   constexpr size_t MAX_SIZE_UNLOAD_QUEUE = 100;
-  unloadPastSimplemapObservations(MAX_SIZE_UNLOAD_QUEUE);
+  unloadPastSimplemapObservations(MAX_SIZE_UNLOAD_QUEUE, params_.simplemap.save_final_map_to_file);
 }
 
 }  // namespace mola

@@ -1133,19 +1133,27 @@ public:
   void saveReconstructedMapToFile() const;
   void saveLocalMapToFile() const;
 
-  /** Enqueue a custom user request to be executed on the main LidarOdometry
-     *  thread on the next iteration.
+  /** Enqueue a custom user request, to be executed by the next spinOnce() or
+     *  by the LiDAR worker before its next scan, whichever comes first.
      *
-     *  So, this method is safe to be called from any other thread.
-     *
+     *  This method is safe to be called from any other thread. The request
+     *  itself runs without any lock held, possibly while the other of those two
+     *  threads is processing a scan.
      */
   void enqueue_request(const std::function<void()> & userRequest);
+
+  /** Like enqueue_request(), but the request runs with the internal state
+     *  mutex held. Any request that writes params_ must use this one.
+     *  The request must not call reset(), relocalize_*() or any other method
+     *  that takes the state mutex itself.
+     */
+  void enqueue_locked_request(const std::function<void()> & userRequest);
 
   /** @} */
 
   /** @name Runtime visualization coloring overrides
-     *  All setters are thread-safe: the change is applied on the internal
-     *  LidarOdometry worker thread via enqueue_request(), so they may be
+     *  All setters are thread-safe: the change is applied under the state
+     *  lock via a queued request (see enqueue_request()), so they may be
      *  called from any thread (e.g. a host GUI) at any time.
      *{ */
 
@@ -2027,9 +2035,13 @@ private:
   void doWriteDebugTracesFile(const mrpt::Clock::time_point & scan_ref_time);
   std::optional<std::ofstream> debug_traces_of_;
 
-  void unloadPastSimplemapObservations(size_t maxSizeUnloadQueue) const;
+  /// \param simplemapFile Copy of simplemap.save_final_map_to_file, read by
+  ///        the caller under state_mtx_.
+  void unloadPastSimplemapObservations(
+    size_t maxSizeUnloadQueue, const std::string & simplemapFile) const;
 
-  void handleUnloadSinglePastObservation(CObservation::Ptr & o) const;
+  void handleUnloadSinglePastObservation(
+    CObservation::Ptr & o, const std::string & simplemapFile) const;
 
   void onPublishDiagnostics();
 
@@ -2103,7 +2115,7 @@ private:
   void doPreloadLocalMap();
 
   /// True when map loading has been deferred to spinOnce() via load_map_after_gui_init.
-  bool pending_preload_map_ = false;
+  std::atomic_bool pending_preload_map_{false};
 
   void doUpdateSimpleMap(
     const mrpt::obs::CSensoryFrame & sf, bool distance_enough_sm,
