@@ -2319,16 +2319,21 @@ void LidarOdometry::doUpdateSimpleMap(
     std::optional<double> closestTimeAbsDiff;
     mrpt::obs::CObservationGPS::ConstPtr closestGPS;
 
-    for (const auto & [gpsStamp, gpsObs] : state_.last_gnss_) {
-      const double timeDiff = std::abs(mrpt::system::timeDifference(gpsStamp, curLidarStamp));
+    {
+      // Appended to by the sensor-input thread:
+      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
 
-      if (timeDiff > params_.simplemap.save_gnss_max_age) {
-        continue;
-      }
+      for (const auto & [gpsStamp, gpsObs] : state_.last_gnss_) {
+        const double timeDiff = std::abs(mrpt::system::timeDifference(gpsStamp, curLidarStamp));
 
-      if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff) {
-        closestTimeAbsDiff = timeDiff;
-        closestGPS = gpsObs;
+        if (timeDiff > params_.simplemap.save_gnss_max_age) {
+          continue;
+        }
+
+        if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff) {
+          closestTimeAbsDiff = timeDiff;
+          closestGPS = gpsObs;
+        }
       }
     }
     if (closestGPS) {

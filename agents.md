@@ -575,9 +575,11 @@ straight back into scan-submission latency.
 
 `imu_state_mtx_` (recursive) now guards exactly the state the two threads share:
 `pending_imu_`, `imu_initializer`, `gravity_estimator`, `map_gravity`,
-`recent_imu_stamps`, `parameter_source` (variable map, `realize()` flags, and the
+`recent_imu_stamps`, the simplemap GNSS/IMU buffers (`last_gnss_`, `last_imu_`,
+`recent_gnss_stamps`), `parameter_source` (variable map, `realize()` flags, and the
 `localVelocityBuffer` that IMU samples write and the deskew stage reads), and
-any *invocation* of `obs_generators`. `onIMU()` takes only this mutex; the LiDAR
+any *invocation* of `obs_generators`. GNSS is handled inline like IMU (it only
+buffers). `onIMU()` takes only this mutex; the LiDAR
 thread takes it in short windows on top of `state_mtx_`. Result on the same
 sequence: `onIMU` mean 957 -> 349 us, max 138.6 -> 9.7 ms, total 33.1 -> 12.4 s,
 with `onLidar` unchanged.

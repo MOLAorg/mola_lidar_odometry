@@ -83,9 +83,9 @@ void LidarOdometry::onQuit() { shutdownCleanup(); }
 //
 // onQuit() is invoked by MolaLauncherApp::executor_thread() for every module,
 // before any module is destroyed (see ExecutableBase::onQuit() docs). This
-// matters because worker_lidar_/worker_others_/worker_viz_/
-// worker_viz_local_map_ may have an in-flight task (e.g. onLidar(), or the
-// local-map render) that calls back into other modules, e.g.
+// matters because worker_lidar_/worker_viz_/worker_viz_local_map_ may have an
+// in-flight task (e.g. onLidar(), or the local-map render) that calls back
+// into other modules, e.g.
 // BridgeROS2's TF broadcaster via VizInterface/LocalizationSourceBase. If
 // that task is still running when another module's destructor runs (which
 // previously only happened from ~LidarOdometry(), after other modules may
@@ -116,7 +116,6 @@ void LidarOdometry::shutdownCleanup()
       std::this_thread::sleep_for(100ms);
     }
     worker_lidar_.clear();
-    worker_others_.clear();
     worker_viz_.clear();
     worker_viz_local_map_.clear();
 
@@ -290,9 +289,9 @@ bool LidarOdometry::isBusy() const
 {
   bool b = false;
   is_busy_mtx_.lock();
-  b = (state_.worker_tasks_lidar != 0) || (state_.worker_tasks_others != 0);
+  b = (state_.worker_tasks_lidar != 0);
   is_busy_mtx_.unlock();
-  return b || worker_lidar_.pendingTasks() != 0 || worker_others_.pendingTasks() != 0;
+  return b || worker_lidar_.pendingTasks() != 0;
 }
 
 bool LidarOdometry::isActive() const

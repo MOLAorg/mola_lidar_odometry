@@ -1276,7 +1276,6 @@ private:
     // otherwise (queued-but-not-yet-running scans are tracked separately, by
     // worker_lidar_.pendingTasks()).
     int worker_tasks_lidar = 0;
-    int worker_tasks_others = 0;
     // ------ ^^^ end of these flags are protected ^^^^      ---------
 
     // ------ these vars are protected by drop_stats_mtx_  ---------
@@ -1598,7 +1597,7 @@ private:
     std::shared_ptr<mp2p_icp::ParameterSource> global_search_refine_param_source;
 
     // GNSS: keep a list of recent observations to later on search the one
-    // closest to each LIDAR observation:
+    // closest to each LIDAR observation. Guarded by imu_state_mtx_.
     std::map<mrpt::Clock::time_point, std::shared_ptr<const mrpt::obs::CObservationGPS>> last_gnss_;
 
     // IMU: same as last_gnss_ above, but for the simplemap only. Independent
@@ -1770,10 +1769,6 @@ private:
 
 #endif
 
-  /** The worker thread pool with 1 thread for processing incoming observations*/
-  mrpt::WorkerThreadsPool worker_others_{
-    1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_imu"};
-
   /** The worker thread pool with 1 thread for processing saving lazy-load observations to disk */
   mutable mrpt::WorkerThreadsPool worker_disk_io_{
     1 /*num threads*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_disk"};
@@ -1860,10 +1855,10 @@ private:
   /// straight back into scan submission latency.
   ///
   /// Covers pending_imu_ and, in MethodState: imu_initializer,
-  /// gravity_estimator, map_gravity, recent_imu_stamps, parameter_source (its
-  /// variable map, the realize() "evaluated" flags, and localVelocityBuffer),
-  /// and any *invocation* of obs_generators (which writes the velocity buffer
-  /// and reads those flags).
+  /// gravity_estimator, map_gravity, recent_imu_stamps, last_imu_, last_gnss_,
+  /// recent_gnss_stamps, parameter_source (its variable map, the realize()
+  /// "evaluated" flags, and localVelocityBuffer), and any *invocation* of
+  /// obs_generators (which writes the velocity buffer and reads those flags).
   ///
   /// Lock order: state_mtx_ -> local_map_content_mtx_ -> imu_state_mtx_; never
   /// the reverse. The sensor-input thread takes only this one (and never the

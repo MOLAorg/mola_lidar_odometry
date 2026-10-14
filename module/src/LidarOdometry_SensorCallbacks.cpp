@@ -131,16 +131,11 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
     onDeskewOdometry(o);
   }
 
-  // Is it GNSS?
+  // Is it GNSS? Inline, for the same reason as the IMU above: it only buffers.
   if (
     params_.gnss_sensor_label &&
     std::regex_match(o->sensorLabel, params_.gnss_sensor_label.value())) {
-    {
-      auto lck = mrpt::lockHelper(is_busy_mtx_);
-      state_.worker_tasks_others++;
-    }
-    auto fut = worker_others_.enqueue(&LidarOdometry::onGPS, this, o);
-    (void)fut;
+    onGPS(o);
   }
 
   // Is it a LIDAR obs?
@@ -627,19 +622,13 @@ void LidarOdometry::consumePendingImu(const double upToTime)
 
 void LidarOdometry::onGPS(const CObservation::ConstPtr & o)
 {
-  // All methods that are enqueued into a thread pool should have its own
-  // top-level try-catch:
+  // Keep a top-level try-catch, as for the methods running on a thread pool:
   try {
     onGPSImpl(o);
   } catch (const std::exception & e) {
     MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
     auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
     state_.fatal_error = true;
-  }
-
-  {
-    auto lck = mrpt::lockHelper(is_busy_mtx_);
-    state_.worker_tasks_others--;
   }
 }
 
@@ -667,6 +656,9 @@ void LidarOdometry::onGPSImpl(const CObservation::ConstPtr & o)
       return;
     }
   }
+
+  // The GNSS buffers are read by the LiDAR worker (simplemap) and the GUI:
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
 
   // for rate stats:
   state_.append_gnss_stamp(gps->timestamp, *this);
