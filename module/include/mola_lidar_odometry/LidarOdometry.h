@@ -1705,16 +1705,20 @@ private:
   /// Protected by imu_state_mtx_.
   PendingImuBuffer pending_imu_;
 
-  /// Cached estimate of the LiDAR scan period [s], read lock-free by
-  /// releaseReadyLidarScansToWorker(). Estimated from consecutive scan *arrival*
+  /// Estimate of a LiDAR's scan period [s], from consecutive scan *arrival*
   /// (sensor) timestamps rather than the processed-scan rate: under heavy
   /// dropping the processed rate collapses, which would otherwise inflate this
   /// period and make scans wait for far more IMU than they actually need,
   /// needlessly deepening the wait list.
-  std::atomic<double> lidar_scan_period_{0.1};
-  /// Sensor timestamp [s] of the previous LiDAR scan seen at input, for the
-  /// arrival-based period estimate above. Guarded by the wait-list mutex.
-  double last_lidar_arrival_stamp_ = 0;
+  struct ScanPeriodEstimate
+  {
+    double period = 0.1;            //!< [s]
+    double last_arrival_stamp = 0;  //!< [s], 0 = none yet
+  };
+  /// One estimate per LiDAR sensor label: with several LiDARs, consecutive
+  /// arrivals of different sensors would underestimate each sensor's period.
+  /// Guarded by the wait-list mutex.
+  std::map<std::string, ScanPeriodEstimate> lidar_scan_periods_;
 
 #if defined(MOLA_LO_HAS_MP2P_GRAVITY_PRIOR)
   /// Builds the yaw-free rank-2 gravity observation for the current scan from
