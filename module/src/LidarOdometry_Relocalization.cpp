@@ -21,6 +21,7 @@
 
 // This module:
 #include <mola_lidar_odometry/LidarOdometry.h>
+#include <mrpt/core/bits_math.h>
 
 // Eigen:
 #include <Eigen/Core>
@@ -65,8 +66,12 @@ void LidarOdometry::relocalize_near_pose_pdf_impl(const mrpt::poses::CPose3DPDFG
   il.method = InitLocalization::FixedPose;
   state_.global_search_prior.reset();
 
-  // Reset adaptive sigma to initial value:
-  state_.adapt_thres_sigma = std::sqrt(p.cov.asEigen().block<2, 2>(0, 0).trace());
+  // Reset adaptive sigma from the request uncertainty, within the same bounds
+  // as the adaptive threshold: a very tight covariance would otherwise leave
+  // ICP without pairings.
+  state_.adapt_thres_sigma = mrpt::saturate_val(
+    std::sqrt(p.cov.asEigen().block<2, 2>(0, 0).trace()), params_.adaptive_threshold.min_motion,
+    params_.adaptive_threshold.maximum_sigma);
 
   // Handle uncertainty in next steps:
   state_.step_counter_post_relocalization = std::max(
