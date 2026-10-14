@@ -1259,7 +1259,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
       if (
         deltaTrans > params_.optimize_twist_rerun_min_trans ||
         deltaRot > mrpt::DEG2RAD(params_.optimize_twist_rerun_min_rot_deg)) {
-        params_.optimize_twist_max_corrections++;
+        twistCorrectionCount++;
 
         MRPT_LOG_DEBUG_STREAM(
           "ICP hook: " << ih.currentIteration << " solutionDelta: trans=" << deltaTrans
@@ -1331,9 +1331,15 @@ void LidarOdometry::processLidarScan(  // NOLINT
         *observation, *state_.local_map, current_solution, icp_params, icp_result, in.prior);
 #endif
 
-      if (icp_result.nIterations <= remainingIcpIters) {
-        remainingIcpIters -= icp_result.nIterations;
-      } else {  // who knows?...
+      // A hook stop leaves the loop before its counter increments, so the
+      // stopped iteration is not included in nIterations: count it here, or a
+      // stop at the first iteration would never consume the budget.
+      const size_t usedIters =
+        icp_result.nIterations +
+        (icp_result.terminationReason == mp2p_icp::IterTermReason::HookRequest ? 1 : 0);
+      if (usedIters <= remainingIcpIters) {
+        remainingIcpIters -= usedIters;
+      } else {
         remainingIcpIters = 0;
       }
 
@@ -1357,7 +1363,10 @@ void LidarOdometry::processLidarScan(  // NOLINT
         MRPT_LOG_DEBUG_STREAM(
           "ICP hook dt=" << At << ":\nnew estimated twist:" << tw.asString() << "\n"
                          << "old estimated twist:"
-                         << state_.last_motion_model_output->twist.asString() << "\n");
+                         << (state_.last_motion_model_output
+                               ? state_.last_motion_model_output->twist.asString()
+                               : std::string("(none)"))
+                         << "\n");
 
         // Update twist dynamic variables, then re-run pipelines.
         // One lock for the update AND the realize(): the accessor takes
@@ -1388,6 +1397,9 @@ void LidarOdometry::processLidarScan(  // NOLINT
       }
 
     } while (icp_result.terminationReason == mp2p_icp::IterTermReason::HookRequest);
+
+    // The hook captures locals of this function by reference:
+    icpCase.icp->setIterationHook({});
 
     out.found_pose_to_wrt_from = icp_result.optimal_tf;
     out.goodness = icp_result.quality;
