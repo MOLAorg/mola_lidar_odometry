@@ -45,9 +45,11 @@
 
 namespace
 {
-[[nodiscard]] bool isNormalPoint(const mrpt::math::TPoint3Df & pt)
+// Not std::isnormal(), which also rejects exact zeros (e.g. the z extent of
+// a planar 2D scan):
+[[nodiscard]] bool isFinitePoint(const mrpt::math::TPoint3Df & pt)
 {
-  return std::isnormal(pt.x) && std::isnormal(pt.y) && std::isnormal(pt.z);
+  return std::isfinite(pt.x) && std::isfinite(pt.y) && std::isfinite(pt.z);
 }
 }  // namespace
 
@@ -323,7 +325,7 @@ bool LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_ma
     }
 
     const auto bb = pts->boundingBox();
-    if (!isNormalPoint(bb.min) || !isNormalPoint(bb.max)) {
+    if (!isFinitePoint(bb.min) || !isFinitePoint(bb.max)) {
       continue;  // skip NaN, INF, etc.
     }
 
