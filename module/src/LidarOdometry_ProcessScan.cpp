@@ -803,6 +803,14 @@ void LidarOdometry::processLidarScan(  // NOLINT
   // Use the observation to update the estimated sensor range:
   if (!state_.estimated_observation_radius.has_value()) {
     doInitializeEstimatedObservationRadius(*obs);
+
+    // An empty scan (e.g. from a driver still spinning up) carries no range
+    // information: wait for one that does.
+    if (!state_.estimated_observation_radius.has_value()) {
+      MRPT_LOG_THROTTLE_WARN(
+        5.0, "Skipping LiDAR scan with no valid points: cannot estimate the observation radius.");
+      return;
+    }
   }
 
   // Handle multiple simultaneous LIDARs:

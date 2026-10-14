@@ -1954,7 +1954,8 @@ private:
   void doUpdateAdaptiveThreshold();
 
   void doInitializeEstimatedObservationRadius(const mrpt::obs::CObservation & o);
-  /// Returns false if no layer of `m` had usable points, so nothing was updated.
+  /// Returns false if there is no initial radius yet, or no layer of `m` had
+  /// usable points, so nothing was updated.
   bool doUpdateEstimatedObservationRadius(const mp2p_icp::metric_map_t & m);
 
   /// Returns false if the scan/observation is not valid:
