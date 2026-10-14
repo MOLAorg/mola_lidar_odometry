@@ -413,3 +413,63 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
     of :ref:`additional parameters and options <mola_3d_gicp_pipeline>` that you can explore.
 
     See also the docs for the :ref:`ROS 2 API <mola_ros2api>` and :ref:`this tutorial <tutorial-mola-lo-map-and-localize>` on how to save and load a map using ROS 2 MOLA-LO nodes.
+
+.. _mola_lo_ros_fastdds_large_clouds:
+
+.. dropdown:: Large point clouds and Fast DDS: late ``/tf``
+    :icon: alert
+
+    With the default Fast DDS settings (the default ROS 2 middleware, e.g. in Jazzy), nodes that
+    subscribe to large point clouds may receive small messages such as ``/tf`` late. Messages
+    larger than the default shared memory segments (512 KB) go through fragmented UDP, and in a
+    simulation publishing ~1 MB clouds at 10 Hz this delayed ``/tf`` by up to ~1 s in the nodes
+    subscribed to them.
+
+    Symptoms: transform lookups at the scan stamp fail ("extrapolation into the future",
+    "no transform at the scan's stamp"), ``map -> odom`` seems to lag the LiDAR by about a
+    second, or obstacles end up misplaced, or a local map goes stale. This can affect any node
+    that needs timely ``/tf`` and also receives the clouds, including MOLA when sensor poses are
+    read from ``/tf`` (``MOLA_USE_FIXED_LIDAR_POSE=false``).
+
+    Fix: use shared memory segments large enough for the clouds, with a Fast DDS profile:
+
+    .. code-block:: xml
+
+        <?xml version="1.0" encoding="UTF-8"?>
+        <profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+          <transport_descriptors>
+            <transport_descriptor>
+              <transport_id>shm_large</transport_id>
+              <type>SHM</type>
+              <segment_size>16777216</segment_size>
+            </transport_descriptor>
+            <transport_descriptor>
+              <transport_id>udp_buffers</transport_id>
+              <type>UDPv4</type>
+              <sendBufferSize>4194304</sendBufferSize>
+              <receiveBufferSize>4194304</receiveBufferSize>
+            </transport_descriptor>
+          </transport_descriptors>
+          <participant profile_name="large_msgs_participant" is_default_profile="true">
+            <rtps>
+              <userTransports>
+                <transport_id>shm_large</transport_id>
+                <transport_id>udp_buffers</transport_id>
+              </userTransports>
+              <useBuiltinTransports>false</useBuiltinTransports>
+            </rtps>
+          </participant>
+        </profiles>
+
+    Enable it for **all** nodes, before launching them:
+
+    .. code-block:: bash
+
+        export FASTRTPS_DEFAULT_PROFILES_FILE=/path/to/fastdds_large_msgs.xml
+
+    In that simulation, the ``/tf`` delay dropped to below 0.3 s. Each process reserves one
+    segment in ``/dev/shm``: in Docker, whose default ``/dev/shm`` is 64 MB, raise it
+    (``shm_size: "1gb"`` in compose, or ``docker run --shm-size=1g``), or Fast DDS falls back to
+    UDP. The UDP buffer sizes above are capped by the kernel limits
+    (``net.core.rmem_max``, ``net.core.wmem_max``). Another ROS 2 middleware (e.g. Cyclone DDS)
+    may also avoid the issue, but was not tested here.
