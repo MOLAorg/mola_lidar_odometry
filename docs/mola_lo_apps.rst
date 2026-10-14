@@ -323,6 +323,11 @@ Runs MOLA-LO on a sequence of the Mulran dataset.
 - ``MOLA_GUI_MODULE`` (Default: ``mola::MolaVizImGui``): selects the
   :ref:`visualizer backend <mola_lo_gui_visualizer_selection>`.
 
+- ``MOLA_GUI_TARGET_FPS`` (Default: ``30``): GUI refresh rate, ``mola::MolaVizImGui``
+  only. The whole 3D view is redrawn on every frame, so the GPU load (and, to a
+  lesser extent, the CPU load) grows with it: lower it (e.g. ``15``) on weak machines,
+  or raise it (e.g. ``60``) for smoother interaction.
+
 
 |
 
