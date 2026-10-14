@@ -166,17 +166,24 @@ MapServer::ReturnStatus LidarOdometry::map_save_impl(const std::string & path)
 
   MapServer::ReturnStatus ret;
 
-  // NOTE: map_save_impl runs on the lidar worker thread via
-  // processPendingUserRequests() (see map_save() dispatch). The lidar worker
-  // is the only writer of state_.local_map and state_.reconstructed_simplemap,
-  // and it is currently executing this function rather than a scan, so no
-  // concurrent writer can mutate those objects here. Other threads only ever
-  // read them after taking a deep copy under the corresponding mutex
-  // (see doPublishUpdatedLocalMap(), reconstructedMap(), ...), so it is safe
-  // and necessary to release state_mtx_ / state_simplemap_mtx_ during the
-  // actual serialization.
-  const bool mmSaveOk = state_.local_map->save_to_file(mmFile);
-  const bool smSaveOk = state_.reconstructed_simplemap.saveToFile(smFile);
+  // Requests are drained from both the LiDAR worker and spinOnce(), so a scan
+  // may be modifying the maps concurrently: hold state_mtx_ for the whole save
+  // (it blocks scan processing meanwhile), plus each map's own mutex while it
+  // is serialized.
+  auto lckState = mrpt::lockHelper(state_mtx_);
+
+  bool mmSaveOk = false;
+  {
+    // Also guards against the temporary insertion of observation layers:
+    auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
+    mmSaveOk = state_.local_map->save_to_file(mmFile);
+  }
+
+  bool smSaveOk = false;
+  {
+    auto lckSM = mrpt::lockHelper(state_simplemap_mtx_);
+    smSaveOk = state_.reconstructed_simplemap.saveToFile(smFile);
+  }
 
   ret.success = mmSaveOk && smSaveOk;
 
