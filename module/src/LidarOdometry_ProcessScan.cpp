@@ -698,7 +698,8 @@ double LidarOdometry::effectiveGravitySigmaRad() const
 
 // here happens the main stuff:
 void LidarOdometry::processLidarScan(  // NOLINT
-  const CObservation::ConstPtr & obs, const std::optional<double> imuCoverageEndTime)
+  const CObservation::ConstPtr & obs, const std::optional<double> imuCoverageEndTime,
+  const uint64_t session)
 {
   using namespace std::string_literals;
 
@@ -749,8 +750,11 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
   std::unique_lock<std::mutex> lckState(state_mtx_);
 
-  // A reset() may have run while this scan was queued, and its initialize()
-  // may not be done yet:
+  // Discard scans queued before a reset(), whose initialize() may not even
+  // be done yet:
+  if (session != session_id_.load()) {
+    return;
+  }
   {
     auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
     if (!state_.initialized) {
@@ -807,8 +811,6 @@ void LidarOdometry::processLidarScan(  // NOLINT
     }
   }
 
-  state_.last_obs_tim_by_label[obs->sensorLabel] = this_obs_tim;
-
   // Use the observation to update the estimated sensor range:
   if (!state_.estimated_observation_radius.has_value()) {
     doInitializeEstimatedObservationRadius(*obs);
@@ -821,6 +823,10 @@ void LidarOdometry::processLidarScan(  // NOLINT
       return;
     }
   }
+
+  // Only after the scan is known to be usable, so a skipped one does not
+  // count for min_time_between_scans:
+  state_.last_obs_tim_by_label[obs->sensorLabel] = this_obs_tim;
 
   // Handle multiple simultaneous LIDARs:
   const mrpt::obs::CSensoryFrame sf = collectRawObservations(obs);

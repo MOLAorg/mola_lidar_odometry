@@ -110,20 +110,26 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     }
 
     ENSURE_YAML_ENTRY_EXISTS(cfg, "lidar_sensor_labels");
+    std::vector<std::regex> lidarLabels;
     if (cfg["lidar_sensor_labels"].isSequence()) {
       const auto lsl = cfg["lidar_sensor_labels"].asSequenceRange();
       for (const auto & sl : lsl) {
         const auto s = sl.as<std::string>();
         MRPT_LOG_DEBUG_STREAM("Adding as input lidar sensor label: " << s);
-        params_.lidar_sensor_labels.emplace_back(s);
+        lidarLabels.emplace_back(s);
       }
     } else {
       ASSERT_(cfg["lidar_sensor_labels"].isScalar());
       const auto s = cfg["lidar_sensor_labels"].as<std::string>();
       MRPT_LOG_DEBUG_STREAM("Adding as input lidar sensor label: " << s);
-      params_.lidar_sensor_labels.emplace_back(s);
+      lidarLabels.emplace_back(s);
     }
-    ASSERT_(!params_.lidar_sensor_labels.empty());
+    ASSERT_(!lidarLabels.empty());
+    // reset() runs this again with the same configuration: keep the list
+    // then, since the input thread may be iterating over it.
+    if (params_.lidar_sensor_labels.empty()) {
+      params_.lidar_sensor_labels = std::move(lidarLabels);
+    }
 
     // Obs2map merge pipeline:
     ASSERT_(c["insert_observation_into_local_map"].isSequence());

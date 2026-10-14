@@ -1651,6 +1651,16 @@ private:
 
   };  // end of MethodState
 
+  /// Number of scans enqueued on worker_lidar_ that have neither finished
+  /// nor been dropped by the pool. Unlike pendingTasks() plus the running
+  /// flag, it has no gap between a task being dequeued and starting to run.
+  /// Declared before worker_lidar_, whose queued tasks reference it.
+  std::atomic<int> lidar_tasks_alive_{0};
+
+  /// Incremented by reset() under state_mtx_: scans enqueued before a reset
+  /// carry an older value and are discarded.
+  std::atomic<uint64_t> session_id_{0};
+
   /** The worker thread pool with 1 thread for processing incoming observations.
    *  Uses POLICY_DROP_OLD: when a new scan is enqueued while one is already
    *  waiting (the worker thread being busy with a previous one), the pool
@@ -1918,9 +1928,9 @@ private:
   /// POLICY_DROP_OLD may discard a queued scan before it ever runs onLidar().
   void onLidar(
     const CObservation::ConstPtr & o, double readyTimestamp,
-    std::optional<double> imuCoverageEndTime);
+    std::optional<double> imuCoverageEndTime, uint64_t session);
   void processLidarScan(
-    const CObservation::ConstPtr & obs, std::optional<double> imuCoverageEndTime);
+    const CObservation::ConstPtr & obs, std::optional<double> imuCoverageEndTime, uint64_t session);
 
   void onIMU(const CObservation::ConstPtr & o);
   void onIMUImpl(const CObservation::ConstPtr & o);
@@ -2050,6 +2060,10 @@ private:
    *  worker queue to drain, then enqueues, so nothing is ever evicted.
    *  \note The caller must already hold lossless_submit_mtx_. */
   std::future<void> submitLidarScanLossless_locked(
+    const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime);
+
+  /// Enqueues a scan on worker_lidar_, tracked by lidar_tasks_alive_.
+  std::future<void> enqueueLidarScan(
     const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime);
 
   /// Number of LiDAR scans currently running or queued on worker_lidar_ (0, 1, or 2).
