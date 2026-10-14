@@ -283,6 +283,12 @@ For OFFLINE / reproducible batch runs set `MOLA_ASYNC_BACKEND=false` (async
 serving is non-deterministic). Full parameter table: `mola_state_estimation`'s
 AGENTS.md ("Real-time setup").
 
+The estimator may deliver its geo-referencing (`onExternalMapUpdate()`) from
+inside one of those calls, i.e. with `state_mtx_` held by the LiDAR worker, so
+the callback only stores it under its own mutex; `processLidarScan()` applies it
+at the start of the next scan. It is kept outside `state_`, so a `reset()` does
+not lose it.
+
 ### REP-105 `map -> odom` published directly (jitter-free)
 
 By default, under `publish_localization_following_rep105: true` the bridge

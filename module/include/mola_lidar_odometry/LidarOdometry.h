@@ -1852,6 +1852,13 @@ private:
   /// does not register them again.
   bool estimator_subscriptions_done_ = false;
 
+  /// Latest geo-referencing received from the state estimator. The estimator
+  /// may deliver it from inside a call LO makes with state_mtx_ held, so the
+  /// callback takes only this leaf mutex. Kept outside state_ so it survives
+  /// reset(): the estimator does not necessarily publish it again.
+  std::optional<mola::Georeferencing> received_external_georef_;
+  std::mutex received_external_georef_mtx_;
+
   bool destructor_called_ = false;
   mutable std::mutex is_busy_mtx_;
   /// Guards MethodState::drop_frames_stats_* (see addDropStats()/getDropStats()).
@@ -2016,6 +2023,10 @@ private:
   [[nodiscard]] std::string vizParentFrame() const;
 
   void onExternalMapUpdate(const MapSourceBase::MapUpdate & mu);
+
+  /// Applies the latest geo-referencing received by onExternalMapUpdate() to
+  /// state_ and, if it has none yet, to the local map. Call with state_mtx_ held.
+  void applyReceivedExternalGeoref();
   void onExternalLocalizationUpdate(const LocalizationSourceBase::LocalizationUpdate & lu);
 
   void doPublishUpdatedLocalization(const mrpt::Clock::time_point & scan_ref_time);

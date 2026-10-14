@@ -762,6 +762,8 @@ void LidarOdometry::processLidarScan(  // NOLINT
     }
   }
 
+  applyReceivedExternalGeoref();
+
   // Feed all the IMU data belonging to this scan's time span into the
   // IMU-derived state, in timestamp order, before anything reads it. The scan
   // was held back until that data existed (see sendLidarScanToProcessQueue),
