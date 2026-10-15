@@ -33,6 +33,7 @@
 
 // Std:
 #include <chrono>
+#include <cmath>
 #include <mutex>
 #include <regex>
 #include <thread>
@@ -490,6 +491,8 @@ void LidarOdometry::onLidar(
   try {
     addDropStats(false);
     processLidarScan(o, imuCoverageEndTime, session);
+  } catch (const InvalidInputError & e) {
+    dropInvalidInput(*o, e);
   } catch (const std::exception & e) {
     MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
     auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
@@ -507,11 +510,21 @@ void LidarOdometry::onIMU(const CObservation::ConstPtr & o)
   // Keep a top-level try-catch, as for the methods running on a thread pool:
   try {
     onIMUImpl(o);
+  } catch (const InvalidInputError & e) {
+    dropInvalidInput(*o, e);
   } catch (const std::exception & e) {
     MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
     auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
     state_.fatal_error = true;
   }
+}
+
+void LidarOdometry::dropInvalidInput(const CObservation & o, const InvalidInputError & e)
+{
+  const auto count = ++invalid_input_count_;
+  MRPT_LOG_THROTTLE_ERROR_FMT(
+    2.0, "Dropping invalid observation '%s' (%zu dropped so far): %s", o.sensorLabel.c_str(), count,
+    e.what());
 }
 
 void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
@@ -521,11 +534,18 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
   const ProfilerEntry tleg(profiler_, "onIMU");
 
   auto imu = std::dynamic_pointer_cast<const mrpt::obs::CObservationIMU>(o);
-  ASSERTMSG_(
-    imu, mrpt::format(
-           "IMU observation with label '%s' does not have the expected "
-           "type 'mrpt::obs::CObservationIMU', it is '%s' instead",
-           o->sensorLabel.c_str(), o->GetRuntimeClass()->className));
+  if (!imu) {
+    throw InvalidInputError(mrpt::format(
+      "IMU observation with label '%s' does not have the expected "
+      "type 'mrpt::obs::CObservationIMU', it is '%s' instead",
+      o->sensorLabel.c_str(), o->GetRuntimeClass()->className));
+  }
+  for (size_t i = 0; i < imu->rawMeasurements.size(); i++) {
+    if (imu->dataIsPresent[i] && !std::isfinite(imu->rawMeasurements[i])) {
+      throw InvalidInputError(mrpt::format(
+        "IMU observation with label '%s' has a non-finite reading", o->sensorLabel.c_str()));
+    }
+  }
 
   MRPT_LOG_DEBUG_STREAM(
     "onIMU called for timestamp=" << mrpt::system::dateTimeLocalToString(imu->timestamp));
@@ -656,6 +676,8 @@ void LidarOdometry::onGPS(const CObservation::ConstPtr & o)
   // Keep a top-level try-catch, as for the methods running on a thread pool:
   try {
     onGPSImpl(o);
+  } catch (const InvalidInputError & e) {
+    dropInvalidInput(*o, e);
   } catch (const std::exception & e) {
     MRPT_LOG_ERROR_STREAM("Exception:\n" << mrpt::exception_to_str(e));
     auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
@@ -670,11 +692,12 @@ void LidarOdometry::onGPSImpl(const CObservation::ConstPtr & o)
   const ProfilerEntry tleg(profiler_, "onGPS");
 
   auto gps = std::dynamic_pointer_cast<const mrpt::obs::CObservationGPS>(o);
-  ASSERTMSG_(
-    gps, mrpt::format(
-           "GPS observation with label '%s' does not have the expected "
-           "type 'mrpt::obs::CObservationGPS', it is '%s' instead",
-           o->sensorLabel.c_str(), o->GetRuntimeClass()->className));
+  if (!gps) {
+    throw InvalidInputError(mrpt::format(
+      "GPS observation with label '%s' does not have the expected "
+      "type 'mrpt::obs::CObservationGPS', it is '%s' instead",
+      o->sensorLabel.c_str(), o->GetRuntimeClass()->className));
+  }
 
   MRPT_LOG_DEBUG_FMT("GNSS observation received, t=%.03f", mrpt::Clock::toDouble(gps->timestamp));
 
@@ -682,9 +705,7 @@ void LidarOdometry::onGPSImpl(const CObservation::ConstPtr & o)
   if (gps->covariance_enu) {
     const auto minCov = gps->covariance_enu->minimumDiagonal();
     if (minCov < 0 || std::isnan(minCov) || std::isinf(minCov)) {
-      MRPT_LOG_THROTTLE_WARN_STREAM(
-        5.0, "Discarding GPS observation with invalid covariance matrix");
-      return;
+      throw InvalidInputError("GPS observation with an invalid covariance matrix");
     }
   }
 

@@ -15,9 +15,9 @@
 /**
  * @file   test_robustness.cpp
  * @brief  Error and concurrency paths of LidarOdometry on synthetic data:
- *         empty scans, reset(), optimize_twist, GNSS input, map saving and
- *         settings changes while scans are being processed. Best run under
- *         ASan/TSan too.
+ *         empty scans, invalid input, reset(), optimize_twist, GNSS input,
+ *         map saving and settings changes while scans are being processed.
+ *         Best run under ASan/TSan too.
  */
 
 #include <gtest/gtest.h>
@@ -35,6 +35,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <future>
+#include <limits>
 #include <string>
 #include <thread>
 
@@ -346,4 +347,67 @@ TEST(Robustness, ResetWhileReading)
   readerThread.join();
 
   f.expectTrackedPath(kNumScans / 2);
+}
+
+namespace
+{
+mrpt::obs::CObservationOdometry::Ptr odometryLabeled(const std::string & label, double t)
+{
+  auto obs = odometry(mrpt::poses::CPose2D(), t);
+  obs->sensorLabel = label;
+  return obs;
+}
+
+// A scan whose lazy-load file does not exist: loading it throws.
+mrpt::obs::CObservationPointCloud::Ptr unreadableScan(double t)
+{
+  auto obs = mrpt::obs::CObservationPointCloud::Create();
+  obs->sensorLabel = "lidar";
+  obs->timestamp = mrpt::Clock::fromDouble(t);
+  obs->setAsExternalStorage(
+    "/nonexistent/scan.bin",
+    mrpt::obs::CObservationPointCloud::ExternalStorageFormat::KittiBinFile);
+  return obs;
+}
+
+mrpt::obs::CObservationIMU::Ptr nonFiniteImu(double t)
+{
+  auto obs = imu(kStartPose, t);
+  obs->set(mrpt::obs::IMU_WZ, std::numeric_limits<double>::quiet_NaN());
+  return obs;
+}
+}  // namespace
+
+// Malformed input (an observation of the wrong class for its sensor label, an
+// unreadable scan, non-finite readings) must be dropped and counted, not stop
+// the odometry.
+TEST(Robustness, InvalidInputIsDropped)
+{
+  Fixture f;
+  f.feedScans(0, 5);
+
+  f.liodom->onNewObservation(odometryLabeled("imu", scanTime(5) - 0.05));
+  f.liodom->onNewObservation(odometryLabeled("gps", scanTime(5) - 0.04));
+  f.liodom->onNewObservation(nonFiniteImu(scanTime(5) - 0.03));
+  f.liodom->onNewObservation(unreadableScan(scanTime(5) - 0.02));
+  wait_idle(*f.liodom);  // else the scan worker may drop it, unprocessed, for the next one
+  f.liodom->onNewObservation(odometryLabeled("lidar", scanTime(5) - 0.01));
+  wait_idle(*f.liodom);
+  EXPECT_EQ(f.liodom->invalidInputCount(), 5U);
+
+  f.feedScans(5, kNumScans - 5);
+  f.expectTrackedPath(kNumScans / 2);
+  ASSERT_GE(f.liodom->estimatedTrajectory().size(), static_cast<size_t>(kNumScans - 5));
+}
+
+// The same for the very first scan, before anything has been initialized.
+TEST(Robustness, UnreadableFirstScanIsDropped)
+{
+  Fixture f;
+  f.liodom->onNewObservation(unreadableScan(scanTime(0) - 0.1));
+  wait_idle(*f.liodom);
+  EXPECT_EQ(f.liodom->invalidInputCount(), 1U);
+
+  f.feedScans(0, kNumScans);
+  ASSERT_GE(f.liodom->estimatedTrajectory().size(), static_cast<size_t>(kNumScans - 5));
 }

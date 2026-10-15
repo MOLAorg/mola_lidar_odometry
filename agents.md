@@ -404,6 +404,18 @@ setting still wins), like `MOLA_ASYNC_BACKEND`. For `mola-cli` replays set it in
 the environment; note `time_warp_scale` above ~5 outruns the pipeline, and
 without this the excess simply becomes dropped scans.
 
+## Invalid input is dropped; other exceptions are fatal
+
+An exception in `onLidar`/`onIMU`/`onGPS` latches `state_.fatal_error`, and
+`onNewObservation` then requests shutdown. The exception is
+`LidarOdometry::InvalidInputError`, thrown only by input checks that run before
+any state is modified: wrong class for the sensor label, non-finite IMU
+readings, invalid GNSS covariance, an unloadable (lazy-load) scan, or a scan
+not convertible into points. Those observations are dropped with a throttled
+error and counted (`invalidInputCount()`, diagnostics `invalid_inputs`, and a
+line in the shutdown run totals). New input checks should throw it; anything
+thrown after state changes must stay fatal.
+
 ## `--output-simplemap` disables lazy-load simplemaps in the offline CLI
 
 With `--output-simplemap`, `mola-lidar-odometry-cli` clears
