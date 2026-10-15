@@ -1971,6 +1971,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
     // The whole block below mutates the local map layers, so it must exclude
     // a concurrent visualization render (see local_map_content_mtx_ docs):
     auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
+    local_map_contents_stamp_ = scan_ref_time;
 
     // If the local map is empty, create it from this first observation:
     if (state_.local_map->empty()) {

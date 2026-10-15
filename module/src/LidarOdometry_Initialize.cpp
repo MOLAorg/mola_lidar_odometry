@@ -709,6 +709,9 @@ void LidarOdometry::doPreloadLocalMap()
       "or crash on the first LiDAR scan. Check that "
       "'local_map_updates.load_existing_local_map' points to a valid, non-empty map.");
   }
+
+  // It may run deferred, with no scan afterwards to refresh the status:
+  updateStatusSnapshot();
 }
 
 }  // namespace mola

@@ -491,6 +491,10 @@ TEST(Robustness, LocalMapIsPublishedOnceSubscribed)
   using namespace std::chrono_literals;
 
   for (const char * mapClass : {"mola::KeyframePointCloudMap", "mola::IncrementalPointCloud"}) {
+    // Declared before the fixture, so they outlive its publishing worker:
+    std::mutex mtx;
+    std::map<std::string, mrpt::maps::CMetricMap::ConstPtr> received;
+
     set_env("MOLA_PUBLISH_LOCAL_MAP_UPDATES_EVERY_N", "1");
     set_env("MOLA_LOCALMAP_CLASS", mapClass);
     Fixture f;
@@ -499,8 +503,6 @@ TEST(Robustness, LocalMapIsPublishedOnceSubscribed)
 
     f.feedScans(0, 10);
 
-    std::mutex mtx;
-    std::map<std::string, mrpt::maps::CMetricMap::ConstPtr> received;
     f.liodom->subscribeToMapUpdates([&](const mola::MapSourceBase::MapUpdate & mu) {
       std::lock_guard<std::mutex> lck(mtx);
       received[mu.map_name] = mu.map;

@@ -259,6 +259,9 @@ void LidarOdometry::reset()
     pending_imu_.clear();
     latest_imu_time_ = 0;
     latest_obs_time_ = 0;
+
+    auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
+    local_map_contents_stamp_ = {};
   }
   {
     // Scans still waiting for IMU belong to the pre-reset session:

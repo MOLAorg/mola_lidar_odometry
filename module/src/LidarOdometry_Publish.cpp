@@ -27,6 +27,7 @@
 #include <mrpt/maps/CSimplePointsMap.h>
 #include <mrpt/system/datetime.h>
 
+#include <algorithm>
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -116,15 +117,18 @@ void LidarOdometry::publishLocalMapLayers(
   // Private copies of all layers. Point layers are already plain
   // CGenericPointsMap's, ready to send:
   mp2p_icp::metric_map_t snapshot;
+  // Scans processed since this was enqueued may have changed the contents:
+  auto contentsStamp = stamp;
   {
     auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
     snapshot = cheapLayerSnapshot(*localMap);
+    contentsStamp = std::max(contentsStamp, local_map_contents_stamp_);
   }
 
   MapUpdate mu;
   mu.method = "lidar_odometry";
   mu.reference_frame = referenceFrame;
-  mu.timestamp = stamp;
+  mu.timestamp = contentsStamp;
 
   for (const auto & [layerName, layerMap] : snapshot.layers) {
     mu.map_name = layerName;

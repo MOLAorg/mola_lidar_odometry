@@ -1933,6 +1933,9 @@ private:
   /// Lock order: a thread that needs both must take state_mtx_ first; it must
   /// never be held while acquiring state_mtx_.
   mutable std::mutex local_map_content_mtx_;
+  /// Stamp of the scan last inserted into the local map. Guarded by
+  /// local_map_content_mtx_, so a copy of the map can carry its own stamp.
+  mrpt::Clock::time_point local_map_contents_stamp_{};
 
   mutable std::mutex state_trajectory_mtx_;
   mutable std::recursive_mutex state_simplemap_mtx_;
