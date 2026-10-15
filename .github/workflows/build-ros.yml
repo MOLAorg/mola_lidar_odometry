@@ -193,6 +193,9 @@ jobs:
             --cmake-args $EXTRA_CMAKE_ARGS
 
       - name: Run unit tests
+        env:
+          # Network-dependent, so coverage would change from run to run:
+          MOLA_LO_DISABLE_VERSION_CHECK: "true"
         run: |
           . /opt/ros/*/setup.sh
           colcon test --event-handlers console_direct+
@@ -309,6 +312,9 @@ jobs:
           apt-get install -y ros-${{ matrix.ros_distribution }}-mola-test-datasets
 
       - name: Run unit tests
+        env:
+          # Network-dependent, so coverage would change from run to run:
+          MOLA_LO_DISABLE_VERSION_CHECK: "true"
         run: |
           . /opt/ros/*/setup.sh
           colcon test --event-handlers console_direct+

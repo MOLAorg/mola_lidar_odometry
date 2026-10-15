@@ -726,6 +726,9 @@ General options
 - ``MOLA_PROFILER`` (Default: ``true``): Enable pipeline and ICP step-level timing profiler. Disable to reduce overhead
   in production deployments.
 
+- ``MOLA_LO_DISABLE_VERSION_CHECK`` (Default: ``false``): If set to ``true``, skips the daily online check for a newer
+  release.
+
 - ``MOLA_LO_PUBLISH_REF_FRAME`` (Default: ``odom``): Reference frame name used when publishing pose updates.
 
 - ``MOLA_LO_PUBLISH_VEHICLE_FRAME`` (Default: ``base_link``): Vehicle frame name used when publishing pose updates.
