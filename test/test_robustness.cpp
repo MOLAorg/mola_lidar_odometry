@@ -376,6 +376,13 @@ mrpt::obs::CObservationIMU::Ptr nonFiniteImu(double t)
   obs->set(mrpt::obs::IMU_WZ, std::numeric_limits<double>::quiet_NaN());
   return obs;
 }
+
+mrpt::obs::CObservationGPS::Ptr nonFiniteCovarianceGnss(double t)
+{
+  auto obs = gnss(make_georef(), kStartPose, {0, 0}, 0.1, t);
+  (*obs->covariance_enu)(0, 1) = std::numeric_limits<double>::quiet_NaN();
+  return obs;
+}
 }  // namespace
 
 // Malformed input (an observation of the wrong class for its sensor label, an
@@ -389,11 +396,12 @@ TEST(Robustness, InvalidInputIsDropped)
   f.liodom->onNewObservation(odometryLabeled("imu", scanTime(5) - 0.05));
   f.liodom->onNewObservation(odometryLabeled("gps", scanTime(5) - 0.04));
   f.liodom->onNewObservation(nonFiniteImu(scanTime(5) - 0.03));
+  f.liodom->onNewObservation(nonFiniteCovarianceGnss(scanTime(5) - 0.025));
   f.liodom->onNewObservation(unreadableScan(scanTime(5) - 0.02));
   wait_idle(*f.liodom);  // else the scan worker may drop it, unprocessed, for the next one
   f.liodom->onNewObservation(odometryLabeled("lidar", scanTime(5) - 0.01));
   wait_idle(*f.liodom);
-  EXPECT_EQ(f.liodom->invalidInputCount(), 5U);
+  EXPECT_EQ(f.liodom->invalidInputCount(), 6U);
 
   f.feedScans(5, kNumScans - 5);
   f.expectTrackedPath(kNumScans / 2);
@@ -410,4 +418,21 @@ TEST(Robustness, UnreadableFirstScanIsDropped)
 
   f.feedScans(0, kNumScans);
   ASSERT_GE(f.liodom->estimatedTrajectory().size(), static_cast<size_t>(kNumScans - 5));
+}
+
+// The same checks apply to a dedicated attitude IMU.
+TEST(Robustness, InvalidAttitudeImuIsDropped)
+{
+  set_env("MOLA_ATTITUDE_IMU_NAME", "attitude_imu");
+  Fixture f;
+  ::unsetenv("MOLA_ATTITUDE_IMU_NAME");
+
+  auto bad = nonFiniteImu(scanTime(0) - 0.1);
+  bad->sensorLabel = "attitude_imu";
+  f.liodom->onNewObservation(bad);
+  f.liodom->onNewObservation(odometryLabeled("attitude_imu", scanTime(0) - 0.05));
+  EXPECT_EQ(f.liodom->invalidInputCount(), 2U);
+
+  f.feedScans(0, kNumScans);
+  f.expectTrackedPath(kNumScans / 2);
 }

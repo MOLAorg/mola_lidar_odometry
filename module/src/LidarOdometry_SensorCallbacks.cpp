@@ -519,6 +519,29 @@ void LidarOdometry::onIMU(const CObservation::ConstPtr & o)
   }
 }
 
+namespace
+{
+/// The observation as an IMU one, or InvalidInputError if it is of another
+/// class or has a non-finite reading.
+mrpt::obs::CObservationIMU::ConstPtr validImuObservation(const CObservation::ConstPtr & o)
+{
+  auto imu = std::dynamic_pointer_cast<const mrpt::obs::CObservationIMU>(o);
+  if (!imu) {
+    throw LidarOdometry::InvalidInputError(mrpt::format(
+      "IMU observation with label '%s' does not have the expected "
+      "type 'mrpt::obs::CObservationIMU', it is '%s' instead",
+      o->sensorLabel.c_str(), o->GetRuntimeClass()->className));
+  }
+  for (size_t i = 0; i < imu->rawMeasurements.size(); i++) {
+    if (imu->dataIsPresent[i] && !std::isfinite(imu->rawMeasurements[i])) {
+      throw LidarOdometry::InvalidInputError(mrpt::format(
+        "IMU observation with label '%s' has a non-finite reading", o->sensorLabel.c_str()));
+    }
+  }
+  return imu;
+}
+}  // namespace
+
 void LidarOdometry::dropInvalidInput(const CObservation & o, const InvalidInputError & e)
 {
   const auto count = ++invalid_input_count_;
@@ -533,19 +556,7 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
 
   const ProfilerEntry tleg(profiler_, "onIMU");
 
-  auto imu = std::dynamic_pointer_cast<const mrpt::obs::CObservationIMU>(o);
-  if (!imu) {
-    throw InvalidInputError(mrpt::format(
-      "IMU observation with label '%s' does not have the expected "
-      "type 'mrpt::obs::CObservationIMU', it is '%s' instead",
-      o->sensorLabel.c_str(), o->GetRuntimeClass()->className));
-  }
-  for (size_t i = 0; i < imu->rawMeasurements.size(); i++) {
-    if (imu->dataIsPresent[i] && !std::isfinite(imu->rawMeasurements[i])) {
-      throw InvalidInputError(mrpt::format(
-        "IMU observation with label '%s' has a non-finite reading", o->sensorLabel.c_str()));
-    }
-  }
+  const auto imu = validImuObservation(o);
 
   MRPT_LOG_DEBUG_STREAM(
     "onIMU called for timestamp=" << mrpt::system::dateTimeLocalToString(imu->timestamp));
@@ -604,18 +615,13 @@ void LidarOdometry::onAttitudeIMU(const CObservation::ConstPtr & o)
 {
   ASSERT_(o);
 
-  auto imu = std::dynamic_pointer_cast<const mrpt::obs::CObservationIMU>(o);
-  if (!imu) {
-    MRPT_LOG_THROTTLE_WARN_FMT(
-      5.0,
-      "Observation '%s' is configured as 'attitude_imu_sensor_label' but is not a "
-      "CObservationIMU (it is '%s'). Ignoring it.",
-      o->sensorLabel.c_str(), o->GetRuntimeClass()->className);
-    return;
+  try {
+    const auto imu = validImuObservation(o);
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    storeImuForSimplemap(imu);
+  } catch (const InvalidInputError & e) {
+    dropInvalidInput(*o, e);
   }
-
-  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
-  storeImuForSimplemap(imu);
 }
 
 void LidarOdometry::storeImuForSimplemap(const mrpt::obs::CObservationIMU::ConstPtr & imu)
@@ -703,8 +709,14 @@ void LidarOdometry::onGPSImpl(const CObservation::ConstPtr & o)
 
   // ensure covariance is valid:
   if (gps->covariance_enu) {
-    const auto minCov = gps->covariance_enu->minimumDiagonal();
-    if (minCov < 0 || std::isnan(minCov) || std::isinf(minCov)) {
+    const auto & cov = *gps->covariance_enu;
+    bool valid = cov.minimumDiagonal() >= 0;
+    for (int r = 0; r < cov.rows(); r++) {
+      for (int c = 0; c < cov.cols(); c++) {
+        valid = valid && std::isfinite(cov(r, c));
+      }
+    }
+    if (!valid) {
       throw InvalidInputError("GPS observation with an invalid covariance matrix");
     }
   }
