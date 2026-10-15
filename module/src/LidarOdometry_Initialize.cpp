@@ -601,6 +601,11 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     }
   }
 
+  {
+    auto lckState = mrpt::lockHelper(state_mtx_);
+    updateStatusSnapshot();
+  }
+
   // end of initialization:
   {
     auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);

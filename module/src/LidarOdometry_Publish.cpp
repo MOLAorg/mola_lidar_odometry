@@ -23,9 +23,8 @@
 #include <mola_lidar_odometry/LidarOdometry.h>
 
 // MRPT:
-#include <mrpt/io/CMemoryStream.h>
 #include <mrpt/maps/CPointsMap.h>
-#include <mrpt/serialization/CArchive.h>
+#include <mrpt/maps/CSimplePointsMap.h>
 #include <mrpt/system/datetime.h>
 
 #include <iomanip>
@@ -86,60 +85,62 @@ void LidarOdometry::doPublishUpdatedLocalMap(const mrpt::Clock::time_point & sca
     return;
   }
 
-  // === This was ===
-  // Don't publish if nobody is listening, OR, if it is still
-  // pending to subscribe to us:
-  //if (!anyUpdateMapSubscriber()) { return; }
-  // ================
-  // However, DON'T do this, since if publishing to ROS, latched messages
-  // from a once-at-start-up publication would be expected.
+  // Nobody to receive it yet: keep it pending, so it goes out as soon as there
+  // is a subscriber (which then also gets it latched for any later one).
+  if (!anyUpdateMapSubscriber()) {
+    return;
+  }
 
   state_.local_map_needs_publish = false;
-
-  const ProfilerEntry tleCleanup(profiler_, "doPublishUpdatedLocalMap");
   state_.localmap_advertise_updates_counter = 0;
+
+  // Copying the layers out is O(map size): it runs on a worker, which only
+  // takes local_map_content_mtx_ for a snapshot. The shared_ptr keeps the map
+  // alive across a concurrent reset().
+  (void)worker_publish_local_map_.enqueue(
+    [this, localMap = state_.local_map, frame = params_.publish_reference_frame, scan_ref_time]() {
+      try {
+        publishLocalMapLayers(localMap, frame, scan_ref_time);
+      } catch (const std::exception & e) {
+        MRPT_LOG_ERROR_STREAM("Error publishing the local map: " << e.what());
+      }
+    });
+}
+
+void LidarOdometry::publishLocalMapLayers(
+  const mp2p_icp::metric_map_t::Ptr & localMap, const std::string & referenceFrame,
+  const mrpt::Clock::time_point & stamp)
+{
+  const ProfilerEntry tle(profiler_, "doPublishUpdatedLocalMap");
+
+  // Private copies of all layers. Point layers are already plain
+  // CGenericPointsMap's, ready to send:
+  mp2p_icp::metric_map_t snapshot;
+  {
+    auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
+    snapshot = cheapLayerSnapshot(*localMap);
+  }
 
   MapUpdate mu;
   mu.method = "lidar_odometry";
-  mu.reference_frame = params_.publish_reference_frame;
-  mu.timestamp = scan_ref_time;
+  mu.reference_frame = referenceFrame;
+  mu.timestamp = stamp;
 
-  // publish all local map layers:
-  // make map *copies* to make this multithread safe.
-  // This is costly for large maps (!). That's why we decimate sending
-  // map notifications and check for anyUpdateMapSubscriber() above.
-  for (const auto & [layerName, layerMap] : state_.local_map->layers) {
+  for (const auto & [layerName, layerMap] : snapshot.layers) {
     mu.map_name = layerName;
 
-    // Make a copy of the maps:
-    if (auto mapPts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layerMap);
-        mapPts) {  // point cloud maps:
-      auto mapCopy = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(
-        mrpt::rtti::classFactory(layerMap->GetRuntimeClass()->className));
-      ASSERT_(mapCopy);
-      mapCopy->insertAnotherMap(mapPts.get(), mrpt::poses::CPose3D::Identity());
-
-      mu.map = mapCopy;
-    }
-    // any other map with a points-map representation:
-    else if (const auto * auxPts = mrpt::maps::asPointsMap(*layerMap); auxPts) {
-      auto mapCopy = mrpt::maps::CSimplePointsMap::Create();
-      mapCopy->insertAnotherMap(auxPts, mrpt::poses::CPose3D::Identity());
-
-      mu.map = mapCopy;
+    if (std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layerMap)) {
+      mu.map = layerMap;
+    } else if (const auto * auxPts = mrpt::maps::asPointsMap(*layerMap); auxPts) {
+      // Any other map with a points-map representation, taken from the
+      // snapshot so that whatever it caches is dropped with it:
+      auto pts = mrpt::maps::CSimplePointsMap::Create();
+      pts->insertAnotherMap(auxPts, mrpt::poses::CPose3D::Identity());
+      mu.map = pts;
     } else {
-      // Any other class: make a deep copy.
-      mrpt::io::CMemoryStream buf;
-      auto ar = mrpt::serialization::archiveFrom(buf);
-      ar << *layerMap;
-      buf.Seek(0);
-      auto out = ar.ReadObject();
-
-      mu.map = std::dynamic_pointer_cast<mrpt::maps::CMetricMap>(out);
-      ASSERT_(mu.map);
+      mu.map = layerMap;
     }
 
-    // send it out:
     advertiseUpdatedMap(mu);
 
     MRPT_LOG_DEBUG_STREAM("Published map layer: '" << layerName << "'");
@@ -148,8 +149,7 @@ void LidarOdometry::doPublishUpdatedLocalMap(const mrpt::Clock::time_point & sca
   // And publish the map metadata (added in mp2p_icp>=1.7.0)
   {
     std::stringstream ss;
-    state_.local_map->metadata.printAsYAML(
-      ss, mrpt::containers::YamlEmitOptions{.emitHeader = false});
+    snapshot.metadata.printAsYAML(ss, mrpt::containers::YamlEmitOptions{.emitHeader = false});
     mu.map_name = "metadata";
     mu.map_metadata = ss.str();
     mu.map.reset();  // no map, just metadata
@@ -254,16 +254,14 @@ void LidarOdometry::publishMetricMapGeoreferencingData()
 
 void LidarOdometry::onPublishDiagnostics()
 {
-  auto lckState = mrpt::lockHelper(state_mtx_);
+  const auto st = statusSnapshot();
 
-  const auto curStamp = state_.last_obs_timestamp ? *state_.last_obs_timestamp : mrpt::Clock::now();
+  const auto curStamp = st->last_obs_timestamp ? *st->last_obs_timestamp : mrpt::Clock::now();
 
   mrpt::containers::yaml diagValues = mrpt::containers::yaml::Map();
 
-  const double dtAvr = profiler_.getMeanTime("onLidar");
-
-  diagValues["icp_quality"] = state_.last_icp_quality;
-  diagValues["average_process_time"] = dtAvr;
+  diagValues["icp_quality"] = st->icp_quality;
+  diagValues["average_process_time"] = st->average_process_time;
   diagValues["dropped_frames_ratio"] = getDropStats();
   diagValues["invalid_inputs"] = invalid_input_count_.load();
   diagValues["parameters"] = getModuleParameters();
@@ -314,28 +312,29 @@ void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & stat
 {
   using L = mola::DiagnosticLevel;
 
-  auto lckState = mrpt::lockHelper(state_mtx_);
+  // Never wait for state_mtx_ here: this is called from the ROS executor,
+  // which serves the sensor subscriptions too.
+  const auto st = statusSnapshot();
 
-  const auto & th = params_.diagnostics;
+  const auto & th = st->diagnostics_thresholds;
   const auto now = mrpt::Clock::now();
   // Use wall-clock reception time to avoid false positives when sensor
   // hardware clocks are not synchronized to system time.
-  const double lastObsAgeSec =
-    state_.last_obs_reception_time
-      ? mrpt::system::timeDifference(*state_.last_obs_reception_time, now)
-      : std::numeric_limits<double>::infinity();
+  const double lastObsAgeSec = st->last_obs_reception_time
+                                 ? mrpt::system::timeDifference(*st->last_obs_reception_time, now)
+                                 : std::numeric_limits<double>::infinity();
 
-  const double icpQ = state_.last_icp_quality;
-  const double dtAvr = profiler_.getMeanTime("onLidar");
+  const double icpQ = st->icp_quality;
+  const double dtAvr = st->average_process_time;
   const double droppedRatio = getDropStats();
   const std::size_t startIndex = status.size();
-  const double sensorPeriod = state_.last_observed_scan_period_sec;
+  const double sensorPeriod = st->scan_period_sec;
 
   // 1) Input Data
   {
     mola::DiagnosticStatusMsg s;
     s.name = "LidarOdometry: Input Data";
-    if (!state_.last_obs_reception_time) {
+    if (!st->last_obs_reception_time) {
       s.level = L::STALE;
       s.message = "No observations received yet";
     } else if (lastObsAgeSec > th.input_error_sec) {
@@ -364,7 +363,7 @@ void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & stat
   {
     mola::DiagnosticStatusMsg s;
     s.name = "LidarOdometry: ICP Quality";
-    if (!state_.last_icp_timestamp) {
+    if (!st->last_icp_timestamp) {
       s.level = L::STALE;
       s.message = "No ICP result yet";
     } else if (icpQ < th.icp_quality_error) {
@@ -378,8 +377,8 @@ void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & stat
       s.message = "Nominal";
     }
     s.values.push_back(kv_d("quality", icpQ));
-    s.values.push_back(kv_u("last_icp_iterations", state_.last_icp_iterations));
-    s.values.push_back({"last_icp_was_good", state_.last_icp_was_good ? "true" : "false"});
+    s.values.push_back(kv_u("last_icp_iterations", st->icp_iterations));
+    s.values.push_back({"last_icp_was_good", st->icp_was_good ? "true" : "false"});
     status.push_back(std::move(s));
   }
 
@@ -407,18 +406,8 @@ void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & stat
     s.name = "LidarOdometry: Local Map";
     s.level = L::OK;
     s.message = "Informational";
-    std::size_t numLayers = 0;
-    std::size_t totalPts = 0;
-    if (state_.local_map) {
-      numLayers = state_.local_map->layers.size();
-      for (const auto & [layerName, layerMap] : state_.local_map->layers) {
-        if (!layerMap) continue;
-        if (auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layerMap); pts)
-          totalPts += pts->size();
-      }
-    }
-    s.values.push_back(kv_u("num_layers", numLayers));
-    s.values.push_back(kv_u("total_points", totalPts));
+    s.values.push_back(kv_u("num_layers", st->local_map_layers));
+    s.values.push_back(kv_u("total_points", st->local_map_points));
     status.push_back(std::move(s));
   }
 

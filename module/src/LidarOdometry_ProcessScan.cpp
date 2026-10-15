@@ -781,6 +781,36 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
   std::unique_lock<std::mutex> lckState(state_mtx_);
 
+  // Whatever path this scan takes from here, refresh what getters and
+  // diagnostics report while state_mtx_ is still held:
+  struct StatusSnapshotUpdater
+  {
+    StatusSnapshotUpdater(LidarOdometry & s, const std::unique_lock<std::mutex> & l)
+    : self(s), lck(l)
+    {
+    }
+
+    LidarOdometry & self;
+    const std::unique_lock<std::mutex> & lck;
+
+    StatusSnapshotUpdater(const StatusSnapshotUpdater &) = delete;
+    StatusSnapshotUpdater & operator=(const StatusSnapshotUpdater &) = delete;
+    StatusSnapshotUpdater(StatusSnapshotUpdater &&) = delete;
+    StatusSnapshotUpdater & operator=(StatusSnapshotUpdater &&) = delete;
+
+    ~StatusSnapshotUpdater()
+    {
+      if (!lck.owns_lock()) {
+        return;
+      }
+      try {
+        self.updateStatusSnapshot();
+      } catch (const std::exception &) {
+        // Keep the previous snapshot.
+      }
+    }
+  } statusSnapshotUpdater{*this, lckState};
+
   // Discard scans queued before a reset(), whose initialize() may not even
   // be done yet:
   if (session != session_id_.load()) {
@@ -2103,6 +2133,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
   // All state_ accesses are done; release state_mtx_ before invoking the sink
   // so it no longer blocks other state-mutex users during IPC/slow operations:
   if (pendingKfReq) {
+    updateStatusSnapshot();
     lckState.unlock();
     try {
       pendingKfSink->requestInsertKeyframe(*pendingKfReq);

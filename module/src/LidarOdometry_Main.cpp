@@ -29,6 +29,7 @@
 #include <mrpt/containers/yaml.h>
 #include <mrpt/core/initializer.h>
 #include <mrpt/io/lazy_load_path.h>
+#include <mrpt/maps/CPointsMap.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/poses/CPose3DPDFGaussian.h>
@@ -118,6 +119,7 @@ void LidarOdometry::shutdownCleanup()
     worker_lidar_.clear();
     worker_viz_.clear();
     worker_viz_local_map_.clear();
+    worker_publish_local_map_.clear();
 
     // Run totals, once, in a form a harness can scrape. `no_motion_model` is
     // the number the corpus had no aggregate for: it is the difference between
@@ -329,14 +331,7 @@ LidarOdometry::lastEstimatedState() const
     }
   }
 
-  auto lck = mrpt::lockHelper(state_mtx_);
-
-  if (!state_.last_motion_model_output) {
-    return {};
-  }
-  const auto & tw = state_.last_motion_model_output->twist;
-  const auto & pose = state_.last_lidar_pose;
-  return {{pose, tw}};
+  return statusSnapshot()->estimated_state;
 }
 
 double LidarOdometry::lastIcpQuality() const
@@ -348,9 +343,42 @@ double LidarOdometry::lastIcpQuality() const
     }
   }
 
-  auto lck = mrpt::lockHelper(state_mtx_);
+  return statusSnapshot()->icp_quality;
+}
 
-  return state_.last_icp_quality;
+std::shared_ptr<const LidarOdometry::StatusSnapshot> LidarOdometry::statusSnapshot() const
+{
+  auto lck = mrpt::lockHelper(status_snapshot_mtx_);
+  return status_snapshot_;
+}
+
+void LidarOdometry::updateStatusSnapshot()
+{
+  auto s = std::make_shared<StatusSnapshot>();
+
+  if (state_.last_motion_model_output) {
+    s->estimated_state.emplace(state_.last_lidar_pose, state_.last_motion_model_output->twist);
+  }
+  s->icp_quality = state_.last_icp_quality;
+  s->icp_iterations = state_.last_icp_iterations;
+  s->icp_was_good = state_.last_icp_was_good;
+  s->last_icp_timestamp = state_.last_icp_timestamp;
+  s->last_obs_timestamp = state_.last_obs_timestamp;
+  s->last_obs_reception_time = state_.last_obs_reception_time;
+  s->scan_period_sec = state_.last_observed_scan_period_sec;
+  s->average_process_time = profiler_.getMeanTime("onLidar");
+  if (state_.local_map) {
+    s->local_map_layers = state_.local_map->layers.size();
+    for (const auto & [layerName, layerMap] : state_.local_map->layers) {
+      if (const auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layerMap); pts) {
+        s->local_map_points += pts->size();
+      }
+    }
+  }
+  s->diagnostics_thresholds = params_.diagnostics;
+
+  auto lck = mrpt::lockHelper(status_snapshot_mtx_);
+  status_snapshot_ = std::move(s);
 }
 
 void LidarOdometry::saveEstimatedTrajectoryToFile() const

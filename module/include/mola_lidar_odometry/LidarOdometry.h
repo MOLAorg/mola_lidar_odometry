@@ -1130,7 +1130,7 @@ public:
 
   /** Returns the last estimated kinematic state: pose of the vehicle in the LiDAR odometry
    *  frame, and its estimated local (body-frame) twist vector.
-   *  This method will block if LO is running in another thread, until it is safe to get the data.
+   *  It does not wait for a scan being processed: it returns the state as of the last processed one.
    *  It will return std::nullopt if pose information is not available yet, e.g. still initializing.
    */
   std::optional<std::tuple<mrpt::poses::CPose3DPDFGaussian, mrpt::math::TTwist3D>>
@@ -1836,6 +1836,13 @@ private:
   mrpt::WorkerThreadsPool worker_viz_local_map_{
     1, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_viz_map"};
 
+  /** Copies the local map out for advertiseUpdatedMap(): an O(map size) job
+   *  kept off the LiDAR worker and out of state_mtx_. Drop-old, since only the
+   *  newest pending copy matters. Its tasks use `*this`, under the same
+   *  lifetime rules as worker_viz_local_map_ above. */
+  mrpt::WorkerThreadsPool worker_publish_local_map_{
+    1, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_pub_map"};
+
   MethodState state_;
   const MethodState & state() const { return state_; }
   MethodState stateCopy() const { return state_; }
@@ -2063,6 +2070,45 @@ private:
   void doPublishUpdatedLocalization(const mrpt::Clock::time_point & scan_ref_time);
 
   void doPublishUpdatedLocalMap(const mrpt::Clock::time_point & scan_ref_time);
+
+  /// Runs on worker_publish_local_map_: snapshots `localMap` under
+  /// local_map_content_mtx_ and advertises its layers and metadata.
+  void publishLocalMapLayers(
+    const mp2p_icp::metric_map_t::Ptr & localMap, const std::string & referenceFrame,
+    const mrpt::Clock::time_point & stamp);
+
+  /** A deep copy of the map layers, cheap enough to make while holding
+   *  local_map_content_mtx_, so that O(map size) work on it (render, publish)
+   *  can run outside that mutex. */
+  static mp2p_icp::metric_map_t cheapLayerSnapshot(const mp2p_icp::metric_map_t & m);
+
+  /** What the getters and diagnostics report, refreshed at the end of each
+   *  scan, so they never wait for state_mtx_, which is held for a whole scan
+   *  (seconds during a global search or a map load). */
+  struct StatusSnapshot
+  {
+    std::optional<std::tuple<mrpt::poses::CPose3DPDFGaussian, mrpt::math::TTwist3D>>
+      estimated_state;
+    double icp_quality = .0;
+    std::size_t icp_iterations = 0;
+    bool icp_was_good = true;
+    std::optional<mrpt::Clock::time_point> last_icp_timestamp;
+    std::optional<mrpt::Clock::time_point> last_obs_timestamp;
+    std::optional<mrpt::Clock::time_point> last_obs_reception_time;
+    double scan_period_sec = .0;
+    double average_process_time = .0;
+    std::size_t local_map_layers = 0;
+    std::size_t local_map_points = 0;
+    Parameters::Diagnostics diagnostics_thresholds;
+  };
+
+  /// Caller must hold state_mtx_.
+  void updateStatusSnapshot();
+  [[nodiscard]] std::shared_ptr<const StatusSnapshot> statusSnapshot() const;
+
+  std::shared_ptr<const StatusSnapshot> status_snapshot_ = std::make_shared<StatusSnapshot>();
+  /// Guards status_snapshot_ (the pointer only: snapshots are immutable).
+  mutable std::mutex status_snapshot_mtx_;
 
   void doPublishDeskewedScan(const mrpt::Clock::time_point & scan_ref_time);
 

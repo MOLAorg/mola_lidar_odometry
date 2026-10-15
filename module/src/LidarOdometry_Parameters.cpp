@@ -480,15 +480,17 @@ void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_value
 
   ASSERT_(names_values.isMap());
 
-  auto lckState = mrpt::lockHelper(state_mtx_);
-
   // Load parameters:
   setActive(names_values.getOrDefault("active", isActive()));
 
-  params_.local_map_updates.enabled =
-    names_values.getOrDefault("mapping_enabled", params_.local_map_updates.enabled);
-  params_.simplemap.generate =
-    names_values.getOrDefault("generate_simplemap", params_.simplemap.generate);
+  // Applied by a queued request, not here: the caller (e.g. the ROS executor)
+  // must not wait for the scan being processed.
+  enqueue_locked_request([this, names_values]() {
+    params_.local_map_updates.enabled =
+      names_values.getOrDefault("mapping_enabled", params_.local_map_updates.enabled);
+    params_.simplemap.generate =
+      names_values.getOrDefault("generate_simplemap", params_.simplemap.generate);
+  });
 
   // Special triggering reset "variable":
   if (names_values.getOrDefault("reset_state", false)) {

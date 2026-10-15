@@ -26,7 +26,9 @@
 #include <mola_state_estimation_simple/StateEstimationSimple.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mp2p_icp/metricmap.h>
+#include <mrpt/containers/yaml.h>
 #include <mrpt/core/get_env.h>
+#include <mrpt/maps/CPointsMap.h>
 #include <mrpt/system/filesystem.h>
 #include <mrpt/system/string_utils.h>
 
@@ -36,8 +38,11 @@
 #include <fstream>
 #include <future>
 #include <limits>
+#include <map>
+#include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "synthetic_world.h"
 
@@ -435,4 +440,95 @@ TEST(Robustness, InvalidAttitudeImuIsDropped)
 
   f.feedScans(0, kNumScans);
   f.expectTrackedPath(kNumScans / 2);
+}
+
+// Getters, diagnostics and parameter changes are called from the ROS executor,
+// which also serves the sensor subscriptions: they must not wait while a slow
+// scan (or a global search, or a map load) holds the state.
+TEST(Robustness, StatusDoesNotWaitForSlowScans)
+{
+  using namespace std::chrono_literals;
+
+  Fixture f;
+  f.feedScans(0, 5);
+  const auto before = f.liodom->lastEstimatedState();
+  ASSERT_TRUE(before.has_value());
+
+  // Holds the state lock for a while, as a slow scan does:
+  std::promise<void> started;
+  auto startedFut = started.get_future();
+  f.liodom->enqueue_locked_request([&started]() {
+    started.set_value();
+    std::this_thread::sleep_for(2s);
+  });
+  std::thread spinner([&]() { f.liodom->spinOnce(); });
+  startedFut.wait();
+
+  const auto t0 = std::chrono::steady_clock::now();
+  const auto st = f.liodom->lastEstimatedState();
+  (void)f.liodom->lastIcpQuality();
+  std::vector<mola::DiagnosticStatusMsg> diag;
+  static_cast<mola::DiagnosticsProvider &>(*f.liodom).getDiagnostics(diag);
+  f.liodom->changeParameters(mrpt::containers::yaml::FromText("mapping_enabled: false"));
+  const auto elapsed = std::chrono::steady_clock::now() - t0;
+
+  spinner.join();
+  EXPECT_LT(std::chrono::duration<double>(elapsed).count(), 0.5);
+
+  ASSERT_TRUE(st.has_value());
+  EXPECT_NEAR((std::get<0>(*st).mean - std::get<0>(*before).mean).norm(), 0.0, 1e-9);
+  EXPECT_FALSE(diag.empty());
+
+  // The parameter change is applied by the next request drain:
+  f.liodom->spinOnce();
+  EXPECT_FALSE(f.liodom->params_.local_map_updates.enabled);
+}
+
+// The local map is copied out on a worker thread, and only once there is a
+// subscriber: until then the update stays pending, not lost.
+TEST(Robustness, LocalMapIsPublishedOnceSubscribed)
+{
+  using namespace std::chrono_literals;
+
+  for (const char * mapClass : {"mola::KeyframePointCloudMap", "mola::IncrementalPointCloud"}) {
+    set_env("MOLA_PUBLISH_LOCAL_MAP_UPDATES_EVERY_N", "1");
+    set_env("MOLA_LOCALMAP_CLASS", mapClass);
+    Fixture f;
+    ::unsetenv("MOLA_PUBLISH_LOCAL_MAP_UPDATES_EVERY_N");
+    ::unsetenv("MOLA_LOCALMAP_CLASS");
+
+    f.feedScans(0, 10);
+
+    std::mutex mtx;
+    std::map<std::string, mrpt::maps::CMetricMap::ConstPtr> received;
+    f.liodom->subscribeToMapUpdates([&](const mola::MapSourceBase::MapUpdate & mu) {
+      std::lock_guard<std::mutex> lck(mtx);
+      received[mu.map_name] = mu.map;
+    });
+    {
+      // Nothing was published without a subscriber, so nothing is replayed:
+      std::lock_guard<std::mutex> lck(mtx);
+      EXPECT_EQ(received.count("localmap"), 0U) << mapClass;
+    }
+
+    f.feedScan(10);
+
+    bool gotMap = false;
+    for (int i = 0; i < 500 && !gotMap; i++) {
+      {
+        std::lock_guard<std::mutex> lck(mtx);
+        gotMap = received.count("localmap") != 0;
+      }
+      std::this_thread::sleep_for(10ms);
+    }
+    ASSERT_TRUE(gotMap) << mapClass;
+    std::lock_guard<std::mutex> lck(mtx);
+    const auto & map = received["localmap"];
+    ASSERT_TRUE(map) << mapClass;
+    EXPECT_FALSE(map->isEmpty()) << mapClass;
+    // Point maps are sent as a plain copy:
+    if (const auto pts = std::dynamic_pointer_cast<const mrpt::maps::CPointsMap>(map); pts) {
+      EXPECT_GT(pts->size(), 1000U) << mapClass;
+    }
+  }
 }
