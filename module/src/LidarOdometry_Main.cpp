@@ -135,6 +135,10 @@ void LidarOdometry::shutdownCleanup()
         state_.registration_icp_rejected, pctRejected);
     }
 
+    if (const auto nInvalid = invalid_input_count_.load(); nInvalid > 0) {
+      MRPT_LOG_WARN_FMT("Run totals: %zu observations dropped as invalid input", nInvalid);
+    }
+
     if (params_.simplemap.generate) {
       saveReconstructedMapToFile();
     }

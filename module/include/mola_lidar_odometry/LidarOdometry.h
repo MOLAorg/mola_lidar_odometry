@@ -113,6 +113,7 @@
 #include <memory>
 #include <mutex>
 #include <regex>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -1091,6 +1092,20 @@ public:
 
   bool isBusy() const;
 
+  /** Thrown by input checks. The offending observation is dropped with a
+   *  throttled error, instead of being a fatal error that stops the odometry.
+   *  Only for checks done before any state has been modified.
+   */
+  class InvalidInputError : public std::runtime_error
+  {
+  public:
+    using std::runtime_error::runtime_error;
+  };
+
+  /** Number of observations dropped as invalid input since construction.
+   *  Multi-thread safe to call. */
+  std::size_t invalidInputCount() const { return invalid_input_count_.load(); }
+
   /** Drains the worker thread pools and saves the simplemap/trajectory/local
    *  map to disk, if so configured. Idempotent: safe to call from onQuit()
    *  and then again from the destructor.
@@ -1981,6 +1996,10 @@ private:
 
   void onGPS(const CObservation::ConstPtr & o);
   void onGPSImpl(const CObservation::ConstPtr & o);
+
+  /// Counts and reports (throttled) an observation dropped as invalid input.
+  void dropInvalidInput(const CObservation & o, const InvalidInputError & e);
+  std::atomic<std::size_t> invalid_input_count_{0};
 
   // Adaptive threshold method:
   void doUpdateAdaptiveThreshold();

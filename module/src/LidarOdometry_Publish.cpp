@@ -265,6 +265,7 @@ void LidarOdometry::onPublishDiagnostics()
   diagValues["icp_quality"] = state_.last_icp_quality;
   diagValues["average_process_time"] = dtAvr;
   diagValues["dropped_frames_ratio"] = getDropStats();
+  diagValues["invalid_inputs"] = invalid_input_count_.load();
   diagValues["parameters"] = getModuleParameters();
 
   DiagnosticsOutput diag;
@@ -355,6 +356,7 @@ void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & stat
     }
     s.values.push_back(kv_d("last_obs_age_sec", lastObsAgeSec));
     s.values.push_back(kv_d("dropped_ratio", droppedRatio));
+    s.values.push_back(kv_u("invalid_inputs", invalid_input_count_.load()));
     status.push_back(std::move(s));
   }
 
@@ -441,6 +443,15 @@ void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & stat
       case L::ERROR:
         s.message = "Non-functional";
         break;
+    }
+    bool fatalError = false;
+    {
+      auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+      fatalError = state_.fatal_error;
+    }
+    if (fatalError) {
+      s.level = L::ERROR;
+      s.message = "Stopped by a fatal error";
     }
     s.values.push_back(kv_d("icp_quality", icpQ));
     s.values.push_back(kv_d("process_time_avg_ms", dtAvr * 1000.0));

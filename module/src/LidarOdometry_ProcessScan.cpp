@@ -29,12 +29,16 @@
 // MRPT:
 #include <mrpt/core/get_env.h>
 #include <mrpt/maps/CGenericPointsMap.h>
+#include <mrpt/maps/CSimplePointsMap.h>
 #include <mrpt/math/wrap2pi.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
+#include <mrpt/obs/CObservation3DRangeScan.h>
 #include <mrpt/obs/CObservationComment.h>
 #include <mrpt/obs/CObservationGPS.h>
 #include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationPointCloud.h>
+#include <mrpt/obs/CObservationRotatingScan.h>
+#include <mrpt/obs/CObservationVelodyneScan.h>
 #include <mrpt/poses/Lie/SO.h>
 
 #include <algorithm>
@@ -50,6 +54,24 @@ namespace mola
 {
 namespace
 {
+/// Whether the observation generators can turn `o` into points: the classes
+/// they handle directly, or any other class a points map can insert.
+bool isConvertibleToPoints(const mrpt::obs::CObservation & o)
+{
+  if (const auto * pc = dynamic_cast<const mrpt::obs::CObservationPointCloud *>(&o); pc) {
+    return pc->pointcloud != nullptr;
+  }
+  if (
+    dynamic_cast<const mrpt::obs::CObservationRotatingScan *>(&o) != nullptr ||
+    dynamic_cast<const mrpt::obs::CObservation2DRangeScan *>(&o) != nullptr ||
+    dynamic_cast<const mrpt::obs::CObservation3DRangeScan *>(&o) != nullptr ||
+    dynamic_cast<const mrpt::obs::CObservationVelodyneScan *>(&o) != nullptr) {
+    return true;
+  }
+  mrpt::maps::CSimplePointsMap probe;
+  return o.insertObservationInto(probe);
+}
+
 /** Optional diagnostic: append the local-map insert/skip decision to a TSV
  *  file, one row per scan that reaches the gate.
  *
@@ -745,7 +767,16 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
   // make sure data is loaded, if using an offline lazy-load dataset.
   ASSERT_(obs);
-  obs->load();
+  try {
+    obs->load();
+  } catch (const std::exception & e) {
+    throw InvalidInputError(mrpt::format("Cannot load the LiDAR observation: %s", e.what()));
+  }
+  if (!isConvertibleToPoints(*obs)) {
+    throw InvalidInputError(mrpt::format(
+      "LiDAR observation of class '%s' cannot be converted into points",
+      obs->GetRuntimeClass()->className));
+  }
   const auto this_obs_tim = obs->timestamp;
 
   std::unique_lock<std::mutex> lckState(state_mtx_);
