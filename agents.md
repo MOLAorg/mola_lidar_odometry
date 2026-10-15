@@ -1021,6 +1021,16 @@ Anything a sweep pins deliberately (KITTI's `MOLA_INITIAL_VX`, which differs
 from the interactive default) is set there explicitly and commented, since a
 sweep's numbers are only comparable to its own history.
 
+## Late `/tf` with large point clouds (Fast DDS)
+
+Before blaming MOLA for a `map -> odom` that lags the LiDAR, or for transform
+lookups at the scan stamp that fail ("extrapolation into the future"), check the
+middleware. With default Fast DDS, ~1 MB clouds exceed the shared memory
+segments and go through fragmented UDP, which delayed `/tf` by up to ~1 s in the
+nodes subscribed to them (measured in a simulation). The fix is a Fast DDS
+profile with larger segments, plus a larger `/dev/shm` in containers; see the
+"Large point clouds and Fast DDS" dropdown in `docs/mola_lo_ros_node.rst`.
+
 ## Environment Variables (Debug/Tracing Flags)
 
 Debug/tracing flags in C++ code use `mrpt::get_env<T>(name, default)` (from
