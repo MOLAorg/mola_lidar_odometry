@@ -358,6 +358,7 @@ void LidarOdometry::applyMapFrameRelevel()
     auto lckTraj = mrpt::lockHelper(state_trajectory_mtx_);
     transform_to_new_map_frame(state_.estimated_trajectory, b);
   }
+  state_.resetGuiPath();
 
   // 4/6: cached poses and the keyframe-density bookkeeping. The deciders hold
   // map-frame poses, so leaving them behind would make the next distance check
@@ -1948,6 +1949,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
       auto lckTraj = mrpt::lockHelper(state_trajectory_mtx_);
       state_.estimated_trajectory.clear();
     }
+    state_.resetGuiPath();
     state_.gravity_calib_pitch_roll.reset();  // new map origin: recapture at next first KF
     state_.gravity_calib_pose.reset();
     state_.gravity_calib_first_available_time.reset();

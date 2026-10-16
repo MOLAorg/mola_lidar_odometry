@@ -1640,10 +1640,24 @@ private:
     // glVehicleCachedBuilt tracks whether loading has already happened.
     std::vector<mrpt::viz::CVisualObject::Ptr> glVehicleModels;
     bool glVehicleModelsLoaded = false;
-    // Worker-private growing buffer for the estimated path. Never handed
-    // to the GUI thread directly: each update clones it into a fresh
-    // CSetOfObjects wrapper before dispatch.
-    mrpt::viz::CSetOfLines::Ptr glEstimatedPath;
+    /// GUI path of the estimated trajectory, in chunks of lines. Full chunks
+    /// never change again, so they are handed to the GUI thread as they are;
+    /// only the last one grows, and it is cloned for each update.
+    std::vector<mrpt::viz::CSetOfLines::Ptr> glEstimatedPathChunks;
+    /// Trajectory poses already in glEstimatedPathChunks, and the last one.
+    std::size_t glEstimatedPathPoses = 0;
+    mrpt::math::TPoint3D glEstimatedPathLastPoint;
+    /// Whether the path / local map were last sent to the GUI as hidden, so
+    /// hiding them is only sent once.
+    bool glPathHidden = false;
+    bool glLocalMapHidden = false;
+
+    /// Call whenever estimated_trajectory is cleared or transformed.
+    void resetGuiPath()
+    {
+      glEstimatedPathChunks.clear();
+      glEstimatedPathPoses = 0;
+    }
     /// Decimation counter for the local map visualization. Saturating (never
     /// wraps around), so its maximum value means "refresh at the next chance".
     unsigned int mapUpdateCnt = std::numeric_limits<unsigned int>::max();

@@ -1019,8 +1019,12 @@ void LidarOdometry::updateVisualizationLocalMap()
     });
   }
 
-  // Clear the local map if the user clicks on "hide it" at runtime:
-  if (!params_.visualization.show_localmap) {
+  // Clear the local map once, when the user hides it at runtime:
+  if (params_.visualization.show_localmap) {
+    state_.glLocalMapHidden = false;
+  } else if (!state_.glLocalMapHidden) {
+    state_.glLocalMapHidden = true;
+
     // Routed through the same worker so it is ordered after any render already
     // enqueued above and cannot be overwritten by it.
     auto viz = visualizer_;
@@ -1089,39 +1093,61 @@ void LidarOdometry::updateVisualizationTfTree(
 void LidarOdometry::updateVisualizationPath(std::vector<std::function<void()>> & updateTasks)
 {
   if (!params_.visualization.show_trajectory) {
-    auto empty = mrpt::viz::CSetOfObjects::Create();
-    updateTasks.emplace_back([visualizer = visualizer_, empty, vizFrame = vizParentFrame()]() {
-      vizUpsert3D(visualizer, "liodom/path", empty, vizFrame);
-    });
+    if (!state_.glPathHidden) {
+      state_.glPathHidden = true;
+      auto empty = mrpt::viz::CSetOfObjects::Create();
+      updateTasks.emplace_back([visualizer = visualizer_, empty, vizFrame = vizParentFrame()]() {
+        vizUpsert3D(visualizer, "liodom/path", empty, vizFrame);
+      });
+    }
     return;
   }
+  state_.glPathHidden = false;
 
   const ProfilerEntry tle2(profiler_, "updateVisualization.update_traject");
 
-  if (!state_.glEstimatedPath) {
-    state_.glEstimatedPath = mrpt::viz::CSetOfLines::Create();
-    const auto & rgba = params_.visualization.trajectory_rgba;
-    state_.glEstimatedPath->setColor(rgba.at(0), rgba.at(1), rgba.at(2), rgba.at(3));
+  // Lines per path chunk: bounds the per-update clone of the growing chunk.
+  constexpr std::size_t PATH_CHUNK_LINES = 1000;
+
+  const auto & traj = state_.estimated_trajectory;
+  if (state_.glEstimatedPathPoses > traj.size()) {
+    state_.resetGuiPath();  // the trajectory was cleared
   }
-  // Update path viz:
-  for (size_t i = state_.glEstimatedPath->size(); i < state_.estimated_trajectory.size(); i++) {
-    auto it = state_.estimated_trajectory.begin();
-    std::advance(it, i);
 
+  // Only the new poses, at the end of the time-ordered trajectory:
+  auto it = traj.end();
+  std::advance(it, -static_cast<std::ptrdiff_t>(traj.size() - state_.glEstimatedPathPoses));
+
+  for (; it != traj.end(); ++it) {
     const auto t = it->second.translation();
+    auto & chunks = state_.glEstimatedPathChunks;
 
-    if (state_.glEstimatedPath->empty()) {
-      state_.glEstimatedPath->appendLine(t, t);
+    if (chunks.empty() || chunks.back()->size() >= PATH_CHUNK_LINES) {
+      auto chunk = mrpt::viz::CSetOfLines::Create();
+      const auto & rgba = params_.visualization.trajectory_rgba;
+      chunk->setColor(rgba.at(0), rgba.at(1), rgba.at(2), rgba.at(3));
+      // Continue the strip from the end of the previous chunk:
+      const auto from = chunks.empty() ? t : state_.glEstimatedPathLastPoint;
+      chunk->appendLine(from, t);
+      chunks.push_back(chunk);
     } else {
-      state_.glEstimatedPath->appendLineStrip(t);
+      chunks.back()->appendLineStrip(t);
+    }
+    state_.glEstimatedPathLastPoint = t;
+    state_.glEstimatedPathPoses++;
+  }
+
+  // The GUI thread reads the objects it is given while this thread keeps
+  // appending to the last chunk, so that one goes as a clone:
+  auto pathGrp = mrpt::viz::CSetOfObjects::Create();
+  const auto & chunks = state_.glEstimatedPathChunks;
+  for (std::size_t i = 0; i < chunks.size(); i++) {
+    if (i + 1 < chunks.size()) {
+      pathGrp->insert(chunks[i]);
+    } else {
+      pathGrp->insert(mrpt::viz::CSetOfLines::Create(*chunks[i]));
     }
   }
-  // Hand a *fresh* wrapper containing a deep clone of the lines to the
-  // GUI thread, so the worker-private glEstimatedPath buffer can keep
-  // growing on subsequent ticks without racing with MolaViz's deep
-  // read on the GUI thread.
-  auto pathGrp = mrpt::viz::CSetOfObjects::Create();
-  pathGrp->insert(mrpt::viz::CSetOfLines::Create(*state_.glEstimatedPath));
 
   updateTasks.emplace_back([visualizer = visualizer_, pathGrp, vizFrame = vizParentFrame()]() {
     vizUpsert3D(visualizer, "liodom/path", pathGrp, vizFrame);
