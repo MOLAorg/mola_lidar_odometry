@@ -998,7 +998,8 @@ Initial localization
   state estimator for ``InitLocalization::FromStateEstimator``.
 
 - ``MOLA_LO_INIT_SE_TIMEOUT`` (Default: ``60.0`` [s]): Timeout for ``InitLocalization::FromStateEstimator``.
-  If the state estimator does not converge within this time, initialization falls back to ``FixedPose``.
+  Each time it expires, an error reports what is missing (geo-referencing, or the state estimator convergence),
+  and the wait continues, so a map can still be loaded at runtime (e.g. via the ``map_load`` service).
 
 - ``MOLA_LO_INIT_GLOBAL_SEARCH`` (Default: ``false``): For ``InitLocalization::FromStateEstimator``, if the state
   estimator pose may be too uncertain for ICP to converge from it (e.g. plain GNSS, or no heading at all), search
