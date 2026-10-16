@@ -249,3 +249,32 @@ else()
     )
   endif()
 endif()
+
+# Test: real ROS 2 launch with a rosbag2, local map published (or not) as a point cloud
+# -----------------------------------------------------------------------------------
+# With MRPT 3, the default local map class (a keyframe map, not a points map)
+# only reaches ROS through CMetricMap::asPointsMapView(), overridden in
+# mola_metric_maps. Check both in the headers we build against:
+set(LOCALMAP_REACHES_ROS FALSE)
+get_target_property(_mrpt_obs_incs mrpt::mrpt_obs INTERFACE_INCLUDE_DIRECTORIES)
+get_target_property(_mola_maps_incs mola::mola_metric_maps INTERFACE_INCLUDE_DIRECTORIES)
+find_file(_CMETRICMAP_H mrpt/maps/CMetricMap.h PATHS ${_mrpt_obs_incs} NO_DEFAULT_PATH)
+find_file(_KFM_H mola_metric_maps/KeyframePointCloudMap.h PATHS ${_mola_maps_incs} NO_DEFAULT_PATH)
+if(_CMETRICMAP_H AND _KFM_H)
+  file(STRINGS ${_CMETRICMAP_H} _mrpt_has_view REGEX "define MRPT_HAS_METRIC_MAP_POINTS_VIEW")
+  file(STRINGS ${_KFM_H} _kfm_has_view REGEX "asPointsMapView")
+  if(_mrpt_has_view AND _kfm_has_view)
+    set(LOCALMAP_REACHES_ROS TRUE)
+  endif()
+endif()
+
+find_package(launch_testing_ament_cmake QUIET)
+if(NOT LOCALMAP_REACHES_ROS)
+  message(STATUS "Skipping test_ros2_local_map_publishing: MRPT or mola_metric_maps lack CMetricMap::asPointsMapView()")
+elseif(launch_testing_ament_cmake_FOUND AND EXISTS ${RSLIDAR_DATASET_FILE})
+  add_launch_test(test_ros2_local_map_publishing.py
+    TARGET test_ros2_local_map_publishing
+    TIMEOUT 400
+    ARGS "rosbag:=${RSLIDAR_DATASET_FILE}"
+  )
+endif()
