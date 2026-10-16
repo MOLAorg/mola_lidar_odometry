@@ -223,7 +223,7 @@ jobs:
 
   # -----------------------------------------------------------------------
   # Job 2: Self-hosted runner (arm64). Only runs for pushes or PRs from
-  # the same repository — never for fork PRs — to protect the runner from
+  # the same repository (never for fork PRs) to protect the runner from
   # untrusted code.
   # -----------------------------------------------------------------------
   build_self_hosted:

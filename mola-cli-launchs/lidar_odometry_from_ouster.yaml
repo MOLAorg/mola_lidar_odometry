@@ -52,7 +52,7 @@ modules:
 
   # =====================
   # Ouster Direct Input
-  # Handles live, PCAP, and OSF modes — set exactly one of:
+  # Handles live, PCAP, and OSF modes; set exactly one of:
   #   OUSTER_HOSTNAME, OUSTER_PCAP+OUSTER_META, or OUSTER_OSF
   # =====================
   - name: ouster_input

@@ -47,13 +47,13 @@ All contributors are expected to adhere to the project's [Code of Conduct](./COD
 
 We welcome the following types of contributions:
 
-- **Bug fixes** — corrections to incorrect or unexpected behavior
-- **Performance improvements** — optimizations with measurable, documented impact
-- **New modules or algorithms** — extensions to MOLA's modular architecture
-- **Documentation improvements** — corrections, clarifications, and additions to existing documentation
-- **Dataset integrations** — support for additional SLAM benchmark or real-world datasets
-- **ROS 2 integrations** — improvements to the ROS 2 interface, launch files, or message definitions
-- **Tests** — new or improved unit, integration, or regression tests
+- **Bug fixes**: corrections to incorrect or unexpected behavior
+- **Performance improvements**: optimizations with measurable, documented impact
+- **New modules or algorithms**: extensions to MOLA's modular architecture
+- **Documentation improvements**: corrections, clarifications, and additions to existing documentation
+- **Dataset integrations**: support for additional SLAM benchmark or real-world datasets
+- **ROS 2 integrations**: improvements to the ROS 2 interface, launch files, or message definitions
+- **Tests**: new or improved unit, integration, or regression tests
 
 If you are considering a large or architectural contribution, please open an issue for discussion before beginning work. This avoids duplication of effort and ensures alignment with the project roadmap.
 

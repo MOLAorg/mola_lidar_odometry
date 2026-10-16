@@ -1,4 +1,4 @@
-# mola_lidar_odometry repository — AI Agent Context Guide
+# mola_lidar_odometry repository: AI Agent Context Guide
 
 ## Project Overview
 
@@ -17,8 +17,8 @@ A profile invokes nothing.
 
 Three kinds of consumer share it, so none of them restates a dataset:
 
-- `mola-lo-gui-<name>` — online replay via `mola-cli` + a launch YAML.
-- `mola-lo-cli-<name>` — offline batch via `mola-lidar-odometry-cli`.
+- `mola-lo-gui-<name>`: online replay via `mola-cli` + a launch YAML.
+- `mola-lo-cli-<name>`: offline batch via `mola-lidar-odometry-cli`.
 - Out-of-tree harnesses (`eval/cli_*.sh`, the CI regression job) source
   `lib/dataset-profile.sh` and call `mola_lo_load_profile` directly.
 
@@ -35,9 +35,9 @@ caller exports first wins**. That is how a harness overrides one field
 without forking the profile. Two variables the caller sets:
 
 - `MOLA_LO_MODE` = `gui` | `cli`. Profiles branch on it where a dataset
-  genuinely differs — a camera bag is worth replaying for a preview and is
+  genuinely differs: a camera bag is worth replaying for a preview and is
   pure decode cost in a batch run.
-- `MOLA_LO_SKIP_STATE_ESTIMATOR=1` — for callers running a method with its
+- `MOLA_LO_SKIP_STATE_ESTIMATOR=1`: for callers running a method with its
   own internal estimator (the DLIO / Fast-LIO2 wrappers).
 
 A profile may also pick the pipeline, by publishing
@@ -52,8 +52,8 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
 - **kitti** selects `pipelines/lidar3d-icp.yaml` over the cov-to-cov default:
   measured over 00-10 it wins 8/11 on translation and 7/11 on rotation at about
   half the cost per scan. A forward ablation between the two pipelines found
-  the difference is not attributable to any one stage — intermediate
-  configurations are several times worse than either — so this is a per-dataset
+  the difference is not attributable to any one stage (intermediate
+  configurations are several times worse than either), so this is a per-dataset
   choice, not a ranking of the pipelines.
 
 - **conslam** autodetects ROS 1 (`.bag`) vs ROS 2 (`.mcap`) from the
@@ -103,7 +103,7 @@ listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
   left,right}`. The three HDR cameras each have their own bag; the five
   Alphasense ones share `<mission>_alphasense.bag`, so bag and topic are
   resolved together. Preview only, in GUI mode: no odometry consumes it.
-- **tiers** records FIVE lidars at once — that is what the dataset is for —
+- **tiers** records FIVE lidars at once (that is what the dataset is for),
   so it gets one wrapper per sensor (`-ouster-os0`, `-ouster-os1`,
   `-velodyne`, `-livox-horizon`, `-livox-avia`) rather than one that silently
   picks a winner. Extrinsics are a co-located placeholder: these bags carry
@@ -220,7 +220,7 @@ used for `mola_mapper`'s graph-edge cylinders.
 Added because it was missing: `InitLocalization::FixedPose` has always
 supported a known starting pose via the pipeline YAML's `MOLA_INITIAL_X/Y/Z/
 YAW/PITCH/ROLL` env vars, but the ROS 2 launch file had no argument wired to
-them (only `mola_footprint_to_base_link_tf`, a different thing — a static
+them (only `mola_footprint_to_base_link_tf`, a different thing: a static
 footprint-to-base_link offset, not the localization starting pose). Use
 `initial_pose:="[x, y, z, yaw_deg, pitch_deg, roll_deg]"` (same format as
 `mola_footprint_to_base_link_tf`); empty (default) leaves the pipeline
@@ -475,7 +475,7 @@ above the setpoint (routine with a clean/synthetic LiDAR, e.g. MVSIM) drives
 sigma monotonically down to its `min_motion` floor. Once there, a single
 larger inter-scan motion (a turn) is enough to push ICP into failure, and
 since sigma only shrinks on GOOD ICPs and previously only grew when this flag
-was on, the correspondence search window stayed frozen shut forever — a
+was on, the correspondence search window stayed frozen shut forever, a
 permanent stall (`estimated_trajectory` stops growing, "Not able to use
 velocity motion model" repeats indefinitely). Reproduced with
 `mola_lidar_odometry` + MVSIM (Jackal, 3D LiDAR) driving a short, obstacle-free
@@ -707,7 +707,7 @@ over multiple frames. Two consequences for pipeline tuning:
    the robot moves on, giving the local map and simplemap denser, more uniform
    coverage per location. Set in `local_map_updates.min_nearby_poses_occupied`
    and `simplemap.min_nearby_poses_occupied` in the pipeline YAML (both env-var
-   gated). See `LidarOdometry.h:225` for the docstring.
+   gated). See the `min_nearby_poses_occupied` docstring in `KeyframeDecider.h`.
 
 2. **`MOLA_DESKEW_METHOD=MotionCompensationMethod::IMU`**: always set this for
    LIO with any LiDAR that has per-point timestamps (Livox via `offset_time`,
@@ -1045,7 +1045,7 @@ full ground-truth timespan.
 Ready-made rig for Oxford Spires (`StateEstimationSimple`, deterministic):
 `~/lo-gravity-eval/{oxford_env.sh,run_oxford.sh,eval_tum.py,analyze_map_gravity.py}`.
 The bags carry no `/tf`, so the sensor extrinsics must be passed as the fixed
-poses the env script sets, and the sensor labels are the topic names — or use
+poses the env script sets, and the sensor labels are the topic names; or use
 `mola-lo-cli-oxford-spires`, which sets exactly those from the profile.
 
 `eval/cli_*.sh` are batch sweeps, not launchers: they choose sequences,
@@ -1121,7 +1121,7 @@ run over a long dataset can reach tens of GB quickly; keep the range narrow
 
 Plain `getenv()` calls remain only in `module/src/libcfgpath/cfgpath.h`
 (vendored third-party code resolving standard XDG base directories:
-`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `HOME`) — these are OS
+`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `HOME`): these are OS
 path-resolution lookups, not app debug flags, and are left untouched.
 
 ## Building

@@ -53,7 +53,7 @@ int main_odometry(const OdometryTestParams & p)
   // Initialize LiDAR Odometry:
   const auto cfg = mola::load_yaml_file(yamlConfigFile);
 
-  // quiet for the unit tests:
+  // Verbose, so a failure can be diagnosed from the test log:
   liodom->setMinLoggingLevel(mrpt::system::LVL_DEBUG);
 
   liodom->initialize(cfg);

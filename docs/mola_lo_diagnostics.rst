@@ -23,15 +23,15 @@ Published statuses
 
 MOLA-LO publishes the following ``DiagnosticStatus`` entries on each tick:
 
-* **LidarOdometry: Input Data** — staleness of incoming LiDAR observations
+* **LidarOdometry: Input Data**: staleness of incoming LiDAR observations
   and dropped-frame ratio.
-* **LidarOdometry: ICP Quality** — current ICP quality metric from the last
+* **LidarOdometry: ICP Quality**: current ICP quality metric from the last
   scan matching.
-* **LidarOdometry: Timing** — processing time utilization (fraction of the
+* **LidarOdometry: Timing**: processing time utilization (fraction of the
   expected frame period used by the pipeline).
-* **LidarOdometry: Local Map** — local map size and update state
+* **LidarOdometry: Local Map**: local map size and update state
   (mapping enabled/disabled).
-* **LidarOdometry: Overall Status** — worst-of aggregate of the above.
+* **LidarOdometry: Overall Status**: worst-of aggregate of the above.
 
 Each status carries a REP-107 severity (``OK`` / ``WARN`` / ``ERROR`` /
 ``STALE``) plus a set of ``key=value`` pairs with the numeric values used
@@ -72,8 +72,8 @@ Inspecting diagnostics at runtime
    # reads /diagnostics_agg):
    ros2 run rqt_robot_monitor rqt_robot_monitor
 
-Foxglove Studio also ships a native *Diagnostics — Detail* and
-*Diagnostics — Summary* panel that consumes ``/diagnostics`` directly; no
+Foxglove Studio also ships a native *Diagnostics - Detail* and
+*Diagnostics - Summary* panel that consumes ``/diagnostics`` directly; no
 aggregator required.
 
 Testing with the bundled aggregator
@@ -99,7 +99,7 @@ and groups MOLA-LO statuses under the ``MOLA LO`` category.
 
    Leave ``use_diagnostic_aggregator:=False`` (the default) when MOLA-LO is
    part of a larger robot stack that already launches its own central
-   aggregator — two aggregators subscribing to the same ``/diagnostics``
+   aggregator: two aggregators subscribing to the same ``/diagnostics``
    will produce duplicated/conflicting ``/diagnostics_agg`` trees. In that
    case, just add a ``startswith: ['LidarOdometry']`` analyzer to your
    existing aggregator YAML.

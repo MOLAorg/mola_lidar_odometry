@@ -770,17 +770,23 @@ double rate_from_stamps_buffer(
   const mrpt::containers::circular_buffer<double> & stamps, double ref_time = 0,
   double staleness_timeout = 5.0)
 {
-  if (stamps.size() < 2) return .0;
+  if (stamps.size() < 2) {
+    return .0;
+  }
 
   const double t_first = stamps.peek(0);
   const double t_last = stamps.peek(stamps.size() - 1);
 
   // Staleness check: if ref_time is provided and the newest stamp
   // is too old, report 0 (sensor stopped):
-  if (ref_time > 0 && (ref_time - t_last) > staleness_timeout) return .0;
+  if (ref_time > 0 && (ref_time - t_last) > staleness_timeout) {
+    return .0;
+  }
 
   const double dt = t_last - t_first;
-  if (dt <= 0) return .0;
+  if (dt <= 0) {
+    return .0;
+  }
 
   return static_cast<double>(stamps.size() - 1) / dt;
 }
@@ -823,7 +829,9 @@ bool append_stamp_to_buffer(
       return false;
     }
   }
-  if (stamps.available() == 0) stamps.pop();
+  if (stamps.available() == 0) {
+    stamps.pop();
+  }
   stamps.push(t);
   return true;
 }

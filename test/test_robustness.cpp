@@ -534,3 +534,26 @@ TEST(Robustness, LocalMapIsPublishedOnceSubscribed)
     }
   }
 }
+
+// The default local map is a keyframe map, not a points map: its size has no
+// cheap generic query, so diagnostics must say so rather than report 0 points.
+TEST(Robustness, LocalMapDiagnosticsPoints)
+{
+  Fixture f;
+  f.feedScans(0, 5);
+
+  std::vector<mola::DiagnosticStatusMsg> diag;
+  static_cast<mola::DiagnosticsProvider &>(*f.liodom).getDiagnostics(diag);
+
+  const auto it = std::find_if(
+    diag.begin(), diag.end(), [](const auto & s) { return s.name == "LidarOdometry: Local Map"; });
+  ASSERT_NE(it, diag.end());
+
+  std::map<std::string, std::string> values;
+  for (const auto & kv : it->values) {
+    values[kv.key] = kv.value;
+  }
+  EXPECT_EQ(values["num_layers"], "1");
+  EXPECT_EQ(values["points.localmap"], "n/a");
+  EXPECT_EQ(values["total_points"], "n/a");
+}

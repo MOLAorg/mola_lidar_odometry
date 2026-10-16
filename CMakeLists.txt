@@ -35,7 +35,6 @@ find_package(mola_relocalization REQUIRED)
 # -----------------------
 # define lib:
 set(LIB_SRCS
-  module/src/GravityMapAligner.cpp
   module/src/KeyframeDecider.cpp
   module/src/LidarOdometry_Main.cpp
   module/src/MapFrameRelevel.cpp
@@ -55,7 +54,6 @@ set(LIB_SRCS
 
 set(LIB_PUBLIC_HDRS
   module/include/mola_lidar_odometry/LidarOdometry.h
-  module/include/mola_lidar_odometry/GravityMapAligner.h
   module/include/mola_lidar_odometry/MapFrameRelevel.h
 )
 

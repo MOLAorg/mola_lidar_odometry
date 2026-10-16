@@ -89,7 +89,7 @@ def validate_odometry_sources(context, *args, **kwargs):
        `odom -> base_link` to /tf (which is exactly what Variant A needs
        to be there in order to be read), `base_link` ends up with two
        parents and tf2 rejects the tree. Use `odom_topic_name:=...`
-       instead — nav_msgs/Odometry is consumed as an observation and does
+       instead: nav_msgs/Odometry is consumed as an observation and does
        not collide with the bridge's /tf broadcast.
     """
     tf_path = LaunchConfiguration(
@@ -112,7 +112,7 @@ def validate_odometry_sources(context, *args, **kwargs):
             "external driver is also publishing `odom -> base_link` to "
             "/tf, the tf2 tree becomes invalid (two parents for "
             "base_link).\n"
-            "Use `odom_topic_name:=<your /odom topic>` instead — "
+            "Use `odom_topic_name:=<your /odom topic>` instead: "
             "nav_msgs/Odometry observations do not participate in /tf.\n"
         )
     return []
@@ -388,7 +388,7 @@ def generate_launch_description():
 
     odom_topic_name_arg = DeclareLaunchArgument(
         "odom_topic_name", default_value="",
-        description="If non-empty, BridgeROS2 subscribes directly to this nav_msgs/Odometry topic and forwards each message as a 3D CObservationRobotPose (6x6 covariance) — preferred for smoother fusion. Mutually exclusive with `forward_ros_tf_odom_to_mola`.")
+        description="If non-empty, BridgeROS2 subscribes directly to this nav_msgs/Odometry topic and forwards each message as a 3D CObservationRobotPose (6x6 covariance), preferred for smoother fusion. Mutually exclusive with `forward_ros_tf_odom_to_mola`.")
     odom_topic_name_env_var = SetEnvironmentVariable(
         name='MOLA_ODOM_TOPIC', value=LaunchConfiguration('odom_topic_name'))
 
