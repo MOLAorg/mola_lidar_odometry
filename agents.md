@@ -549,7 +549,10 @@ it wraps, i.e. zero lock wait. A `KeyframePointCloudMap` copy is now shallow
 keyframes of 20k points. The price is that the render rebuilds every
 keyframe's cloud object (~80-110 ms on the viz worker) instead of reusing the
 live map's per-keyframe cache; reusing it would need mp2p_icp's
-`get_visualization()` not to modify the objects a layer returns.
+`get_visualization()` not to modify the objects a layer returns. The
+`update_local_map_copy` profile (~117 ms mean on KITTI 00) is mostly that
+copy waiting for the KFM's own lock, held by each ICP matching pass; it does
+not delay the LiDAR thread, whose ICP does not need `local_map_content_mtx_`.
 
 Point layers are copied into a plain `CGenericPointsMap` rather than cloned
 through their own type: `insertAnotherMap()` calls `registerPointFieldsFrom()`
