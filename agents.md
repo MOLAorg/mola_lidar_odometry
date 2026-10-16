@@ -525,7 +525,16 @@ from 155 ms to 66 ms, with the same number of renders.
 queue at a single pending task, so sharing the pool would let the per-scan
 current-observation frames drop the much rarer local-map render before it ever
 ran. The "hide the local map" clear is routed through the same pool so it cannot
-be overtaken by a render already in flight.
+be overtaken by a render already in flight, and is sent once, on the
+transition (`glLocalMapHidden`; same for the trajectory, `glPathHidden`).
+
+The GUI trajectory (`updateVisualizationPath()`, LiDAR thread, under
+`state_mtx_`) is kept in chunks of 1000 lines: only new poses are appended,
+taken from the end of `estimated_trajectory`, full chunks are handed to the GUI
+as they are, and only the growing last one is cloned per update. So the cost
+per scan no longer grows with the trajectory length (~1 ms at 20k poses
+before). Call `state_.resetGuiPath()` wherever `estimated_trajectory` is
+cleared or transformed (bad first ICP restart, map-frame re-leveling).
 
 `visualization.map_update_decimation` (`MOLA_GUI_MAP_UPDATE_DECIMATION`,
 default 10 in most pipelines) bounds how often that render is even requested.
@@ -535,7 +544,15 @@ O(map size) recolorize/OpenGL build then runs on that private copy, unlocked.
 The copy is ~6x cheaper than the render it replaces in the critical section
 (27 ms vs 182 ms mean on Oxford Spires), which takes `onLidar`'s max from
 216 ms to 107 ms and makes `onLidar.4.update_local_map` equal to the insertion
-it wraps, i.e. zero lock wait.
+it wraps, i.e. zero lock wait. A `KeyframePointCloudMap` copy is now shallow
+(keyframes share their clouds and drop their caches): ~0.1 ms for 300
+keyframes of 20k points. The price is that the render rebuilds every
+keyframe's cloud object (~80-110 ms on the viz worker) instead of reusing the
+live map's per-keyframe cache; reusing it would need mp2p_icp's
+`get_visualization()` not to modify the objects a layer returns. The
+`update_local_map_copy` profile (~117 ms mean on KITTI 00) is mostly that
+copy waiting for the KFM's own lock, held by each ICP matching pass; it does
+not delay the LiDAR thread, whose ICP does not need `local_map_content_mtx_`.
 
 Point layers are copied into a plain `CGenericPointsMap` rather than cloned
 through their own type: `insertAnotherMap()` calls `registerPointFieldsFrom()`
