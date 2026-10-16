@@ -499,18 +499,6 @@ void LidarOdometry::onParameterUpdate(const mrpt::containers::yaml & names_value
       reset();
     });
   }
-
-  // and reflect changes in the GUI, if used.
-#if !MOLA_VERSION_CHECK(2, 6, 0)
-  this->enqueue_locked_request([this]() {
-    auto lckGuiMtx = mrpt::lockHelper(state_gui_mtx_);
-    if (gui_.cbActive) {
-      gui_.cbActive->setChecked(isActive());
-      gui_.cbMapping->setChecked(params_.local_map_updates.enabled);
-      gui_.cbSaveSimplemap->setChecked(params_.simplemap.generate);
-    }
-  });
-#endif
 }
 
 void LidarOdometry::onExposeParameters()

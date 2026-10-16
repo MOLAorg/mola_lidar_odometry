@@ -14,7 +14,7 @@ observations_deskew_pass:
   # very far returns where small angular errors blow up into large
   # translational errors. metric_l_infinity → axis-aligned cube; center
   # is unset → anchored at base_link (the vehicle origin), *not* at the
-  # sensor — this is intentional so the deadzone covers the whole
+  # sensor. This is intentional so the deadzone covers the whole
   # vehicle footprint regardless of where the sensor is mounted on it.
   # If you also need a sensor-anchored cut (e.g. the sensor's blind
   # sphere when it is mounted significantly off base_link), add an

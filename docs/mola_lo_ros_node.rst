@@ -290,7 +290,7 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
     * ``odom_topic_name`` (default ``""``):
       If non-empty, BridgeROS2 subscribes directly to this ``nav_msgs/Odometry`` topic
-      and forwards each message as a 3D ``CObservationRobotPose`` (6×6 covariance) —
+      and forwards each message as a 3D ``CObservationRobotPose`` (6×6 covariance),
       preferred for smoother fusion. Mutually exclusive with ``forward_ros_tf_odom_to_mola``.
 
     * ``publish_local_map`` (default ``True``):

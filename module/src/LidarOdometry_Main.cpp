@@ -372,11 +372,12 @@ void LidarOdometry::updateStatusSnapshot()
   s->scan_period_sec = state_.last_observed_scan_period_sec;
   s->average_process_time = profiler_.getMeanTime("onLidar");
   if (state_.local_map) {
-    s->local_map_layers = state_.local_map->layers.size();
     for (const auto & [layerName, layerMap] : state_.local_map->layers) {
+      std::optional<std::size_t> nPoints;
       if (const auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layerMap); pts) {
-        s->local_map_points += pts->size();
+        nPoints = pts->size();
       }
+      s->local_map_layer_points.emplace_back(layerName, nPoints);
     }
   }
   s->diagnostics_thresholds = params_.diagnostics;
@@ -799,16 +800,32 @@ void LidarOdometry::doWriteDebugTracesFile(const mrpt::Clock::time_point & scan_
   vars["timestamp"] = mrpt::Clock::toDouble(scan_ref_time);
   vars["time_onLidar"] = profiler_.getLastTime("onLidar");
 
+  // The columns are fixed by the first row: a variable missing later leaves
+  // its cell empty, and one appearing later is not written.
   if (firstLine) {
+    debug_traces_columns_.clear();
     for (const auto & [name, value] : vars) {
+      debug_traces_columns_.push_back(name);
       of << "\"" << name << "\",";
     }
     of << "\n";
   }
-  for (const auto & [name, value] : vars) {
-    of << mrpt::format("%f,", value);
+  std::size_t written = 0;
+  for (const auto & name : debug_traces_columns_) {
+    if (const auto it = vars.find(name); it != vars.end()) {
+      of << mrpt::format("%f", it->second);
+      written++;
+    }
+    of << ",";
   }
   of << "\n";
+
+  if (!debug_traces_new_vars_warned_ && written < vars.size()) {
+    debug_traces_new_vars_warned_ = true;
+    MRPT_LOG_WARN(
+      "Debug traces: some variables appeared after the first row and are not written to the "
+      "file.");
+  }
 }
 
 void LidarOdometry::addDropStats(bool frame_is_dropped)

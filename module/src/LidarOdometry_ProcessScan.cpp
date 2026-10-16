@@ -887,6 +887,13 @@ void LidarOdometry::processLidarScan(  // NOLINT
     }
   }
 
+  // The previous scan stamp of this sensor, read before it is replaced:
+  std::optional<mrpt::Clock::time_point> last_obs_tim;
+  if (auto it = state_.last_obs_tim_by_label.find(obs->sensorLabel);
+      it != state_.last_obs_tim_by_label.end()) {
+    last_obs_tim = it->second;
+  }
+
   // Only after the scan is known to be usable, so a skipped one does not
   // count for min_time_between_scans:
   state_.last_obs_tim_by_label[obs->sensorLabel] = this_obs_tim;
@@ -976,25 +983,17 @@ void LidarOdometry::processLidarScan(  // NOLINT
     doUpdateEstimatedObservationRadius(observationRawForViz);
   }
 
-  profiler_.enter("onLidar.2.copy_vars");
-
   // check observation validity:
-  if (const bool obsValid = doCheckIsValidObservation(*observation); !obsValid) {
-    MRPT_LOG_WARN_FMT(
-      "Observation discarded as non-valid for pathStep=%zu, timestamp=%s UTC",
-      state_.estimated_trajectory.size(), mrpt::system::dateTimeToString(this_obs_tim).c_str());
+  {
+    const ProfilerEntry tleValid(profiler_, "onLidar.2.copy_vars");
+    if (const bool obsValid = doCheckIsValidObservation(*observation); !obsValid) {
+      MRPT_LOG_WARN_FMT(
+        "Observation discarded as non-valid for pathStep=%zu, timestamp=%s UTC",
+        state_.estimated_trajectory.size(), mrpt::system::dateTimeToString(this_obs_tim).c_str());
 
-    return;
+      return;
+    }
   }
-
-  // Store for next step:
-  std::optional<mrpt::Clock::time_point> last_obs_tim;
-  if (auto it = state_.last_obs_tim_by_label.find(obs->sensorLabel);
-      it != state_.last_obs_tim_by_label.end()) {
-    last_obs_tim = it->second;
-  }
-
-  profiler_.leave("onLidar.2.copy_vars");
 
   if (observation->empty()) {
     MRPT_LOG_WARN_STREAM(

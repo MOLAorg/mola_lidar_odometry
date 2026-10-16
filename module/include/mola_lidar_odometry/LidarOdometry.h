@@ -1548,7 +1548,7 @@ private:
     size_t registration_gate_rejected = 0;
 
     // Automatic estimation of the observation bounding-radius (measured from
-    // base_link, not from the sensor — see ESTIMATED_OBSERVATION_RADIUS docs):
+    // base_link, not from the sensor; see ESTIMATED_OBSERVATION_RADIUS docs):
     std::optional<double> estimated_observation_radius;
     std::optional<double> instantaneous_observation_radius;
 
@@ -2100,8 +2100,9 @@ private:
     std::optional<mrpt::Clock::time_point> last_obs_reception_time;
     double scan_period_sec = .0;
     double average_process_time = .0;
-    std::size_t local_map_layers = 0;
-    std::size_t local_map_points = 0;
+    /// Points per local map layer, or nullopt for layers that are not points
+    /// maps (e.g. keyframe maps), whose size has no cheap generic query.
+    std::vector<std::pair<std::string, std::optional<std::size_t>>> local_map_layer_points;
     Parameters::Diagnostics diagnostics_thresholds;
   };
 
@@ -2117,6 +2118,9 @@ private:
 
   void doWriteDebugTracesFile(const mrpt::Clock::time_point & scan_ref_time);
   std::optional<std::ofstream> debug_traces_of_;
+  /// Columns of debug_traces_of_, fixed by its first row.
+  std::vector<std::string> debug_traces_columns_;
+  bool debug_traces_new_vars_warned_ = false;
 
   /// \param simplemapFile Copy of simplemap.save_final_map_to_file, read by
   ///        the caller under state_mtx_.

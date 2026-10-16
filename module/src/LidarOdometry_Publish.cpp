@@ -410,8 +410,28 @@ void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & stat
     s.name = "LidarOdometry: Local Map";
     s.level = L::OK;
     s.message = "Informational";
-    s.values.push_back(kv_u("num_layers", st->local_map_layers));
-    s.values.push_back(kv_u("total_points", st->local_map_points));
+    s.values.push_back(kv_u("num_layers", st->local_map_layer_points.size()));
+
+    // Points are only counted for points maps: "n/a" for any other layer,
+    // and for the total if there is any such layer.
+    std::optional<std::size_t> totalPoints = 0;
+    for (const auto & [layerName, nPoints] : st->local_map_layer_points) {
+      if (nPoints) {
+        s.values.push_back(kv_u("points." + layerName, *nPoints));
+      } else {
+        s.values.push_back({"points." + layerName, "n/a"});
+      }
+      if (totalPoints && nPoints) {
+        *totalPoints += *nPoints;
+      } else {
+        totalPoints.reset();
+      }
+    }
+    if (totalPoints) {
+      s.values.push_back(kv_u("total_points", *totalPoints));
+    } else {
+      s.values.push_back({"total_points", "n/a"});
+    }
     status.push_back(std::move(s));
   }
 
