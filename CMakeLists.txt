@@ -302,6 +302,11 @@ if(DETECTED_ROS2)
   find_package(ament_cmake REQUIRED)
 
   if(BUILD_TESTING)
+    # Humble's python_cmake_module (via launch_testing_ament_cmake) still uses
+    # the FindPythonInterp module removed in CMake >= 3.27.
+    if(POLICY CMP0148)
+      cmake_policy(SET CMP0148 OLD)
+    endif()
     find_package(ament_lint_auto REQUIRED)
     find_package(ament_cmake_gtest REQUIRED)
     ament_lint_auto_find_test_dependencies()
