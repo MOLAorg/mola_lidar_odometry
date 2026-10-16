@@ -290,11 +290,22 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
   const double elapsed =
     mrpt::system::timeDifference(*state_.waiting_for_state_estimator_since, mrpt::Clock::now());
 
+  const bool hasGeoref = state_.local_map->georeferencing.has_value();
+
   if (il.from_state_estimator_timeout > 0 && elapsed > il.from_state_estimator_timeout) {
-    MRPT_LOG_ERROR_FMT(
-      "Timeout (%.1f s) waiting for state estimator to converge. "
-      "Check GNSS/IMU sensors.",
-      il.from_state_estimator_timeout);
+    if (!hasGeoref) {
+      // Keep waiting: a map may still be loaded at runtime (map_load service).
+      MRPT_LOG_ERROR_FMT(
+        "No geo-referencing after %.1f s, so the state estimator pose cannot be used yet. "
+        "Load a geo-referenced map (e.g. via the map_load service), or enable geo-reference "
+        "estimation in the state estimator. Still waiting.",
+        il.from_state_estimator_timeout);
+    } else {
+      MRPT_LOG_ERROR_FMT(
+        "Timeout (%.1f s) waiting for state estimator to converge. "
+        "Check GNSS/IMU sensors.",
+        il.from_state_estimator_timeout);
+    }
     state_.waiting_for_state_estimator_since.reset();
     return;
   }
@@ -304,9 +315,11 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
 
   // Note: state_mtx_ is already held by the caller (processLidarScan), which
   // has already applied any geo-referencing received from the estimator.
-  if (!state_.local_map->georeferencing.has_value()) {
+  if (!hasGeoref) {
     MRPT_LOG_THROTTLE_INFO(
-      5.0, "Waiting for geo-referencing (from loaded map or state estimator)...");
+      5.0,
+      "Waiting for geo-referencing, from a loaded map (at start or via map_load) or from the "
+      "state estimator...");
     return;  // Not ready yet
   }
 
