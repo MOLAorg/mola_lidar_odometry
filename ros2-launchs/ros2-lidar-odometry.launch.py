@@ -294,6 +294,11 @@ def generate_launch_description():
     use_mola_gui_env_var = SetEnvironmentVariable(
         name='MOLA_WITH_GUI', value=LaunchConfiguration('use_mola_gui'))
 
+    publish_local_map_arg = DeclareLaunchArgument(
+        "publish_local_map", default_value="True", description="Whether to publish the local map as a ROS 2 point cloud (topic /lidar_odometry/localmap_points)")
+    publish_local_map_env_var = SetEnvironmentVariable(
+        name='MOLA_PUBLISH_LOCAL_MAP', value=LaunchConfiguration('publish_local_map'))
+
     publish_localization_following_rep105_arg = DeclareLaunchArgument(
         "publish_localization_following_rep105", default_value="True", description="Whether to publish localization TFs in between map->odom (true) or directly map->base_link (false)")
     publish_localization_following_rep105_env_var = SetEnvironmentVariable(
@@ -764,6 +769,8 @@ def generate_launch_description():
         simplemap_min_nearby_poses_env_var,
         use_mola_gui_arg,
         use_mola_gui_env_var,
+        publish_local_map_arg,
+        publish_local_map_env_var,
         use_rviz_arg,
         use_diagnostic_aggregator_arg,
         use_state_estimator_arg,

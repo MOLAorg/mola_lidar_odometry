@@ -293,6 +293,10 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       and forwards each message as a 3D ``CObservationRobotPose`` (6×6 covariance) —
       preferred for smoother fusion. Mutually exclusive with ``forward_ros_tf_odom_to_mola``.
 
+    * ``publish_local_map`` (default ``True``):
+      Whether to publish the local map as a point cloud on ``/lidar_odometry/localmap_points``.
+      Copying a large map out costs CPU and bandwidth; disable it if nothing consumes it.
+
     * ``publish_localization_following_rep105`` (default ``True``):
       Whether the bridge publishes localization TFs as ``map → odom`` (REP-105, true)
       or directly ``map → base_link`` (false). REP-105 is incompatible with the smoother.

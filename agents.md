@@ -1149,6 +1149,13 @@ We use colcon, the ROS2 build tool, and mola_common with utility cmake helpers.
   in-process tests (the rosbag2 source stamps scans ~50 ms later).
   `MOLA_MODULES_LIB_PATH` points at the build tree so the module under test is
   loaded. Every launch YAML must keep its GUI behind `MOLA_WITH_GUI`.
+- `test_ros2_local_map_publishing` (`launch_testing`): the real
+  `ros2-lidar-odometry.launch.py`, headless, fed by `ros2 bag play --loop` of
+  the rslidar MCAP. Parametrized on the `publish_local_map` launch argument
+  (`MOLA_PUBLISH_LOCAL_MAP`): a non-empty `PointCloud2` must arrive on
+  `/lidar_odometry/localmap_points` (the bridge appends `_points`), or none
+  while `/lidar_odometry/pose` keeps arriving. Only the first bag pass is
+  mapped (looping makes timestamps go backwards).
 
 ## Code style
 

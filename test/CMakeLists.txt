@@ -249,3 +249,14 @@ else()
     )
   endif()
 endif()
+
+# Test: real ROS 2 launch with a rosbag2, local map published (or not) as a point cloud
+# -----------------------------------------------------------------------------------
+find_package(launch_testing_ament_cmake QUIET)
+if(launch_testing_ament_cmake_FOUND AND EXISTS ${RSLIDAR_DATASET_FILE})
+  add_launch_test(test_ros2_local_map_publishing.py
+    TARGET test_ros2_local_map_publishing
+    TIMEOUT 400
+    ARGS "rosbag:=${RSLIDAR_DATASET_FILE}"
+  )
+endif()

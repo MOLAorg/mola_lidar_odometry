@@ -79,6 +79,13 @@
   <test_depend>mola_launcher</test_depend> <!-- mola-cli, for the integration tests -->
   <test_depend>mola_metric_maps</test_depend>
   <test_depend>rosbag2_storage_mcap</test_depend> <!-- Needed to be able to open mcap test files -->
+  <!-- For the ROS 2 launch integration test: -->
+  <test_depend>launch_testing_ament_cmake</test_depend>
+  <test_depend>launch_testing_ros</test_depend>
+  <test_depend>ros2bag</test_depend>
+  <test_depend>rclpy</test_depend>
+  <test_depend>sensor_msgs</test_depend>
+  <test_depend>nav_msgs</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
