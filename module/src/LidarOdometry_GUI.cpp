@@ -1110,8 +1110,11 @@ void LidarOdometry::updateVisualizationPath(std::vector<std::function<void()>> &
   constexpr std::size_t PATH_CHUNK_LINES = 1000;
 
   const auto & traj = state_.estimated_trajectory;
-  if (state_.glEstimatedPathPoses > traj.size()) {
-    state_.resetGuiPath();  // the trajectory was cleared
+  const auto & rgba = params_.visualization.trajectory_rgba;
+  if (state_.glEstimatedPathPoses > traj.size() || state_.glEstimatedPathRgba != rgba) {
+    // The trajectory was cleared, or the path color changed at runtime:
+    state_.resetGuiPath();
+    state_.glEstimatedPathRgba = rgba;
   }
 
   // Only the new poses, at the end of the time-ordered trajectory:
@@ -1124,7 +1127,6 @@ void LidarOdometry::updateVisualizationPath(std::vector<std::function<void()>> &
 
     if (chunks.empty() || chunks.back()->size() >= PATH_CHUNK_LINES) {
       auto chunk = mrpt::viz::CSetOfLines::Create();
-      const auto & rgba = params_.visualization.trajectory_rgba;
       chunk->setColor(rgba.at(0), rgba.at(1), rgba.at(2), rgba.at(3));
       // Continue the strip from the end of the previous chunk:
       const auto from = chunks.empty() ? t : state_.glEstimatedPathLastPoint;

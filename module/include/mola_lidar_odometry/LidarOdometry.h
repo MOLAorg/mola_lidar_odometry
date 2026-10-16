@@ -1644,9 +1644,11 @@ private:
     /// never change again, so they are handed to the GUI thread as they are;
     /// only the last one grows, and it is cloned for each update.
     std::vector<mrpt::viz::CSetOfLines::Ptr> glEstimatedPathChunks;
-    /// Trajectory poses already in glEstimatedPathChunks, and the last one.
+    /// Trajectory poses already in glEstimatedPathChunks, the last one, and
+    /// the color they were drawn with.
     std::size_t glEstimatedPathPoses = 0;
     mrpt::math::TPoint3D glEstimatedPathLastPoint;
+    std::vector<float> glEstimatedPathRgba;
     /// Whether the path / local map were last sent to the GUI as hidden, so
     /// hiding them is only sent once.
     bool glPathHidden = false;
