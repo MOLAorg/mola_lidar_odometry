@@ -27,6 +27,7 @@
 #include <mrpt/config/CConfigFile.h>
 #include <mrpt/config/CConfigFileMemory.h>
 #include <mrpt/containers/yaml.h>
+#include <mrpt/core/get_env.h>
 #include <mrpt/core/initializer.h>
 #include <mrpt/io/lazy_load_path.h>
 #include <mrpt/obs/CObservationPointCloud.h>
@@ -681,6 +682,11 @@ bool version_greater(const std::string & a, const std::string & b)  // NOLINT
 
 void check_new_version(mrpt::config::CConfigFile & cfg)
 {
+  // Opt-out, e.g. for offline machines or for deterministic test coverage:
+  if (mrpt::get_env<bool>("MOLA_LO_DISABLE_VERSION_CHECK", false)) {
+    return;
+  }
+
   // Do we need to check today?
   const auto lastTim = cfg.read_double("config", "last_version_check", 0);
   const auto now = mrpt::Clock::nowDouble();
