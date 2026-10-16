@@ -1145,6 +1145,10 @@ path-resolution lookups, not app debug flags, and are left untouched.
 
 We use colcon, the ROS2 build tool, and mola_common with utility cmake helpers.
 
+`CMakeLists.txt` sets CMP0148 to OLD before the test dependencies: on Humble,
+`launch_testing_ament_cmake` pulls in a `python_cmake_module` that still uses
+`FindPythonInterp`, which CMake >= 3.27 removed (e.g. a pip-installed CMake).
+
 ## Testing
 
 - **Framework**: CMake + GTest
