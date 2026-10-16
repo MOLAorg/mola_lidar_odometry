@@ -95,6 +95,7 @@ MapServer::ReturnStatus LidarOdometry::map_load_impl(const std::string & path)
 
     ASSERT_(state_.local_map);
     state_.local_map->clear();
+    local_map_contents_stamp_ = {};
     state_.gravity_calib_pitch_roll.reset();  // new map origin: recapture at next first KF
     state_.gravity_calib_pose.reset();
     state_.gravity_calib_first_available_time.reset();
@@ -114,6 +115,7 @@ MapServer::ReturnStatus LidarOdometry::map_load_impl(const std::string & path)
     }
 
     state_.map_has_been_loaded = mmLoadOk;
+    updateStatusSnapshot();
   }
 
   // The reconstructed simplemap is protected by state_simplemap_mtx_, not

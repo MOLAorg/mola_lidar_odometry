@@ -601,6 +601,11 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     }
   }
 
+  {
+    auto lckState = mrpt::lockHelper(state_mtx_);
+    updateStatusSnapshot();
+  }
+
   // end of initialization:
   {
     auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
@@ -704,6 +709,9 @@ void LidarOdometry::doPreloadLocalMap()
       "or crash on the first LiDAR scan. Check that "
       "'local_map_updates.load_existing_local_map' points to a valid, non-empty map.");
   }
+
+  // It may run deferred, with no scan afterwards to refresh the status:
+  updateStatusSnapshot();
 }
 
 }  // namespace mola

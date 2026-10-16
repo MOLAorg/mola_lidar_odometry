@@ -521,6 +521,23 @@ void doRecolorize(
   mrpt::obs::recolorize3Dpc(cloud, org_cloud, rp);
 };
 
+// Upserts a 3D object, optionally as a child of a movable scene frame node
+// (parentFrame). Falls back to a root insert when built against an older
+// mola_kernel that lacks the movable-frame API.
+void vizUpsert3D(
+  const mola::VizInterface::Ptr & viz, const std::string & name,
+  const mrpt::viz::CSetOfObjects::Ptr & obj, const std::string & parentFrame)
+{
+#if defined(MOLA_KERNEL_VIZ_HAS_MOVABLE_FRAMES)
+  viz->update_3d_object(name, obj, "main", "main", parentFrame);
+#else
+  (void)parentFrame;
+  viz->update_3d_object(name, obj);
+#endif
+}
+
+}  // namespace
+
 // A deep copy of `m`, cheap enough to make while holding
 // local_map_content_mtx_. It exists to keep that mutex OUT of the render:
 // get_visualization() costs ~6x this copy (167.9 ms vs 28.1 ms mean on an
@@ -536,9 +553,8 @@ void doRecolorize(
 // The copy sees, in addition to the live points, the storage slots that are
 // tombstoned but not reclaimed yet; that population measured <2% of storage
 // on Oxford Spires (live/storage 0.999 mean, 0.982 worst), i.e. visually
-// irrelevant, and it is the same trade-off doPublishUpdatedLocalMap() already
-// makes when copying layers out for ROS.
-mp2p_icp::metric_map_t cheapLayerSnapshot(const mp2p_icp::metric_map_t & m)
+// irrelevant. The local map publishing uses the same copy.
+mp2p_icp::metric_map_t LidarOdometry::cheapLayerSnapshot(const mp2p_icp::metric_map_t & m)
 {
   // Shallow copy first, so any metadata this struct grows (id, label, lines,
   // planes, georeferencing, ...) is carried over without enumerating it here:
@@ -564,23 +580,6 @@ mp2p_icp::metric_map_t cheapLayerSnapshot(const mp2p_icp::metric_map_t & m)
 
   return out;
 }
-
-// Upserts a 3D object, optionally as a child of a movable scene frame node
-// (parentFrame). Falls back to a root insert when built against an older
-// mola_kernel that lacks the movable-frame API.
-void vizUpsert3D(
-  const mola::VizInterface::Ptr & viz, const std::string & name,
-  const mrpt::viz::CSetOfObjects::Ptr & obj, const std::string & parentFrame)
-{
-#if defined(MOLA_KERNEL_VIZ_HAS_MOVABLE_FRAMES)
-  viz->update_3d_object(name, obj, "main", "main", parentFrame);
-#else
-  (void)parentFrame;
-  viz->update_3d_object(name, obj);
-#endif
-}
-
-}  // namespace
 
 void LidarOdometry::setDeskewedColoring(
   mrpt::img::TColormap colormap, const std::string & colorByField)

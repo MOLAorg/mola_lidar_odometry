@@ -428,21 +428,42 @@ datasets use `MOLA_GENERATE_SIMPLEMAP=true` + `MOLA_SIMPLEMAP_OUTPUT=<file>`
 without `--output-simplemap`; tools such as `sm2mm` find `<map>_Images/` by
 themselves.
 
-## Local-map publishing is OFF in the offline CLI (`MOLA_PUBLISH_LOCAL_MAP`)
+## Local-map publishing: on a worker, only with subscribers (`MOLA_PUBLISH_LOCAL_MAP`)
 
-`doPublishUpdatedLocalMap()` deep-copies the whole local map, and it
-deliberately does NOT check `anyUpdateMapSubscriber()`: a subscriber arriving
-late should still receive a map, which matters for latched ROS topics. That
-trade is right for a live node and wrong for a batch run, where no subscriber
-ever appears and the copy sits on the critical path under the state mutex.
-Measured on a 136 m scene: 133 calls at 610 ms mean, 81 s, about 7% of the run.
+Copying the local map out for `advertiseUpdatedMap()` is O(map size): 610 ms
+mean measured on a 136 m scene when it ran inline. `doPublishUpdatedLocalMap()`
+(LiDAR worker or `spinOnce()`, under `state_mtx_`) now only decides, every
+`publish_map_updates_every_n` calls, and enqueues `publishLocalMapLayers()` on
+`worker_publish_local_map_` (1 thread, drop-old). That takes only
+`local_map_content_mtx_`, for the same `cheapLayerSnapshot()` the GUI render
+uses: point layers become `CGenericPointsMap` copies, and other layers (e.g.
+KFM, whose `asPointsMap()` caches a global copy of every keyframe) are
+converted from the snapshot, so nothing is cached in the live map.
+
+While `anyUpdateMapSubscriber()` is false, the update stays pending: it goes
+out as soon as a subscriber exists, and `MapSourceBase` latches it for later
+ones. Under ROS 2 the bridge always subscribes, so this only saves work
+without one.
 
 `publish_local_map` (all `pipelines/*.yaml`, `local_map_updates` block)
 defaults to **true**, and `mola-lidar-odometry-cli` defaults it to false with
 `setenv(..., 0)` so an explicit setting still wins, like `MOLA_ASYNC_BACKEND`
-and `MOLA_DROP_STALE_SCANS`. Set `MOLA_PUBLISH_LOCAL_MAP=true` if a `--module`
-in the same process consumes the map. Geo-referencing publication is
-unaffected: it happens before this gate.
+and `MOLA_DROP_STALE_SCANS`. Geo-referencing publication is unaffected: it
+happens before this gate.
+
+## Getters and diagnostics never wait for `state_mtx_`
+
+`state_mtx_` is held for a whole scan (seconds during a global search or map
+load), and BridgeROS2 serves all sensor subscriptions, timers and services
+from one executor thread, so anything it calls must not wait on that mutex.
+At the end of every scan (and of `initialize()`), `updateStatusSnapshot()`
+stores an immutable `StatusSnapshot` (pose and twist, ICP stats, stamps, map
+stats, diagnostics thresholds) behind `status_snapshot_mtx_`.
+`lastEstimatedState()`, `lastIcpQuality()`, `getDiagnostics()` and
+`onPublishDiagnostics()` read only that. `onParameterUpdate()` (called from
+`changeParameters()` with the kernel's parameter mutex held) applies its
+`params_` changes through `enqueue_locked_request()`. `map_load`/`map_save`
+still wait for the operation, by design of the service.
 
 ## Adaptive-threshold sustained-failure recovery is ON by default
 
@@ -525,7 +546,7 @@ constructor would instead `resetIndex()`, an O(N log N) k-d tree bulk build the
 renderer never queries. The copy does pick up the storage slots that are
 tombstoned but not reclaimed yet; that measured under 2% of storage
 (`MOLA_INCREMENTAL_MAP_DEBUG_STATS`: live/storage 0.999 mean, 0.982 worst), and
-it is the same trade-off `doPublishUpdatedLocalMap()` already makes.
+the local map publishing uses the same copy.
 
 The render worker pays ~20 ms more per render for the extra copy step, which is
 fine: it is off the critical path by construction.
