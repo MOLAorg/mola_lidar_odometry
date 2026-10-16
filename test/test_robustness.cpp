@@ -143,6 +143,17 @@ TEST(Robustness, EmptyFirstScanIsSkipped)
   f.expectTrackedPath(kNumScans / 2);
 }
 
+// With simplemap generation disabled, not even the first scan may add a
+// keyframe: it would be written out by map_save and returned by
+// reconstructedMap().
+TEST(Robustness, NoSimplemapKeyframesWhenDisabled)
+{
+  Fixture f(false /*simplemap*/);
+  f.feedScans(0, 5);
+  f.expectTrackedPath(3);
+  EXPECT_EQ(f.liodom->reconstructedMap().size(), 0U);
+}
+
 // reset() rebuilds everything from the original configuration: it must not
 // accumulate configuration entries, nor break scan processing.
 TEST(Robustness, ResetTwiceThenProcess)

@@ -1077,8 +1077,8 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
     // Create a first KF at the initial localization pose:
     updateLocalMap = true;
-    updateSimpleMap = true;     // update SimpleMap too
-    distance_enough_sm = true;  // and treat this one as a KeyFrame with SF
+    updateSimpleMap = params_.simplemap.generate;  // and the simplemap, if built
+    distance_enough_sm = true;                     // as a KeyFrame with SF
 #if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
     pushToSharedKeyframeMapNow = static_cast<bool>(state_.shared_keyframe_map_sink);
 #endif
