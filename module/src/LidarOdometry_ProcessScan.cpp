@@ -1069,6 +1069,11 @@ void LidarOdometry::processLidarScan(  // NOLINT
     }
   }
 
+  // Nor is its prediction used right after a re-localization (see below):
+  if (hasMotionModel && state_.step_counter_post_relocalization > 0) {
+    hasMotionModel = false;
+  }
+
   tleMotion.stop();
 
   if (state_.local_map->empty() && params_.local_map_updates.enabled) {
@@ -1136,7 +1141,11 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
     in.init_guess_local_wrt_global = mrpt::math::TPose3D::Identity();
 
-    if (state_.last_motion_model_output) {
+    // Right after a re-localization the state estimator is not fed our poses
+    // (see additional_uncertainty_after_reloc_how_many_timesteps), so its
+    // estimate follows its other sources only (e.g. a GNSS meters off), not the
+    // pose we were just re-localized at: start ICP from the latter instead.
+    if (state_.last_motion_model_output && state_.step_counter_post_relocalization == 0) {
       // ICP initial pose:
       in.init_guess_local_wrt_global = state_.last_motion_model_output->pose.mean.asTPose();
 
@@ -1188,7 +1197,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
       in.init_guess_local_wrt_global = state_.last_lidar_pose.mean.asTPose();
 
       // (Skip the warning message if we are in the first timestep, since that's totally normal and expected, and the warning becomes confusing):
-      if (state_.estimated_trajectory.size() > 1) {
+      if (state_.estimated_trajectory.size() > 1 && state_.step_counter_post_relocalization == 0) {
         MRPT_LOG_THROTTLE_WARN_FMT(
           2.0,
           "Not able to use velocity motion model for this timestep "
@@ -1672,12 +1681,21 @@ void LidarOdometry::processLidarScan(  // NOLINT
     if (icpIsGood) {
       // Good ICP, update state estimation filter with new data from ICP:
 
-      if (state_.step_counter_post_relocalization == 0) {
+      // Skip during post-relocalization, except its last step (unless it is
+      // also the first one): the next scan already takes its initial guess
+      // from the state estimator, which must then know where we are.
+      const auto & il = params_.initial_localization;
+      const uint32_t relocWindow = std::max(
+        il.additional_uncertainty_after_reloc_how_many_timesteps,
+        il.additional_map_freeze_after_reloc_how_many_timesteps);
+      if (
+        state_.step_counter_post_relocalization == 0 ||
+        (state_.step_counter_post_relocalization == 1 && relocWindow > 1)) {
         // Do integrate info:
         state_.navstate_fuse->fuse_pose(
           scan_ref_time, out.found_pose_to_wrt_from, params_.publish_reference_frame);
-      } else {
-        // Skip during post-relocalization:
+      }
+      if (state_.step_counter_post_relocalization > 0) {
         state_.step_counter_post_relocalization--;
       }
 
