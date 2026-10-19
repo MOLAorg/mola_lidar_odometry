@@ -882,6 +882,12 @@ The following only apply when ``MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud`
 - ``MOLA_INCREMENTAL_MAP_ALPHA_DELETED`` (Default: ``0.5``): A subtree is rebuilt, physically dropping evicted
   points, once this fraction of it is dead. Lower values reclaim memory more aggressively.
 
+- ``MOLA_INCREMENTAL_MAP_MIN_POINT_DISTANCE`` (Default: ``0.05`` [m]): Inserted points closer than this to a point
+  already in the map are dropped; ``0`` keeps every point. Otherwise, wherever consecutive scans overlap the map
+  grows much denser than the scan decimation, and matching, rebuild and memory costs grow with revisits rather than
+  with the area covered. The default was accuracy-neutral on average over 36 sequences of 6 datasets, with ~20%
+  less CPU and about half the memory; larger values save more but start to hurt accuracy on some sequences.
+
 
 GICP local map parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

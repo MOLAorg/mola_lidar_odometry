@@ -888,7 +888,8 @@ a single YAML enough. When adding keys, keep KFM's *required* ones
   `ASYNC_REBUILD` (default `true`; moves the k-d tree rebuilds off the mapping
   thread and is what keeps insertion latency flat; nondeterministic, so
   `mola-lidar-odometry-cli` defaults it to `false`), `ALPHA_BALANCE`,
-  `ALPHA_DELETED`, `RESERVE_POINTS`.
+  `ALPHA_DELETED`, `RESERVE_POINTS`, `MIN_POINT_DISTANCE` (default 0.05 m;
+  drops inserted points that close to an existing one, 0 keeps them all).
 
 `mola::IncrementalPointCloud` needs `mola_metric_maps` built against
 nanoflann >= 1.10.0. On distributions with an older one the class still exists
@@ -1098,7 +1099,8 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_OBSLAYER_MAX_PLANE_DEV_FOR_COV` | double | 0 (off) | `pipelines/lidar3d-gicp.yaml` | Same gate, scan side. Gating both sides was measured worse than the map side alone on KITTI |
 | `MOLA_LOCALMAP_PLANE_REG_LAMBDA` | double | 0.001 | `pipelines/lidar3d-gicp.yaml` | Variance asserted along the estimated surface normal, i.e. the plane-confidence ratio (0.001 == 1000:1). **Not a tuning knob**: raising it measured monotonically worse on KITTI |
 | `MOLA_OBSLAYER_PLANE_REG_LAMBDA` | double | 0.001 | `pipelines/lidar3d-gicp.yaml` | Idem, scan side |
-| `MOLA_LOCALMAP_MIN_NEIGHBORS_TO_CACHE_COV` | int | 0 (= `k`) | `pipelines/lidar3d-gicp.yaml` | `mola::IncrementalPointCloud` only: neighbors a point must have been found with for its covariance to enter the cache, so a thin-neighborhood estimate (in particular the isotropic fallback) is not frozen for the point's whole life. 1 caches everything, the behavior before it existed. ATE-neutral over seven sequences at a runtime cost inside the run-to-run spread. Do not pair with a narrow `MAX_DISTANCE_FOR_COV`: k neighbors inside a small radius is rarely satisfiable, so the cache stops admitting and every query re-searches |
+| `MOLA_LOCALMAP_MIN_NEIGHBORS_TO_CACHE_COV` | int | 0 (= `k`) | `pipelines/lidar3d-gicp.yaml` | `mola::IncrementalPointCloud` only: neighbors a point must have been found with for its covariance to enter the cache, so a thin-neighborhood estimate (in particular the isotropic fallback) is not frozen for the point's whole life. 1 caches everything, the behavior before it existed. ATE-neutral over seven sequences at a runtime cost inside the run-to-run spread. Do not pair with a narrow `MAX_DISTANCE_FOR_COV`: k neighbors inside a small radius is rarely satisfiable, so the cache stops admitting and those points are searched again on every query after each map update |
+| `MOLA_INCREMENTAL_MAP_MIN_POINT_DISTANCE` | double | 0.05 | `pipelines/lidar3d-gicp.yaml` | `mola::IncrementalPointCloud` only: inserted points closer than this [m] to an existing map point are dropped, bounding map density under scan overlap. 0.05 measured accuracy-neutral on average over 36 sequences with ~20% less CPU and ~half the memory; 0 keeps every point (behavior before it existed) |
 | `MOLA_GCW_ENABLED` | bool | false | `pipelines/lidar3d-gicp.yaml` | Enables mp2p_icp's per-pairing weight by map surface geometry class. Inert while the weights are all ones |
 | `MOLA_GCW_VARIABLE` | string | `incidence` | `pipelines/lidar3d-gicp.yaml` | `incidence` (gravity-free) or `verticality` (needs a gravity source) |
 | `MOLA_GCW_GRAVITY_SOURCE` | string | `map_frame` | `pipelines/lidar3d-gicp.yaml` | `imu` or `map_frame`, for `verticality` only |
