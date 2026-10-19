@@ -96,8 +96,18 @@ localmap_generator:
           #
           # Note a narrower max_distance_for_cov interacts badly with this:
           # asking for k neighbors inside a small radius is rarely satisfiable,
-          # so the cache stops admitting and every query re-searches.
+          # so the cache stops admitting and such points are searched again on
+          # every query made after each map update.
           min_neighbors_to_cache_cov: ${MOLA_LOCALMAP_MIN_NEIGHBORS_TO_CACHE_COV|0}
+          # Inserted points closer than this [m] to a point already in the map
+          # are dropped (0 disables it). Without it every point of every scan is
+          # kept, so wherever consecutive scans overlap the map grows far
+          # denser than the scan decimation, and searches, rebuilds and memory
+          # scale with revisits rather than with the area covered. At 0.05 m it
+          # was accuracy-neutral on average over 36 sequences of 6 datasets,
+          # with ~20% less CPU and about half the memory; larger values save
+          # more but start to hurt accuracy on some sequences.
+          min_distance_between_points: ${MOLA_INCREMENTAL_MAP_MIN_POINT_DISTANCE|0.05} # [m]
           # Half side [m] of the cube of points kept around the robot on each
           # insertion (Chebyshev distance, as in HashedVoxelPointCloud's
           # remove_voxels_farther_than). Unlike the keyframe map, EVERY point

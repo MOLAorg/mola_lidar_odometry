@@ -121,6 +121,7 @@ localmap_generator:
           alpha_balance: ${MOLA_INCREMENTAL_MAP_ALPHA_BALANCE|0.75}
           alpha_deleted: ${MOLA_INCREMENTAL_MAP_ALPHA_DELETED|0.5}
           reserve_points: ${MOLA_INCREMENTAL_MAP_RESERVE_POINTS|2000000}
+          min_distance_between_points: ${MOLA_INCREMENTAL_MAP_MIN_POINT_DISTANCE|0.05} # [m]
           max_search_keyframes: ${MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES|3}
           use_view_direction_filter: ${MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER|true}
           view_direction_filter: "${MOLA_LOCALMAP_VIEW_DIRECTION_FILTER|}"
