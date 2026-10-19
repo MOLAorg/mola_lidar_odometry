@@ -17,21 +17,26 @@ observations_filter_deskew_for_visualization:
       range_max: 1.2*ESTIMATED_OBSERVATION_RADIUS
       metric_l_infinity: true
 
+  # De-skew in place: "raw_filtered" is a new layer that nothing else references.
   - class_name: mp2p_icp_filters::FilterDeskew
     params:
       name: "FilterDeskew (viz)"
       input_pointcloud_layer: "raw_filtered"
-      output_pointcloud_layer: "viz"
+      in_place: true
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|false}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
-      output_layer_class: "mrpt::maps::CGenericPointsMap" # Keep intensity only
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
       twist: [vx, vy, vz, wx, wy, wz]
 
+  - class_name: mp2p_icp_filters::FilterRenameLayer
+    params:
+      input_layer: "raw_filtered"
+      output_layer: "viz"
+
   # Remove raw layer so it's not visible
   - class_name: mp2p_icp_filters::FilterDeleteLayer
     params:
-      pointcloud_layer_to_remove: ["raw", "raw_filtered"]
+      pointcloud_layer_to_remove: ["raw"]
