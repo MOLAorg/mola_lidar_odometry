@@ -27,20 +27,22 @@ observations_deskew_pass:
       range_max: "${MOLA_MAXIMUM_RANGE_FILTER|1.2*ESTIMATED_OBSERVATION_RADIUS}"
       metric_l_infinity: true
 
+  # De-skew in place: "raw_range_filtered" is a new layer that nothing else
+  # references, so this avoids copying the whole cloud with all its fields.
   - class_name: mp2p_icp_filters::FilterDeskew
     params:
       name: "FilterDeskew (early)"
       input_pointcloud_layer: "raw_range_filtered"
-      output_pointcloud_layer: "deskewed"
+      in_place: true
       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
       ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|false}"
       silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true} # To handle more dataset types
-      output_layer_class: "mrpt::maps::CGenericPointsMap" # Keep intensity, ring, time channels
 
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
       twist: [vx, vy, vz, wx, wy, wz]
 
-  - class_name: mp2p_icp_filters::FilterDeleteLayer
+  - class_name: mp2p_icp_filters::FilterRenameLayer
     params:
-      pointcloud_layer_to_remove: ["raw_range_filtered"]
+      input_layer: "raw_range_filtered"
+      output_layer: "deskewed"
