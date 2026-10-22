@@ -47,6 +47,32 @@ reason to differ, and the evidence goes in the profile.
 Adding a dataset means adding one profile plus two one-line wrappers, and
 listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
 
+## Sync rule: user-facing inputs and knobs
+
+A new or renamed user-facing input (topic, frame, sensor label, mode switch)
+must be updated in **all** of these places in the same change, or the gap
+stated explicitly in the docs as "not available":
+
+1. Live: `ros2-launchs/ros2-lidar-odometry.launch.py` (`DeclareLaunchArgument`
+   + `SetEnvironmentVariable`) and `mola-cli-launchs/lidar_odometry_ros2.yaml`
+   (`subscribe:` entry).
+2. Offline GUI: `mola-cli-launchs/lidar_odometry_from_rosbag2.yaml` (and the
+   rosbag1 one, when applicable).
+3. Offline CLI: the generated config in `dataset_from_rosbag2()` /
+   `dataset_from_rosbag1()` of `apps/mola-lidar-odometry-cli.cpp`, using the
+   **same** env var name as step 2, plus the usage text in
+   `scripts/lib/profiles/rosbag2.sh`.
+4. Docs in this repo: the launch-argument and env-var lists in
+   `docs/mola_lo_ros_node.rst`, and `docs/mola_lo_pipelines.rst` if a
+   pipeline block reads the variable.
+5. The ROS 2 configurations page in the `mola` repo
+   (`docs/source/mola_ros2_configurations.rst`): the parameter table (live
+   argument and offline variable columns), any recipe using it, and, for a
+   new `__PLACEHOLDER__`, the `FIELDS` list in
+   `docs/source/_static/js/mola_cookbook.js`.
+
+Check: `grep -rn MOLA_NEW_VAR` over both repos must hit every place above.
+
 ### Per-dataset notes
 
 - **kitti** selects `pipelines/lidar3d-icp.yaml` over the cov-to-cov default:
@@ -179,11 +205,13 @@ which is what gives `mola-sm-georeferencing` an azimuth observation. The LiDAR's
 built-in IMU is the right one for de-skew but carries no orientation, so an
 external AHRS can be named with `attitude_imu_sensor_label`
 (`MOLA_ATTITUDE_IMU_NAME`): its readings feed only `last_imu_`, and the main IMU
-then stops feeding it. The rosbag2 inputs (offline CLI and
-`lidar_odometry_from_rosbag2.yaml`) read it from `MOLA_ATTITUDE_IMU_TOPIC` with
-label `imu_attitude`; the CLI sets `MOLA_ATTITUDE_IMU_NAME` itself when the topic
-is given. Observations still reach the state estimator too: exclude the label
-there (`do_process_imu_labels_re`) unless fusing its absolute attitude is wanted.
+then stops feeding it. All inputs (offline CLI, `lidar_odometry_from_rosbag2.yaml`,
+`lidar_odometry_ros2.yaml`) read it from `MOLA_ATTITUDE_IMU_TOPIC` with label
+`imu_attitude`. The label must only be set when the topic is, so each entry point
+sets `MOLA_ATTITUDE_IMU_NAME` conditionally: the CLI binary, `profiles/rosbag2.sh`
+(GUI wrapper) and the ROS 2 launch file (`attitude_imu_topic_name`). Observations
+still reach the state estimator too: exclude the label there
+(`do_process_imu_labels_re`) unless fusing its absolute attitude is wanted.
 
 ## Robot /tf tree visualization (opt-in)
 

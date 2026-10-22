@@ -11,6 +11,7 @@ mola_lo_profile_usage() {
   echo "  MOLA_LIDAR_TOPIC       LiDAR topic name (default: '/ouster/points')"
   echo "  MOLA_IMU_TOPIC         IMU topic name (default: '/imu')"
   echo "  MOLA_GNSS_TOPIC        GNSS NavSatFix topic name (default: '/gps')"
+  echo "  MOLA_ATTITUDE_IMU_TOPIC  Attitude-only IMU (AHRS) for simplemap keyframes (optional)"
   echo "  MOLA_ODOMETRY_TOPIC    Wheels 2D odometry (optional)"
   echo "  MOLA_TF_BASE_LINK      Robot base /tf frame id (default: 'base_link')"
   echo "  MOLA_TF_TOPIC          /tf topic in the bag (default: '/tf')"
@@ -25,6 +26,13 @@ mola_lo_profile_resolve() {
 
   MOLA_INPUT_ROSBAG2="$file"
   export MOLA_INPUT_ROSBAG2
+
+  # Naming an attitude-only IMU topic is enough to enable it, as in the
+  # offline CLI: give the odometry the label the launch YAML assigns to it.
+  if [ -n "${MOLA_ATTITUDE_IMU_TOPIC:-}" ]; then
+    : "${MOLA_ATTITUDE_IMU_NAME:=imu_attitude}"
+    export MOLA_ATTITUDE_IMU_NAME
+  fi
 
   MOLA_LO_LAUNCH_FILE=lidar_odometry_from_rosbag2.yaml
   MOLA_LO_CLI_INPUT=(--input-rosbag2 "$file")

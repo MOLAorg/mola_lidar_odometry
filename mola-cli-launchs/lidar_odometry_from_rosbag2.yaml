@@ -116,8 +116,9 @@ modules:
 
         # Optional second IMU, only stored into simplemap keyframes (absolute
         # attitude for geo-referencing). Disabled unless MOLA_ATTITUDE_IMU_TOPIC
-        # is set; also set MOLA_ATTITUDE_IMU_NAME=imu_attitude so the odometry
-        # uses it (mola-lidar-odometry-cli does this by itself).
+        # is set. When running this file directly with mola-cli, also set
+        # MOLA_ATTITUDE_IMU_NAME=imu_attitude so the odometry uses it
+        # (mola-lo-gui-rosbag2 and mola-lidar-odometry-cli do this by themselves).
         - topic: ${MOLA_ATTITUDE_IMU_TOPIC|''}
           sensorLabel: ${MOLA_ATTITUDE_IMU_NAME|imu_attitude}
           type: CObservationIMU
