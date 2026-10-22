@@ -156,6 +156,11 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
     Arguments (pass as ``<name>:=<value>``):
 
+    * ``attitude_imu_topic_name`` (default ``""``, disabled):
+      Optional second ``sensor_msgs/Imu`` topic with absolute attitude (e.g. an AHRS).
+      Its readings are only stored into simplemap keyframes, for later
+      geo-referencing, instead of those of ``imu_topic_name``.
+
     * ``enforce_planar_motion`` (default ``False``):
       Whether to enforce z, pitch, and roll to be zero.
 
@@ -397,17 +402,23 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
     - ``MOLA_GNSS_TOPIC`` (Default: ``'/gps'``): The ``sensor_msgs/NavSatFix`` topic with GNSS data (optional).
     
-    - ``MOLA_USE_FIXED_GNSS_POSE`` (Default: ``true``): If false, sensor pose will be retrieved from ``/tf``. You can also set it to true and then the sensor pose will be given by these env. variables:
+    - ``MOLA_USE_FIXED_GNSS_POSE`` (Default: ``false``): If false, sensor pose will be retrieved from ``/tf``. You can also set it to true and then the sensor pose will be given by these env. variables:
 
         - ``GNSS_POSE_X``, ``GNSS_POSE_Y``, ``GNSS_POSE_Z`` (in meters).
         - ``GNSS_POSE_YAW``, ``GNSS_POSE_PITCH``, ``GNSS_POSE_ROLL`` (in degrees).
 
     - ``MOLA_IMU_TOPIC`` (Default: ``'/imu'``): The ``sensor_msgs/Imu`` topic with IMU data (optional).
     
-    - ``MOLA_USE_FIXED_IMU_POSE`` (Default: ``true``): If false, sensor pose will be retrieved from ``/tf``. You can also set it to true and then the sensor pose will be given by these env. variables:
+    - ``MOLA_USE_FIXED_IMU_POSE`` (Default: ``false``): If false, sensor pose will be retrieved from ``/tf``. You can also set it to true and then the sensor pose will be given by these env. variables:
 
         - ``IMU_POSE_X``, ``IMU_POSE_Y``, ``IMU_POSE_Z`` (in meters).
         - ``IMU_POSE_YAW``, ``IMU_POSE_PITCH``, ``IMU_POSE_ROLL`` (in degrees).
+
+    - ``MOLA_ATTITUDE_IMU_TOPIC`` (Default: empty, disabled): A second ``sensor_msgs/Imu`` topic with absolute
+      attitude (e.g. an AHRS), stored into simple-map keyframes for geo-referencing instead of ``MOLA_IMU_TOPIC``.
+      Setting the topic is enough with ``mola-lo-gui-rosbag2``, ``mola-lo-cli-rosbag2`` and the ROS 2 launch file
+      (``attitude_imu_topic_name:=``). Running ``lidar_odometry_from_rosbag2.yaml`` directly with ``mola-cli`` also
+      needs ``MOLA_ATTITUDE_IMU_NAME=imu_attitude`` (see :ref:`pipeline sensor inputs <mola_lo_pipeline_sensor_inputs>`).
 
 
 .. dropdown:: More LO parameters

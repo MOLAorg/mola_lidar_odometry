@@ -225,6 +225,23 @@ def generate_launch_description():
         "imu_topic_name", default_value="imu", description="Topic name to listen for Imu input (for example '/imu')")
     imu_topic_name_env_var = SetEnvironmentVariable(
         name='MOLA_IMU_TOPIC', value=LaunchConfiguration('imu_topic_name'))
+    # ~~~~~~~~~~~~
+    attitude_imu_topic_name_arg = DeclareLaunchArgument(
+        "attitude_imu_topic_name", default_value="",
+        description="Optional second Imu topic with absolute attitude (e.g. an AHRS). Its readings are only "
+                    "stored into simplemap keyframes (for later geo-referencing), instead of those of "
+                    "imu_topic_name. Empty (default) disables it.")
+
+    # The odometry only routes readings by label once the label is set, so
+    # set it only when the topic is given (an unset topic must leave the main
+    # IMU feeding the keyframes).
+    def _apply_attitude_imu_topic(context, *args, **kwargs):
+        v = LaunchConfiguration('attitude_imu_topic_name').perform(context).strip()
+        if not v:
+            return []
+        return [SetEnvironmentVariable(name='MOLA_ATTITUDE_IMU_TOPIC', value=v),
+                SetEnvironmentVariable(name='MOLA_ATTITUDE_IMU_NAME', value='imu_attitude')]
+    attitude_imu_topic_env_var = OpaqueFunction(function=_apply_attitude_imu_topic)
 
     # ~~~~~~~~~~~~
     # Subscription QoS overrides (per REP-2003 the defaults are best-effort
@@ -710,6 +727,8 @@ def generate_launch_description():
         ignore_lidar_pose_from_tf_env_var,
         imu_topic_name_arg,
         imu_topic_name_env_var,
+        attitude_imu_topic_name_arg,
+        attitude_imu_topic_env_var,
         imu_qos_reliability_arg,
         imu_qos_reliability_env_var,
         imu_qos_depth_arg,

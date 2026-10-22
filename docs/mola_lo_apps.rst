@@ -102,9 +102,10 @@ any of the GUI applications:
 
 .. tip::
 
-   See the :ref:`MOLA in ROS 2 cookbook <mola_ros2_cookbook>` §5.1 for a
-   side-by-side walkthrough of ``mola-lo-gui-rosbag2`` with namespaced
-   bags, smoother, and live parameter editor.
+   See :ref:`offline rosbag2 recipes <mola_ros2_cookbook_5_1>` in the ROS 2
+   configurations page for ready-to-copy ``mola-lo-gui-rosbag2`` and
+   ``mola-lo-cli-rosbag2`` commands (LO, LIO, smoother, namespaced bags),
+   with a live parameter editor.
 
 This command will open the mola_viz GUI and build a map from ROS 2 bags:
 

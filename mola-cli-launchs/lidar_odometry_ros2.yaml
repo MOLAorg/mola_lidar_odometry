@@ -188,6 +188,13 @@ modules:
             reliability: ${MOLA_IMU_QOS_RELIABILITY|best_effort}
             depth: ${MOLA_IMU_QOS_DEPTH|50}
 
+        # Optional second IMU, only stored into simplemap keyframes (absolute
+        # attitude for geo-referencing). Disabled unless MOLA_ATTITUDE_IMU_TOPIC
+        # is set; the launch file then sets MOLA_ATTITUDE_IMU_NAME too.
+        - topic: ${MOLA_ATTITUDE_IMU_TOPIC|}
+          msg_type: Imu
+          output_sensor_label: ${MOLA_ATTITUDE_IMU_NAME|imu_attitude}
+
         # Optional: direct subscription to a nav_msgs/Odometry topic (e.g., wheel odometry).
         # Leave MOLA_ODOM_TOPIC empty (default) to disable. Set to e.g. "/wheel_odom" to enable.
         # Mutually exclusive with `forward_ros_tf_as_mola_odometry_observations` (TF-driven path):
