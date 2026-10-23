@@ -140,7 +140,11 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
   state_.parameter_source.updateVariable("ICP_ITERATION", 0);
 
   const auto ensureVarIsDefined = [&](const std::string & varName) {
+#if defined(MP2P_ICP_HAS_PARAMETER_SOURCE_HAS_VARIABLE)
+    if (!state_.parameter_source.hasVariable(varName)) {
+#else
     if (!state_.parameter_source.getVariableValues().count(varName)) {
+#endif
       state_.parameter_source.updateVariable(varName, 0);
     }
   };
