@@ -234,7 +234,7 @@ localmap_generator:
         creationOpts:
           resolution: 0.05 # '$f{max(0.05, min(1.0, 0.005*ESTIMATED_OBSERVATION_RADIUS))}' # [m]
         insertOpts:
-          prob_miss: 0.30
+          prob_miss: 0.49 # P(occupied | miss): weakest miss, as this pipeline was tuned with
           prob_hit: 0.70
           clamp_min: 0.05
           clamp_max: 0.95
