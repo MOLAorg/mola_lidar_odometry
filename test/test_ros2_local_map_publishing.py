@@ -8,7 +8,7 @@ import os
 import time
 import unittest
 
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 import launch
 from launch.actions import (DeclareLaunchArgument, ExecuteProcess,
                             IncludeLaunchDescription, SetEnvironmentVariable,
@@ -17,6 +17,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 import launch_testing
 import launch_testing.actions
+import launch_testing.util
 from nav_msgs.msg import Odometry
 import pytest
 import rclpy
@@ -28,6 +29,19 @@ LOCAL_MAP_TOPIC = '/lidar_odometry/localmap_points'
 POSE_TOPIC = '/lidar_odometry/pose'
 LIDAR_TOPIC = '/rslidar_points'
 
+
+def _skip_reason():
+    """The test launches the installed package, which a Debian package build does not have
+    yet when it runs the tests: skipped there, run under `colcon test`."""
+    try:
+        get_package_share_directory('mola_lidar_odometry')
+    except PackageNotFoundError:
+        return 'mola_lidar_odometry is not installed yet (e.g. a Debian package build)'
+    return None
+
+
+SKIP_REASON = _skip_reason()
+
 # Generous, for slow CI machines: startup, plus a few bag replays.
 MAX_WAIT_SECONDS = 90.0
 # With publishing disabled, how long to keep listening once LO is running:
@@ -37,6 +51,13 @@ QUIET_PERIOD_SECONDS = 10.0
 @pytest.mark.launch_test
 @launch_testing.parametrize('publish_local_map', ['True', 'False'])
 def generate_test_description(publish_local_map):
+    if SKIP_REASON:
+        # nothing to launch: keep the launch alive until the (skipped) tests have run
+        return launch.LaunchDescription([
+            DeclareLaunchArgument('rosbag', default_value=''),
+            launch_testing.util.KeepAliveProc(),
+            launch_testing.actions.ReadyToTest(),
+        ])
     lo_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(
             get_package_share_directory('mola_lidar_odometry'),
@@ -100,6 +121,8 @@ class TestLocalMapPublishing(unittest.TestCase):
         return condition()
 
     def test_local_map_topic(self, publish_local_map):
+        if SKIP_REASON:
+            self.skipTest(SKIP_REASON)
         # LO must be running and estimating poses in both cases:
         self.assertTrue(
             self._spin_until(lambda: self.poses_received > 0, MAX_WAIT_SECONDS),
