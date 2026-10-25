@@ -24,6 +24,7 @@
 #include <mola_lidar_odometry/MapFrameRelevel.h>
 
 // mp2p_icp:
+#include <mp2p_icp/covariance.h>
 #include <mp2p_icp_filters/FilterDeskew.h>
 
 // MRPT:
@@ -1153,6 +1154,17 @@ void LidarOdometry::processLidarScan(  // NOLINT
       if (state_.last_motion_model_output->pose.cov_inv != mrpt::math::CMatrixDouble66::Zero()) {
         // Send it to the ICP solver:
         in.prior.emplace(state_.last_motion_model_output->pose);
+
+#if defined(MP2P_ICP_HAS_COVARIANCE_YPR_CONVERSIONS)
+        // The motion model gives its information in the [x y z yaw pitch roll]
+        // layout of CPose3DPDFGaussianInf (as the plausibility gate after ICP
+        // reads it), but the ICP solver applies the prior information in the
+        // SE(3) tangent of the prior mean (see the SE(2) note below). Earlier
+        // mp2p_icp releases fed the motion model ICP covariances already in that
+        // tangent (Censi3D), so the conversion goes with the release that
+        // changed it.
+        in.prior->cov_inv = mp2p_icp::information_ypr_to_tangent(in.prior->cov_inv, in.prior->mean);
+#endif
 
         // One prior residual against thousands of pairing residuals is a
         // tie-breaker, not a constraint. Scale it when the motion source is
