@@ -63,6 +63,11 @@ modules:
       #- raw_sensor_label: '/ouster/range_image'
       #  decimation: 1
       #  win_pos: 5 420 400 400
+      # Optional camera preview, shown only when MOLA_CAMERA_PREVIEW=true:
+      - raw_sensor_label: "${MOLA_CAMERA_SENSOR_NAME|camera}"
+        decimation: 1
+        enabled: ${MOLA_CAMERA_PREVIEW|false}
+        win_pos: 5 420 600 380
 
     params:
       # We use an environment variable to force the user to specify a bag file:
@@ -123,6 +128,12 @@ modules:
           sensorLabel: ${MOLA_ATTITUDE_IMU_NAME|imu_attitude}
           type: CObservationIMU
           is_optional: true
+
+        # Optional camera, for visualization only (disabled by default):
+        - topic: ${MOLA_CAMERA_TOPIC|''}
+          is_optional: true
+          sensorLabel: ${MOLA_CAMERA_SENSOR_NAME|camera}
+          type: CObservationImage
 
         # Wheel/robot odometry (disabled by default). CObservationOdometry is
         # planar: (x, y, yaw) plus a 2D twist. For a 3D odometry source
