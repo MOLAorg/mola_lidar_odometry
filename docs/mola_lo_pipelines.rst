@@ -78,7 +78,8 @@ To use a prepared ``.mm`` map for localization, ensure it contains a layer named
 | ``lidar3d-gicp.yaml`` | Keyframe-based 3D point clouds (layer: ``localmap``)    | Generalized ICP (“cov-to-cov”)              |
 |    (Default)          | (:ref:`doxid-classmola_1_1_keyframe_point_cloud_map`)   |                                             |
 |                       |                                                         |                                             |
-|                       | Optionally, an incremental k-d tree point cloud         |                                             |
+|                       | Optionally, an incremental point cloud with a           |                                             |
+|                       | selectable spatial index, voxel hash or k-d tree        |                                             |
 |                       | (``mola::IncrementalPointCloud``), selected via         |                                             |
 |                       | ``MOLA_LOCALMAP_CLASS``: see                            |                                             |
 |                       | :ref:`gicp_localmap_class`.                             |                                             |
@@ -153,8 +154,10 @@ layer and the per-scan ``observation`` layer, since ICP pairs the two:
        (``mola_sm_loop_closure``) and for any mapping session where the
        trajectory may be corrected after the fact.
    * - ``mola::IncrementalPointCloud``
-     - Single global frame, holding one incremental, self-balancing k-d tree
-       that is updated in place instead of being rebuilt on every scan.
+     - Single global frame, holding one incremental spatial index that is
+       updated in place instead of being rebuilt on every scan. The index is
+       selectable: a hashed voxel grid (``VoxelHash``, the default) or an
+       incremental, self-balancing k-d tree (``KDTree``).
        **Odometry only:** a global SE(3) re-map would force a full rebuild, so
        it must not be used together with loop closure.
 
