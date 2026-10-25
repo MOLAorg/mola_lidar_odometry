@@ -20,11 +20,11 @@
  */
 
 // This module:
+#include <mola_lidar_odometry/IcpPrior.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
 #include <mola_lidar_odometry/MapFrameRelevel.h>
 
 // mp2p_icp:
-#include <mp2p_icp/covariance.h>
 #include <mp2p_icp_filters/FilterDeskew.h>
 
 // MRPT:
@@ -1152,19 +1152,11 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
       // ICP prior term: any information!=0?
       if (state_.last_motion_model_output->pose.cov_inv != mrpt::math::CMatrixDouble66::Zero()) {
-        // Send it to the ICP solver:
-        in.prior.emplace(state_.last_motion_model_output->pose);
-
-#if defined(MP2P_ICP_HAS_COVARIANCE_YPR_CONVERSIONS)
-        // The motion model gives its information in the [x y z yaw pitch roll]
-        // layout of CPose3DPDFGaussianInf (as the plausibility gate after ICP
-        // reads it), but the ICP solver applies the prior information in the
-        // SE(3) tangent of the prior mean (see the SE(2) note below). Earlier
-        // mp2p_icp releases fed the motion model ICP covariances already in that
-        // tangent (Censi3D), so the conversion goes with the release that
-        // changed it.
-        in.prior->cov_inv = mp2p_icp::information_ypr_to_tangent(in.prior->cov_inv, in.prior->mean);
-#endif
+        // Send it to the ICP solver. The motion model gives its information in
+        // the [x y z yaw pitch roll] layout (as the plausibility gate after ICP
+        // reads it), the solver applies it in the SE(3) tangent of the prior
+        // mean: see IcpPrior.h, and use set_icp_prior_mean() to move the mean.
+        in.prior = icp_prior_from_motion_model(state_.last_motion_model_output->pose);
 
         // One prior residual against thousands of pairing residuals is a
         // tie-breaker, not a constraint. Scale it when the motion source is
@@ -1178,10 +1170,10 @@ void LidarOdometry::processLidarScan(  // NOLINT
           // fix: z, pitch (rot_y), roll (rot_x):
           const double large_certainty = 1e6;
 
-          auto & m = in.prior->mean;
-
+          auto m = in.prior->mean;
           m.z(0);
           m.setYawPitchRoll(m.yaw(), .0, .0);
+          set_icp_prior_mean(*in.prior, m);
 
           // The ICP solver applies this information matrix to the residual
           // log(P_prior^-1 * P_cur), i.e. in the SE(3) *Lie* tangent, whose
@@ -1278,8 +1270,9 @@ void LidarOdometry::processLidarScan(  // NOLINT
         }
 
         // Override pitch & roll in the prior mean:
-        const double cur_yaw = in.prior->mean.yaw();
-        in.prior->mean.setYawPitchRoll(cur_yaw, map_pitch, map_roll);
+        auto newMean = in.prior->mean;
+        newMean.setYawPitchRoll(newMean.yaw(), map_pitch, map_roll);
+        set_icp_prior_mean(*in.prior, newMean);
 
         const double sigma_rad = effectiveGravitySigmaRad();
         const double inv_var = 1.0 / (sigma_rad * sigma_rad);
