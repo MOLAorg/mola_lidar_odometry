@@ -33,8 +33,8 @@ localmap_generator:
         #    Required for loop-closure-capable SLAM.
         #
         #  - mola::IncrementalPointCloud: single global frame, one incremental
-        #    self-balancing k-d tree updated in place instead of rebuilt on
-        #    every scan. ODOMETRY ONLY: a global SE(3) re-map would force a full
+        #    spatial index (a hashed voxel grid, or a self-balancing k-d tree)
+        #    updated in place instead of rebuilt on every scan. ODOMETRY ONLY: a global SE(3) re-map would force a full
         #    rebuild, so do not combine it with loop closure. Needs
         #    mola_metric_maps built against nanoflann >= 1.10.
         #
@@ -123,7 +123,19 @@ localmap_generator:
           # climb with it. Set MOLA_INCREMENTAL_MAP_MAX_SIZE explicitly (a
           # value near the observation radius) whenever that applies.
           remove_points_farther_than: "${MOLA_INCREMENTAL_MAP_MAX_SIZE|$f{max(100.0, 1.0*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
-          # Run the k-d tree balancing rebuilds on a background thread, so the
+          # Spatial index of the map (mola::PointIndexType): VoxelHash or
+          # KDTree, e.g. MOLA_INCREMENTAL_MAP_INDEX_TYPE=PointIndexType::KDTree.
+          # Left empty, the class default applies (VoxelHash). Both return the
+          # same neighbors. The voxel index has no rebuilds, hence no latency
+          # spikes, no background thread and deterministic runs; the k-d tree
+          # options below (async_rebuild, alpha_balance, alpha_deleted) only
+          # apply to KDTree.
+          index_type: ${MOLA_INCREMENTAL_MAP_INDEX_TYPE|}
+          # Voxel side of the VoxelHash index. Results are exact for any value;
+          # it only changes the query cost, best near the typical neighbor
+          # distance (on KITTI, 1.0 beat 0.5 and 1.5).
+          index_voxel_size: ${MOLA_INCREMENTAL_MAP_INDEX_VOXEL_SIZE|1.0} # [m]
+          # KDTree only: run the k-d tree balancing rebuilds on a background thread, so the
           # mapping thread never pays for them. Measured on Oxford Spires, this
           # takes local-map insertion from mean 28 ms / max 371 ms (with 9 calls
           # over 200 ms) down to mean 10 ms / max 38 ms and no spike at all:

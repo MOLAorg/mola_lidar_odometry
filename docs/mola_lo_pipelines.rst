@@ -78,7 +78,8 @@ To use a prepared ``.mm`` map for localization, ensure it contains a layer named
 | ``lidar3d-gicp.yaml`` | Keyframe-based 3D point clouds (layer: ``localmap``)    | Generalized ICP (“cov-to-cov”)              |
 |    (Default)          | (:ref:`doxid-classmola_1_1_keyframe_point_cloud_map`)   |                                             |
 |                       |                                                         |                                             |
-|                       | Optionally, an incremental k-d tree point cloud         |                                             |
+|                       | Optionally, an incremental point cloud with a           |                                             |
+|                       | selectable spatial index, voxel hash or k-d tree        |                                             |
 |                       | (``mola::IncrementalPointCloud``), selected via         |                                             |
 |                       | ``MOLA_LOCALMAP_CLASS``: see                            |                                             |
 |                       | :ref:`gicp_localmap_class`.                             |                                             |
@@ -153,8 +154,10 @@ layer and the per-scan ``observation`` layer, since ICP pairs the two:
        (``mola_sm_loop_closure``) and for any mapping session where the
        trajectory may be corrected after the fact.
    * - ``mola::IncrementalPointCloud``
-     - Single global frame, holding one incremental, self-balancing k-d tree
-       that is updated in place instead of being rebuilt on every scan.
+     - Single global frame, holding one incremental spatial index that is
+       updated in place instead of being rebuilt on every scan. The index is
+       selectable: a hashed voxel grid (``VoxelHash``, the default) or an
+       incremental, self-balancing k-d tree (``KDTree``).
        **Odometry only:** a global SE(3) re-map would force a full rebuild, so
        it must not be used together with loop closure.
 
@@ -865,7 +868,18 @@ The following only apply when ``MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud`
   Unlike the keyframe map's ``MOLA_LOCAL_MAP_MAX_SIZE``, which is a radius over keyframe *centers*, here every
   point inside the cube is kept in a single tree and rendered, so memory and matching cost grow with this size.
 
-- ``MOLA_INCREMENTAL_MAP_ASYNC_REBUILD`` (Default: ``true``): Run the k-d tree balancing rebuilds on a background
+- ``MOLA_INCREMENTAL_MAP_INDEX_TYPE`` (Default: empty, i.e. the class default, ``PointIndexType::VoxelHash``):
+  The spatial index answering the map's nearest-neighbor queries, ``PointIndexType::VoxelHash`` or
+  ``PointIndexType::KDTree``. Both return the same neighbors. The voxel index has O(1) insertion and removal and no
+  rebuilds, hence no latency spikes, no background thread and deterministic runs. On KITTI-07 it took the mean time
+  per scan from 75 to 56 ms and the worst local map update from 131 to 30 ms, against the k-d tree with background
+  rebuilds, at the same accuracy. The ``ASYNC_REBUILD`` and ``ALPHA_*`` variables below only apply to ``KDTree``.
+
+- ``MOLA_INCREMENTAL_MAP_INDEX_VOXEL_SIZE`` (Default: ``1.0`` [m]): Voxel side of the ``VoxelHash`` index. Results
+  are exact for any value; it only trades the number of voxels a query visits against the points it scans in each.
+  On KITTI, 1.0 m was faster than 0.5 m and 1.5 m.
+
+- ``MOLA_INCREMENTAL_MAP_ASYNC_REBUILD`` (Default: ``true``, ``KDTree`` index only): Run the k-d tree balancing rebuilds on a background
   thread, so the mapping thread never pays for them. Measured on the Oxford Spires dataset, this takes local map
   insertion from mean 28 ms / max 371 ms down to mean 10 ms / max 38 ms, removing all latency spikes. Costs
   roughly twice the index memory plus one worker thread; set to ``false`` on core-constrained targets. Makes runs
@@ -876,10 +890,10 @@ The following only apply when ``MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud`
   ``ASYNC_REBUILD`` enabled this also prevents the mapping thread from ever having to wait for the background
   worker, which it must do before the point buffers can be reallocated.
 
-- ``MOLA_INCREMENTAL_MAP_ALPHA_BALANCE`` (Default: ``0.75``): A subtree is rebuilt when its larger child holds
+- ``MOLA_INCREMENTAL_MAP_ALPHA_BALANCE`` (Default: ``0.75``, ``KDTree`` index only): A subtree is rebuilt when its larger child holds
   more than this fraction of its points. Lower values keep queries faster at the price of more frequent rebuilds.
 
-- ``MOLA_INCREMENTAL_MAP_ALPHA_DELETED`` (Default: ``0.5``): A subtree is rebuilt, physically dropping evicted
+- ``MOLA_INCREMENTAL_MAP_ALPHA_DELETED`` (Default: ``0.5``, ``KDTree`` index only): A subtree is rebuilt, physically dropping evicted
   points, once this fraction of it is dead. Lower values reclaim memory more aggressively.
 
 - ``MOLA_INCREMENTAL_MAP_MIN_POINT_DISTANCE`` (Default: ``0.05`` [m]): Inserted points closer than this to a point

@@ -117,6 +117,8 @@ localmap_generator:
           plane_regularization_lambda: ${MOLA_LOCALMAP_PLANE_REG_LAMBDA|0.001}
           min_neighbors_to_cache_cov: ${MOLA_LOCALMAP_MIN_NEIGHBORS_TO_CACHE_COV|0}
           remove_points_farther_than: "${MOLA_INCREMENTAL_MAP_MAX_SIZE|$f{max(100.0, 1.0*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
+          index_type: ${MOLA_INCREMENTAL_MAP_INDEX_TYPE|}
+          index_voxel_size: ${MOLA_INCREMENTAL_MAP_INDEX_VOXEL_SIZE|1.0} # [m]
           async_rebuild: ${MOLA_INCREMENTAL_MAP_ASYNC_REBUILD|true}
           alpha_balance: ${MOLA_INCREMENTAL_MAP_ALPHA_BALANCE|0.75}
           alpha_deleted: ${MOLA_INCREMENTAL_MAP_ALPHA_DELETED|0.5}

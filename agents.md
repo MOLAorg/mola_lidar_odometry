@@ -587,8 +587,8 @@ through their own type: `insertAnotherMap()` calls `registerPointFieldsFrom()`
 (so every per-point field survives) and skips non-finite points (so the slots
 `IncrementalPointCloud` blanks on eviction are dropped), while the target has no
 spatial index to build. Cloning an `IncrementalPointCloud` through its own copy
-constructor would instead `resetIndex()`, an O(N log N) k-d tree bulk build the
-renderer never queries. The copy does pick up the storage slots that are
+constructor would instead `resetIndex()`, an index bulk build the renderer never
+queries. The copy does pick up the storage slots that are
 tombstoned but not reclaimed yet; that measured under 2% of storage
 (`MOLA_INCREMENTAL_MAP_DEBUG_STATS`: live/storage 0.999 mean, 0.982 worst), and
 the local map publishing uses the same copy.
@@ -905,18 +905,22 @@ a single YAML enough. When adding keys, keep KFM's *required* ones
 - `mola::KeyframePointCloudMap` (default): keyframe-based, points kept in per-KF
   local frames, so it survives loop-closure re-mapping. Tuned by the
   `MOLA_LOCALMAP_*` vars.
-- `mola::IncrementalPointCloud`: single global frame, one incremental
-  self-balancing k-d tree, no per-scan tree rebuild. **Odometry only** (a global
+- `mola::IncrementalPointCloud`: single global frame, one incremental spatial
+  index (`INDEX_TYPE`: the default voxel hash, or a self-balancing k-d tree), no
+  per-scan rebuild. **Odometry only** (a global
   SE(3) re-map would force a full rebuild). Tuned by `MOLA_INCREMENTAL_MAP_*`:
   `MAX_SIZE` (eviction cube **half-side** [m] -- a much tighter budget than KFM's
   `remove_frames_farther_than`, which is a radius over keyframe centres; its
   100 m floor is a long-range-sensor safety net, and on a short-range or indoor
   capture the whole trajectory fits inside it, so nothing is ever evicted and
   the local map silently becomes a global one -- set it explicitly there),
-  `ASYNC_REBUILD` (default `true`; moves the k-d tree rebuilds off the mapping
-  thread and is what keeps insertion latency flat; nondeterministic, so
-  `mola-lidar-odometry-cli` defaults it to `false`), `ALPHA_BALANCE`,
-  `ALPHA_DELETED`, `RESERVE_POINTS`, `MIN_POINT_DISTANCE` (default 0.05 m;
+  `INDEX_TYPE` (empty: the class default, `PointIndexType::VoxelHash`; no
+  rebuilds, so no latency spikes and deterministic), `INDEX_VOXEL_SIZE` (1.0 m),
+  `ASYNC_REBUILD` (k-d tree only, default `true`; moves the k-d tree rebuilds
+  off the mapping thread and is what keeps its insertion latency flat;
+  nondeterministic, so `mola-lidar-odometry-cli` defaults it to `false`),
+  `ALPHA_BALANCE`, `ALPHA_DELETED` (k-d tree only), `RESERVE_POINTS`,
+  `MIN_POINT_DISTANCE` (default 0.05 m;
   drops inserted points that close to an existing one, 0 keeps them all).
 
 `mola::IncrementalPointCloud` needs `mola_metric_maps` built against
