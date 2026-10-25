@@ -261,6 +261,7 @@ set(MOLA_LO_DATASET_WRAPPERS
     botanicgarden
     citrusfarm
     conslam
+    fomo
     grandtour
     hilti2022
     kitti
