@@ -19,8 +19,8 @@
 # needs the xyz-only metrics.
 
 mola_lo_profile_usage() {
-  echo "Error: A FoMo rosbag2 directory (containing metadata.yaml) is required."
-  echo "Usage: $0 /path/to/<trajectory>/rosbag2 [additional flags]"
+  echo "Error: A FoMo rosbag2 directory (containing metadata.yaml) or .mcap file is required."
+  echo "Usage: $0 /path/to/<trajectory>/rosbag2[/file.mcap] [additional flags]"
   echo ""
   echo "Optional environment variables:"
   echo "  MOLA_IMU_TOPIC   IMU topic (default: '/vectornav/imu'; '/xsens/imu' is the other)"
@@ -48,8 +48,13 @@ mola_lo_profile_resolve() {
 
   # Interactive runs show the front camera, for visualization only, when the
   # bag was converted with its frames (a /zedx_left/image/compressed topic).
-  # The offline CLI never reads it.
-  if [ "$MOLA_LO_MODE" = "gui" ] && grep -qs "/zedx_left/image/compressed" "$file/metadata.yaml"; then
+  # The bag may be given as its directory or as a single .mcap file, whose
+  # metadata.yaml sits next to it. The offline CLI never reads it.
+  local bag_dir=$file
+  if [ ! -d "$bag_dir" ]; then
+    bag_dir=$(dirname -- "$file")
+  fi
+  if [ "$MOLA_LO_MODE" = "gui" ] && grep -qs "/zedx_left/image/compressed" "$bag_dir/metadata.yaml"; then
     : "${MOLA_CAMERA_TOPIC:=/zedx_left/image/compressed}"
     : "${MOLA_CAMERA_PREVIEW:=true}"
     export MOLA_CAMERA_TOPIC MOLA_CAMERA_PREVIEW
