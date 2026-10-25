@@ -452,6 +452,15 @@ std::future<void> LidarOdometry::submitLidarScanLossless_locked(
 std::future<void> LidarOdometry::enqueueLidarScan(
   const CObservation::ConstPtr & o, std::optional<double> imuCoverageEndTime)
 {
+  // Sources keep feeding data (e.g. IMU readings, which release waiting scans
+  // inline) after shutdownCleanup() has stopped the worker pool. Checking the
+  // flag and enqueueing under the same lock it is set with means a scan is
+  // either submitted before shutdown (and drained by it) or silently dropped.
+  auto lck = mrpt::lockHelper(is_busy_mtx_);
+  if (destructor_called_) {
+    return {};
+  }
+
   // The token lives as long as the task: until it has run, or until the pool
   // drops it unexecuted and destroys its callable.
   auto token = std::make_shared<LiveTaskToken>(lidar_tasks_alive_);
