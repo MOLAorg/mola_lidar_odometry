@@ -317,6 +317,14 @@ the callback only stores it under its own mutex; `processLidarScan()` applies it
 at the start of the next scan. It is kept outside `state_`, so a `reset()` does
 not lose it.
 
+The estimator pose is in the `[x y z yaw pitch roll]` layout of
+`CPose3DPDFGaussianInf`, but the ICP solver applies its prior information in the
+SE(3) tangent of the prior mean (see `IcpPrior.h`). Build the ICP prior with
+`icp_prior_from_motion_model()` and move its mean only with
+`set_icp_prior_mean()`, which re-expresses the information at the new mean;
+entries written straight into `in.prior->cov_inv` (SE(2), gravity) are tangent
+indices: [3]=w_x (~roll), [4]=w_y (~pitch), [5]=w_z (~yaw).
+
 With `FromStateEstimator` and an empty local map, the first keyframe is placed at
 the estimator pose (`state_.initial_pose`, set by every initial localization
 method) and is not fused back into the estimator. With `estimate_geo_reference`,
