@@ -75,13 +75,12 @@ To use a prepared ``.mm`` map for localization, ensure it contains a layer named
 +-----------------------+---------------------------------------------------------+---------------------------------------------+
 | Pipeline config file  | Local map type and layer name                           | ICP algorithm                               |
 +=======================+=========================================================+=============================================+
-| ``lidar3d-gicp.yaml`` | Keyframe-based 3D point clouds (layer: ``localmap``)    | Generalized ICP (“cov-to-cov”)              |
-|    (Default)          | (:ref:`doxid-classmola_1_1_keyframe_point_cloud_map`)   |                                             |
+| ``lidar3d-gicp.yaml`` | Incremental 3D point cloud with a voxel-hash index      | Generalized ICP (“cov-to-cov”)              |
+|    (Default)          | (``mola::IncrementalPointCloud``, layer: ``localmap``)  |                                             |
 |                       |                                                         |                                             |
-|                       | Optionally, an incremental point cloud with a           |                                             |
-|                       | selectable spatial index, voxel hash or k-d tree        |                                             |
-|                       | (``mola::IncrementalPointCloud``), selected via         |                                             |
-|                       | ``MOLA_LOCALMAP_CLASS``: see                            |                                             |
+|                       | Alternatively, keyframe-based 3D point clouds           |                                             |
+|                       | (:ref:`doxid-classmola_1_1_keyframe_point_cloud_map`),  |                                             |
+|                       | selected via ``MOLA_LOCALMAP_CLASS``: see               |                                             |
 |                       | :ref:`gicp_localmap_class`.                             |                                             |
 +-----------------------+---------------------------------------------------------+---------------------------------------------+
 | ``lidar3d-icp.yaml``  | Voxel-based 3D point clouds (layer: ``localmap``)       | Standard ICP (point-to-point)               |
@@ -148,24 +147,24 @@ layer and the per-scan ``observation`` layer, since ICP pairs the two:
 
    * - ``MOLA_LOCALMAP_CLASS``
      - Description
-   * - ``mola::KeyframePointCloudMap``
-     - **Default.** Keyframe-based: points are stored in per-keyframe local
-       frames, so the map survives a loop-closure re-map. Required for SLAM
-       (``mola_sm_loop_closure``) and for any mapping session where the
-       trajectory may be corrected after the fact.
    * - ``mola::IncrementalPointCloud``
-     - Single global frame, holding one incremental spatial index that is
-       updated in place instead of being rebuilt on every scan. The index is
-       selectable: a hashed voxel grid (``VoxelHash``, the default) or an
-       incremental, self-balancing k-d tree (``KDTree``).
+     - **Default.** Single global frame, holding one incremental spatial index
+       that is updated in place instead of being rebuilt on every scan. The
+       index is selectable: a hashed voxel grid (``VoxelHash``, the default) or
+       an incremental, self-balancing k-d tree (``KDTree``).
        **Odometry only:** a global SE(3) re-map would force a full rebuild, so
        it must not be used together with loop closure.
+   * - ``mola::KeyframePointCloudMap``
+     - Keyframe-based: points are stored in per-keyframe local frames, so the
+       map survives a loop-closure re-map. Select it for SLAM
+       (``mola_sm_loop_closure``) and for any mapping session where the
+       trajectory may be corrected after the fact.
 
-To try the incremental map from the CLI:
+To select the keyframe map from the CLI:
 
 .. code-block:: bash
 
-   MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud \
+   MOLA_LOCALMAP_CLASS=mola::KeyframePointCloudMap \
    MOLA_ODOMETRY_PIPELINE_YAML=$(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-gicp.yaml \
    mola-lo-gui-rosbag2 /path/to/dataset.mcap
 
@@ -173,7 +172,7 @@ or from a ROS 2 launch file:
 
 .. code-block:: bash
 
-   MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud \
+   MOLA_LOCALMAP_CLASS=mola::KeyframePointCloudMap \
    ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py [...]
 
 Note that ``lidar3d-gicp.yaml`` is already the default pipeline, so
@@ -182,12 +181,11 @@ that default to another one (e.g. ``mola-lo-gui-oxford-spires``).
 
 .. note::
 
-   ``mola::IncrementalPointCloud`` requires ``mola_metric_maps`` to have been
-   built against **nanoflann >= 1.10.0**, the release that introduced the
+   The default ``VoxelHash`` index of ``mola::IncrementalPointCloud`` has no
+   extra requirements. The ``KDTree`` index needs ``mola_metric_maps`` to have
+   been built against **nanoflann >= 1.10.0**, the release that introduced the
    incremental k-d tree index. On ROS distributions shipping an older nanoflann
-   the class still exists and is registered, but instantiating it throws an
-   explanatory error, so selecting it fails with a clear message rather than
-   silently falling back.
+   selecting it throws an explanatory error rather than silently falling back.
 
 Tuning is done through the ``MOLA_INCREMENTAL_MAP_*`` variables, see
 :ref:`pipelines_env_vars`.
@@ -826,9 +824,9 @@ ICP settings
 - ``MOLA_LOCALMAP_LAYER_NAME`` (Default: ``localmap``; GICP and ICP pipelines): Name of the metric map layer used
   as the local map for ICP matching and map insertion.
 
-- ``MOLA_LOCALMAP_CLASS`` (Default: ``mola::KeyframePointCloudMap``; GICP pipeline only): C++ class used for
-  both the local map and the per-scan observation layer. The alternative is ``mola::IncrementalPointCloud``
-  (odometry only, no loop closure). See :ref:`gicp_localmap_class`.
+- ``MOLA_LOCALMAP_CLASS`` (Default: ``mola::IncrementalPointCloud``; GICP pipeline only): C++ class used for
+  both the local map and the per-scan observation layer. The alternative is ``mola::KeyframePointCloudMap``
+  (survives a loop-closure re-map). See :ref:`gicp_localmap_class`.
 
 - ``MOLA_LO_ROBUST_KERNEL`` (Default: ``RobustKernel::GemanMcClure``; GICP pipeline only): Robust kernel type
   used in the ICP Gauss-Newton solver.
@@ -906,10 +904,12 @@ The following only apply when ``MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud`
 GICP local map parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The following variables tune the ``mola::KeyframePointCloudMap`` used as local map in the GICP pipeline.
+The following variables tune the local map of the GICP pipeline, whichever class
+``MOLA_LOCALMAP_CLASS`` selects (``mola::IncrementalPointCloud`` by default, or ``mola::KeyframePointCloudMap``).
+Those marked *KeyframePointCloudMap only* have no effect with the other class.
 They have no effect on the ICP or NDT pipelines.
 
-- ``MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES`` (Default: ``3``): Maximum number of keyframes searched for correspondences
+- ``MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES`` (Default: ``3``; *KeyframePointCloudMap only*): Maximum number of keyframes searched for correspondences
   per ICP step.
 
 - ``MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV`` (Default: ``20``): Number of nearest neighbors used to estimate
@@ -933,10 +933,10 @@ They have no effect on the ICP or NDT pipelines.
 - ``MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG`` (Default: ``120`` [deg]): Maximum angle between the view
   directions of a pair, for ``ViewDirectionFilter::MaxAngle`` only.
 
-- ``MOLA_LOCALMAP_DIVERSE_KEYFRAMES`` (Default: ``1``): Number of diverse keyframes to force into the candidate set
+- ``MOLA_LOCALMAP_DIVERSE_KEYFRAMES`` (Default: ``1``; *KeyframePointCloudMap only*): Number of diverse keyframes to force into the candidate set
   regardless of proximity. Must be less than ``MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES``.
 
-- ``MOLA_LOCALMAP_VIZ_MAX_POINTS_PER_KF`` (Default: ``10000``): Maximum points rendered per keyframe in the GUI.
+- ``MOLA_LOCALMAP_VIZ_MAX_POINTS_PER_KF`` (Default: ``10000``; *KeyframePointCloudMap only*): Maximum points rendered per keyframe in the GUI.
 
 - ``MOLA_LOCALMAP_VIZ_MAX_POINTS_OVERALL`` (Default: ``500000``): Maximum total points rendered for the local map
   in the GUI (e.g. to avoid FoxGlove WebSocket overflow).

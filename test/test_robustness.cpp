@@ -546,9 +546,10 @@ TEST(Robustness, LocalMapIsPublishedOnceSubscribed)
   }
 }
 
-// The default local map is a keyframe map, not a points map: its size has no
-// cheap generic query, so diagnostics must say so rather than report 0 points.
-TEST(Robustness, LocalMapDiagnosticsPoints)
+namespace
+{
+// Local-map diagnostics of a freshly fed pipeline, as a key to value map.
+std::map<std::string, std::string> localMapDiagnostics()
 {
   Fixture f;
   f.feedScans(0, 5);
@@ -558,13 +559,38 @@ TEST(Robustness, LocalMapDiagnosticsPoints)
 
   const auto it = std::find_if(
     diag.begin(), diag.end(), [](const auto & s) { return s.name == "LidarOdometry: Local Map"; });
-  ASSERT_NE(it, diag.end());
+  EXPECT_NE(it, diag.end());
 
   std::map<std::string, std::string> values;
-  for (const auto & kv : it->values) {
-    values[kv.key] = kv.value;
+  if (it != diag.end()) {
+    for (const auto & kv : it->values) {
+      values[kv.key] = kv.value;
+    }
   }
-  EXPECT_EQ(values["num_layers"], "1");
-  EXPECT_EQ(values["points.localmap"], "n/a");
-  EXPECT_EQ(values["total_points"], "n/a");
+  return values;
+}
+}  // namespace
+
+// A keyframe map is not a points map: its size has no cheap generic query, so
+// diagnostics must say so rather than report 0 points.
+TEST(Robustness, LocalMapDiagnosticsPointsKeyframeMap)
+{
+  set_env("MOLA_LOCALMAP_CLASS", "mola::KeyframePointCloudMap");
+  const auto values = localMapDiagnostics();
+  ::unsetenv("MOLA_LOCALMAP_CLASS");
+
+  EXPECT_EQ(values.at("num_layers"), "1");
+  EXPECT_EQ(values.at("points.localmap"), "n/a");
+  EXPECT_EQ(values.at("total_points"), "n/a");
+}
+
+// The default local map is an incremental points map, whose size is known.
+TEST(Robustness, LocalMapDiagnosticsPointsDefault)
+{
+  ::unsetenv("MOLA_LOCALMAP_CLASS");
+  const auto values = localMapDiagnostics();
+
+  EXPECT_EQ(values.at("num_layers"), "1");
+  EXPECT_NE(values.at("points.localmap"), "n/a");
+  EXPECT_NE(values.at("total_points"), "n/a");
 }

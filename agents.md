@@ -902,7 +902,7 @@ its YAML, which instantiates no filter).
 
 (`pipelines/blocks/localmap-gicp.yaml` and `observations-gicp.yaml`.)
 
-`${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}` picks the class used for
+`${MOLA_LOCALMAP_CLASS|mola::IncrementalPointCloud}` picks the class used for
 both the `localmap` layer and the `observation` (scan) layer -- `Matcher_Cov2Cov`
 pairs the two, so they must always be the same `mp2p_icp::NearestPointWithCovCapable`
 class. Both classes' option keys live side by side in one `creationOpts` block:
@@ -910,10 +910,10 @@ each map class silently ignores the keys it does not define, which is what makes
 a single YAML enough. When adding keys, keep KFM's *required* ones
 (`max_search_keyframes`, `k_correspondences_for_cov`) present.
 
-- `mola::KeyframePointCloudMap` (default): keyframe-based, points kept in per-KF
-  local frames, so it survives loop-closure re-mapping. Tuned by the
-  `MOLA_LOCALMAP_*` vars.
-- `mola::IncrementalPointCloud`: single global frame, one incremental spatial
+- `mola::KeyframePointCloudMap`: keyframe-based, points kept in per-KF
+  local frames, so it survives loop-closure re-mapping. Select it for
+  loop-closure SLAM. Tuned by the `MOLA_LOCALMAP_*` vars.
+- `mola::IncrementalPointCloud` (default): single global frame, one incremental spatial
   index (`INDEX_TYPE`: the default voxel hash, or a self-balancing k-d tree), no
   per-scan rebuild. **Odometry only** (a global
   SE(3) re-map would force a full rebuild). Tuned by `MOLA_INCREMENTAL_MAP_*`:
@@ -931,10 +931,9 @@ a single YAML enough. When adding keys, keep KFM's *required* ones
   `MIN_POINT_DISTANCE` (default 0.05 m;
   drops inserted points that close to an existing one, 0 keeps them all).
 
-`mola::IncrementalPointCloud` needs `mola_metric_maps` built against
-nanoflann >= 1.10.0. On distributions with an older one the class still exists
-and is registered, but instantiating it throws an explanatory error, so
-selecting it there fails with a clear message rather than silently falling back.
+The default `VoxelHash` index needs nothing extra; the `KDTree` index needs
+`mola_metric_maps` built against nanoflann >= 1.10.0 and throws an explanatory
+error otherwise, rather than silently falling back.
 ## IMU gravity correction
 
 `params.imu_gravity_correction` constrains the ICP solution's tilt from the
