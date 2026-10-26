@@ -75,13 +75,13 @@ To use a prepared ``.mm`` map for localization, ensure it contains a layer named
 +-----------------------+---------------------------------------------------------+---------------------------------------------+
 | Pipeline config file  | Local map type and layer name                           | ICP algorithm                               |
 +=======================+=========================================================+=============================================+
-| ``lidar3d-gicp.yaml`` | Keyframe-based 3D point clouds (layer: ``localmap``)    | Generalized ICP (“cov-to-cov”)              |
-|    (Default)          | (:ref:`doxid-classmola_1_1_keyframe_point_cloud_map`)   |                                             |
+| ``lidar3d-gicp.yaml`` | Incremental 3D point cloud (layer: ``localmap``)        | Generalized ICP (“cov-to-cov”)              |
+|    (Default)          | (``mola::IncrementalPointCloud``) with a selectable     |                                             |
+|                       | spatial index, voxel hash (default) or k-d tree.        |                                             |
 |                       |                                                         |                                             |
-|                       | Optionally, an incremental point cloud with a           |                                             |
-|                       | selectable spatial index, voxel hash or k-d tree        |                                             |
-|                       | (``mola::IncrementalPointCloud``), selected via         |                                             |
-|                       | ``MOLA_LOCALMAP_CLASS``: see                            |                                             |
+|                       | Optionally, keyframe-based 3D point clouds              |                                             |
+|                       | (:ref:`doxid-classmola_1_1_keyframe_point_cloud_map`),  |                                             |
+|                       | selected via ``MOLA_LOCALMAP_CLASS``: see               |                                             |
 |                       | :ref:`gicp_localmap_class`.                             |                                             |
 +-----------------------+---------------------------------------------------------+---------------------------------------------+
 | ``lidar3d-icp.yaml``  | Voxel-based 3D point clouds (layer: ``localmap``)       | Standard ICP (point-to-point)               |
@@ -105,7 +105,7 @@ ____________________________________________
 As of Oct 2025, this is the **default and recommended configuration** for most common sensor setups and environments.
 
 A peer-reviewed paper describing this pipeline is in preparation, but very briefly, this pipeline defines a
-local map based on key-frames of point clouds, and exploits the Generalized ICP algorithm :cite:`segal2009gicp`.
+local map of point clouds (incremental by default, or based on key-frames), and exploits the Generalized ICP algorithm :cite:`segal2009gicp`.
 
 .. image:: https://mrpt.github.io/imgs/MOLA_LIO_Oxford_Spires_stairs.gif
 
