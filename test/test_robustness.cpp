@@ -587,6 +587,7 @@ TEST(Robustness, LocalMapDiagnosticsPointsKeyframeMap)
 // The default local map is an incremental points map, whose size is known.
 TEST(Robustness, LocalMapDiagnosticsPointsDefault)
 {
+  ::unsetenv("MOLA_LOCALMAP_CLASS");
   const auto values = localMapDiagnostics();
 
   EXPECT_EQ(values.at("num_layers"), "1");
