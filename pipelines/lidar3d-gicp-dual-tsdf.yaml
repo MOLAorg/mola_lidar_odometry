@@ -107,7 +107,7 @@ localmap_generator:
       process_class_names_regex: "" # NONE: don't process observations in the generator.
 
       metric_map_definition:
-        class: ${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}
+        class: ${MOLA_LOCALMAP_CLASS|mola::IncrementalPointCloud}
         plugin: "libmola_metric_maps.so"
         creationOpts:
           k_correspondences_for_cov: ${MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV|20}

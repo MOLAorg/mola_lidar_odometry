@@ -148,24 +148,24 @@ layer and the per-scan ``observation`` layer, since ICP pairs the two:
 
    * - ``MOLA_LOCALMAP_CLASS``
      - Description
-   * - ``mola::KeyframePointCloudMap``
-     - **Default.** Keyframe-based: points are stored in per-keyframe local
-       frames, so the map survives a loop-closure re-map. Required for SLAM
-       (``mola_sm_loop_closure``) and for any mapping session where the
-       trajectory may be corrected after the fact.
    * - ``mola::IncrementalPointCloud``
-     - Single global frame, holding one incremental spatial index that is
-       updated in place instead of being rebuilt on every scan. The index is
-       selectable: a hashed voxel grid (``VoxelHash``, the default) or an
-       incremental, self-balancing k-d tree (``KDTree``).
+     - **Default.** Single global frame, holding one incremental spatial index
+       that is updated in place instead of being rebuilt on every scan. The
+       index is selectable: a hashed voxel grid (``VoxelHash``, the default) or
+       an incremental, self-balancing k-d tree (``KDTree``).
        **Odometry only:** a global SE(3) re-map would force a full rebuild, so
        it must not be used together with loop closure.
+   * - ``mola::KeyframePointCloudMap``
+     - Keyframe-based: points are stored in per-keyframe local frames, so the
+       map survives a loop-closure re-map. Select it for SLAM
+       (``mola_sm_loop_closure``) and for any mapping session where the
+       trajectory may be corrected after the fact.
 
-To try the incremental map from the CLI:
+To select the keyframe map from the CLI:
 
 .. code-block:: bash
 
-   MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud \
+   MOLA_LOCALMAP_CLASS=mola::KeyframePointCloudMap \
    MOLA_ODOMETRY_PIPELINE_YAML=$(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-gicp.yaml \
    mola-lo-gui-rosbag2 /path/to/dataset.mcap
 
@@ -173,7 +173,7 @@ or from a ROS 2 launch file:
 
 .. code-block:: bash
 
-   MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud \
+   MOLA_LOCALMAP_CLASS=mola::KeyframePointCloudMap \
    ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py [...]
 
 Note that ``lidar3d-gicp.yaml`` is already the default pipeline, so
@@ -182,12 +182,11 @@ that default to another one (e.g. ``mola-lo-gui-oxford-spires``).
 
 .. note::
 
-   ``mola::IncrementalPointCloud`` requires ``mola_metric_maps`` to have been
-   built against **nanoflann >= 1.10.0**, the release that introduced the
+   The default ``VoxelHash`` index of ``mola::IncrementalPointCloud`` has no
+   extra requirements. The ``KDTree`` index needs ``mola_metric_maps`` to have
+   been built against **nanoflann >= 1.10.0**, the release that introduced the
    incremental k-d tree index. On ROS distributions shipping an older nanoflann
-   the class still exists and is registered, but instantiating it throws an
-   explanatory error, so selecting it fails with a clear message rather than
-   silently falling back.
+   selecting it throws an explanatory error rather than silently falling back.
 
 Tuning is done through the ``MOLA_INCREMENTAL_MAP_*`` variables, see
 :ref:`pipelines_env_vars`.
@@ -826,9 +825,9 @@ ICP settings
 - ``MOLA_LOCALMAP_LAYER_NAME`` (Default: ``localmap``; GICP and ICP pipelines): Name of the metric map layer used
   as the local map for ICP matching and map insertion.
 
-- ``MOLA_LOCALMAP_CLASS`` (Default: ``mola::KeyframePointCloudMap``; GICP pipeline only): C++ class used for
-  both the local map and the per-scan observation layer. The alternative is ``mola::IncrementalPointCloud``
-  (odometry only, no loop closure). See :ref:`gicp_localmap_class`.
+- ``MOLA_LOCALMAP_CLASS`` (Default: ``mola::IncrementalPointCloud``; GICP pipeline only): C++ class used for
+  both the local map and the per-scan observation layer. The alternative is ``mola::KeyframePointCloudMap``
+  (survives a loop-closure re-map). See :ref:`gicp_localmap_class`.
 
 - ``MOLA_LO_ROBUST_KERNEL`` (Default: ``RobustKernel::GemanMcClure``; GICP pipeline only): Robust kernel type
   used in the ICP Gauss-Newton solver.
@@ -906,7 +905,8 @@ The following only apply when ``MOLA_LOCALMAP_CLASS=mola::IncrementalPointCloud`
 GICP local map parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The following variables tune the ``mola::KeyframePointCloudMap`` used as local map in the GICP pipeline.
+The following variables tune the ``mola::KeyframePointCloudMap`` local map of the GICP pipeline
+(only used when ``MOLA_LOCALMAP_CLASS=mola::KeyframePointCloudMap``).
 They have no effect on the ICP or NDT pipelines.
 
 - ``MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES`` (Default: ``3``): Maximum number of keyframes searched for correspondences

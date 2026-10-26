@@ -39,7 +39,7 @@ observations_generator:
 
       metric_map_definition:
         # Any class derived from mrpt::maps::CMetricMap https://docs.mrpt.org/reference/stable/group_mrpt_maps_grp.html
-        class: ${MOLA_LOCALMAP_CLASS|mola::KeyframePointCloudMap}
+        class: ${MOLA_LOCALMAP_CLASS|mola::IncrementalPointCloud}
         plugin: "libmola_metric_maps.so" # Import additional custom user-defined map classes (search in LD_LIBRARY_PATH)
         # The per-point covariances of the SCAN side of a cov-to-cov pairing are
         # built here, and they are half of the pairing weight
