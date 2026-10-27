@@ -440,6 +440,19 @@ setting still wins), like `MOLA_ASYNC_BACKEND`. For `mola-cli` replays set it in
 the environment; note `time_warp_scale` above ~5 outruns the pipeline, and
 without this the excess simply becomes dropped scans.
 
+## `processLidarScan()` stages; read-ahead in the offline CLI
+
+`processLidarScan()` runs, with `state_mtx_` held: `preprocessScan()` (points,
+de-skew, filters) -> first-scan `startMapAtFirstScan()` or ICP + keyframe
+decision (inline) -> `insertScanIntoLocalMap()` -> simplemap / shared keyframe
+map -> `publishScanResults()`. Profiler section names are unchanged.
+
+Scan k+1 cannot be pre-processed while scan k runs ICP: its dynamic variables
+and de-skew depend on scan k's result. What does overlap is reading the dataset:
+`mola-lidar-odometry-cli` reads (and lazy-loads) up to 16 entries ahead on a
+background thread (`DatasetReadAhead`) while entry i is processed. Reads stay
+sequential and in order, so the results are unchanged.
+
 ## Invalid input is dropped; other exceptions are fatal
 
 An exception in `onLidar`/`onIMU`/`onGPS` latches `state_.fatal_error`, and
