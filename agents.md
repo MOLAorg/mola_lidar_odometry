@@ -449,9 +449,9 @@ map -> `publishScanResults()`. Profiler section names are unchanged.
 
 Scan k+1 cannot be pre-processed while scan k runs ICP: its dynamic variables
 and de-skew depend on scan k's result. What does overlap is reading the dataset:
-`mola-lidar-odometry-cli` reads (and lazy-loads) entry i+1 on a background
-thread while entry i is processed. Reads stay sequential and in order, so the
-results are unchanged.
+`mola-lidar-odometry-cli` reads (and lazy-loads) up to 16 entries ahead on a
+background thread (`DatasetReadAhead`) while entry i is processed. Reads stay
+sequential and in order, so the results are unchanged.
 
 ## Invalid input is dropped; other exceptions are fatal
 
