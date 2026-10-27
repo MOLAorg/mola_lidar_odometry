@@ -83,14 +83,104 @@
 #endif
 
 #include <CLI/CLI.hpp>
+#include <algorithm>
+#include <condition_variable>
 #include <csignal>  // sigaction
 #include <cstdlib>
+#include <deque>
+#include <exception>
+#include <functional>
 #include <iostream>
+#include <mutex>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 
 namespace
 {
+
+/** Reads dataset entries [first, last) in order on a background thread, up to
+ *  `depth` entries ahead of the consumer, so reading and decoding overlap with
+ *  the odometry. Reads stay sequential and in order, so what each entry
+ *  contains does not change. */
+class DatasetReadAhead
+{
+public:
+  using Entry = mrpt::obs::CSensoryFrame::Ptr;
+
+  DatasetReadAhead(std::function<Entry(size_t)> read, size_t first, size_t last, size_t depth)
+  : read_(std::move(read)), depth_(depth), thread_([this, first, last]() { run(first, last); })
+  {
+  }
+
+  ~DatasetReadAhead()
+  {
+    {
+      std::lock_guard<std::mutex> lck(mtx_);
+      stop_ = true;
+    }
+    cv_.notify_all();
+    thread_.join();
+  }
+
+  DatasetReadAhead(const DatasetReadAhead &) = delete;
+  DatasetReadAhead & operator=(const DatasetReadAhead &) = delete;
+  DatasetReadAhead(DatasetReadAhead &&) = delete;
+  DatasetReadAhead & operator=(DatasetReadAhead &&) = delete;
+
+  /// The next entry, in order. Rethrows what reading it threw.
+  Entry next()
+  {
+    std::unique_lock<std::mutex> lck(mtx_);
+    cv_.wait(lck, [this]() { return !queue_.empty(); });
+    auto [entry, error] = std::move(queue_.front());
+    queue_.pop_front();
+    lck.unlock();
+    cv_.notify_all();
+    if (error) {
+      std::rethrow_exception(error);
+    }
+    return entry;
+  }
+
+private:
+  void run(size_t first, size_t last)
+  {
+    for (size_t i = first; i < last; i++) {
+      {
+        std::unique_lock<std::mutex> lck(mtx_);
+        cv_.wait(lck, [this]() { return stop_ || queue_.size() < depth_; });
+        if (stop_) {
+          return;
+        }
+      }
+      Entry entry;
+      std::exception_ptr error;
+      try {
+        entry = read_(i);
+      } catch (...) {
+        error = std::current_exception();
+      }
+      {
+        std::lock_guard<std::mutex> lck(mtx_);
+        queue_.emplace_back(std::move(entry), error);
+      }
+      cv_.notify_all();
+      if (error) {
+        return;
+      }
+    }
+  }
+
+  std::function<Entry(size_t)> read_;
+  const size_t depth_;
+  std::mutex mtx_;
+  std::condition_variable cv_;
+  std::deque<std::pair<Entry, std::exception_ptr>> queue_;
+  bool stop_ = false;
+  std::thread thread_;  // last: starts after the rest
+};
 
 // Thin wrapper mimicking TCLAP::ValueArg's isSet()/getValue() so the rest of
 // this file (option consumption below) stays a straightforward read.
@@ -1186,6 +1276,23 @@ int main_odometry(Cli & cli)
     std::cout << "\n";  // Needed for the VT100 codes below.
   }
 
+  // Dataset entries are read, and lazy-loaded, ahead of the odometry:
+  constexpr size_t READ_AHEAD_DEPTH = 16;
+  const auto readDatasetEntry = [&dataset](size_t idx) {
+    auto sf = dataset->datasetGetObservations(idx);
+    if (sf) {
+      for (const auto & o : *sf) {
+        if (o) {
+          o->load();
+        }
+      }
+    }
+    return sf;
+  };
+  DatasetReadAhead readAhead(
+    readDatasetEntry, firstDatasetEntry, std::max(firstDatasetEntry, lastDatasetEntry),
+    READ_AHEAD_DEPTH);
+
   // Run:
   for (size_t i = firstDatasetEntry; i < lastDatasetEntry; i++) {
     // Get observations from the dataset:
@@ -1199,7 +1306,7 @@ int main_odometry(Cli & cli)
     using mrpt::obs::CObservationRotatingScan;
     using mrpt::obs::CObservationVelodyneScan;
 
-    const auto sf = dataset->datasetGetObservations(i);
+    const auto sf = readAhead.next();
     ASSERT_(sf);
 
     // Additional modules get EVERY observation in the frame, not just the one
