@@ -483,6 +483,14 @@ public:
       bool show_localmap = false;
       float local_map_point_size = 3.0f;
       bool local_map_render_voxelmap_free_space = false;
+      /// Hide points seen from behind (local map, current and deskewed
+      /// observations), using their normal_{x,y,z} or, otherwise,
+      /// view_{x,y,z} point fields.
+      bool hide_back_facing_points = false;
+      /// Max angle (deg) between a point direction and the direction towards
+      /// the camera for it to be visible, for normals and view vectors.
+      float back_facing_max_angle_normals_deg = 90.0f;
+      float back_facing_max_angle_view_deg = 100.0f;
 
       mrpt::img::TColormap local_map_colormap = mrpt::img::TColormap::cmJET;
       /// Can be any pointcloud field name. Will change to "z" for simple XYZ clouds.

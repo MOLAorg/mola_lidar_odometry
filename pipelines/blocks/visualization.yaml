@@ -40,6 +40,12 @@ params:
 
     show_localmap: ${MOLA_GUI_SHOW_LOCAL_MAP|true}
     local_map_point_size: 1
+    # Hide points seen from behind, in the local map and current/deskewed
+    # observations (needs normal_* or view_* point fields). A point is hidden
+    # if its direction is farther than the max angle from the camera direction:
+    hide_back_facing_points: ${MOLA_GUI_HIDE_BACK_FACING_POINTS|false}
+    back_facing_max_angle_normals_deg: 90.0
+    back_facing_max_angle_view_deg: ${MOLA_GUI_BACK_FACING_MAX_ANGLE_VIEW_DEG|100.0}
     # Point field to color point-cloud local maps (e.g. mola::IncrementalPointCloud)
     # by. mola::KeyframePointCloudMap renders itself instead, from its own
     # renderOpts.recolorByPointField, which reads the same variable.
