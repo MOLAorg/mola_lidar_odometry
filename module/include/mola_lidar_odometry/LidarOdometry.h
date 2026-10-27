@@ -1996,6 +1996,55 @@ private:
   void processLidarScan(
     const CObservation::ConstPtr & obs, std::optional<double> imuCoverageEndTime, uint64_t session);
 
+  /** The output of preprocessScan(), the first stage of processLidarScan().
+   *
+   * processLidarScan() runs these stages in order, with state_mtx_ held:
+   *  1. preprocessScan(): points from the raw observation(s), de-skew, filters;
+   *  2. the first-scan map initialization, or ICP against the local map and
+   *     the keyframe decision;
+   *  3. insertScanIntoLocalMap(), for a new keyframe;
+   *  4. the simplemap and shared keyframe-map updates;
+   *  5. publishScanResults().
+   */
+  struct PreprocessedScan
+  {
+    /// The filtered observation layers: the ICP and local-map input.
+    mp2p_icp::metric_map_t::Ptr observation;
+    /// Only the "raw" layer, for the GUI.
+    mp2p_icp::metric_map_t observationRawForViz;
+    /// The whole de-skewed cloud (or the raw one, without de-skew), for the GUI
+    /// and for publishing.
+    mrpt::maps::CPointsMap::Ptr fullCloudForVizAndPublish;
+    /// Whether the early de-skew ran.
+    bool usedEarlyDeskew = false;
+  };
+
+  /// Returns nothing if the scan must be discarded. Caller must hold state_mtx_.
+  std::optional<PreprocessedScan> preprocessScan(
+    const CObservation & obs, const mrpt::obs::CSensoryFrame & sf);
+
+  /// Puts the first keyframe at the initial pose: trajectory, state estimator,
+  /// map-origin verticality, and the simplemap keyframe decider. The caller
+  /// marks the scan for the map updates. Caller must hold state_mtx_.
+  void startMapAtFirstScan(const CObservation & obs, const mrpt::Clock::time_point & scan_ref_time);
+
+  /// Clears the local map and trajectory after a bad ICP right after an
+  /// empty-map start. Caller must hold state_mtx_.
+  void restartLocalMapFromScratch();
+
+  /// Merges the observation layers into the local map, creating it from the
+  /// raw observations if empty. Caller must hold state_mtx_.
+  void insertScanIntoLocalMap(
+    const mrpt::obs::CSensoryFrame & sf, const mp2p_icp::metric_map_t & observation,
+    const mrpt::Clock::time_point & scan_ref_time);
+
+  /// Publishes the pose, the de-skewed scan and the local map, writes the
+  /// debug traces, and updates the GUI. Caller must hold state_mtx_ via
+  /// lckState.
+  void publishScanResults(
+    PreprocessedScan & scan, const mrpt::Clock::time_point & scan_ref_time,
+    std::unique_lock<std::mutex> & lckState);
+
   void onIMU(const CObservation::ConstPtr & o);
   void onIMUImpl(const CObservation::ConstPtr & o);
 
