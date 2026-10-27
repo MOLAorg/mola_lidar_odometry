@@ -138,6 +138,9 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(tf_tree_show_names, bool);
   YAML_LOAD_OPT(tf_tree_exclude_frames, std::string);
   YAML_LOAD_OPT(local_map_point_size, float);
+  YAML_LOAD_OPT(hide_back_facing_points, bool);
+  YAML_LOAD_OPT(back_facing_max_angle_normals_deg, float);
+  YAML_LOAD_OPT(back_facing_max_angle_view_deg, float);
   YAML_LOAD_OPT(current_observation_point_size, float);
   YAML_LOAD_OPT(last_deskewed_observations_point_size, float);
   YAML_LOAD_OPT(local_map_render_voxelmap_free_space, bool);

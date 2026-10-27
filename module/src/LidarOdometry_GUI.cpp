@@ -299,6 +299,18 @@ mola::gui::Tab LidarOdometry::buildTabView()
                  [this, checked]() { params_.visualization.show_localmap = checked; });
              }});
 
+#if defined(MP2P_ICP_HAS_RENDER_HIDE_BACK_FACING)
+  tab.widgets.emplace_back(CheckBox{
+    "Hide back-facing points", params_.visualization.hide_back_facing_points, [this](bool checked) {
+      this->enqueue_locked_request([this, checked]() {
+        params_.visualization.hide_back_facing_points = checked;
+        // Force a redraw, since the map may not change on its own:
+        state_.local_map_needs_viz_update = true;
+        state_.mapUpdateCnt = std::numeric_limits<unsigned int>::max();
+      });
+    }});
+#endif
+
   tab.widgets.emplace_back(CheckBox{
     "Camera follows vehicle", params_.visualization.camera_follows_vehicle, [this](bool checked) {
       this->enqueue_locked_request(
@@ -533,6 +545,21 @@ void vizUpsert3D(
 #else
   (void)parentFrame;
   viz->update_3d_object(name, obj);
+#endif
+}
+
+void setBackFacing(
+  mp2p_icp::render_params_t & rp, bool hide, float maxAngleNormals_deg, float maxAngleView_deg)
+{
+#if defined(MP2P_ICP_HAS_RENDER_HIDE_BACK_FACING)
+  rp.points.allLayers.hideBackFacing = hide;
+  rp.points.allLayers.backFacingMaxAngleNormals_deg = maxAngleNormals_deg;
+  rp.points.allLayers.backFacingMaxAngleView_deg = maxAngleView_deg;
+#else
+  (void)rp;
+  (void)hide;
+  (void)maxAngleNormals_deg;
+  (void)maxAngleView_deg;
 #endif
 }
 
@@ -879,6 +906,10 @@ void LidarOdometry::updateVisualizationCurrentObservation(
   const float decayAlpha = params_.visualization.observations_initial_alpha;
   const double decaySeconds = params_.visualization.observations_decay_seconds;
 
+  const bool hideBackFacing = params_.visualization.hide_back_facing_points;
+  const float backFacingNormals_deg = params_.visualization.back_facing_max_angle_normals_deg;
+  const float backFacingView_deg = params_.visualization.back_facing_max_angle_view_deg;
+
   // Shared pointer to the deskewed cloud (may be null):
   // Make a copy intentionally so we capture by value in the lambda
   auto deskewed = deskewedCloud;  // NOLINT(performance-unnecessary-copy-initialization)
@@ -900,6 +931,7 @@ void LidarOdometry::updateVisualizationCurrentObservation(
       rp.points.allLayers.force_alpha_channel = true;
       rp.points.allLayers.pointSize = curObsPointSize;
       rp.points.allLayers.color.A = mrpt::f2u8(curObsAlpha);
+      setBackFacing(rp, hideBackFacing, backFacingNormals_deg, backFacingView_deg);
 
       auto & cm = rp.points.allLayers.colorMode.emplace();
       cm.colorMap = curObsColormap;
@@ -931,6 +963,7 @@ void LidarOdometry::updateVisualizationCurrentObservation(
       cm.recolorizeByField = decayColorField;
       rp.points.allLayers.pointSize = decayPointSize;
       rp.points.allLayers.color.A = mrpt::f2u8(decayAlpha);
+      setBackFacing(rp, hideBackFacing, backFacingNormals_deg, backFacingView_deg);
 
       auto glDecayObs = mm.get_visualization(rp);
 
@@ -984,6 +1017,10 @@ void LidarOdometry::updateVisualizationLocalMap()
 
     rp.points.allLayers.render_voxelmaps_free_space =
       params_.visualization.local_map_render_voxelmap_free_space;
+    setBackFacing(
+      rp, params_.visualization.hide_back_facing_points,
+      params_.visualization.back_facing_max_angle_normals_deg,
+      params_.visualization.back_facing_max_angle_view_deg);
 
     // local map: this recolors/renders every point currently in the map, an
     // O(map size) cost that keeps growing with it (e.g. under
