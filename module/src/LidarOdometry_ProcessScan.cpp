@@ -951,9 +951,10 @@ void LidarOdometry::processLidarScan(  // NOLINT
       mp2p_icp_filters::apply_filter_pipeline(state_.pc_deskew, *observation, profiler_);
     }
     // Now observation has a "deskewed" layer with the full cloud deskewed.
-  } else {
-    // Fallback:
-    observation->layers["deskewed"] = observation->layers["raw"];
+  } else if (const auto it = observation->layers.find("raw"); it != observation->layers.end()) {
+    // Fallback. Looked up, not indexed: an observation without a "raw" layer
+    // must not get an empty one, nor an empty "deskewed".
+    observation->layers["deskewed"] = it->second;
   }
 
   // Keep reference to the deskewed or raw cloud for viz/publish:
