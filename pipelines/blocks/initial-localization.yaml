@@ -48,6 +48,9 @@ initial_localization:
     enabled: "${MOLA_LO_INIT_GLOBAL_SEARCH|false}"
     min_half_width_xy: "${MOLA_LO_INIT_GLOBAL_SEARCH_MIN_XY|0.0}"
     max_half_width_xy: "${MOLA_LO_INIT_GLOBAL_SEARCH_MAX_XY|20.0}"
+    # Yaw is searched at least +-this [deg] (0: only if its sigma requires it).
+    # For heading sources with a bias, e.g. a magnetometer-based IMU attitude:
+    min_half_width_yaw_deg: "${MOLA_LO_INIT_GLOBAL_SEARCH_MIN_YAW|0.0}"
     max_position_sigma: "${MOLA_LO_INIT_GLOBAL_SEARCH_MAX_POS_SIGMA|5.0}"
     resolution_xy: "${MOLA_LO_INIT_GLOBAL_SEARCH_RES_XY|1.0}"
     resolution_yaw_deg: "${MOLA_LO_INIT_GLOBAL_SEARCH_RES_YAW|30.0}"

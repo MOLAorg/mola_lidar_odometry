@@ -804,6 +804,11 @@ public:
         double min_half_width_xy = 0.0;   // [m]
         double max_half_width_xy = 20.0;  // [m]
 
+        /// Minimum half-width of the searched yaw range. It covers the bias of
+        /// a heading source that the estimator takes as independent readings
+        /// (e.g. a magnetometer), whose sigma shrinks over time. 0: none.
+        double min_half_width_yaw_deg = 0.0;  // [deg]
+
         /// While searching, accept state estimator poses up to this position
         /// sigma, instead of from_state_estimator_max_position_sigma. Its
         /// orientation sigma is not checked: yaw is searched if needed.
