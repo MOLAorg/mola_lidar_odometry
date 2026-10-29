@@ -2,6 +2,9 @@ name: CI clang-format
 
 on: [push, pull_request]
 
+permissions:
+  contents: read
+
 jobs:
   clang-format-check:
     name: clang-format-check
@@ -16,7 +19,11 @@ jobs:
           git submodule update --init --recursive
 
       - name: Install clang-format-14
-        run: sudo apt-get update && sudo apt-get install -y clang-format-14
+        # Not packaged for the current Ubuntu runners: from PyPI instead
+        run: |
+          pipx install clang-format==14.0.6
+          sudo ln -sf "$(pipx environment --value PIPX_BIN_DIR)/clang-format" /usr/local/bin/clang-format-14
+          clang-format-14 --version | grep -q "version 14.0.6"
 
       - name: Check code style
         run: bash formatter.sh --check

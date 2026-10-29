@@ -275,3 +275,19 @@ elseif(launch_testing_ament_cmake_FOUND AND EXISTS ${RSLIDAR_DATASET_FILE})
     ARGS "rosbag:=${RSLIDAR_DATASET_FILE}"
   )
 endif()
+
+# Test: real ROS 2 launch with the smoother, initial localization on a prebuilt
+# map (manual pose, or state estimator pose with and without the global search)
+# -----------------------------------------------------------------------------------
+set(INITIAL_LOCALIZATION_DATASET_DIR "${mola_test_datasets_DIR}/../datasets/ual/husky_benches")
+if(launch_testing_ament_cmake_FOUND AND mola_state_estimation_smoother_FOUND AND
+   EXISTS ${INITIAL_LOCALIZATION_DATASET_DIR}/dataset.yaml)
+  add_launch_test(test_ros2_initial_localization.py
+    TARGET test_ros2_initial_localization
+    TIMEOUT 1200
+    ENV LO_TEST_INITIAL_LOCALIZATION_DIR=${INITIAL_LOCALIZATION_DATASET_DIR}
+  )
+else()
+  message(STATUS "Skipping test_ros2_initial_localization: needs launch_testing, "
+    "mola_state_estimation_smoother and ${INITIAL_LOCALIZATION_DATASET_DIR}")
+endif()

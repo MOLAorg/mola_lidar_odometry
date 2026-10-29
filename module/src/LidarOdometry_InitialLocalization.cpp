@@ -27,14 +27,61 @@
 #include <mola_relocalization/relocalization.h>
 #endif
 
+#include <mrpt/maps/CPointsMap.h>
+#include <mrpt/poses/CPose3D.h>
+
 #include <algorithm>
 #include <cmath>
+#include <optional>
+#include <vector>
 
 namespace mola
 {
+namespace
+{
+// Height of the ground around `center`: a low percentile of the z of the
+// points of all layers with points within `radius` (horizontal distance),
+// rotated by R. Empty if there are too few points.
+std::optional<double> ground_height(
+  const mp2p_icp::metric_map_t & m, const mrpt::math::TPoint2D & center, double radius,
+  const mrpt::math::CMatrixDouble33 & R)
+{
+  std::vector<double> zs;
+  for (const auto & [name, layer] : m.layers) {
+    // Points maps, or any other map with a points view (e.g. keyframe maps):
+    const auto * pts = mrpt::maps::asPointsMap(*layer);
+    if (!pts) {
+      continue;
+    }
+    const auto & xs = pts->getPointsBufferRef_x();
+    const auto & ys = pts->getPointsBufferRef_y();
+    const auto & zz = pts->getPointsBufferRef_z();
+    for (size_t i = 0; i < xs.size(); i++) {
+      if (!std::isfinite(xs[i]) || !std::isfinite(ys[i]) || !std::isfinite(zz[i])) {
+        continue;
+      }
+      const double x = R(0, 0) * xs[i] + R(0, 1) * ys[i] + R(0, 2) * zz[i];
+      const double y = R(1, 0) * xs[i] + R(1, 1) * ys[i] + R(1, 2) * zz[i];
+      if (std::hypot(x - center.x, y - center.y) > radius) {
+        continue;
+      }
+      zs.push_back(R(2, 0) * xs[i] + R(2, 1) * ys[i] + R(2, 2) * zz[i]);
+    }
+  }
+  constexpr size_t kMinPoints = 20;
+  if (zs.size() < kMinPoints) {
+    return {};
+  }
+  // Not the minimum, which a few noisy points below the ground would set:
+  const auto low = zs.begin() + zs.size() / 10;
+  std::nth_element(zs.begin(), low, zs.end());
+  return *low;
+}
+}  // namespace
 
 void LidarOdometry::handleInitialLocalizationDoInitFromPose(
-  const mrpt::poses::CPose3DPDFGaussian & initPose, bool resetStateEstimator)
+  const mrpt::poses::CPose3DPDFGaussian & initPose, bool resetStateEstimator,
+  const std::optional<mrpt::Clock::time_point> & stamp)
 {
   if (resetStateEstimator) {
     ASSERT_(state_.navstate_fuse);
@@ -42,11 +89,10 @@ void LidarOdometry::handleInitialLocalizationDoInitFromPose(
 
     // Fake an evolution to be able to have an initial velocity estimation:
     // Use a tiny time step to let the filter remain with a large uncertainty about twist:
-    ASSERT_(state_.last_obs_timestamp.has_value());
-    const auto t1 =
-      mrpt::Clock::fromDouble(mrpt::Clock::toDouble(*state_.last_obs_timestamp) - 2e-3);
-    const auto t2 =
-      mrpt::Clock::fromDouble(mrpt::Clock::toDouble(*state_.last_obs_timestamp) - 1e-3);
+    ASSERT_(stamp.has_value() || state_.last_obs_timestamp.has_value());
+    const double t = mrpt::Clock::toDouble(stamp ? *stamp : *state_.last_obs_timestamp);
+    const auto t1 = mrpt::Clock::fromDouble(t - 2e-3);
+    const auto t2 = mrpt::Clock::fromDouble(t - 1e-3);
     state_.navstate_fuse->fuse_pose(t1, initPose, params_.publish_reference_frame);
     state_.navstate_fuse->fuse_pose(t2, initPose, params_.publish_reference_frame);
 
@@ -409,7 +455,7 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
   }
 }
 
-bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & observation)
+void LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & observation)
 {
 #if defined(MOLA_RELOCALIZATION_HAS_CANDIDATES)
   const auto & gs = params_.initial_localization.global_search;
@@ -423,7 +469,7 @@ bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
   if (
     state_.last_global_search_attempt &&
     mrpt::system::timeDifference(*state_.last_global_search_attempt, now) < gs.retry_period) {
-    return false;
+    return;
   }
   state_.last_global_search_attempt = now;
 
@@ -473,6 +519,18 @@ bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
   lat.z = p.z;
   lat.pitch = p.pitch;
   lat.roll = p.roll;
+  if (gs.z_from_map_radius > 0) {
+    // The ground of the scan, with the vehicle attitude (any yaw), and that of
+    // the map below the prior:
+    const auto R = mrpt::poses::CPose3D::FromYawPitchRoll(0, p.pitch, p.roll).getRotationMatrix();
+    const auto zScan = ground_height(observation, {0, 0}, gs.z_from_map_radius, R);
+    const auto zMap = ground_height(
+      *state_.local_map, {p.x, p.y}, gs.z_from_map_radius, mrpt::math::CMatrixDouble33::Identity());
+    if (zScan && zMap) {
+      lat.z = *zMap - *zScan;
+      MRPT_LOG_DEBUG_FMT("Global search: z=%.2f from the map (prior z=%.2f)", lat.z, p.z);
+    }
+  }
 
   const auto out = mola::RelocalizationICP_SE2::run(in);
 
@@ -503,13 +561,13 @@ bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
 
   if (!sel.best) {
     MRPT_LOG_WARN("Global search: no good match in the map. Will try again.");
-    return false;
+    return;
   }
   if (!sel.unambiguous) {
     MRPT_LOG_WARN_STREAM(
       "Global search: ambiguous, " << sel.best->pose << " vs " << sel.runner_up->pose
                                    << ". Will try again.");
-    return false;
+    return;
   }
 
   mrpt::poses::CPose3DPDFGaussian found;
@@ -518,11 +576,18 @@ bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
     {mrpt::square(0.1), mrpt::square(0.1), mrpt::square(0.1), mrpt::square(mrpt::DEG2RAD(2.0)),
      mrpt::square(mrpt::DEG2RAD(2.0)), mrpt::square(mrpt::DEG2RAD(2.0))}));
 
-  MRPT_LOG_INFO_STREAM("Global search: localized at " << found.mean);
+  // The scans that arrived during the search were dropped (drop_stale_scans):
+  // the vehicle is assumed still since this one, and the found pose is given
+  // at the newest sensor time, so the state estimator does not bridge the
+  // search time with a motion model:
+  const double newestStamp = std::max(latest_obs_time_.load(), mrpt::Clock::toDouble(now));
+  MRPT_LOG_INFO_STREAM(
+    "Global search: localized at " << found.mean << " (taken as the pose "
+                                   << newestStamp - mrpt::Clock::toDouble(now)
+                                   << " s after its scan, at the end of the search)");
 
-  handleInitialLocalizationDoInitFromPose(found, true);
+  handleInitialLocalizationDoInitFromPose(found, true, mrpt::Clock::fromDouble(newestStamp));
   state_.global_search_prior.reset();
-  return true;
 #else
   (void)observation;
   MRPT_LOG_ERROR(
@@ -530,7 +595,6 @@ bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
     "select_relocalization_candidate(): using the state estimator pose as is.");
   handleInitialLocalizationDoInitFromPose(*state_.global_search_prior, false);
   state_.global_search_prior.reset();
-  return true;
 #endif
 }
 

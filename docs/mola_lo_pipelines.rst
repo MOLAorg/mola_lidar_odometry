@@ -1029,7 +1029,13 @@ Initial localization
   for the pose in the map around it (with ``mola_relocalization``), and only accept an unambiguous match. Yaw is
   searched too if uncertain. While searching, the state estimator pose is accepted up to
   ``MOLA_LO_INIT_GLOBAL_SEARCH_MAX_POS_SIGMA`` (Default: ``5.0`` [m]) of position uncertainty, and its
-  orientation uncertainty is not checked.
+  orientation uncertainty is not checked. Intended for starting with the vehicle still: a search may take
+  seconds, the scans arriving meanwhile are dropped, and the found pose is taken as the pose at the end of
+  the search.
+
+- ``MOLA_LO_INIT_GLOBAL_SEARCH_Z_FROM_MAP_RADIUS`` (Default: ``5.0`` [m]): The z of the searched poses is the one
+  that puts the ground of the scan on the ground of the map below the prior (the lowest points within this
+  horizontal radius), instead of the prior z (e.g. a GNSS altitude, often meters off). ``0``: use the prior z.
 
 - ``MOLA_LO_INIT_GLOBAL_SEARCH_MIN_XY`` / ``MOLA_LO_INIT_GLOBAL_SEARCH_MAX_XY`` (Default: ``0.0`` / ``20.0`` [m]):
   Limits of the half-width of the searched region (3 sigmas otherwise). The minimum covers biases the state
