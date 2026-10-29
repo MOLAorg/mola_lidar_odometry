@@ -33,10 +33,11 @@ import yaml
 # With the state estimator, the vehicle pose is its output:
 POSE_TOPIC = '/state_estimation/pose'
 DATASET_DIR = os.environ.get('LO_TEST_INITIAL_LOCALIZATION_DIR', '')
-# Slower than real time, so slow CI machines keep up (also the global search):
+# Slower than real time, so slow CI machines keep up. A test case may set its
+# own `bag_rate`, e.g. to keep the vehicle still during a slow global search:
 BAG_RATE = 0.5
-# Startup, plus the whole fragment at BAG_RATE:
-MAX_WAIT_SECONDS = 180.0
+# Besides the whole fragment, at its playback rate:
+STARTUP_SECONDS = 60.0
 
 
 def _skip_reason():
@@ -130,7 +131,7 @@ def generate_test_description(case):
     # The fragment topics keep the robot namespace, given in full to LO; only
     # its static TF must reach the global /tf_static:
     bag_play = ExecuteProcess(
-        cmd=['ros2', 'bag', 'play', '--clock', '--rate', str(BAG_RATE),
+        cmd=['ros2', 'bag', 'play', '--clock', '--rate', str(tc.get('bag_rate', BAG_RATE)),
              os.path.join(DATASET_DIR, dataset['fragment']),
              '--remap', f"{dataset['topics']['tf_static']}:=/tf_static"],
         output='screen')
@@ -209,7 +210,8 @@ class TestInitialLocalization(unittest.TestCase):
         # Until the end of the fragment:
         last_scan = gt_stamps[-1]
         self._spin_until(
-            lambda: self.poses and self.poses[-1][0] >= last_scan - 0.3, MAX_WAIT_SECONDS)
+            lambda: self.poses and self.poses[-1][0] >= last_scan - 0.3,
+            STARTUP_SECONDS + dataset['duration'] / tc.get('bag_rate', BAG_RATE))
 
         # Errors of the poses of the evaluated period, against the nearest ground
         # truth pose (one per LiDAR scan; the robot is still in that period):
@@ -236,7 +238,9 @@ class TestInitialLocalization(unittest.TestCase):
                 self.assertLess(e, expected['max_position_error'])
                 self.assertLess(a, expected['max_yaw_error_deg'])
             if 'log_contains' in expected:
-                proc_output.assertWaitFor(expected['log_contains'], timeout=1.0)
+                # MOLA logs INFO messages to stdout:
+                proc_output.assertWaitFor(
+                    expected['log_contains'], timeout=1.0, stream='stdout')
         else:
             # Not localized: a pose, but far from the truth.
             self.assertTrue(errors, f'No pose on {POSE_TOPIC} over the last '

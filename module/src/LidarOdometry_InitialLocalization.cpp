@@ -76,7 +76,8 @@ std::optional<double> ground_height(
 }  // namespace
 
 void LidarOdometry::handleInitialLocalizationDoInitFromPose(
-  const mrpt::poses::CPose3DPDFGaussian & initPose, bool resetStateEstimator)
+  const mrpt::poses::CPose3DPDFGaussian & initPose, bool resetStateEstimator,
+  const std::optional<mrpt::Clock::time_point> & stamp)
 {
   if (resetStateEstimator) {
     ASSERT_(state_.navstate_fuse);
@@ -84,11 +85,10 @@ void LidarOdometry::handleInitialLocalizationDoInitFromPose(
 
     // Fake an evolution to be able to have an initial velocity estimation:
     // Use a tiny time step to let the filter remain with a large uncertainty about twist:
-    ASSERT_(state_.last_obs_timestamp.has_value());
-    const auto t1 =
-      mrpt::Clock::fromDouble(mrpt::Clock::toDouble(*state_.last_obs_timestamp) - 2e-3);
-    const auto t2 =
-      mrpt::Clock::fromDouble(mrpt::Clock::toDouble(*state_.last_obs_timestamp) - 1e-3);
+    ASSERT_(stamp.has_value() || state_.last_obs_timestamp.has_value());
+    const double t = mrpt::Clock::toDouble(stamp ? *stamp : *state_.last_obs_timestamp);
+    const auto t1 = mrpt::Clock::fromDouble(t - 2e-3);
+    const auto t2 = mrpt::Clock::fromDouble(t - 1e-3);
     state_.navstate_fuse->fuse_pose(t1, initPose, params_.publish_reference_frame);
     state_.navstate_fuse->fuse_pose(t2, initPose, params_.publish_reference_frame);
 
@@ -451,7 +451,7 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
   }
 }
 
-bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & observation)
+void LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & observation)
 {
 #if defined(MOLA_RELOCALIZATION_HAS_CANDIDATES)
   const auto & gs = params_.initial_localization.global_search;
@@ -465,7 +465,7 @@ bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
   if (
     state_.last_global_search_attempt &&
     mrpt::system::timeDifference(*state_.last_global_search_attempt, now) < gs.retry_period) {
-    return false;
+    return;
   }
   state_.last_global_search_attempt = now;
 
@@ -557,13 +557,13 @@ bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
 
   if (!sel.best) {
     MRPT_LOG_WARN("Global search: no good match in the map. Will try again.");
-    return false;
+    return;
   }
   if (!sel.unambiguous) {
     MRPT_LOG_WARN_STREAM(
       "Global search: ambiguous, " << sel.best->pose << " vs " << sel.runner_up->pose
                                    << ". Will try again.");
-    return false;
+    return;
   }
 
   mrpt::poses::CPose3DPDFGaussian found;
@@ -572,11 +572,18 @@ bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
     {mrpt::square(0.1), mrpt::square(0.1), mrpt::square(0.1), mrpt::square(mrpt::DEG2RAD(2.0)),
      mrpt::square(mrpt::DEG2RAD(2.0)), mrpt::square(mrpt::DEG2RAD(2.0))}));
 
-  MRPT_LOG_INFO_STREAM("Global search: localized at " << found.mean);
+  // The scans that arrived during the search were dropped (drop_stale_scans):
+  // the vehicle is assumed still since this one, and the found pose is given
+  // at the newest sensor time, so the state estimator does not bridge the
+  // search time with a motion model:
+  const double newestStamp = std::max(latest_obs_time_.load(), mrpt::Clock::toDouble(now));
+  MRPT_LOG_INFO_STREAM(
+    "Global search: localized at " << found.mean << " (taken as the pose "
+                                   << newestStamp - mrpt::Clock::toDouble(now)
+                                   << " s after its scan, at the end of the search)");
 
-  handleInitialLocalizationDoInitFromPose(found, true);
+  handleInitialLocalizationDoInitFromPose(found, true, mrpt::Clock::fromDouble(newestStamp));
   state_.global_search_prior.reset();
-  return true;
 #else
   (void)observation;
   MRPT_LOG_ERROR(
@@ -584,7 +591,6 @@ bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
     "select_relocalization_candidate(): using the state estimator pose as is.");
   handleInitialLocalizationDoInitFromPose(*state_.global_search_prior, false);
   state_.global_search_prior.reset();
-  return true;
 #endif
 }
 

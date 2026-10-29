@@ -785,6 +785,9 @@ public:
       /// too uncertain for ICP to converge from it (e.g. plain GNSS, or no
       /// heading at all). Then, search for the pose in the map around it, and
       /// only accept an unambiguous match.
+      /// Intended for starting with the vehicle still: a search may take
+      /// seconds, the scans arriving meanwhile are dropped, and the found pose
+      /// is taken as the pose at the end of the search.
       struct GlobalSearch
       {
         bool enabled = false;
@@ -1986,8 +1989,9 @@ private:
   void relocalize_from_gnss_impl();
 
   /// Runs the pending global search for the initial pose with this
-  /// (filtered) observation. Returns true once localized.
-  bool doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & observation);
+  /// (filtered) observation. Once localized, the found pose is taken as the
+  /// pose at the newest sensor time (the vehicle is assumed still meanwhile).
+  void doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & observation);
   MapServer::ReturnStatus map_load_impl(const std::string & path);
   MapServer::ReturnStatus map_save_impl(const std::string & path);
 
@@ -2217,8 +2221,11 @@ private:
 #endif
   void handleInitialLocalization();
   void handleInitialLocalizationStateEstimation();
+  /// `stamp`: the time of initPose, if resetting the state estimator
+  /// (default: the latest scan).
   void handleInitialLocalizationDoInitFromPose(
-    const mrpt::poses::CPose3DPDFGaussian & initPose, bool resetStateEstimator);
+    const mrpt::poses::CPose3DPDFGaussian & initPose, bool resetStateEstimator,
+    const std::optional<mrpt::Clock::time_point> & stamp = std::nullopt);
 
   bool isPipelineUsingIMU() const;
   /// Same as isPipelineUsingIMU(), but assumes state_mtx_ is already held by the caller.

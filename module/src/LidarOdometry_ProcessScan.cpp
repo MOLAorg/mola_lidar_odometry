@@ -958,9 +958,12 @@ void LidarOdometry::processLidarScan(  // NOLINT
   // First time we cannot do ICP since we need at least two pointclouds:
   ASSERT_(state_.local_map);
 
-  // A pending global search for the initial pose:
-  if (state_.global_search_prior && !doGlobalSearchForInitialPose(*observation)) {
-    return;  // not localized yet
+  // A pending global search for the initial pose. Its scan is not registered
+  // afterwards, even if localized: the search may take long, and the next scan
+  // continues from the found pose.
+  if (state_.global_search_prior) {
+    doGlobalSearchForInitialPose(*observation);
+    return;
   }
 
   // Request the current pose/twist estimation:
