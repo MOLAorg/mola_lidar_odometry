@@ -209,9 +209,11 @@ class TestInitialLocalization(unittest.TestCase):
 
         # Until the end of the fragment:
         last_scan = gt_stamps[-1]
-        self._spin_until(
-            lambda: self.poses and self.poses[-1][0] >= last_scan - 0.3,
-            STARTUP_SECONDS + dataset['duration'] / tc.get('bag_rate', BAG_RATE))
+        self.assertTrue(
+            self._spin_until(
+                lambda: self.poses and self.poses[-1][0] >= last_scan - 0.3,
+                STARTUP_SECONDS + dataset['duration'] / tc.get('bag_rate', BAG_RATE)),
+            f'The poses on {POSE_TOPIC} did not reach the end of the fragment')
 
         # Errors of the poses of the evaluated period, against the nearest ground
         # truth pose (one per LiDAR scan; the robot is still in that period):
@@ -224,7 +226,7 @@ class TestInitialLocalization(unittest.TestCase):
             if abs(gt[j][0] - t) > 0.3:
                 continue
             g = gt[j]
-            errors.append((math.hypot(x - g[1], y - g[2]), _wrap_deg(yaw - g[4])))
+            errors.append((math.dist((x, y, z), g[1:4]), _wrap_deg(yaw - g[4])))
         if errors:
             print(f'[{case}] {len(self.poses)} poses received, {len(errors)} evaluated, '
                   f'position error {min(e for e, _ in errors):.2f} to '

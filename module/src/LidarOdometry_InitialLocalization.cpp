@@ -40,15 +40,16 @@ namespace mola
 namespace
 {
 // Height of the ground around `center`: a low percentile of the z of the
-// points of all point layers within `radius` (horizontal distance), rotated by
-// R. Empty if there are too few points.
+// points of all layers with points within `radius` (horizontal distance),
+// rotated by R. Empty if there are too few points.
 std::optional<double> ground_height(
   const mp2p_icp::metric_map_t & m, const mrpt::math::TPoint2D & center, double radius,
   const mrpt::math::CMatrixDouble33 & R)
 {
   std::vector<double> zs;
   for (const auto & [name, layer] : m.layers) {
-    const auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layer);
+    // Points maps, or any other map with a points view (e.g. keyframe maps):
+    const auto * pts = mrpt::maps::asPointsMap(*layer);
     if (!pts) {
       continue;
     }
@@ -56,6 +57,9 @@ std::optional<double> ground_height(
     const auto & ys = pts->getPointsBufferRef_y();
     const auto & zz = pts->getPointsBufferRef_z();
     for (size_t i = 0; i < xs.size(); i++) {
+      if (!std::isfinite(xs[i]) || !std::isfinite(ys[i]) || !std::isfinite(zz[i])) {
+        continue;
+      }
       const double x = R(0, 0) * xs[i] + R(0, 1) * ys[i] + R(0, 2) * zz[i];
       const double y = R(1, 0) * xs[i] + R(1, 1) * ys[i] + R(1, 2) * zz[i];
       if (std::hypot(x - center.x, y - center.y) > radius) {
