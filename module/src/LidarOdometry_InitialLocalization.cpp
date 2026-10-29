@@ -393,7 +393,7 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
       const double yawSigmaDeg = mrpt::RAD2DEG(std::sqrt(estimatedPose.cov(3, 3)));
       needsGlobalSearch =
         std::max(gs.sigma_factor * xySigma, gs.min_half_width_xy) > gs.icp_basin_xy ||
-        gs.sigma_factor * yawSigmaDeg > gs.icp_basin_yaw_deg;
+        std::max(gs.sigma_factor * yawSigmaDeg, gs.min_half_width_yaw_deg) > gs.icp_basin_yaw_deg;
     }
 
     if (needsGlobalSearch) {
@@ -483,10 +483,10 @@ void LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
   const double xySigma = std::sqrt(std::max(cov(0, 0), cov(1, 1)));
   const double halfXY =
     std::clamp(gs.sigma_factor * xySigma, gs.min_half_width_xy, gs.max_half_width_xy);
+  const double yawRange =
+    std::max(gs.sigma_factor * std::sqrt(cov(3, 3)), mrpt::DEG2RAD(gs.min_half_width_yaw_deg));
   const double halfYaw =
-    gs.sigma_factor * std::sqrt(cov(3, 3)) > mrpt::DEG2RAD(gs.icp_basin_yaw_deg)
-      ? std::min(gs.sigma_factor * std::sqrt(cov(3, 3)), M_PI)
-      : 0.0;
+    yawRange > mrpt::DEG2RAD(gs.icp_basin_yaw_deg) ? std::min(yawRange, M_PI) : 0.0;
 
   mola::RelocalizationICP_SE2::Input in;
   in.reference_map = *state_.local_map;

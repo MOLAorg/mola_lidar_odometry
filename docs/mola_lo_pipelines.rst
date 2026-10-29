@@ -1041,6 +1041,10 @@ Initial localization
   Limits of the half-width of the searched region (3 sigmas otherwise). The minimum covers biases the state
   estimator doesn't model, e.g. GNSS multipath.
 
+- ``MOLA_LO_INIT_GLOBAL_SEARCH_MIN_YAW`` (Default: ``0.0`` [deg]): Minimum half-width of the searched yaw range
+  (3 sigmas otherwise). For a heading source with a bias that the estimator takes as independent readings (e.g. a
+  magnetometer-based IMU attitude), whose fused sigma shrinks while the vehicle stands still.
+
 - ``MOLA_LO_INIT_GLOBAL_SEARCH_RES_XY``, ``MOLA_LO_INIT_GLOBAL_SEARCH_RES_YAW`` (Default: ``1.0`` [m],
   ``30.0`` [deg]): Spacing of the initial guesses of the search.
 
