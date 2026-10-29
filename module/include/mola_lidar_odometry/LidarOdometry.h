@@ -810,6 +810,12 @@ public:
         double resolution_xy = 1.0;        // [m]
         double resolution_yaw_deg = 30.0;  // [deg]
 
+        /// The z of the prior (e.g. a GNSS altitude, often meters off) is
+        /// replaced by the one that puts the ground of the scan, below the
+        /// vehicle, on the ground of the map, below the prior (x,y): the
+        /// lowest points within this horizontal radius. 0: keep the prior z.
+        double z_from_map_radius = 5.0;  // [m]
+
         /// Value of ADAPTIVE_THRESHOLD_SIGMA for the ICP runs of the search
         /// (which use the "icp_settings_without_vel" pipeline)
         double icp_threshold = 1.0;  // [m]

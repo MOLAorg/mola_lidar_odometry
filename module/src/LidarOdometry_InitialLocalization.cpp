@@ -27,11 +27,53 @@
 #include <mola_relocalization/relocalization.h>
 #endif
 
+#include <mrpt/maps/CPointsMap.h>
+#include <mrpt/poses/CPose3D.h>
+
 #include <algorithm>
 #include <cmath>
+#include <optional>
+#include <vector>
 
 namespace mola
 {
+namespace
+{
+// Height of the ground around `center`: a low percentile of the z of the
+// points of all point layers within `radius` (horizontal distance), rotated by
+// R. Empty if there are too few points.
+std::optional<double> ground_height(
+  const mp2p_icp::metric_map_t & m, const mrpt::math::TPoint2D & center, double radius,
+  const mrpt::math::CMatrixDouble33 & R)
+{
+  std::vector<double> zs;
+  for (const auto & [name, layer] : m.layers) {
+    const auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layer);
+    if (!pts) {
+      continue;
+    }
+    const auto & xs = pts->getPointsBufferRef_x();
+    const auto & ys = pts->getPointsBufferRef_y();
+    const auto & zz = pts->getPointsBufferRef_z();
+    for (size_t i = 0; i < xs.size(); i++) {
+      const double x = R(0, 0) * xs[i] + R(0, 1) * ys[i] + R(0, 2) * zz[i];
+      const double y = R(1, 0) * xs[i] + R(1, 1) * ys[i] + R(1, 2) * zz[i];
+      if (std::hypot(x - center.x, y - center.y) > radius) {
+        continue;
+      }
+      zs.push_back(R(2, 0) * xs[i] + R(2, 1) * ys[i] + R(2, 2) * zz[i]);
+    }
+  }
+  constexpr size_t kMinPoints = 20;
+  if (zs.size() < kMinPoints) {
+    return {};
+  }
+  // Not the minimum, which a few noisy points below the ground would set:
+  const auto low = zs.begin() + zs.size() / 10;
+  std::nth_element(zs.begin(), low, zs.end());
+  return *low;
+}
+}  // namespace
 
 void LidarOdometry::handleInitialLocalizationDoInitFromPose(
   const mrpt::poses::CPose3DPDFGaussian & initPose, bool resetStateEstimator)
@@ -473,6 +515,18 @@ bool LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
   lat.z = p.z;
   lat.pitch = p.pitch;
   lat.roll = p.roll;
+  if (gs.z_from_map_radius > 0) {
+    // The ground of the scan, with the vehicle attitude (any yaw), and that of
+    // the map below the prior:
+    const auto R = mrpt::poses::CPose3D::FromYawPitchRoll(0, p.pitch, p.roll).getRotationMatrix();
+    const auto zScan = ground_height(observation, {0, 0}, gs.z_from_map_radius, R);
+    const auto zMap = ground_height(
+      *state_.local_map, {p.x, p.y}, gs.z_from_map_radius, mrpt::math::CMatrixDouble33::Identity());
+    if (zScan && zMap) {
+      lat.z = *zMap - *zScan;
+      MRPT_LOG_DEBUG_FMT("Global search: z=%.2f from the map (prior z=%.2f)", lat.z, p.z);
+    }
+  }
 
   const auto out = mola::RelocalizationICP_SE2::run(in);
 

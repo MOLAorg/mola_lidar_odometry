@@ -51,5 +51,8 @@ initial_localization:
     max_position_sigma: "${MOLA_LO_INIT_GLOBAL_SEARCH_MAX_POS_SIGMA|5.0}"
     resolution_xy: "${MOLA_LO_INIT_GLOBAL_SEARCH_RES_XY|1.0}"
     resolution_yaw_deg: "${MOLA_LO_INIT_GLOBAL_SEARCH_RES_YAW|30.0}"
+    # z from the ground of the map below the prior (x,y), not from the prior
+    # itself (e.g. a GNSS altitude). 0: keep the prior z.
+    z_from_map_radius: "${MOLA_LO_INIT_GLOBAL_SEARCH_Z_FROM_MAP_RADIUS|5.0}"
     min_quality: "${MOLA_LO_INIT_GLOBAL_SEARCH_MIN_QUALITY|0.5}"
     min_quality_margin: "${MOLA_LO_INIT_GLOBAL_SEARCH_MIN_MARGIN|0.1}"

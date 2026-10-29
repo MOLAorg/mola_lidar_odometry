@@ -364,6 +364,7 @@ void LidarOdometry::Parameters::InitialLocalizationOptions::GlobalSearch::initia
   YAML_LOAD_OPT(max_position_sigma, double);
   YAML_LOAD_OPT(resolution_xy, double);
   YAML_LOAD_OPT(resolution_yaw_deg, double);
+  YAML_LOAD_OPT(z_from_map_radius, double);
   YAML_LOAD_OPT(icp_threshold, double);
   YAML_LOAD_OPT(refine_icp_threshold, double);
   YAML_LOAD_OPT(min_quality, double);
