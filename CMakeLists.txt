@@ -125,6 +125,12 @@ mola_add_executable(
 )
 target_compile_definitions(mola-lidar-odometry-cli PRIVATE MOLA_LO_VERSION=\"${MY_VERSION}\")
 
+find_package(TBB QUIET)  # optional: to cap the threads of parallel algorithms
+if(TBB_FOUND)
+  target_link_libraries(mola-lidar-odometry-cli TBB::tbb)
+  target_compile_definitions(mola-lidar-odometry-cli PRIVATE MOLA_LO_CLI_HAS_TBB)
+endif()
+
 if(mola_state_estimation_simple_FOUND)
   message(STATUS "mola-lidar-odometry-cli: With mola_state_estimation_simple = YES")
   target_link_libraries(mola-lidar-odometry-cli mola::mola_state_estimation_simple)

@@ -1063,6 +1063,11 @@ Trajectory-to-trajectory comparisons are only meaningful under all of:
   accuracy-neutral over 49 sequences before being adopted, so it buys
   reproducibility rather than accuracy.
 
+`mola-lidar-odometry-cli`, like `mola-cli`, caps TBB to the physical cores (or
+`MOLA_MAX_THREADS`): the parallel reductions are deterministic, so the cap does not change
+results, only CPU use (offline: 16 hardware threads, same speed as 8 at 2x the CPU; at 10 Hz:
+5.4-6.3 cores vs 2.1, scans 23 vs 28 ms).
+
 The smoother also needs `-l <libmola_state_estimation_smoother.so>`; the CLI
 does not load that plugin by default and the class factory otherwise fails with
 "unknown class name".

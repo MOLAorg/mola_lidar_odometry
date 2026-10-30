@@ -23,6 +23,7 @@
   <depend>mola_relocalization</depend>
 
   <depend>cli11</depend>
+  <depend>tbb</depend>
   <depend>mrpt_maps</depend>
   <build_depend>eigen</build_depend>
 

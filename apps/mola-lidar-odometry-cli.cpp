@@ -82,6 +82,13 @@
 #include <mola_input_paris_luco_dataset/ParisLucoDataset.h>
 #endif
 
+// Older mola_kernel versions lack parallelism.h: no thread cap then.
+#if defined(MOLA_LO_CLI_HAS_TBB) && __has_include(<mola_kernel/utils/parallelism.h>)
+#include <mola_kernel/utils/parallelism.h>
+#include <tbb/global_control.h>
+#define MOLA_LO_CLI_CAP_THREADS
+#endif
+
 #include <CLI/CLI.hpp>
 #include <algorithm>
 #include <condition_variable>
@@ -1557,6 +1564,15 @@ void report_options_taken_from_env(const CLI::App & cmd, int argc, char ** argv)
 
 int main(int argc, char ** argv)
 {
+#if defined(MOLA_LO_CLI_CAP_THREADS)
+  // Process-wide cap of the TBB threads (see mola::max_parallel_threads()),
+  // alive until main() returns.
+  const unsigned int nThreads = mola::max_parallel_threads();
+  const tbb::global_control tbbThreads(tbb::global_control::max_allowed_parallelism, nThreads);
+  std::cout << "Parallel algorithms use up to " << nThreads
+            << " threads (MOLA_MAX_THREADS to change it)\n";
+#endif
+
   try {
     Cli cli;
 
