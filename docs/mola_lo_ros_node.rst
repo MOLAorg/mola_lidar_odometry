@@ -360,17 +360,24 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
     **Smoother-only arguments** (applied only when ``use_state_estimator:=True``):
 
-    * ``navstate_kinematic_model`` (default ``KinematicModel::ConstantVelocity``):
+    * ``navstate_imu_gravity_alignment_sigma`` (default empty):
+      Sigma [deg] of the IMU accelerometer gravity factor (``0`` disables it).
+      Empty means ``0`` in localization-only mode (``start_mapping_enabled:=False``),
+      since the loaded map is already gravity-aligned, and the smoother default
+      when mapping. A ``MOLA_IMU_GRAVITY_ALIGNMENT_SIGMA`` environment variable is
+      respected.
+
+    * ``navstate_kinematic_model`` (default empty, ``KinematicModel::ConstantVelocity`` in the smoother):
       Kinematic model for internal motion-model factors. Options:
       ``KinematicModel::ConstantVelocity``, ``KinematicModel::Tricycle``.
 
-    * ``navstate_sigma_random_walk_angacc`` (default ``10.0``):
+    * ``navstate_sigma_random_walk_angacc`` (default empty, ``10.0`` in the smoother):
       Random-walk angular acceleration uncertainty [rad/s²].
 
-    * ``navstate_sigma_random_walk_linacc`` (default ``1.0``):
+    * ``navstate_sigma_random_walk_linacc`` (default empty, ``0.5`` in the smoother):
       Random-walk linear acceleration uncertainty [m/s²].
 
-    * ``navstate_sliding_window_sec`` (default ``2.5``):
+    * ``navstate_sliding_window_sec`` (default empty, ``6.0`` in the smoother):
       Time window [seconds] to keep past observations in the filter.
 
 .. _mola_lo_ros_mola-cli-env-vars:
