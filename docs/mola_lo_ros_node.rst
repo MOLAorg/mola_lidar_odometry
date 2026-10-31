@@ -301,6 +301,9 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
     * ``publish_local_map`` (default ``True``):
       Whether to publish the local map as a point cloud on ``/lidar_odometry/localmap_points``.
       Copying a large map out costs CPU and bandwidth; disable it if nothing consumes it.
+      As for all map topics (REP-2003), it is published as reliable and transient-local, and
+      only when the map changes: subscribe with the same QoS. A best-effort subscriber gets
+      no retransmission of lost fragments, so it may silently miss large clouds.
 
     * ``publish_localization_following_rep105`` (default ``True``):
       Whether the bridge publishes localization TFs as ``map → odom`` (REP-105, true)

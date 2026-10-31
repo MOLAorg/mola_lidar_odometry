@@ -21,7 +21,8 @@ import launch_testing.util
 from nav_msgs.msg import Odometry
 import pytest
 import rclpy
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import (DurabilityPolicy, HistoryPolicy, qos_profile_sensor_data, QoSProfile,
+                       ReliabilityPolicy)
 from sensor_msgs.msg import PointCloud2
 
 # The ROS 2 bridge appends "_points" to point cloud topics:
@@ -104,7 +105,9 @@ class TestLocalMapPublishing(unittest.TestCase):
         self.node.create_subscription(
             PointCloud2, LOCAL_MAP_TOPIC,
             lambda msg: self.local_map_points.append(msg.width * msg.height),
-            qos_profile_sensor_data)
+            QoSProfile(depth=1, history=HistoryPolicy.KEEP_LAST,
+                       reliability=ReliabilityPolicy.RELIABLE,
+                       durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.node.create_subscription(
             Odometry, POSE_TOPIC, self._on_pose, qos_profile_sensor_data)
 
