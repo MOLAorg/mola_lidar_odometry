@@ -360,6 +360,13 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
     **Smoother-only arguments** (applied only when ``use_state_estimator:=True``):
 
+    * ``navstate_imu_gravity_alignment_sigma`` (default empty):
+      Sigma [deg] of the IMU accelerometer gravity factor (``0`` disables it).
+      Empty means ``0`` in localization-only mode (``start_mapping_enabled:=False``),
+      since the loaded map is already gravity-aligned, and the smoother default
+      when mapping. A ``MOLA_IMU_GRAVITY_ALIGNMENT_SIGMA`` environment variable is
+      respected.
+
     * ``navstate_kinematic_model`` (default ``KinematicModel::ConstantVelocity``):
       Kinematic model for internal motion-model factors. Options:
       ``KinematicModel::ConstantVelocity``, ``KinematicModel::Tricycle``.
