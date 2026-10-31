@@ -1426,6 +1426,11 @@ int main_odometry(Cli & cli)
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
+    // All further scans would be discarded: stop here, and report it.
+    if (liodom->hasFatalError()) {
+      break;
+    }
+
     // Sample the fused estimate for this scan, now that the worker is done and
     // whatever the other front-ends contributed is already in the graph:
     if (outFusedPath && obsIsLidarScan) {
@@ -1526,6 +1531,12 @@ int main_odometry(Cli & cli)
     outTwist->saveToTextFile(fil);
   }
 
+  if (liodom->hasFatalError()) {
+    std::cerr << "\nERROR: the LiDAR odometry stopped after a fatal error (see the log above); "
+                 "the outputs only cover the dataset up to that point.\n";
+    return 1;
+  }
+
   return 0;
 }
 
@@ -1602,9 +1613,7 @@ int main(int argc, char ** argv)
 
     mola_install_signal_handler();
 
-    main_odometry(cli);
-
-    return 0;
+    return main_odometry(cli);
   } catch (std::exception & e) {
     mola::pretty_print_exception(e, "Exit due to exception:");
     return 1;
