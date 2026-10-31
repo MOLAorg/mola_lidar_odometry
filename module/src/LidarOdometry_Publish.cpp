@@ -153,9 +153,9 @@ void LidarOdometry::publishLocalMapLayers(
     } else if (const auto * auxPts = mrpt::maps::asPointsMap(*layerMap); auxPts) {
       // Any other map with a points-map representation, taken from the
       // snapshot so that whatever it caches is dropped with it:
-      auto pts = mrpt::maps::CSimplePointsMap::Create();
-      pts->insertAnotherMap(auxPts, mrpt::poses::CPose3D::Identity());
-      mu.map = pts;
+      auto plainPts = mrpt::maps::CSimplePointsMap::Create();
+      plainPts->insertAnotherMap(auxPts, mrpt::poses::CPose3D::Identity());
+      mu.map = plainPts;
     } else {
       mu.map = layerMap;
     }
