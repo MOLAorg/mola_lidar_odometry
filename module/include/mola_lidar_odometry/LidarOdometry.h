@@ -1144,6 +1144,10 @@ public:
   bool isActive() const;
   void setActive(bool active);
 
+  /** True once an unexpected exception has stopped the processing of new
+   *  observations (they are discarded from then on). Multi-thread safe. */
+  bool hasFatalError() const;
+
   /** Returns a copy of the estimated trajectory, with timestamps for each
      * lidar observation.
      * Multi-thread safe to call.

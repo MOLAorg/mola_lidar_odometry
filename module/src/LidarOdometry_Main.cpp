@@ -307,6 +307,12 @@ bool LidarOdometry::isActive() const
   return state_.active;
 }
 
+bool LidarOdometry::hasFatalError() const
+{
+  auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+  return state_.fatal_error;
+}
+
 void LidarOdometry::setActive(const bool active)
 {
   auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
