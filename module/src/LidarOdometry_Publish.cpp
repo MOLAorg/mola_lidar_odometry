@@ -23,6 +23,7 @@
 #include <mola_lidar_odometry/LidarOdometry.h>
 
 // MRPT:
+#include <mrpt/maps/CGenericPointsMap.h>
 #include <mrpt/maps/CPointsMap.h>
 #include <mrpt/maps/CSimplePointsMap.h>
 #include <mrpt/system/datetime.h>
@@ -45,6 +46,20 @@ template <typename T> struct has_metadata_field<T, std::void_t<decltype(T::metad
 template <typename T, typename = void> struct has_map_metadata_field : std::false_type {};
 template <typename T> struct has_map_metadata_field<T, std::void_t<decltype(T::map_metadata)>> : std::true_type {};
 // clang-format on
+
+// Published point layers carry only xyz (plus intensity, if available): other
+// per-point fields are only useful to ICP, and multiply the message size.
+mrpt::maps::CPointsMap::Ptr slimPointsCopy(const mrpt::maps::CPointsMap & src)
+{
+  auto out = mrpt::maps::CGenericPointsMap::Create();
+  if (src.hasPointField(mrpt::maps::CPointsMap::POINT_FIELD_INTENSITY)) {
+    out->registerField_float(mrpt::maps::CPointsMap::POINT_FIELD_INTENSITY);
+  }
+  out->insertAnotherMap(
+    &src, mrpt::poses::CPose3D::Identity(), false /*filterOutPointsAtZero*/,
+    false /*autoRegisterAllSourceFields*/);
+  return out;
+}
 }  // namespace
 
 namespace mola
@@ -133,8 +148,8 @@ void LidarOdometry::publishLocalMapLayers(
   for (const auto & [layerName, layerMap] : snapshot.layers) {
     mu.map_name = layerName;
 
-    if (std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layerMap)) {
-      mu.map = layerMap;
+    if (const auto pts = std::dynamic_pointer_cast<mrpt::maps::CPointsMap>(layerMap); pts) {
+      mu.map = slimPointsCopy(*pts);
     } else if (const auto * auxPts = mrpt::maps::asPointsMap(*layerMap); auxPts) {
       // Any other map with a points-map representation, taken from the
       // snapshot so that whatever it caches is dropped with it:

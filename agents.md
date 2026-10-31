@@ -507,6 +507,9 @@ mean measured on a 136 m scene when it ran inline. `doPublishUpdatedLocalMap()`
 uses: point layers become `CGenericPointsMap` copies, and other layers (e.g.
 KFM, whose `asPointsMap()` caches a global copy of every keyframe) are
 converted from the snapshot, so nothing is cached in the live map.
+Point layers are then sent as xyz (+ `intensity`) only: ICP-only fields
+(`t`, `ring`, `view_*`, ...) roughly triple the message, and default Fast DDS
+drops such large best-effort messages.
 
 While `anyUpdateMapSubscriber()` is false, the update stays pending: it goes
 out as soon as a subscriber exists, and `MapSourceBase` latches it for later
