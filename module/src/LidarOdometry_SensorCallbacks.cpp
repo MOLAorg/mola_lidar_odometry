@@ -487,6 +487,15 @@ void LidarOdometry::onLidar(
     return;
   }
 
+  // Scans queued (or held for IMU coverage) before a fatal error must not
+  // modify the trajectory or the map after it: discard them too.
+  {
+    auto lckStateFlags = mrpt::lockHelper(state_flags_mtx_);
+    if (state_.fatal_error) {
+      return;
+    }
+  }
+
   {
     auto lck = mrpt::lockHelper(is_busy_mtx_);
     state_.worker_tasks_lidar = 1;
