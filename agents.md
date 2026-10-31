@@ -1257,7 +1257,9 @@ We use colcon, the ROS2 build tool, and mola_common with utility cmake helpers.
   (`MOLA_PUBLISH_LOCAL_MAP`): a non-empty `PointCloud2` must arrive on
   `/lidar_odometry/localmap_points` (the bridge appends `_points`), or none
   while `/lidar_odometry/pose` keeps arriving. Only the first bag pass is
-  mapped (looping makes timestamps go backwards).
+  mapped (looping makes timestamps go backwards). It subscribes reliable +
+  transient-local, as the map QoS: a best-effort subscriber lost the few
+  large clouds under default Fast DDS.
 
 ## Code style
 
