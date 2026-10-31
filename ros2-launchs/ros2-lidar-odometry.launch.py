@@ -169,23 +169,23 @@ def generate_launch_description():
     # ~~~~~~~~~~~~
     navstate_kinematic_model_arg = DeclareLaunchArgument(
         "navstate_kinematic_model",
-        default_value="KinematicModel::ConstantVelocity",
-        description="[Smoother only] Kinematic model for internal motion model factors. Options: KinematicModel::ConstantVelocity, KinematicModel::Tricycle.")
+        default_value="",
+        description="[Smoother only] (Empty: the smoother parameters file default) Kinematic model for internal motion model factors. Options: KinematicModel::ConstantVelocity, KinematicModel::Tricycle.")
 
     navstate_sliding_window_sec_arg = DeclareLaunchArgument(
         "navstate_sliding_window_sec",
-        default_value="2.5",
-        description="[Smoother only] Time window to keep past observations in the filter [seconds].")
+        default_value="",
+        description="[Smoother only] (Empty: the smoother parameters file default) Time window to keep past observations in the filter [seconds].")
 
     navstate_sigma_random_walk_linacc_arg = DeclareLaunchArgument(
         "navstate_sigma_random_walk_linacc",
-        default_value="1.0",
-        description="[Smoother only] Random walk model for linear acceleration uncertainty [m/s²].")
+        default_value="",
+        description="[Smoother only] (Empty: the smoother parameters file default) Random walk model for linear acceleration uncertainty [m/s²].")
 
     navstate_sigma_random_walk_angacc_arg = DeclareLaunchArgument(
         "navstate_sigma_random_walk_angacc",
-        default_value="10.0",
-        description="[Smoother only] Random walk angular acceleration uncertainty [rad/s²].")
+        default_value="",
+        description="[Smoother only] (Empty: the smoother parameters file default) Random walk angular acceleration uncertainty [rad/s²].")
 
     navstate_imu_gravity_alignment_sigma_arg = DeclareLaunchArgument(
         "navstate_imu_gravity_alignment_sigma",
@@ -480,6 +480,18 @@ def generate_launch_description():
             'estimate_geo_reference').perform(context).strip()
         return [SetEnvironmentVariable(name='MOLA_ESTIMATE_GEO_REF', value=v)] if v else []
 
+    # Smoother arguments only override its parameters file when given:
+    def _apply_navstate_args(context, *args, **kwargs):
+        ret = []
+        for arg, var in [('navstate_kinematic_model', 'MOLA_NAVSTATE_KINEMATIC_MODEL'),
+                         ('navstate_sliding_window_sec', 'MOLA_NAVSTATE_SLIDING_WINDOW_SEC'),
+                         ('navstate_sigma_random_walk_linacc', 'MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC'),
+                         ('navstate_sigma_random_walk_angacc', 'MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC')]:
+            v = LaunchConfiguration(arg).perform(context).strip()
+            if v:
+                ret.append(SetEnvironmentVariable(name=var, value=v))
+        return ret
+
     # The gravity factor is disabled in localization-only mode unless set explicitly
     # (launch argument or MOLA_IMU_GRAVITY_ALIGNMENT_SIGMA in the environment):
     def _apply_imu_gravity_alignment_sigma(context, *args, **kwargs):
@@ -491,18 +503,14 @@ def generate_launch_description():
             v = '0'
         return [SetEnvironmentVariable(name='MOLA_IMU_GRAVITY_ALIGNMENT_SIGMA', value=v)]
 
-    # Environment variables that only apply if the smoother is active
+    # Environment variables that only apply if the smoother is active.
+    # Not scoped: a scoped group restores the environment when it ends, so these
+    # variables would never reach the mola-cli process.
     smoother_env_vars = GroupAction(
         condition=IfCondition(LaunchConfiguration('use_state_estimator')),
+        scoped=False,
         actions=[
-            SetEnvironmentVariable('MOLA_NAVSTATE_KINEMATIC_MODEL', LaunchConfiguration(
-                'navstate_kinematic_model')),
-            SetEnvironmentVariable('MOLA_NAVSTATE_SLIDING_WINDOW_SEC', LaunchConfiguration(
-                'navstate_sliding_window_sec')),
-            SetEnvironmentVariable('MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC', LaunchConfiguration(
-                'navstate_sigma_random_walk_linacc')),
-            SetEnvironmentVariable('MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC', LaunchConfiguration(
-                'navstate_sigma_random_walk_angacc')),
+            OpaqueFunction(function=_apply_navstate_args),
             OpaqueFunction(function=_apply_estimate_geo_ref),
             OpaqueFunction(function=_apply_imu_gravity_alignment_sigma),
         ]
