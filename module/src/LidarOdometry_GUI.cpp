@@ -1085,22 +1085,21 @@ void LidarOdometry::updateVisualizationTfTree(
 
   auto glTree = mrpt::viz::CSetOfObjects::Create();
 
-  if (vp.show_tf_tree && state_.transform_tree_source) {
+  const auto tfSource = state_.transform_tree_source.lock();
+  if (vp.show_tf_tree && tfSource) {
     // ALWAYS query from the robot body frame, whatever subtree is to be shown:
     // the returned poses are relative to the queried root, and the result is
     // drawn at the vehicle pose below, so querying from any other frame would
     // offset the whole tree by the (unknown here) body -> root transform.
     // tf_tree_root_frame then only selects which subtree of it to draw.
-    std::string queryRoot = state_.transform_tree_source->transform_tree_default_root();
+    std::string queryRoot = tfSource->transform_tree_default_root();
     if (queryRoot.empty()) {
       queryRoot = vp.tf_tree_root_frame;
     }
 
     // Query at the scan time, so the joints match the rendered cloud rather
     // than the wall clock (the source falls back to its latest data itself).
-    if (const auto tree =
-          state_.transform_tree_source->transform_tree(queryRoot, state_.last_obs_timestamp);
-        tree) {
+    if (const auto tree = tfSource->transform_tree(queryRoot, state_.last_obs_timestamp); tree) {
       const size_t n = renderTfTree(
         *tree, vp.tf_tree_root_frame, splitCommaSeparated(vp.tf_tree_exclude_frames),
         vp.tf_tree_corner_size, vp.tf_tree_show_links, vp.tf_tree_link_radius,
