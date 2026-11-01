@@ -99,112 +99,67 @@ icp_settings_with_vel:
         pointLayerMatches:
           - { global: "${MOLA_TSDF_LAYER_NAME|tsdf}", local: "decimated_for_icp" }
 
+# The imported point-map generator is kept, and the field is added after it:
 localmap_generator:
-  - class_name: mp2p_icp_filters::Generator
-    params:
-      target_layer: "${MOLA_LOCALMAP_LAYER_NAME|localmap}"
-      throw_on_unhandled_observation_class: true
-      process_class_names_regex: "" # NONE: don't process observations in the generator.
+  $append:
+    # Second local-map layer: the same truncated signed distance field described
+    # above, kept ALONGSIDE the shipped point map rather than in place of it.
+    # Both are updated from every keyframe and both are matched against the
+    # scan, so the Gauss-Newton solver sums a cov-to-cov block over the point
+    # map and a point-to-plane block over the field in one normal equation. The
+    # relative weight of the two blocks is `pair_weights.pt2pl` in the solver,
+    # NOT the per-layer `weight` key, which is a legacy no-op.
+    - class_name: mp2p_icp_filters::Generator
+      params:
+        target_layer: "${MOLA_TSDF_LAYER_NAME|tsdf}"
+        throw_on_unhandled_observation_class: true
+        process_class_names_regex: "" # NONE: don't process observations in the generator.
 
-      metric_map_definition:
-        class: ${MOLA_LOCALMAP_CLASS|mola::IncrementalPointCloud}
-        plugin: "libmola_metric_maps.so"
-        creationOpts:
-          k_correspondences_for_cov: ${MOLA_LOCALMAP_K_CORRESPONDENCES_FOR_COV|20}
-          min_correspondences_for_cov: ${MOLA_LOCALMAP_MIN_CORRESPONDENCES_FOR_COV|5}
-          max_distance_for_cov: ${MOLA_LOCALMAP_MAX_DISTANCE_FOR_COV|2.0}
-          max_plane_deviation_for_cov: ${MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV|0}
-          plane_regularization_lambda: ${MOLA_LOCALMAP_PLANE_REG_LAMBDA|0.001}
-          min_neighbors_to_cache_cov: ${MOLA_LOCALMAP_MIN_NEIGHBORS_TO_CACHE_COV|0}
-          remove_points_farther_than: "${MOLA_INCREMENTAL_MAP_MAX_SIZE|$f{max(100.0, 1.0*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
-          index_type: ${MOLA_INCREMENTAL_MAP_INDEX_TYPE|}
-          index_voxel_size: ${MOLA_INCREMENTAL_MAP_INDEX_VOXEL_SIZE|1.0} # [m]
-          async_rebuild: ${MOLA_INCREMENTAL_MAP_ASYNC_REBUILD|true}
-          alpha_balance: ${MOLA_INCREMENTAL_MAP_ALPHA_BALANCE|0.75}
-          alpha_deleted: ${MOLA_INCREMENTAL_MAP_ALPHA_DELETED|0.5}
-          reserve_points: ${MOLA_INCREMENTAL_MAP_RESERVE_POINTS|2000000}
-          min_distance_between_points: ${MOLA_INCREMENTAL_MAP_MIN_POINT_DISTANCE|0.05} # [m]
-          max_search_keyframes: ${MOLA_LOCALMAP_MAX_SEARCH_KEYFRAMES|3}
-          use_view_direction_filter: ${MOLA_LOCALMAP_USE_VIEW_DIRECTION_FILTER|true}
-          view_direction_filter: "${MOLA_LOCALMAP_VIEW_DIRECTION_FILTER|}"
-          max_view_angle_deg: ${MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG|120}
-          rotation_distance_weight: 2.0
-          num_diverse_keyframes: ${MOLA_LOCALMAP_DIVERSE_KEYFRAMES|1}
-          approximate_cov: ${MOLA_LOCALMAP_APPROXIMATE_COV|false}
-        insertOpts:
-          remove_frames_farther_than: "${MOLA_LOCAL_MAP_MAX_SIZE|$f{max(100.0, 1.50*ESTIMATED_OBSERVATION_RADIUS)}}" # [m]
-        likelihoodOpts: ~
-        renderOpts:
-          color.A: 0.25
-          colormap: "cmHOT"
-          recolorByPointField: ${MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE|intensity}
-          max_points_per_kf: ${MOLA_LOCALMAP_VIZ_MAX_POINTS_PER_KF|10000}
-          max_overall_points: ${MOLA_LOCALMAP_VIZ_MAX_POINTS_OVERALL|500000}
+        metric_map_definition:
+          class: mola::TSDF
+          plugin: "libmola_metric_maps.so"
+          creationOpts:
+            voxel_size: "${MOLA_TSDF_VOXEL_SIZE|0.30}" # [m]
+          insertOpts:
+            truncation_voxels: ${MOLA_TSDF_TRUNCATION_VOXELS|4.0}
+            ray_tube_voxels: ${MOLA_TSDF_RAY_TUBE_VOXELS|1.5}
+            tube_sigma_voxels: ${MOLA_TSDF_TUBE_SIGMA_VOXELS|0.25}
+            max_weight: ${MOLA_TSDF_MAX_WEIGHT|64.0}
+            min_weight_for_query: ${MOLA_TSDF_MIN_WEIGHT|0.05}
+            weight_by_range: ${MOLA_TSDF_WEIGHT_BY_RANGE|false}
+            weight_range_ref: ${MOLA_TSDF_WEIGHT_RANGE_REF|10.0}
+            weight_by_incidence: ${MOLA_TSDF_WEIGHT_BY_INCIDENCE|false}
+            remove_voxels_farther_than: ${MOLA_TSDF_MAP_EXTENT|60.0} # [m]
+            max_voxels: ${MOLA_TSDF_MAX_VOXELS|12000000}
+            # The point map above already answers from scan one, so the field
+            # could in principle start cold here. It is left on so this arm
+            # differs from a single-TSDF pipeline in the extra layer alone.
+            bootstrap_with_points: ${MOLA_TSDF_BOOTSTRAP|true}
+            bootstrap_min_scans: ${MOLA_TSDF_BOOTSTRAP_MIN_SCANS|10}
+            bootstrap_max_scans: ${MOLA_TSDF_BOOTSTRAP_MAX_SCANS|200}
+            bootstrap_field_ready_fraction: ${MOLA_TSDF_BOOTSTRAP_READY|0.9}
+            bootstrap_knn: ${MOLA_TSDF_BOOTSTRAP_KNN|10}
+            bootstrap_max_plane_deviation: ${MOLA_TSDF_BOOTSTRAP_MAX_DEV|0.5}
+          likelihoodOpts: ~
+          renderOpts:
+            point_size: ${MOLA_TSDF_POINT_SIZE|2.0}
+            # The surface is drawn where the field changes sign, interpolated
+            # between the two voxels, so it is not quantized to the grid.
+            # Colored by "z" or by "weight" (how much evidence backs it);
+            # cmNONE falls back to the uniform points_color.
+            colormap: ${MOLA_TSDF_COLORMAP|cmHOT}
+            recolorize_by: "${MOLA_TSDF_COLOR_BY|z}"
+            # Draws a shaded surface instead of points: much prettier, much
+            # slower. For figures and for a close look, not for a live run.
+            render_as_mesh: ${MOLA_TSDF_RENDER_AS_MESH|false}
 
-  # Second local-map layer: the same truncated signed distance field described
-  # above, kept ALONGSIDE the shipped point map rather than in place of it.
-  # Both are updated from every keyframe and both are matched against the
-  # scan, so the Gauss-Newton solver sums a cov-to-cov block over the point
-  # map and a point-to-plane block over the field in one normal equation. The
-  # relative weight of the two blocks is `pair_weights.pt2pl` in the solver,
-  # NOT the per-layer `weight` key, which is a legacy no-op.
-  - class_name: mp2p_icp_filters::Generator
-    params:
-      target_layer: "${MOLA_TSDF_LAYER_NAME|tsdf}"
-      throw_on_unhandled_observation_class: true
-      process_class_names_regex: "" # NONE: don't process observations in the generator.
-
-      metric_map_definition:
-        class: mola::TSDF
-        plugin: "libmola_metric_maps.so"
-        creationOpts:
-          voxel_size: "${MOLA_TSDF_VOXEL_SIZE|0.30}" # [m]
-        insertOpts:
-          truncation_voxels: ${MOLA_TSDF_TRUNCATION_VOXELS|4.0}
-          ray_tube_voxels: ${MOLA_TSDF_RAY_TUBE_VOXELS|1.5}
-          tube_sigma_voxels: ${MOLA_TSDF_TUBE_SIGMA_VOXELS|0.25}
-          max_weight: ${MOLA_TSDF_MAX_WEIGHT|64.0}
-          min_weight_for_query: ${MOLA_TSDF_MIN_WEIGHT|0.05}
-          weight_by_range: ${MOLA_TSDF_WEIGHT_BY_RANGE|false}
-          weight_range_ref: ${MOLA_TSDF_WEIGHT_RANGE_REF|10.0}
-          weight_by_incidence: ${MOLA_TSDF_WEIGHT_BY_INCIDENCE|false}
-          remove_voxels_farther_than: ${MOLA_TSDF_MAP_EXTENT|60.0} # [m]
-          max_voxels: ${MOLA_TSDF_MAX_VOXELS|12000000}
-          # The point map above already answers from scan one, so the field
-          # could in principle start cold here. It is left on so this arm
-          # differs from a single-TSDF pipeline in the extra layer alone.
-          bootstrap_with_points: ${MOLA_TSDF_BOOTSTRAP|true}
-          bootstrap_min_scans: ${MOLA_TSDF_BOOTSTRAP_MIN_SCANS|10}
-          bootstrap_max_scans: ${MOLA_TSDF_BOOTSTRAP_MAX_SCANS|200}
-          bootstrap_field_ready_fraction: ${MOLA_TSDF_BOOTSTRAP_READY|0.9}
-          bootstrap_knn: ${MOLA_TSDF_BOOTSTRAP_KNN|10}
-          bootstrap_max_plane_deviation: ${MOLA_TSDF_BOOTSTRAP_MAX_DEV|0.5}
-        likelihoodOpts: ~
-        renderOpts:
-          point_size: ${MOLA_TSDF_POINT_SIZE|2.0}
-          # The surface is drawn where the field changes sign, interpolated
-          # between the two voxels, so it is not quantized to the grid.
-          # Colored by "z" or by "weight" (how much evidence backs it);
-          # cmNONE falls back to the uniform points_color.
-          colormap: ${MOLA_TSDF_COLORMAP|cmHOT}
-          recolorize_by: "${MOLA_TSDF_COLOR_BY|z}"
-          # Draws a shaded surface instead of points: much prettier, much
-          # slower. For figures and for a close look, not for a live run.
-          render_as_mesh: ${MOLA_TSDF_RENDER_AS_MESH|false}
-
+# Same for the insertion of each keyframe into both layers:
 insert_observation_into_local_map:
-  - class_name: mp2p_icp_filters::FilterMerge
-    params:
-      name: "FilterMerge (map into localmap)"
-      input_pointcloud_layer: "decimated_for_map"
-      target_layer: "${MOLA_LOCALMAP_LAYER_NAME|localmap}"
-      input_layer_in_local_coordinates: true
-      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
-
-  - class_name: mp2p_icp_filters::FilterMerge
-    params:
-      name: "FilterMerge (map into tsdf)"
-      input_pointcloud_layer: "decimated_for_map"
-      target_layer: "${MOLA_TSDF_LAYER_NAME|tsdf}"
-      input_layer_in_local_coordinates: true
-      robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
+  $append:
+    - class_name: mp2p_icp_filters::FilterMerge
+      params:
+        name: "FilterMerge (map into tsdf)"
+        input_pointcloud_layer: "decimated_for_map"
+        target_layer: "${MOLA_TSDF_LAYER_NAME|tsdf}"
+        input_layer_in_local_coordinates: true
+        robot_pose: [robot_x, robot_y, robot_z, robot_yaw, robot_pitch, robot_roll]
