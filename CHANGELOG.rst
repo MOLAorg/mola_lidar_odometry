@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+3.4.0 (2026-11-01)
+------------------
 * Initial localization: global search around an uncertain state estimator pose, with z from the map ground and a minimum yaw range (MOLA_LO_INIT_GLOBAL_SEARCH_MIN_YAW)
 * Place the first keyframe at the initial localization pose; re-initialize from the state estimator after a bad first ICP
 * Post-relocalization: start ICP from the re-localized pose; relocalize_from_gnss() resets the state estimator first (`#193 <https://github.com/MOLAorg/mola_lidar_odometry/issues/193>`_)
