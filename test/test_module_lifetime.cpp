@@ -21,7 +21,6 @@
 #include <gtest/gtest.h>
 #include <mola_kernel/MinimalModuleContainer.h>
 #include <mola_kernel/interfaces/LocalizationSourceBase.h>
-#include <mola_kernel/interfaces/TransformTreeSource.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
 #include <mola_state_estimation_simple/StateEstimationSimple.h>
 #include <mola_yaml/yaml_helpers.h>
@@ -29,6 +28,8 @@
 
 #include <memory>
 
+// LidarOdometry.h defines it if mola_kernel provides TransformTreeSource.h:
+#if defined(MOLA_HAS_TRANSFORM_TREE_SOURCE)
 namespace mola
 {
 /** Like a ROS bridge: exposes a /tf tree and subscribes to every localization
@@ -93,3 +94,9 @@ TEST(ModuleLifetime, NoReferenceCycleWithTfSourceSubscriber)
   EXPECT_TRUE(weakLiodom.expired());
   EXPECT_TRUE(weakTfSource.expired());
 }
+#else
+TEST(ModuleLifetime, NoReferenceCycleWithTfSourceSubscriber)
+{
+  GTEST_SKIP() << "mola_kernel lacks mola::TransformTreeSource";
+}
+#endif
