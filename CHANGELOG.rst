@@ -2,6 +2,30 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Initial localization: global search around an uncertain state estimator pose, with z from the map ground and a minimum yaw range (MOLA_LO_INIT_GLOBAL_SEARCH_MIN_YAW)
+* Place the first keyframe at the initial localization pose; re-initialize from the state estimator after a bad first ICP
+* Post-relocalization: start ICP from the re-localized pose; relocalize_from_gnss() resets the state estimator first (`#193 <https://github.com/MOLAorg/mola_lidar_odometry/issues/193>`_)
+* GICP pipelines: IncrementalPointCloud (voxel hash index) is the default local map; index type and view-direction filter exposed in the pipelines
+* lidar3d-gicp-dual-tsdf: add the TSDF layer with $append (requires mola_yaml >= 3.3.3)
+* Optional attitude-only IMU, also stored into simplemap keyframes
+* New FoMo dataset profile
+* mola-lidar-odometry-cli: read dataset entries ahead on a background thread; cap TBB threads to physical cores; exit with an error after a fatal error
+* ROS 2 launch: smoother arguments reach mola-cli; publish_local_map argument; no IMU gravity factor in localization-only mode by default
+* Local map publishing: xyz (+intensity) only, off the state lock
+* Drop invalid input (IMU, GNSS) instead of stopping the odometry; discard queued scans after a fatal error
+* Fix a reference cycle with BridgeROS2 that kept modules alive after shutdown
+* Fix a deadlock when the state estimator publishes its geo-referencing; several thread safety fixes in reset(), map_save() and queued requests
+* ICP prior: convert the motion model prior and information to the solver tangent
+* De-skew in place; drop inserted points closer than 0.05 m to the incremental local map
+* GUI: option to hide back-facing points; trajectory cost no longer grows with its length
+* Online version check fixes; new MOLA_LO_DISABLE_VERSION_CHECK
+* Fix configure on Humble with CMake >= 3.27
+* New tests: headless launch runs, initial localization on a real dataset fragment, local map publishing, error and concurrency paths
+* Docs and CI updates
+* Contributors: Jose Luis Blanco-Claraco
+
 3.3.0 (2026-09-28)
 ------------------
 * viz: expose grid spacing as env var
