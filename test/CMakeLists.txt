@@ -42,6 +42,21 @@ if(mola_metric_maps_FOUND AND mola_state_estimation_simple_FOUND)
   )
 endif()
 
+# Test: no reference cycle between LO and a module that is both its /tf source
+# and a subscriber of it (as BridgeROS2 is), so both are freed with the system.
+# ------------------------------------------------------------------------------
+if(mola_metric_maps_FOUND AND mola_state_estimation_simple_FOUND)
+  ament_add_gtest(test_module_lifetime test_module_lifetime.cpp
+    ENV LO_PIPELINE_YAML=${mola_lidar_odometry_SOURCE_DIR}/pipelines/lidar3d-default.yaml
+    ENV LO_STATE_ESTIM_YAML=${mola_lidar_odometry_SOURCE_DIR}/state-estimator-params/state-estimation-simple.yaml
+    ENV MOLA_PROFILER=false
+  )
+  target_link_libraries(test_module_lifetime
+    mola::mola_state_estimation_simple
+    mola::mola_lidar_odometry
+  )
+endif()
+
 # Test: error and concurrency paths (empty scans, reset, optimize_twist, GNSS,
 # map saving) on synthetic data generated on the fly: no dataset needed.
 # ------------------------------------------------------------------------------

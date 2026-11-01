@@ -1542,7 +1542,10 @@ private:
     // Data source exposing a /tf tree (dataset reader or live ROS bridge), if
     // any is present in the running MOLA system. Optional: nullptr if none is
     // found, in which case the /tf tree visualization stays empty.
-    std::shared_ptr<mola::TransformTreeSource> transform_tree_source;
+    // Not owned: that module usually also holds this one (e.g. BridgeROS2
+    // subscribes to its localization and map), and owning it back would form a
+    // reference cycle keeping both alive, and running, after the system ends.
+    std::weak_ptr<mola::TransformTreeSource> transform_tree_source;
 #endif
 
     std::optional<NavState> last_motion_model_output;
