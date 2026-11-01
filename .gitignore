@@ -20,4 +20,5 @@ CMakeLists.txt.user
 **/.vscode
 .cache
 
-test/__pycache__
+__pycache__/
+*.pyc
