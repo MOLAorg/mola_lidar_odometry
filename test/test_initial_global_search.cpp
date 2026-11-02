@@ -154,6 +154,7 @@ struct Scenario
   bool withImu = true;
   bool globalSearch = true;
   double minHalfWidthXY = 3.0;
+  int maxInitialGuesses = 5000;
   double duration = 20.0;  // [s]
 };
 
@@ -173,6 +174,7 @@ Result localize(const Scenario & sc)
   set_env("MOLA_LO_INITIAL_LOCALIZATION_METHOD", "InitLocalization::FromStateEstimator");
   set_env("MOLA_LO_INIT_GLOBAL_SEARCH", sc.globalSearch ? "true" : "false");
   set_env("MOLA_LO_INIT_GLOBAL_SEARCH_MIN_XY", std::to_string(sc.minHalfWidthXY));
+  set_env("MOLA_LO_INIT_GLOBAL_SEARCH_MAX_GUESSES", std::to_string(sc.maxInitialGuesses));
   // Poses in the geo-referenced map frame, as for GNSS-aided localization:
   set_env("MOLA_LO_PUBLISH_REF_FRAME", "map");
   set_env("MOLA_LO_INIT_SE_MAX_POS_SIGMA", "0.5");
@@ -324,6 +326,16 @@ TEST_F(InitialGlobalSearch, BiasedGnssWithoutImu)
   sc.withImu = false;
   sc.truth = mrpt::poses::CPose3D::FromXYZYawPitchRoll(26.0, 12.0, 0, mrpt::DEG2RAD(-120.0), 0, 0);
   expect_localized(localize(sc), sc.truth);
+}
+
+// A search with more initial guesses than allowed is not run: LO must keep
+// waiting instead of reporting a pose.
+TEST_F(InitialGlobalSearch, TooLargeSearchIsNotRun)
+{
+  auto sc = hall_scenario();
+  sc.maxInitialGuesses = 10;  // +-3 m every 1 m: 49 initial guesses
+  sc.duration = 8.0;
+  EXPECT_FALSE(localize(sc).last.has_value());
 }
 
 // Identical rows, GNSS off by more than one row: the match is ambiguous, and

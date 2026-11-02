@@ -1048,6 +1048,11 @@ Initial localization
 - ``MOLA_LO_INIT_GLOBAL_SEARCH_RES_XY``, ``MOLA_LO_INIT_GLOBAL_SEARCH_RES_YAW`` (Default: ``1.0`` [m],
   ``30.0`` [deg]): Spacing of the initial guesses of the search.
 
+- ``MOLA_LO_INIT_GLOBAL_SEARCH_MAX_GUESSES`` (Default: ``5000``): A search with more initial guesses than this
+  (one ICP each) is not run, but retried later: a search cannot be interrupted by new scans. Each retry uses the
+  latest state estimator pose only if it gives a search no larger than the previous one (the estimator
+  uncertainty may grow a lot between measurements), or if it is out of the previous search region.
+
 - ``MOLA_LO_INIT_GLOBAL_SEARCH_MIN_QUALITY``, ``MOLA_LO_INIT_GLOBAL_SEARCH_MIN_MARGIN`` (Default: ``0.5``, ``0.1``):
   Minimum ICP quality of a match, and by how much the best match must beat any other distinct pose. Otherwise
   (e.g. identical crop rows), the search is retried later and no pose is reported.

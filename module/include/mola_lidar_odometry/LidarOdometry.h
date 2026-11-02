@@ -818,6 +818,11 @@ public:
         double resolution_xy = 1.0;        // [m]
         double resolution_yaw_deg = 30.0;  // [deg]
 
+        /// A search with more initial guesses than this (one ICP each) is
+        /// not run, but retried later, when the state estimator may be less
+        /// uncertain: a search can not be interrupted by new scans.
+        int max_initial_guesses = 5000;
+
         /// The z of the prior (e.g. a GNSS altitude, often meters off) is
         /// replaced by the one that puts the ground of the scan, below the
         /// vehicle, on the ground of the map, below the prior (x,y): the
