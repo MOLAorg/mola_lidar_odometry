@@ -28,8 +28,8 @@ mola_lo_profile_usage() {
   echo ""
   echo "Optional environment variables:"
   echo "  VBR_IMU   'sbg' (default, /imu/data) or 'ouster' (/ouster/imu)."
-  echo "  MOLA_GROUND_TRUTH_TUM_FILE  GT drawn by the GUI; defaults to the"
-  echo "            sequence directory's '*_gt.txt' (train sequences only)."
+  echo "  MOLA_GROUND_TRUTH_TUM_FILE  GT drawn by the GUI; defaults to"
+  echo "            '<seq>_gt.txt' next to the bags (train sequences only)."
 }
 
 mola_lo_profile_resolve() {
@@ -50,15 +50,6 @@ mola_lo_profile_resolve() {
         return 1
       fi
       bags+=("${found[@]}")
-      # Train sequences ship their ground truth next to the bags:
-      if [ -z "${MOLA_GROUND_TRUTH_TUM_FILE:-}" ]; then
-        local gt
-        gt=$(find "$arg" -maxdepth 1 -name '*_gt.txt' | head -n 1)
-        if [ -n "$gt" ]; then
-          MOLA_GROUND_TRUTH_TUM_FILE=$gt
-          export MOLA_GROUND_TRUTH_TUM_FILE
-        fi
-      fi
     elif [[ "$arg" == *.bag ]]; then
       bags+=("$arg")
     else
@@ -69,6 +60,25 @@ mola_lo_profile_resolve() {
   if [ "${#bags[@]}" -eq 0 ]; then
     mola_lo_profile_usage
     return 1
+  fi
+
+  # Train sequences ship their ground truth next to the bags, as
+  # <seq>_gt.txt, with <seq> taken from "<seq>_lio.bag" or "<seq>_NN.bag":
+  if [ -z "${MOLA_GROUND_TRUTH_TUM_FILE:-}" ]; then
+    local first_bag=${bags[0]}
+    local seq
+    seq=$(basename -- "$first_bag")
+    seq=${seq%.bag}
+    seq=${seq%_lio}
+    if [[ "$seq" =~ ^(.*)_[0-9][0-9]$ ]]; then
+      seq=${BASH_REMATCH[1]}
+    fi
+    local gt
+    gt="$(dirname -- "$first_bag")/${seq}_gt.txt"
+    if [ -f "$gt" ]; then
+      MOLA_GROUND_TRUTH_TUM_FILE=$gt
+      export MOLA_GROUND_TRUTH_TUM_FILE
+    fi
   fi
 
   : "${MOLA_LIDAR_TOPIC:=/ouster/points}"
