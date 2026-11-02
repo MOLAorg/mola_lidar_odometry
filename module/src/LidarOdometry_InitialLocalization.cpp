@@ -77,6 +77,37 @@ std::optional<double> ground_height(
   std::nth_element(zs.begin(), low, zs.end());
   return *low;
 }
+
+// Region searched around a prior with this covariance, and its number of
+// initial guesses, counted as mola::RelocalizationICP_SE2 builds its lattice.
+struct SearchRegion
+{
+  double half_xy = 0;   // [m]
+  double half_yaw = 0;  // [rad]
+  size_t initial_guesses = 0;
+};
+
+template <class GlobalSearchParams>
+SearchRegion search_region(const mrpt::math::CMatrixDouble66 & cov, const GlobalSearchParams & gs)
+{
+  SearchRegion r;
+  const double xySigma = std::sqrt(std::max(cov(0, 0), cov(1, 1)));
+  r.half_xy = std::clamp(gs.sigma_factor * xySigma, gs.min_half_width_xy, gs.max_half_width_xy);
+  const double yawRange =
+    std::max(gs.sigma_factor * std::sqrt(cov(3, 3)), mrpt::DEG2RAD(gs.min_half_width_yaw_deg));
+  r.half_yaw = yawRange > mrpt::DEG2RAD(gs.icp_basin_yaw_deg) ? std::min(yawRange, M_PI) : 0.0;
+
+  const auto nXY = static_cast<size_t>(std::floor(2 * r.half_xy / gs.resolution_xy + 1e-6)) + 1;
+  const double resYaw = mrpt::DEG2RAD(gs.resolution_yaw_deg);
+  size_t nYaw = 0;
+  if (2 * r.half_yaw >= 2 * M_PI - 1e-6) {
+    nYaw = static_cast<size_t>(std::ceil(2 * M_PI / resYaw - 1e-6));
+  } else {
+    nYaw = static_cast<size_t>(std::floor(2 * r.half_yaw / resYaw + 1e-6)) + 1;
+  }
+  r.initial_guesses = nXY * nXY * nYaw;
+  return r;
+}
 }  // namespace
 
 void LidarOdometry::handleInitialLocalizationDoInitFromPose(
@@ -473,20 +504,36 @@ void LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
   }
   state_.last_global_search_attempt = now;
 
-  // Search around the latest state estimator pose:
+  // Search around the latest state estimator pose, unless it is more
+  // uncertain than the prior already kept: the estimator covariance may grow
+  // a lot between measurements (e.g. extrapolated with an uncertain
+  // velocity), and a needlessly large search may take minutes.
+  auto region = search_region(state_.global_search_prior->cov, gs);
   if (mrpt::poses::CPose3DPDFGaussian latest;
       state_.navstate_fuse->has_converged_localization(latest)) {
-    state_.global_search_prior = latest;
+    if (const auto latestRegion = search_region(latest.cov, gs);
+        latestRegion.initial_guesses <= region.initial_guesses) {
+      state_.global_search_prior = latest;
+      region = latestRegion;
+    }
   }
   const auto & prior = *state_.global_search_prior;
-  const auto & cov = prior.cov;
-  const double xySigma = std::sqrt(std::max(cov(0, 0), cov(1, 1)));
-  const double halfXY =
-    std::clamp(gs.sigma_factor * xySigma, gs.min_half_width_xy, gs.max_half_width_xy);
-  const double yawRange =
-    std::max(gs.sigma_factor * std::sqrt(cov(3, 3)), mrpt::DEG2RAD(gs.min_half_width_yaw_deg));
-  const double halfYaw =
-    yawRange > mrpt::DEG2RAD(gs.icp_basin_yaw_deg) ? std::min(yawRange, M_PI) : 0.0;
+  const double halfXY = region.half_xy;
+  const double halfYaw = region.half_yaw;
+
+  // The search can not be interrupted by new scans: do not start one that
+  // would take too long.
+  if (region.initial_guesses > static_cast<size_t>(gs.max_initial_guesses)) {
+    MRPT_LOG_WARN_FMT(
+      "Global search around %s (+-%.2f m, +-%.1f deg) would need %zu initial guesses "
+      "(max_initial_guesses=%d): waiting for a less uncertain state estimator pose.",
+      prior.mean.asString().c_str(), halfXY, mrpt::RAD2DEG(halfYaw), region.initial_guesses,
+      gs.max_initial_guesses);
+    return;
+  }
+  MRPT_LOG_INFO_FMT(
+    "Global search around %s (+-%.2f m, +-%.1f deg): starting, %zu initial guesses...",
+    prior.mean.asString().c_str(), halfXY, mrpt::RAD2DEG(halfYaw), region.initial_guesses);
 
   mola::RelocalizationICP_SE2::Input in;
   in.reference_map = *state_.local_map;
@@ -532,7 +579,22 @@ void LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
     }
   }
 
+#if defined(MOLA_RELOCALIZATION_HAS_ABORT)
+  // Stop at shutdown, instead of keeping the process alive until the end:
+  in.abort_requested = [this]() {
+    auto lck = mrpt::lockHelper(is_busy_mtx_);
+    return destructor_called_;
+  };
+#endif
+
   const auto out = mola::RelocalizationICP_SE2::run(in);
+
+#if defined(MOLA_RELOCALIZATION_HAS_ABORT)
+  if (out.aborted) {
+    MRPT_LOG_INFO_FMT("Global search: aborted after %.2f s.", out.time_cost);
+    return;
+  }
+#endif
 
   mola::CandidateSelectionParameters sp;
   sp.same_mode_max_distance = gs.same_mode_max_distance;

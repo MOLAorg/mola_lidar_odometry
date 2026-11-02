@@ -307,7 +307,10 @@ from a lattice of initial guesses around it (`mola::RelocalizationICP_SE2`,
 yaw too if uncertain, e.g. no IMU), see `doGlobalSearchForInitialPose()`. Only
 an unambiguous best match (`mola::select_relocalization_candidate()`) is
 accepted, and then it resets the state estimator to it; otherwise LO reports
-nothing and retries every `retry_period`. The search ICP is its own instance of
+nothing and retries every `retry_period`, around the latest estimator pose
+only if its search is not larger (`search_region()`: the estimator covariance
+can blow up between measurements). Searches over `max_initial_guesses` are not
+started, and shutdown aborts a running one (`MOLA_RELOCALIZATION_HAS_ABORT`). The search ICP is its own instance of
 the `icp_settings_without_vel` pipeline with its own `ParameterSource` (an ICP
 writes `ICP_ITERATION` into its source), and runs sequentially:
 `KeyframePointCloudMap` prepares one search submap per ICP run. Tested in

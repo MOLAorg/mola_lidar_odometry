@@ -365,6 +365,7 @@ void LidarOdometry::Parameters::InitialLocalizationOptions::GlobalSearch::initia
   YAML_LOAD_OPT(max_position_sigma, double);
   YAML_LOAD_OPT(resolution_xy, double);
   YAML_LOAD_OPT(resolution_yaw_deg, double);
+  YAML_LOAD_OPT(max_initial_guesses, int);
   YAML_LOAD_OPT(z_from_map_radius, double);
   ASSERT_GE_(z_from_map_radius, 0.0);
   YAML_LOAD_OPT(icp_threshold, double);
@@ -377,6 +378,7 @@ void LidarOdometry::Parameters::InitialLocalizationOptions::GlobalSearch::initia
 
   ASSERT_GT_(resolution_xy, 0);
   ASSERT_GT_(resolution_yaw_deg, 0);
+  ASSERT_GT_(max_initial_guesses, 0);
   ASSERT_LE_(min_half_width_xy, max_half_width_xy);
   ASSERT_GE_(min_half_width_yaw_deg, 0.0);
 }
