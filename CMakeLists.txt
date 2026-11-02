@@ -280,6 +280,7 @@ set(MOLA_LO_DATASET_WRAPPERS
     rawlog
     rosbag1
     rosbag2
+    vbr
     # TIERS records five lidars at once, so it gets one wrapper per sensor
     # rather than one that silently picks a winner:
     tiers-ouster-os0

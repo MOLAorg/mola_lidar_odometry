@@ -123,6 +123,12 @@ Check: `grep -rn MOLA_NEW_VAR` over both repos must hit every place above.
   no LiDAR in its bags. Note the IMU here reads gravity along -Z, i.e. it is
   mounted upside down; that is the rig, confirmed against both the dataset's
   own extrinsics and its ground-truth attitude, not a frame error.
+- **vbr** (Vision Benchmark in Rome) takes a sequence directory (preferring a
+  merged `*_lio.bag`, else the upstream `<seq>_NN.bag` chunks) or bag files.
+  No `/tf` in the bags: every pose is fixed from `vbr_calib.yaml`, identical
+  for the hand-held (OS0-128) and car (OS1-64) sequences. `base_link` is the
+  LiDAR, the ground-truth frame. `VBR_IMU=sbg|ouster` picks `/imu/data`
+  (default, 0.61 m below the LiDAR) or the Ouster's own IMU.
 - **grandtour** publishes one bag per topic, so the profile takes a *mission
   directory* (or one of its `*_<lidar>_undist.bag` files) and resolves the
   siblings by the `<mission>_<topic>.bag` naming. The robot carries three
