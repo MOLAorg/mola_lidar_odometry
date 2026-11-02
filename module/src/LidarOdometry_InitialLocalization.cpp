@@ -516,8 +516,10 @@ void LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
     const auto latestRegion = search_region(latest.cov, gs);
     const auto keptMean = state_.global_search_prior->mean.asTPose();
     const auto latestMean = latest.mean.asTPose();
-    const bool outsideKept = std::hypot(latestMean.x - keptMean.x, latestMean.y - keptMean.y) >
-                               std::max(region.half_xy, gs.icp_basin_xy) ||
+    // The searched XY region is a square:
+    const double keptHalfXY = std::max(region.half_xy, gs.icp_basin_xy);
+    const bool outsideKept = std::abs(latestMean.x - keptMean.x) > keptHalfXY ||
+                             std::abs(latestMean.y - keptMean.y) > keptHalfXY ||
                              std::abs(mrpt::math::wrapToPi(latestMean.yaw - keptMean.yaw)) >
                                std::max(region.half_yaw, mrpt::DEG2RAD(gs.icp_basin_yaw_deg));
     if (latestRegion.initial_guesses <= region.initial_guesses || outsideKept) {
@@ -602,6 +604,11 @@ void LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
     return;
   }
 #endif
+
+  // Shutdown may also have started during the last ICP runs: skip refining.
+  if (shutdown_cleanup_done_.load()) {
+    return;
+  }
 
   mola::CandidateSelectionParameters sp;
   sp.same_mode_max_distance = gs.same_mode_max_distance;
