@@ -309,7 +309,7 @@ an unambiguous best match (`mola::select_relocalization_candidate()`) is
 accepted, and then it resets the state estimator to it; otherwise LO reports
 nothing and retries every `retry_period`, around the latest estimator pose
 only if its search is not larger (`search_region()`: the estimator covariance
-can blow up between measurements). Searches over `max_initial_guesses` are not
+can blow up between measurements), or if its mean left the kept region. Searches over `max_initial_guesses` are not
 started, and shutdown aborts a running one (`MOLA_RELOCALIZATION_HAS_ABORT`). The search ICP is its own instance of
 the `icp_settings_without_vel` pipeline with its own `ParameterSource` (an ICP
 writes `ICP_ITERATION` into its source), and runs sequentially:

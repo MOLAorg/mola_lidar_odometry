@@ -28,6 +28,7 @@
 #endif
 
 #include <mrpt/maps/CPointsMap.h>
+#include <mrpt/math/wrap2pi.h>
 #include <mrpt/poses/CPose3D.h>
 
 #include <algorithm>
@@ -505,14 +506,21 @@ void LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
   state_.last_global_search_attempt = now;
 
   // Search around the latest state estimator pose, unless it is more
-  // uncertain than the prior already kept: the estimator covariance may grow
-  // a lot between measurements (e.g. extrapolated with an uncertain
-  // velocity), and a needlessly large search may take minutes.
+  // uncertain than the prior already kept (the estimator covariance may grow
+  // a lot between measurements, e.g. extrapolated with an uncertain velocity,
+  // and a needlessly large search may take minutes) while its mean is still
+  // within the region of the kept one (otherwise that one is stale).
   auto region = search_region(state_.global_search_prior->cov, gs);
   if (mrpt::poses::CPose3DPDFGaussian latest;
       state_.navstate_fuse->has_converged_localization(latest)) {
-    if (const auto latestRegion = search_region(latest.cov, gs);
-        latestRegion.initial_guesses <= region.initial_guesses) {
+    const auto latestRegion = search_region(latest.cov, gs);
+    const auto keptMean = state_.global_search_prior->mean.asTPose();
+    const auto latestMean = latest.mean.asTPose();
+    const bool outsideKept = std::hypot(latestMean.x - keptMean.x, latestMean.y - keptMean.y) >
+                               std::max(region.half_xy, gs.icp_basin_xy) ||
+                             std::abs(mrpt::math::wrapToPi(latestMean.yaw - keptMean.yaw)) >
+                               std::max(region.half_yaw, mrpt::DEG2RAD(gs.icp_basin_yaw_deg));
+    if (latestRegion.initial_guesses <= region.initial_guesses || outsideKept) {
       state_.global_search_prior = latest;
       region = latestRegion;
     }
