@@ -55,7 +55,7 @@ initial_localization:
     resolution_xy: "${MOLA_LO_INIT_GLOBAL_SEARCH_RES_XY|1.0}"
     resolution_yaw_deg: "${MOLA_LO_INIT_GLOBAL_SEARCH_RES_YAW|30.0}"
     # Searches with more initial guesses (one ICP each) are retried later instead:
-    max_initial_guesses: "${MOLA_LO_INIT_GLOBAL_SEARCH_MAX_GUESSES|2000}"
+    max_initial_guesses: "${MOLA_LO_INIT_GLOBAL_SEARCH_MAX_GUESSES|5000}"
     # z from the ground of the map below the prior (x,y), not from the prior
     # itself (e.g. a GNSS altitude). 0: keep the prior z.
     z_from_map_radius: "${MOLA_LO_INIT_GLOBAL_SEARCH_Z_FROM_MAP_RADIUS|5.0}"

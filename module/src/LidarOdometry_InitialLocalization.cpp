@@ -580,11 +580,10 @@ void LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
   }
 
 #if defined(MOLA_RELOCALIZATION_HAS_ABORT)
-  // Stop at shutdown, instead of keeping the process alive until the end:
-  in.abort_requested = [this]() {
-    auto lck = mrpt::lockHelper(is_busy_mtx_);
-    return destructor_called_;
-  };
+  // Stop at shutdown, instead of keeping the process alive until the end.
+  // Not destructor_called_: shutdownCleanup() first waits for the pending
+  // scans, queued behind this one, and only then sets it.
+  in.abort_requested = [this]() { return shutdown_cleanup_done_.load(); };
 #endif
 
   const auto out = mola::RelocalizationICP_SE2::run(in);

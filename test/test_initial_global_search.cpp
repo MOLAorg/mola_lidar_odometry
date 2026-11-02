@@ -154,7 +154,7 @@ struct Scenario
   bool withImu = true;
   bool globalSearch = true;
   double minHalfWidthXY = 3.0;
-  int maxInitialGuesses = 2000;
+  int maxInitialGuesses = 5000;
   double duration = 20.0;  // [s]
 };
 
