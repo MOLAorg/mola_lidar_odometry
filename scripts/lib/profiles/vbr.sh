@@ -69,8 +69,9 @@ mola_lo_profile_resolve() {
     local seq
     seq=$(basename -- "$first_bag")
     seq=${seq%.bag}
-    seq=${seq%_lio}
-    if [[ "$seq" =~ ^(.*)_[0-9][0-9]$ ]]; then
+    if [[ "$seq" == *_lio ]]; then
+      seq=${seq%_lio}
+    elif [[ "$seq" =~ ^(.*)_[0-9][0-9]$ ]]; then
       seq=${BASH_REMATCH[1]}
     fi
     local gt
