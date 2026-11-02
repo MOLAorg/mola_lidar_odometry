@@ -519,7 +519,8 @@ namespace
 {
 void doRecolorize(
   const mrpt::img::TColormap & colormap, const std::string & colorByField,
-  const mrpt::maps::CPointsMap * org_cloud, const mrpt::viz::CPointCloudColoured::Ptr & cloud)
+  const mrpt::maps::CPointsMap * org_cloud, const mrpt::viz::CPointCloudColoured::Ptr & cloud,
+  float outliersPercentile)
 {
   if (colormap == mrpt::img::TColormap::cmNONE) {
     return;
@@ -529,6 +530,13 @@ void doRecolorize(
   mrpt::obs::PointCloudRecoloringParameters rp;
   rp.colorMap = colormap;
   rp.colorizeByField = colorByField;
+#if MRPT_VERSION >= 0x020f0d
+  if (outliersPercentile > 0) {
+    rp.outlierRejectionPercentile = outliersPercentile;
+  }
+#else
+  (void)outliersPercentile;
+#endif
 
   mrpt::obs::recolorize3Dpc(cloud, org_cloud, rp);
 };
@@ -905,6 +913,7 @@ void LidarOdometry::updateVisualizationCurrentObservation(
   const float decayPointSize = params_.visualization.last_deskewed_observations_point_size;
   const float decayAlpha = params_.visualization.observations_initial_alpha;
   const double decaySeconds = params_.visualization.observations_decay_seconds;
+  const float colorOutliersPct = params_.visualization.colormap_outliers_percentile;
 
   const bool hideBackFacing = params_.visualization.hide_back_facing_points;
   const float backFacingNormals_deg = params_.visualization.back_facing_max_angle_normals_deg;
@@ -942,7 +951,7 @@ void LidarOdometry::updateVisualizationCurrentObservation(
 
       if (auto cloud = glCurrentObs->getByClass<mrpt::viz::CPointCloudColoured>(0); cloud) {
         const auto orgCloud = mm.point_layer("raw");
-        doRecolorize(curObsColormap, curObsColorField, orgCloud.get(), cloud);
+        doRecolorize(curObsColormap, curObsColorField, orgCloud.get(), cloud, colorOutliersPct);
       }
 
       vizUpsert3D(viz, "liodom/cur_obs", glCurrentObs, vizFrame);
@@ -969,7 +978,7 @@ void LidarOdometry::updateVisualizationCurrentObservation(
 
       if (auto cloud = glDecayObs->getByClass<mrpt::viz::CPointCloudColoured>(0); cloud) {
         cloud->setPose(currentPose);
-        doRecolorize(decayColormap, decayColorField, deskewed.get(), cloud);
+        doRecolorize(decayColormap, decayColorField, deskewed.get(), cloud, colorOutliersPct);
 
 #if defined(MOLA_KERNEL_VIZ_HAS_MOVABLE_FRAMES)
         viz->insert_point_cloud_with_decay(cloud, decaySeconds, "main", "main", vizFrame);
@@ -1014,6 +1023,14 @@ void LidarOdometry::updateVisualizationLocalMap()
     auto & cm = rp.points.allLayers.colorMode.emplace();
     cm.colorMap = params_.visualization.local_map_colormap;
     cm.recolorizeByField = params_.visualization.local_map_colormap_color_by_field;
+    if (const auto & v = params_.visualization;
+        v.local_map_colormap_min && v.local_map_colormap_max &&
+        *v.local_map_colormap_min < *v.local_map_colormap_max) {
+      cm.colorMapMinCoord = *v.local_map_colormap_min;
+      cm.colorMapMaxCoord = *v.local_map_colormap_max;
+    } else if (v.colormap_outliers_percentile > 0) {
+      cm.autoBoundingBoxOutliersPercentile = v.colormap_outliers_percentile;
+    }
 
     rp.points.allLayers.render_voxelmaps_free_space =
       params_.visualization.local_map_render_voxelmap_free_space;

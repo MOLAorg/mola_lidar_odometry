@@ -51,6 +51,14 @@ params:
     # renderOpts.recolorByPointField, which reads the same variable.
     # Besides any field name, `rgb` uses the per-point color_{r,g,b} fields.
     local_map_colormap_color_by_field: ${MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE|intensity}
+    # Fraction of points at each end of the colored field left out of the
+    # colormap range (local map and observations), so a few outliers do not
+    # squeeze all points into one color. 0: full range.
+    colormap_outliers_percentile: ${MOLA_GUI_COLOR_OUTLIERS_PERCENTILE|0.05}
+    # Fixed colormap limits for the local map (e.g. a z range in meters).
+    # Both empty (default): the automatic range above.
+    local_map_colormap_min: "${MOLA_GUI_LOCAL_MAP_COLOR_MIN|}"
+    local_map_colormap_max: "${MOLA_GUI_LOCAL_MAP_COLOR_MAX|}"
 
     show_ground_grid: ${MOLA_GUI_SHOW_GROUND_GRID|true}
     ground_grid_spacing: ${MOLA_GUI_GROUND_GRID_SPACING|5.0} # [m]

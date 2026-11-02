@@ -153,6 +153,13 @@ void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
 
   MCP_LOAD_OPT(cfg, local_map_colormap);
   MCP_LOAD_OPT(cfg, local_map_colormap_color_by_field);
+  MCP_LOAD_OPT(cfg, colormap_outliers_percentile);
+  if (const auto mn = cfg.getOrDefault<std::string>("local_map_colormap_min", ""); !mn.empty()) {
+    local_map_colormap_min = std::stof(mn);
+  }
+  if (const auto mx = cfg.getOrDefault<std::string>("local_map_colormap_max", ""); !mx.empty()) {
+    local_map_colormap_max = std::stof(mx);
+  }
 
   YAML_LOAD_OPT(gui_subwindow_starts_hidden, bool);
   YAML_LOAD_OPT(show_tab_status, bool);
