@@ -81,6 +81,8 @@ modules:
       start_paused: ${MOLA_DATASET_START_PAUSED|false}
 
       base_link_frame_id: "${MOLA_TF_BASE_LINK|base_link}"
+      # Optional ground-truth trajectory (TUM format), drawn by the GUI:
+      ground_truth_tum_file: "${MOLA_GROUND_TRUTH_TUM_FILE|}"
 
       # Note: /tf and /tf_static topic names are fixed in Rosbag1Dataset.
       # All /tf_static transforms are pre-scanned at startup so sensor poses

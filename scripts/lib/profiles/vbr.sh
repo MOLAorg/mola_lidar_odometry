@@ -28,6 +28,8 @@ mola_lo_profile_usage() {
   echo ""
   echo "Optional environment variables:"
   echo "  VBR_IMU   'sbg' (default, /imu/data) or 'ouster' (/ouster/imu)."
+  echo "  MOLA_GROUND_TRUTH_TUM_FILE  GT drawn by the GUI; defaults to the"
+  echo "            sequence directory's '*_gt.txt' (train sequences only)."
 }
 
 mola_lo_profile_resolve() {
@@ -48,6 +50,15 @@ mola_lo_profile_resolve() {
         return 1
       fi
       bags+=("${found[@]}")
+      # Train sequences ship their ground truth next to the bags:
+      if [ -z "${MOLA_GROUND_TRUTH_TUM_FILE:-}" ]; then
+        local gt
+        gt=$(find "$arg" -maxdepth 1 -name '*_gt.txt' | head -n 1)
+        if [ -n "$gt" ]; then
+          MOLA_GROUND_TRUTH_TUM_FILE=$gt
+          export MOLA_GROUND_TRUTH_TUM_FILE
+        fi
+      fi
     elif [[ "$arg" == *.bag ]]; then
       bags+=("$arg")
     else
