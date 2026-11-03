@@ -1267,6 +1267,14 @@ int main_odometry(Cli & cli)
 
   mrpt::keep_min(lastDatasetEntry, dataset->datasetSize());
 
+  // A skip past the end would otherwise run zero steps and exit successfully
+  // with an empty trajectory.
+  ASSERTMSG_(
+    firstDatasetEntry < dataset->datasetSize(),
+    mrpt::format(
+      "--skip-first-n=%zu is not below the dataset size (%zu entries)", firstDatasetEntry,
+      dataset->datasetSize()));
+
   // Progress bar verbosity: unset => print on (almost) every entry (legacy
   // behavior); 0 => fully disabled; >0 => only every that many percent
   // (useful to cut down log spam in batch/CI runs, e.g. Jenkins).
