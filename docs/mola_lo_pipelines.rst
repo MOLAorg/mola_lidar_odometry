@@ -588,6 +588,15 @@ Sensor inputs: LiDAR
 - ``MOLA_ABS_MIN_SENSOR_RANGE`` (Default: ``5.0`` [m]): Absolute minimum for the otherwise
   automatically detected observation radius (see ``ESTIMATED_OBSERVATION_RADIUS``).
 
+- ``MOLA_SCENE_SCALE_QUANTILE`` (Default: ``0.5``): Quantile of the per-point ranges published to the
+  pipeline as ``ESTIMATED_SCENE_SCALE`` (low-passed) and ``INSTANTANEOUS_SCENE_SCALE``. Unlike
+  ``ESTIMATED_OBSERVATION_RADIUS``, which follows the farthest returns, this follows the bulk of the
+  scan, so a stairwell or corridor reads a few meters and an open street tens of meters. Intended for
+  parameters that should follow the scene, such as decimation voxels and point budgets. ``0`` disables it.
+
+- ``MOLA_SCENE_SCALE_FILTER_COEFFICIENT`` (Default: ``0.9``): Low-pass coefficient of ``ESTIMATED_SCENE_SCALE``,
+  per scan.
+
 - ``MOLA_MINIMUM_RANGE_FILTER`` (Default: 3% of the estimated observation radius): Minimum range
   (L-infinity cube around ``base_link``) for 3D points used by ICP; intended to cut out points coming from
   the robot/vehicle body itself or a person standing right next to it.

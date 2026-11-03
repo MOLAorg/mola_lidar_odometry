@@ -170,6 +170,12 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
                               ? *state_.instantaneous_observation_radius
                               : 20.0 /*default, only used once*/;
   state_.parameter_source.updateVariable("INSTANTANEOUS_OBSERVATION_RADIUS", instRadius);
+  if (state_.estimated_scene_scale) {
+    state_.parameter_source.updateVariable("ESTIMATED_SCENE_SCALE", *state_.estimated_scene_scale);
+    state_.parameter_source.updateVariable(
+      "INSTANTANEOUS_SCENE_SCALE",
+      state_.instantaneous_scene_scale.value_or(*state_.estimated_scene_scale));
+  }
   // Deprecated alias, see comment above.
   state_.parameter_source.updateVariable("INSTANTANEOUS_SENSOR_MAX_RANGE", instRadius);
 
@@ -311,6 +317,14 @@ void LidarOdometry::doInitializeEstimatedObservationRadius(const mrpt::obs::CObs
   MRPT_LOG_DEBUG_STREAM(
     "Estimated observation radius=" << *state_.estimated_observation_radius
                                     << " (instantaneous=" << radius << ")");
+  if (params_.scene_scale_quantile > 0) {
+    const double scale = observationRadiusQuantile(
+      *pts, params_.scene_scale_quantile, params_.observation_radius_quantile_max_samples);
+    if (std::isnormal(scale)) {
+      state_.estimated_scene_scale = scale;
+      state_.instantaneous_scene_scale = scale;
+    }
+  }
 }
 
 bool LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_map_t & m)
@@ -350,6 +364,17 @@ bool LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_ma
 
     // low-pass filter update:
     maxRange = (maxRange.value() * ALPHA) + (radius * (1.0 - ALPHA));
+    if (params_.scene_scale_quantile > 0) {
+      const double scale = observationRadiusQuantile(
+        *pts, params_.scene_scale_quantile, params_.observation_radius_quantile_max_samples);
+      if (std::isnormal(scale)) {
+        state_.instantaneous_scene_scale = scale;
+        const double B = params_.scene_scale_filter_coefficient;
+        state_.estimated_scene_scale = state_.estimated_scene_scale
+                                         ? (*state_.estimated_scene_scale * B) + (scale * (1.0 - B))
+                                         : scale;
+      }
+    }
 
     MRPT_LOG_DEBUG_STREAM(
       "Estimated observation radius=" << *state_.estimated_observation_radius

@@ -586,6 +586,15 @@ layer yields a radius, `processLidarScan()` now updates it from the raw scan
 instead; behavior is unchanged whenever any filtered layer has points.
 
 
+## `ESTIMATED_SCENE_SCALE` is the confinement measure, not the radius
+
+The observation radius follows the farthest returns (one far return through a
+doorway keeps it at 60-160 m inside a stairwell), so it cannot tell a confined
+scene from an open one. `ESTIMATED_SCENE_SCALE` is a range quantile of the same
+scan (`scene_scale_quantile`, default the median; `0` disables it), low-passed
+with its own coefficient so it follows a doorway within a few scans. Both are
+published to the pipeline expressions; the far cutoff keeps using the radius.
+
 ## Local-map locking: `state_mtx_` vs `local_map_content_mtx_`
 
 Rendering the local map is O(map size) and must not run on the LiDAR worker

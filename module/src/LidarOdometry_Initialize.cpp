@@ -211,6 +211,12 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     YAML_LOAD_OPT(params_, observation_radius_quantile_max_samples, uint32_t);
     ASSERT_GT_(params_.observation_radius_quantile, 0.0);
     ASSERT_LE_(params_.observation_radius_quantile, 1.0);
+    YAML_LOAD_OPT(params_, scene_scale_quantile, double);
+    YAML_LOAD_OPT(params_, scene_scale_filter_coefficient, double);
+    ASSERT_GE_(params_.scene_scale_quantile, 0.0);
+    ASSERT_LT_(params_.scene_scale_quantile, 1.0);
+    ASSERT_GE_(params_.scene_scale_filter_coefficient, 0.0);
+    ASSERT_LT_(params_.scene_scale_filter_coefficient, 1.0);
     YAML_LOAD_OPT(params_, start_active, bool);
 
     YAML_LOAD_OPT(params_, max_lidar_queue_before_drop, uint32_t);

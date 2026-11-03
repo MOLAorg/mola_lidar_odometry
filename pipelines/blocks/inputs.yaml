@@ -47,3 +47,10 @@ params:
   # scale for the six parameters derived from it. Default unchanged;
   # exposed so the robust alternative can be measured.
   observation_radius_quantile: ${MOLA_OBSERVATION_RADIUS_QUANTILE|1.0}
+  # Quantile of the per-point norms published as ESTIMATED_SCENE_SCALE (and
+  # INSTANTANEOUS_SCENE_SCALE): the bulk of the scan rather than its farthest
+  # return, so a stairwell reads a couple of meters and a street tens. For
+  # parameters that should follow the scene (decimation voxels, point
+  # budgets). 0 disables it.
+  scene_scale_quantile: ${MOLA_SCENE_SCALE_QUANTILE|0.5}
+  scene_scale_filter_coefficient: ${MOLA_SCENE_SCALE_FILTER_COEFFICIENT|0.9}

@@ -263,6 +263,20 @@ public:
     double observation_radius_filter_coefficient = 0.999;
     double absolute_minimum_observation_radius = 5.0;  // [m]
 
+    /** Quantile of the per-point norms published as ESTIMATED_SCENE_SCALE, in
+     * (0, 1). Unlike the observation radius, which follows the farthest
+     * returns, this follows the bulk of the scan and so tells a confined space
+     * (stairwell, corridor: a few meters) from an open one (tens of meters),
+     * for pipeline parameters that should follow the scene, like decimation
+     * voxels and point budgets. 0 disables it.
+     */
+    double scene_scale_quantile = 0.5;
+
+    /** Low-pass filter alpha for the EMA of ESTIMATED_SCENE_SCALE. Lower than
+     * the observation radius one: the scene scale has to follow a doorway
+     * within a few scans. */
+    double scene_scale_filter_coefficient = 0.9;
+
     /** Quantile of the per-point norms used as ESTIMATED_OBSERVATION_RADIUS,
      * in (0, 1]. **1.0 means the bounding-box max-norm**, which is what this
      * estimate has always been and remains the default.
@@ -1594,6 +1608,8 @@ private:
     // base_link, not from the sensor; see ESTIMATED_OBSERVATION_RADIUS docs):
     std::optional<double> estimated_observation_radius;
     std::optional<double> instantaneous_observation_radius;
+    std::optional<double> estimated_scene_scale;
+    std::optional<double> instantaneous_scene_scale;
 
     /// Invocations are protected by imu_state_mtx_: apply_generators() on an
     /// IMU observation appends to parameter_source.localVelocityBuffer.
