@@ -1092,6 +1092,14 @@ Visualization
      colorize the local map in the GUI (e.g. ``x``, ``y``, ``z``, ``ring``, ``intensity``).
    - All the ``*_COLOR_FIELD`` variables and ``MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE`` also accept ``rgb``,
      to show the per-point ``color_r/g/b`` fields of RGB LiDARs (e.g. Ouster Rev8 "-RGB" models) instead of a colormap.
+   - ``MOLA_GUI_COLOR_OUTLIERS_PERCENTILE`` (Default: ``0.05``): Fraction of points at each end of the colored
+     field left out of the colormap range, in the local map and the observation clouds. Heavy-tailed fields
+     (``intensity``, ``reflectivity``: a few retroreflector returns) otherwise squeeze almost all points into one
+     color; ``0.10`` suits Ouster ``reflectivity``. ``0``: the full range.
+   - ``MOLA_GUI_LOCAL_MAP_COLOR_MIN`` / ``MOLA_GUI_LOCAL_MAP_COLOR_MAX`` (Default: empty): Fixed colormap limits for the
+     local map (e.g. a ``z`` range in meters), instead of the automatic one.
+   - Local maps that render themselves (e.g. ``mola::KeyframePointCloudMap``) ignore the local map colormap options
+     above and use their own render options.
 
 
 Motion model

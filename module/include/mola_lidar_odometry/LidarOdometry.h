@@ -496,6 +496,15 @@ public:
       /// Can be any pointcloud field name. Will change to "z" for simple XYZ clouds.
       std::string local_map_colormap_color_by_field = "intensity";
 
+      /// Fraction of points at each end of the colored field (e.g. intensity,
+      /// z) left out of the colormap range, in the local map and the
+      /// observation clouds: a few outliers (retroreflectors, tree tops)
+      /// would otherwise squeeze almost all points into one color. 0: full range.
+      float colormap_outliers_percentile = 0.05f;
+      /// Fixed colormap limits for the local map (e.g. a z range). If both are
+      /// set (min < max), they replace the automatic range above.
+      std::optional<float> local_map_colormap_min, local_map_colormap_max;
+
       /// If show_localmap==true, how many frames to wait to update the visualization of the
       /// map, which is a costly operation.
       int map_update_decimation = 10;
