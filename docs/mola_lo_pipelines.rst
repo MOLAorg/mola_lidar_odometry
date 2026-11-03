@@ -1098,6 +1098,8 @@ Visualization
      color; ``0.10`` suits Ouster ``reflectivity``. ``0``: the full range.
    - ``MOLA_GUI_LOCAL_MAP_COLOR_MIN`` / ``MOLA_GUI_LOCAL_MAP_COLOR_MAX`` (Default: empty): Fixed colormap limits for the
      local map (e.g. a ``z`` range in meters), instead of the automatic one.
+   - Local maps that render themselves (e.g. ``mola::KeyframePointCloudMap``) ignore the local map colormap options
+     above and use their own render options.
 
 
 Motion model
