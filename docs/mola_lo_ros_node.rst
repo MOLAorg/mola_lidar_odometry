@@ -297,6 +297,11 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       If non-empty, BridgeROS2 subscribes directly to this ``nav_msgs/Odometry`` topic
       and forwards each message as a 3D ``CObservationRobotPose`` (6×6 covariance),
       preferred for smoother fusion. Mutually exclusive with ``forward_ros_tf_odom_to_mola``.
+      With ``MOLA_ODOM_AS_ROBOT_POSE_OBS=false``, it is forwarded as a planar
+      ``CObservationOdometry`` instead, which the smoother fuses with its wheel odometry
+      motion model (``odom_motion_model_a1..a4``) rather than with the
+      ``relative_pose_increment_sigma_*`` shared by every pose source (e.g. LiDAR odometry
+      published in its own frame), so wheels and LiDAR odometry can be weighted apart.
 
     * ``publish_local_map`` (default ``True``):
       Whether to publish the local map as a point cloud on ``/lidar_odometry/localmap_points``.

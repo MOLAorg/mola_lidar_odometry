@@ -99,6 +99,15 @@ modules:
       # be queried and forwarded as an `CObservationOdometry` reading to the MOLA subsystem:
       forward_ros_tf_as_mola_odometry_observations: ${MOLA_FORWARD_ROS_TF_ODOM_TO_MOLA|false}
 
+      # How nav_msgs/Odometry topics (MOLA_ODOM_TOPIC below) are forwarded:
+      #  - true: as a 3D CObservationRobotPose (6x6 covariance). The smoother fuses
+      #    its increments with relative_pose_increment_sigma_*, the same sigmas as
+      #    any other odometry frame (e.g. LiDAR odometry poses in their own frame).
+      #  - false: as a planar CObservationOdometry (pose + velocities). The smoother
+      #    fuses its increments with the wheel odometry motion model
+      #    (odom_motion_model_a1..a4), so it can be weighted apart from other sources.
+      odometry_as_robot_pose_observation: ${MOLA_ODOM_AS_ROBOT_POSE_OBS|true}
+
       # If enabled, SLAM/Localization results will be published as nav_msgs/Odometry messages.
       publish_odometry_msgs_from_slam: ${MOLA_LOCALIZATION_PUBLISH_ODOM_MSGS|true}
 
