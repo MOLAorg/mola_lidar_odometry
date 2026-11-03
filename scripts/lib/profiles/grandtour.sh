@@ -405,13 +405,16 @@ mola_lo_profile_resolve() {
   # absolute trajectory error by 36-51%, and the residual best-fit time shift
   # drops from -40 ms to under +10 ms.
   : "${MOLA_SCAN_POINT_STAMPS_ADJUST_METHOD:=TimestampAdjustMethod::EarliestIsZero}"
-  # Use a shorter minimum range since the robot body is small in this dataset:
-  #
-  # This one is on a cliff edge, so re-tune it only with measurements in hand:
-  # dropping to 1.0 m costs little, but raising it to 2.0 m degrades odometry by
-  # more than an order of magnitude, and 3.0 m is *better* than 2.0 m. A legged
-  # platform depends on the near-field ground returns this filter removes.
-  : "${MOLA_MINIMUM_RANGE_FILTER:=1.5}"
+  # Near-field blind radius. The sensor never returns the robot's own body
+  # (no return inside 1.5 m on open ground), so this only decides how much of
+  # a confined scene is discarded: in a stairwell a 1.5 m sphere removed up to
+  # two thirds of each scan, all of it walls and railings beside the robot at
+  # the sensor's height, and the periodic steps left alone made the
+  # registration ambiguous by one step (two basins, flipped by any
+  # perturbation). At 1.0 m or below the registration is deterministic there
+  # and the other missions are unchanged. Raising it to 2.0 m degrades odometry
+  # by more than an order of magnitude; re-tune only with measurements in hand.
+  : "${MOLA_MINIMUM_RANGE_FILTER:=1.0}"
 
   # A single incremental k-d tree in one global frame, rather than the default
   # keyframe-based local map. Measured across every mission of this dataset that
