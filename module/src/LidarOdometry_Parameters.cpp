@@ -35,6 +35,10 @@ void LidarOdometry::Parameters::LearnedCovariance::initialize(const Yaml & cfg)
   YAML_LOAD_OPT(window_scans, uint32_t);
   ASSERT_GT_(window_scans, 0U);
   YAML_LOAD_OPT(variance_scale, double);
+  YAML_LOAD_OPT(floor_sigma_xyz, double);
+  YAML_LOAD_OPT(floor_sigma_rot_deg, double);
+  ASSERT_GE_(floor_sigma_xyz, 0.0);
+  ASSERT_GE_(floor_sigma_rot_deg, 0.0);
   ASSERT_GT_(variance_scale, 0.0);
   if (cfg.has("context")) {
     ASSERT_(cfg["context"].isMap());

@@ -657,6 +657,12 @@ public:
       /// Past scans forming the reference cloud of the feature evaluator.
       uint32_t window_scans = 25;
 
+      /// Added to the learned covariance as a diagonal floor, for errors the
+      /// model cannot see (sensor and scene biases shared by every
+      /// registration of a scan). Translation [m] and rotation [deg] sigmas.
+      double floor_sigma_xyz = 0;
+      double floor_sigma_rot_deg = 0;
+
       /// Multiplies the covariance handed to the state estimator (learned or,
       /// with no model, the solver's own). For experiments separating the
       /// level of a covariance from its shape; 1 changes nothing.

@@ -9,6 +9,8 @@ params:
     scan_layer: "${MOLA_LEARNED_COVARIANCE_SCAN_LAYER|deskewed}"
     window_scans: ${MOLA_LEARNED_COVARIANCE_WINDOW|25}
     variance_scale: ${MOLA_ICP_COVARIANCE_VARIANCE_SCALE|1.0}
+    floor_sigma_xyz: ${MOLA_LEARNED_COVARIANCE_FLOOR_XYZ|0.0}
+    floor_sigma_rot_deg: ${MOLA_LEARNED_COVARIANCE_FLOOR_ROT_DEG|0.0}
     context:
       framework_name: "mp2p_gicp"
       mode: "s2m"

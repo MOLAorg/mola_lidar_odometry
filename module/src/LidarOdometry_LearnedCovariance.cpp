@@ -79,8 +79,12 @@ void LidarOdometry::applyLearnedCovariance(
       5.0, "learned_covariance: features undefined for this registration, keeping the solver's");
     return;
   }
-  const auto pred = learned_cov_model_.predict(r, lc.context);
+  auto pred = learned_cov_model_.predict(r, lc.context);
   state_.last_learned_cov_p_fail = pred.pFail;
+  for (int i = 0; i < 3; i++) {
+    pred.Sigma(i, i) += mrpt::square(lc.floor_sigma_xyz);
+    pred.Sigma(i + 3, i + 3) += mrpt::square(mrpt::DEG2RAD(lc.floor_sigma_rot_deg));
+  }
   pose.cov = mp2p_icp::covariance_tangent_to_ypr(mrpt::math::CMatrixDouble66(pred.Sigma), est);
 
   MRPT_LOG_DEBUG_FMT(
