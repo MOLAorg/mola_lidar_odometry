@@ -152,8 +152,9 @@ layer and the per-scan ``observation`` layer, since ICP pairs the two:
        that is updated in place instead of being rebuilt on every scan. The
        index is selectable: a hashed voxel grid (``VoxelHash``, the default) or
        an incremental, self-balancing k-d tree (``KDTree``).
-       **Odometry only:** a global SE(3) re-map would force a full rebuild, so
-       it must not be used together with loop closure.
+       With a central map that closes loops (e.g. ``mola_mapper``), the local
+       map is rebuilt from the corrected keyframes after each correction (see
+       ``MOLA_LO_LOCAL_MAP_REBUILD``).
    * - ``mola::KeyframePointCloudMap``
      - Keyframe-based: points are stored in per-keyframe local frames, so the
        map survives a loop-closure re-map. Select it for SLAM

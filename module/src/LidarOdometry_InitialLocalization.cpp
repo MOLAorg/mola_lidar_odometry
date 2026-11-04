@@ -115,6 +115,10 @@ void LidarOdometry::handleInitialLocalizationDoInitFromPose(
   const mrpt::poses::CPose3DPDFGaussian & initPose, bool resetStateEstimator,
   const std::optional<mrpt::Clock::time_point> & stamp)
 {
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+  // The pose chain the rebuild reference and recent scans belong to ends here:
+  invalidateLocalMapRebuild();
+#endif
   if (resetStateEstimator) {
     ASSERT_(state_.navstate_fuse);
     state_.navstate_fuse->reset();  // needed after a re-localization to forget the past

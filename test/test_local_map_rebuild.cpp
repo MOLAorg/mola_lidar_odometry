@@ -270,9 +270,14 @@ void reuses_earlier_visit_without_pose_jump(const std::string & pipelineFile, bo
   // The vehicle goes on while the map is rebuilt in the background:
   central->correct();
   int steps = 40;
-  while (liodom->localMapRebuildCount() == 0 && steps < 120) {
-    drive(1);
-    steps++;
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+  while (liodom->localMapRebuildCount() == 0 && std::chrono::steady_clock::now() < deadline) {
+    if (steps < 100) {
+      drive(1);
+      steps++;
+    } else {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
   }
   ASSERT_EQ(liodom->localMapRebuildCount(), 1U);
   std::cout << "Rebuilt after " << (steps - 40) << " more scans\n";

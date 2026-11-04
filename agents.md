@@ -461,8 +461,8 @@ after the next pushed keyframe:
   points win), after them into other classes; mostly outside `state_mtx_`, the last few
   under it. Then the `state_.local_map` pointer is swapped (the old map is freed without
   the locks) and `kf_decider_local_map` is rebuilt from all of them.
-- `invalidateLocalMapRebuild()` (map restart/load/preload, relocalization, re-leveling, a
-  full insertion buffer, and `local_map_generation_` in `reset()`) drops the reference and
+- `invalidateLocalMapRebuild()` (map restart/load/preload, any (re)localization pose,
+  re-leveling, a full insertion buffer, and `local_map_generation_` in `reset()`) drops the reference and
   any rebuild in progress. Known gap: those frame changes are not told to the central map.
 
 ## Scan enqueue & overload handling (drop stale, keep freshest)
