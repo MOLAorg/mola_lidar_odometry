@@ -40,6 +40,13 @@
 #include <mola_kernel/interfaces/SharedKeyframeMap.h>
 #define MOLA_HAS_SHARED_KEYFRAME_MAP_SINK 1
 #endif
+#if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK) && \
+  __has_include(<mola_kernel/interfaces/LocalMapCorrectionSource.h>)
+#include <mola_kernel/interfaces/LocalMapCorrectionSource.h>
+/** Feature macro: the local map can be rebuilt from the corrected keyframes of
+ *  a mola::LocalMapCorrectionSource (e.g. a global mapper with loop closures). */
+#define MOLA_LO_HAS_LOCAL_MAP_REBUILD 1
+#endif
 #if __has_include(<mola_kernel/interfaces/TransformTreeSource.h>)
 #include <mola_kernel/interfaces/TransformTreeSource.h>
 /** Feature macro: mola_kernel provides mola::TransformTreeSource, enabling
@@ -108,8 +115,10 @@
 // STD:
 #include <array>
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
+#include <deque>
 #include <fstream>
 #include <future>
 #include <limits>
@@ -119,6 +128,7 @@
 #include <regex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 // Forward declarations:
@@ -352,6 +362,20 @@ public:
       /** Publish updated map via mola::MapSourceBase once every N frames
              */
       uint32_t publish_map_updates_every_n = 5;
+
+      /** If a mola::LocalMapCorrectionSource (e.g. a global mapper) is present
+             * and keyframes are pushed to it, rebuild the local map after each
+             * of its corrections (loop closures), from its keyframes within
+             * max_distance_to_keep_keyframes, including those of earlier visits.
+             * The map is anchored at the newest pushed keyframe, so the vehicle
+             * pose does not jump.
+             */
+      bool rebuild_on_corrections = true;
+
+      /** Minimum distance between the keyframes used in a rebuild [m] (the
+             * newest ones are kept): denser keyframes mostly repeat points, and
+             * each one costs a scan preprocessing. */
+      double rebuild_keyframe_spacing = 1.0;
 
       /** Whether to publish the local map at all via mola::MapSourceBase.
              *
@@ -1187,6 +1211,10 @@ public:
   std::optional<std::tuple<mrpt::poses::CPose3DPDFGaussian, mrpt::math::TTwist3D>>
   lastEstimatedState() const;
 
+  /** Number of local map rebuilds from the corrected keyframes of a
+   *  mola::LocalMapCorrectionSource (see MapUpdateOptions::rebuild_on_corrections). */
+  [[nodiscard]] std::size_t localMapRebuildCount() const { return local_map_rebuilds_.load(); }
+
   /** Returns the ICP quality (range: [0,1]) of the last registered scan. Only valid if lastEstimatedState() returns non-empty. */
   double lastIcpQuality() const;
 
@@ -1640,6 +1668,33 @@ private:
 
     /// See check_for_removal_every_n
     uint32_t localmap_check_removal_counter = 0;
+
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+    /// The newest keyframe accepted by shared_keyframe_map_sink, with its pose
+    /// in the odometry frame: the reference of the next local map rebuild.
+    struct PushedKeyframe
+    {
+      mola::SharedKeyframeMap::KeyFrameID id = 0;
+      mrpt::Clock::time_point stamp;
+      mrpt::poses::CPose3D pose;
+    };
+    std::optional<PushedKeyframe> last_pushed_keyframe;
+
+    /// A scan inserted into the local map, kept to insert it again into a
+    /// rebuilt one (the central map may not have it as a keyframe yet).
+    struct LocalMapInsertion
+    {
+      mrpt::Clock::time_point stamp;
+      mrpt::poses::CPose3D robot_pose;
+      mrpt::poses::CPose3D sensor_pose;  ///< in the vehicle frame
+      double obs_timestamp = 0;          ///< for the keyframe decider [s]
+      mp2p_icp::metric_map_t observation;
+    };
+    /// Insertions newer than last_pushed_keyframe, or than the reference of a
+    /// rebuild in progress (local_map_rebuild_reference).
+    std::deque<LocalMapInsertion> recent_local_map_insertions;
+    std::optional<mrpt::Clock::time_point> local_map_rebuild_reference;
+#endif
     uint32_t localmap_advertise_updates_counter = std::numeric_limits<uint32_t>::max();
 
     /// To update the map in the viz only if really needed
@@ -1951,6 +2006,73 @@ private:
 
   /// The configuration used in the last call to initialize()
   Yaml lastInitConfig_;
+
+  /// See localMapRebuildCount()
+  std::atomic<std::size_t> local_map_rebuilds_{0};
+
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+  /** @name Local map rebuild from a mola::LocalMapCorrectionSource
+   * (LidarOdometry_LocalMapRebuild.cpp). Kept outside state_, so they survive
+   * reset().
+   * @{ */
+  std::shared_ptr<mola::LocalMapCorrectionSource> local_map_correction_source_;
+  mola::LocalMapCorrectionSource::subscription_id_t local_map_correction_subscription_ = 0;
+  std::thread local_map_rebuild_thread_;
+  /// Guards the two flags below. A leaf lock.
+  std::mutex local_map_rebuild_mtx_;
+  std::condition_variable local_map_rebuild_cv_;
+  bool local_map_rebuild_requested_ = false;
+  bool local_map_rebuild_exit_ = false;
+  /// Stops a rebuild in progress (shutdown).
+  std::atomic<bool> local_map_rebuild_cancel_{false};
+  /// A correction not applied yet: retried after the next pushed keyframe.
+  std::atomic<bool> local_map_rebuild_pending_{false};
+  /// lastInitConfig_ when the rebuild started (the pipelines are built from it).
+  Yaml rebuild_config_;
+
+  /** Changed whenever the local map or the odometry frame change other than by
+   *  a scan insertion (restart, map load, re-leveling, reset): a rebuild that
+   *  started before is discarded. */
+  std::atomic<uint64_t> local_map_generation_{0};
+
+  /** The scan preprocessing and map insertion pipelines, again, attached to
+   *  their own parameter source, so the rebuild thread does not share them
+   *  with the scan thread. Only used by the rebuild thread. */
+  struct RebuildPipelines
+  {
+    mp2p_icp::ParameterSource parameter_source;
+    mp2p_icp_filters::GeneratorSet obs_generators;
+    mp2p_icp_filters::FilterPipeline adjust_timestamps;
+    mp2p_icp_filters::FilterPipeline prefilter;
+    mp2p_icp_filters::FilterPipeline deskew;
+    mp2p_icp_filters::FilterPipeline filter1;
+    mp2p_icp_filters::FilterPipeline filter2;
+    mp2p_icp_filters::FilterPipeline final_pass;
+    mp2p_icp_filters::GeneratorSet local_map_generators;
+    mp2p_icp_filters::FilterPipeline obs2map_merge;
+  };
+  std::unique_ptr<RebuildPipelines> rebuild_pipelines_;
+
+  /// Subscribes to the correction source, if any (from initialize()).
+  void startLocalMapRebuild();
+  /// Unsubscribes and joins the rebuild thread (from shutdownCleanup()).
+  void stopLocalMapRebuild();
+  void localMapRebuildThreadLoop();
+  /// False if it could not be done now and should be retried later.
+  bool rebuildLocalMap();
+  /// The keyframe observations, as a scan would be before its ICP.
+  [[nodiscard]] std::optional<mp2p_icp::metric_map_t> preprocessKeyframeForRebuild(
+    const mrpt::obs::CSensoryFrame & sf, const mrpt::Clock::time_point & stamp,
+    const std::vector<std::regex> & lidarLabels, bool earlyDeskew);
+  /** Discards the reference and the buffered insertions of a rebuild, and any
+   *  rebuild in progress. Caller holds state_mtx_. */
+  void invalidateLocalMapRebuild();
+  /// Called after a keyframe push accepted by the central map, with state_mtx_.
+  void onKeyframePushed(
+    mola::SharedKeyframeMap::KeyFrameID id, const mrpt::Clock::time_point & stamp,
+    const mrpt::poses::CPose3D & pose, uint64_t generation);
+  /** @} */
+#endif
 
   /// Set once the state estimator callbacks are registered, so a reset()
   /// does not register them again.

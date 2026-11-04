@@ -152,8 +152,9 @@ layer and the per-scan ``observation`` layer, since ICP pairs the two:
        that is updated in place instead of being rebuilt on every scan. The
        index is selectable: a hashed voxel grid (``VoxelHash``, the default) or
        an incremental, self-balancing k-d tree (``KDTree``).
-       **Odometry only:** a global SE(3) re-map would force a full rebuild, so
-       it must not be used together with loop closure.
+       With a central map that closes loops (e.g. ``mola_mapper``), the local
+       map is rebuilt from the corrected keyframes after each correction (see
+       ``MOLA_LO_LOCAL_MAP_REBUILD``).
    * - ``mola::KeyframePointCloudMap``
      - Keyframe-based: points are stored in per-keyframe local frames, so the
        map survives a loop-closure re-map. Select it for SLAM
@@ -776,6 +777,14 @@ Local map update
 - ``MOLA_LOCAL_MAP_MAX_SIZE`` (In meters; default: heuristic formula, see YAML file): Parts of the local metric map farther
   away than this distance, measured from the current robot pose, will be removed. This saves memory and avoids
   inconsistencies before loop-closure (which is handled outside of the LO module).
+
+- ``MOLA_LO_LOCAL_MAP_REBUILD`` (Default: ``true``): If a central map that corrects the pushed keyframes is
+  running (e.g. ``mola_mapper``, after loop closures), rebuild the local map after each correction from its keyframes
+  within ``MOLA_LOCAL_MAP_MAX_SIZE``, with their corrected poses, including those of earlier visits to the same place.
+  The rebuilt map is anchored at the newest pushed keyframe, so the vehicle pose does not jump.
+
+- ``MOLA_LO_LOCAL_MAP_REBUILD_SPACING`` (In meters; default: ``1.0``): Minimum distance between the keyframes used to
+  rebuild the local map (the newest ones are kept).
 
 - ``MOLA_LOCAL_VOXELMAP_RESOLUTION`` (In meters; default: heuristic formula, see YAML file): Size of voxels for the local map.
   **Not used in the GICP pipeline**, which uses a keyframe-based map instead.

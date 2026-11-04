@@ -26,3 +26,7 @@ params:
     # once there is a subscriber, e.g. the ROS 2 bridge. The offline CLI
     # defaults this off; a live node should leave it on.
     publish_local_map: ${MOLA_PUBLISH_LOCAL_MAP|true}
+    # With a central map that corrects its keyframes (e.g. mola_mapper loop
+    # closures), rebuild the local map from them after each correction:
+    rebuild_on_corrections: ${MOLA_LO_LOCAL_MAP_REBUILD|true}
+    rebuild_keyframe_spacing: ${MOLA_LO_LOCAL_MAP_REBUILD_SPACING|1.0} # [m]

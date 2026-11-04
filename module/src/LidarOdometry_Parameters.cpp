@@ -297,6 +297,8 @@ void LidarOdometry::Parameters::MapUpdateOptions::initialize(const Yaml & cfg, P
   DECLARE_PARAMETER_IN_OPT(cfg, check_for_removal_every_n, parent);
   DECLARE_PARAMETER_IN_OPT(cfg, publish_map_updates_every_n, parent);
   YAML_LOAD_OPT(publish_local_map, bool);
+  YAML_LOAD_OPT(rebuild_on_corrections, bool);
+  YAML_LOAD_OPT(rebuild_keyframe_spacing, double);
   YAML_LOAD_OPT(load_existing_local_map, std::string);
   YAML_LOAD_OPT(save_final_local_map, std::string);
 

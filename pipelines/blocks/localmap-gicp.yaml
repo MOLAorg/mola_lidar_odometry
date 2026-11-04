@@ -31,9 +31,10 @@ localmap_generator:
         #  - mola::IncrementalPointCloud (default): single global frame, one
         #    incremental spatial index (a hashed voxel grid, or a self-balancing
         #    k-d tree) updated in place instead of rebuilt on every scan.
-        #    ODOMETRY ONLY: a global SE(3) re-map would force a full rebuild,
-        #    so do not combine it with loop closure. Only the k-d tree index
-        #    needs mola_metric_maps built against nanoflann >= 1.10.
+        #    With a central map that closes loops (mola_mapper), LIO rebuilds
+        #    it from the corrected keyframes after each correction
+        #    (local_map_updates.rebuild_on_corrections). Only the k-d tree
+        #    index needs mola_metric_maps built against nanoflann >= 1.10.
         #
         #    Tuned by the MOLA_INCREMENTAL_MAP_* variables below.
         #
