@@ -2123,7 +2123,7 @@ private:
   /// IMU bias providers (use_imu_bias_source), guarded by imu_state_mtx_.
   std::vector<std::shared_ptr<mola::ImuBiasSource>> imu_bias_sources_;
   bool imu_bias_first_use_logged_ = false;
-  /// Label and stamp of the newest IMU reading, for the GUI (imu_state_mtx_).
+  /// Label and stamp of the newest IMU reading received, for the GUI (imu_state_mtx_).
   std::string imu_bias_gui_label_;
   std::optional<mrpt::Clock::time_point> imu_bias_gui_stamp_;
 #endif

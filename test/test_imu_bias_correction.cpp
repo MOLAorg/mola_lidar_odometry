@@ -178,7 +178,9 @@ TEST(ImuBiasCorrection, StatusLines)
 
   auto src = std::make_shared<FixedBiasSource>();
   const std::vector<std::shared_ptr<mola::ImuBiasSource>> sources = {src};
-  EXPECT_EQ(imu_bias_status_lines(sources, "", now)[0], "IMU bias: no IMU readings yet");
+  EXPECT_EQ(imu_bias_status_lines(sources, "", std::nullopt)[0], "IMU bias: no IMU readings yet");
+  // Readings of an IMU without a sensor label:
+  EXPECT_EQ(imu_bias_status_lines(sources, "", now)[0], "IMU bias (''): not estimated");
   EXPECT_EQ(
     imu_bias_status_lines(sources, "lidar_imu", now)[0], "IMU bias ('lidar_imu'): not estimated");
 

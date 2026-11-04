@@ -598,6 +598,13 @@ void LidarOdometry::onIMUImpl(const CObservation::ConstPtr & o)
     // Rate stats are pure instrumentation, so they are updated on arrival: they
     // must keep reporting a live IMU even while no scan is being processed.
     state_.append_imu_stamp(imu->timestamp, *this);
+#if defined(MOLA_LO_HAS_IMU_BIAS_SOURCE)
+    // Also on arrival, for the GUI: the newest IMU reading, even while scans lag.
+    if (!imu_bias_gui_stamp_ || imu->timestamp > *imu_bias_gui_stamp_) {
+      imu_bias_gui_label_ = imu->sensorLabel;
+      imu_bias_gui_stamp_ = imu->timestamp;
+    }
+#endif
 
     // Keep the latest IMU observations for simplemap insertion. Kept apart
     // from pending_imu_ above, which is drained as the readings are consumed,
@@ -707,8 +714,6 @@ mrpt::obs::CObservationIMU::ConstPtr LidarOdometry::imuBiasCorrected(
   if (imu_bias_sources_.empty()) {
     return imu;
   }
-  imu_bias_gui_label_ = imu->sensorLabel;
-  imu_bias_gui_stamp_ = imu->timestamp;
   auto [out, bias] = remove_imu_gyro_bias(imu, imu_bias_sources_);
   if (bias && !imu_bias_first_use_logged_) {
     imu_bias_first_use_logged_ = true;

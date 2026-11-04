@@ -81,7 +81,8 @@ inline std::array<std::string, 3> imu_bias_status_lines(
   if (sources.empty()) {
     return {"IMU bias: no source", " ", " "};
   }
-  if (label.empty()) {
+  // An empty label alone is not enough: IMUs may have no sensor label.
+  if (label.empty() && !now) {
     return {"IMU bias: no IMU readings yet", " ", " "};
   }
   // As remove_imu_gyro_bias(): the first source with a measured estimate, else a prior:
