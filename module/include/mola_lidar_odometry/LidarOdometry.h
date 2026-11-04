@@ -650,6 +650,14 @@ public:
       /// Model file; empty disables the feature.
       std::string model_file;
 
+      /// If false, the prediction is computed (and logged) but the solver's
+      /// own covariance is what the state estimator receives.
+      bool apply = true;
+
+      /// If not empty, one CSV row per registration: time, pose, and both
+      /// covariances in the solver's right tangent [x y z rx ry rz].
+      std::string log_file;
+
       /// Observation layer with the full-resolution, deskewed scan. The
       /// observation pipeline must keep it (it usually deletes it).
       std::string scan_layer = "deskewed";
@@ -2030,12 +2038,18 @@ private:
 #if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
   /// Loaded once in initialize(); see Parameters::learned_covariance.
   mp2p_icp::LearnedCovariance learned_cov_model_;
+  std::ofstream learned_cov_log_;
 
   /** Replaces `pose.cov` with the learned covariance of this registration,
    *  if the feature is enabled and the features can be computed. */
   void applyLearnedCovariance(
     const mp2p_icp::metric_map_t & observation, const ICP_Input & in, const mp2p_icp::Results & res,
-    mrpt::poses::CPose3DPDFGaussian & pose);
+    const mrpt::Clock::time_point & stamp, mrpt::poses::CPose3DPDFGaussian & pose);
+
+  void writeLearnedCovarianceRow(
+    const mrpt::Clock::time_point & stamp, const mrpt::poses::CPose3D & est,
+    const mrpt::math::CMatrixDouble66 & covYprSolver, const Eigen::Matrix<double, 6, 6> & learned,
+    double pFail, const mp2p_icp::Results & res);
 
   /// Appends the scan to the evaluator's reference window.
   void pushLearnedCovarianceWindow(

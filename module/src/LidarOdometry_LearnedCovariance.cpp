@@ -22,10 +22,47 @@
 #if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
 
 #include <mp2p_icp/covariance.h>
+#include <mrpt/core/Clock.h>
+#include <mrpt/core/format.h>
+#include <mrpt/math/CQuaternion.h>
 
 #include <Eigen/LU>
+#include <iomanip>
 
 using namespace mola;
+
+void LidarOdometry::writeLearnedCovarianceRow(
+  const mrpt::Clock::time_point & stamp, const mrpt::poses::CPose3D & est,
+  const mrpt::math::CMatrixDouble66 & covYprSolver, const Eigen::Matrix<double, 6, 6> & learned,
+  double pFail, const mp2p_icp::Results & res)
+{
+  if (!learned_cov_log_.is_open()) {
+    learned_cov_log_.open(params_.learned_covariance.log_file);
+    ASSERTMSG_(
+      learned_cov_log_.is_open(),
+      "learned_covariance: cannot write log_file " + params_.learned_covariance.log_file);
+    learned_cov_log_ << "# t x y z qx qy qz qw solver_cov(21, lower, tangent) "
+                        "learned_cov(21) p_fail quality iterations\n";
+    learned_cov_log_ << std::setprecision(12);
+  }
+  // The solver reports [x y z yaw pitch roll]; log it in the right tangent too.
+  const Eigen::Matrix<double, 6, 6> J = mp2p_icp::jacobian_ypr_wrt_tangent(est).asEigen();
+  const Eigen::Matrix<double, 6, 6> Ji = J.inverse();
+  const Eigen::Matrix<double, 6, 6> solver = Ji * covYprSolver.asEigen() * Ji.transpose();
+  mrpt::math::CQuaternionDouble quat;
+  est.getAsQuaternion(quat);
+  auto & o = learned_cov_log_;
+  o << mrpt::format("%.9f", mrpt::Clock::toDouble(stamp)) << ' ' << est.x() << ' ' << est.y() << ' '
+    << est.z() << ' ' << quat.x() << ' ' << quat.y() << ' ' << quat.z() << ' ' << quat.r();
+  for (const auto * C : {&solver, &learned}) {
+    for (int i = 0; i < 6; i++) {
+      for (int j = 0; j <= i; j++) {
+        o << ' ' << (*C)(i, j);
+      }
+    }
+  }
+  o << ' ' << pFail << ' ' << res.quality << ' ' << res.nIterations << '\n';
+}
 
 namespace
 {
@@ -41,7 +78,7 @@ mrpt::maps::CPointsMap::Ptr scan_layer_of(
 
 void LidarOdometry::applyLearnedCovariance(
   const mp2p_icp::metric_map_t & observation, const ICP_Input & in, const mp2p_icp::Results & res,
-  mrpt::poses::CPose3DPDFGaussian & pose)
+  const mrpt::Clock::time_point & stamp, mrpt::poses::CPose3DPDFGaussian & pose)
 {
   const auto & lc = params_.learned_covariance;
   if (state_.learned_cov_window.empty()) {
@@ -85,7 +122,12 @@ void LidarOdometry::applyLearnedCovariance(
     pred.Sigma(i, i) += mrpt::square(lc.floor_sigma_xyz);
     pred.Sigma(i + 3, i + 3) += mrpt::square(mrpt::DEG2RAD(lc.floor_sigma_rot_deg));
   }
-  pose.cov = mp2p_icp::covariance_tangent_to_ypr(mrpt::math::CMatrixDouble66(pred.Sigma), est);
+  if (!lc.log_file.empty()) {
+    writeLearnedCovarianceRow(stamp, est, pose.cov, pred.Sigma, pred.pFail, res);
+  }
+  if (lc.apply) {
+    pose.cov = mp2p_icp::covariance_tangent_to_ypr(mrpt::math::CMatrixDouble66(pred.Sigma), est);
+  }
 
   MRPT_LOG_DEBUG_FMT(
     "learned_covariance: sigmas {%e %e %e [m] %e %e %e [deg]} p_fail=%.3f",

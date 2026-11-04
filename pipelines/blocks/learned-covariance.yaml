@@ -6,6 +6,8 @@
 params:
   learned_covariance:
     model_file: "${MOLA_LEARNED_COVARIANCE_MODEL|}"
+    apply: ${MOLA_LEARNED_COVARIANCE_APPLY|true}
+    log_file: "${MOLA_LEARNED_COVARIANCE_LOG|}"
     scan_layer: "${MOLA_LEARNED_COVARIANCE_SCAN_LAYER|deskewed}"
     window_scans: ${MOLA_LEARNED_COVARIANCE_WINDOW|25}
     variance_scale: ${MOLA_ICP_COVARIANCE_VARIANCE_SCALE|1.0}

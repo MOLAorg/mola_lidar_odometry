@@ -31,6 +31,8 @@ namespace mola
 void LidarOdometry::Parameters::LearnedCovariance::initialize(const Yaml & cfg)
 {
   YAML_LOAD_OPT(model_file, std::string);
+  YAML_LOAD_OPT(apply, bool);
+  YAML_LOAD_OPT(log_file, std::string);
   YAML_LOAD_OPT(scan_layer, std::string);
   YAML_LOAD_OPT(window_scans, uint32_t);
   ASSERT_GT_(window_scans, 0U);
