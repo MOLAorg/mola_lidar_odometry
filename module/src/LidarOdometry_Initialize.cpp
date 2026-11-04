@@ -243,21 +243,22 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     if (cfg.has("learned_covariance")) {
       params_.learned_covariance.initialize(cfg["learned_covariance"]);
     }
-#if !defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
-    ASSERTMSG_(
-      !params_.learned_covariance.scales(),
-      "learned_covariance.variance_scale needs an mp2p_icp with LearnedCovariance");
-#endif
     if (params_.learned_covariance.enabled()) {
 #if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
-      learned_cov_model_.load(params_.learned_covariance.model_file);
+      const auto & lc = params_.learned_covariance;
+      mp2p_icp::LearnedCovarianceEstimator::Parameters lcp;
+      lcp.model_file = lc.model_file;
+      lcp.window_scans = lc.window_scans;
+      lcp.context = lc.context;
+      state_.learned_cov = std::make_shared<mp2p_icp::LearnedCovarianceEstimator>(lcp);
       MRPT_LOG_INFO_STREAM(
-        "Learned registration covariance: " << learned_cov_model_.numMembers() << " members from '"
-                                            << params_.learned_covariance.model_file << "'");
+        "Learned registration covariance: " << state_.learned_cov->model().numMembers()
+                                            << " members from '" << lc.model_file << "' ("
+                                            << state_.learned_cov->model().note() << ")");
 #else
       THROW_EXCEPTION(
         "learned_covariance.model_file is set, but this build of mp2p_icp has no "
-        "LearnedCovariance");
+        "LearnedCovarianceEstimator");
 #endif
     }
 

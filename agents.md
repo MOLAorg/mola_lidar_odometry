@@ -373,6 +373,17 @@ method) and is not fused back into the estimator. With `estimate_geo_reference`,
 the smoother anchors the map frame where the vehicle starts, so that pose is the
 origin unless the vehicle moved before the first scan.
 
+### Optional learned registration covariance (`learned_covariance`)
+
+`pipelines/blocks/learned-covariance.yaml` (GICP pipeline), off while
+`MOLA_LEARNED_COVARIANCE_MODEL` is empty. Each accepted registration is queued
+to an `mp2p_icp::LearnedCovarianceEstimator` (worker thread, window of the last
+25 `deskewed` scans) BEFORE the scan joins its window, and the pose goes to the
+estimator with `fuse_pose_deferred()` and the covariance as a future (the
+solver's own if no learned one); the smoother waits for it in its backend.
+`MOLA_LEARNED_COVARIANCE_SENSOR` selects the model's sensor one-hot. The
+smoother only uses it with `MOLA_REL_POSE_INCR_FROM_SOURCE_COV=true`.
+
 ### REP-105 `map -> odom` published directly (jitter-free)
 
 By default, under `publish_localization_following_rep105: true` the bridge

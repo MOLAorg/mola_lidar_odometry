@@ -1,18 +1,16 @@
 # Optional learned covariance of each registration: a model trained offline
-# (mp2p_icp::LearnedCovariance) replaces the solver's covariance in what is
-# handed to the state estimator. Disabled while model_file is empty. The
-# observation pipeline must then keep the full-resolution layer named by
-# scan_layer, which the default observation blocks delete.
+# (mp2p_icp::LearnedCovarianceEstimator) predicts it on a worker thread, and
+# the state estimator receives it through fuse_pose_deferred(). Disabled
+# while model_file is empty. With the smoother, set
+# relative_pose_increment_from_source_covariance (MOLA_REL_POSE_INCR_FROM_SOURCE_COV)
+# for it to weigh the odometry increments.
 params:
   learned_covariance:
     model_file: "${MOLA_LEARNED_COVARIANCE_MODEL|}"
-    apply: ${MOLA_LEARNED_COVARIANCE_APPLY|true}
-    log_file: "${MOLA_LEARNED_COVARIANCE_LOG|}"
-    scan_layer: "${MOLA_LEARNED_COVARIANCE_SCAN_LAYER|deskewed}"
-    window_scans: ${MOLA_LEARNED_COVARIANCE_WINDOW|25}
-    variance_scale: ${MOLA_ICP_COVARIANCE_VARIANCE_SCALE|1.0}
-    floor_sigma_xyz: ${MOLA_LEARNED_COVARIANCE_FLOOR_XYZ|0.0}
-    floor_sigma_rot_deg: ${MOLA_LEARNED_COVARIANCE_FLOOR_ROT_DEG|0.0}
+    # Full-resolution, de-skewed scan; the reference window must match the
+    # model's training.
+    scan_layer: "deskewed"
+    window_scans: 25
     context:
       framework_name: "mp2p_gicp"
       mode: "s2m"

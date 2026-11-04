@@ -1393,17 +1393,6 @@ void LidarOdometry::processLidarScan(  // NOLINT
     out.goodness = icp_result.quality;
     out.icp_iterations = icp_result.nIterations;
 
-#if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
-    if (params_.learned_covariance.enabled()) {
-      ProfilerEntry tle_lc(profiler_, "onLidar.3b.learned_covariance");
-      applyLearnedCovariance(
-        *observation, in, icp_result, scan_ref_time, out.found_pose_to_wrt_from);
-    }
-    if (params_.learned_covariance.scales()) {
-      out.found_pose_to_wrt_from.cov *= params_.learned_covariance.variance_scale;
-    }
-#endif
-
 #ifdef MOLA_KERNEL_VIZ_HAS_METRICS
     // Stream ICP metrics to the visualizer's live plot windows, if any
     // (mola_viz_imgui "Plots" menu; no-op on the nanogui backend / when
@@ -1579,9 +1568,19 @@ void LidarOdometry::processLidarScan(  // NOLINT
       state_.last_lidar_pose.copyFrom(state_.last_motion_model_output->pose);
     }
 
+    // Learned covariance of this registration, if enabled: queued before the
+    // scan joins the window, so it is evaluated against the previous scans.
+    std::optional<std::shared_future<mrpt::math::CMatrixDouble66>> learnedCov;
 #if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
-    if (params_.learned_covariance.enabled() && (icpIsGood || usePrediction)) {
-      pushLearnedCovarianceWindow(*observation, state_.last_lidar_pose.mean);
+    if (state_.learned_cov) {
+      ProfilerEntry tle_lc(profiler_, "onLidar.3b.learned_covariance_submit");
+      if (icpIsGood) {
+        learnedCov =
+          submitLearnedCovariance(*observation, in, icp_result, out.found_pose_to_wrt_from);
+      }
+      if (icpIsGood || usePrediction) {
+        pushLearnedCovarianceWindow(*observation, state_.last_lidar_pose.mean);
+      }
     }
 #endif
 
@@ -1604,8 +1603,22 @@ void LidarOdometry::processLidarScan(  // NOLINT
         state_.step_counter_post_relocalization == 0 ||
         (state_.step_counter_post_relocalization == 1 && relocWindow > 1)) {
         // Do integrate info:
-        state_.navstate_fuse->fuse_pose(
-          scan_ref_time, out.found_pose_to_wrt_from, params_.publish_reference_frame);
+        if (learnedCov) {
+#if defined(MOLA_KERNEL_NAVSTATE_FILTER_HAS_FUSE_POSE_DEFERRED)
+          state_.navstate_fuse->fuse_pose_deferred(
+            scan_ref_time, out.found_pose_to_wrt_from.mean, *learnedCov,
+            params_.publish_reference_frame);
+#else
+          // An older mola_kernel: wait for the covariance here.
+          state_.navstate_fuse->fuse_pose(
+            scan_ref_time,
+            mrpt::poses::CPose3DPDFGaussian(out.found_pose_to_wrt_from.mean, learnedCov->get()),
+            params_.publish_reference_frame);
+#endif
+        } else {
+          state_.navstate_fuse->fuse_pose(
+            scan_ref_time, out.found_pose_to_wrt_from, params_.publish_reference_frame);
+        }
       }
       if (state_.step_counter_post_relocalization > 0) {
         state_.step_counter_post_relocalization--;
