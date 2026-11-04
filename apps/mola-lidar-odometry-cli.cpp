@@ -216,6 +216,7 @@ struct Cli
   Opt<std::string> arg_outPath;
   Opt<std::string> arg_outPathFused;
   Opt<std::string> arg_outPathSmoothed;
+  Opt<std::string> arg_outEstimatorFrame;
   Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
   Opt<std::string> arg_outSimpleMap;
@@ -337,6 +338,16 @@ struct Cli
           "--output-tum-path saves the LiDAR odometry's own registered poses instead, which "
           "carry a second front-end's contribution only through the motion prior.")
         ->option_text("output-fused.txt");
+
+    arg_outEstimatorFrame.opt =
+      cmd
+        .add_option(
+          "--output-estimator-frame", arg_outEstimatorFrame.value,
+          "Frame in which --output-tum-path-fused and --output-tum-path-smoothed sample the "
+          "state estimator (default: the odometry's publish_reference_frame). The odometry "
+          "frame is anchored on the odometry's own poses; the estimator's reference frame "
+          "(e.g. 'map') gives its own estimate.")
+        ->option_text("map");
 
     arg_outPathSmoothed.opt =
       cmd
@@ -1101,6 +1112,9 @@ int main_odometry(Cli & cli)
   // what --output-tum-path writes: a second front-end reaches those only
   // through the motion prior, so its contribution is largely invisible there.
   std::optional<mrpt::poses::CPose3DInterpolator> outFusedPath;
+  const std::string estimatorOutFrame = cli.arg_outEstimatorFrame.isSet()
+                                          ? cli.arg_outEstimatorFrame.getValue()
+                                          : liodom->params_.publish_reference_frame;
 
   bool liodom_emitted_log = false;
   std::mutex liodom_emitted_log_mtx;
@@ -1444,8 +1458,8 @@ int main_odometry(Cli & cli)
     // Sample the fused estimate for this scan, now that the worker is done and
     // whatever the other front-ends contributed is already in the graph:
     if (outFusedPath && obsIsLidarScan) {
-      const auto st = stateEstimatorAsNavState->estimated_navstate(
-        obs->timestamp, liodom->params_.publish_reference_frame);
+      const auto st =
+        stateEstimatorAsNavState->estimated_navstate(obs->timestamp, estimatorOutFrame);
       if (st.has_value()) {
         outFusedPath->insert(obs->timestamp, st->pose.mean.asTPose());
       }
@@ -1507,8 +1521,7 @@ int main_odometry(Cli & cli)
 
     // The whole run: the estimator returns whatever part of it it kept.
     const auto traj = stateEstimatorAsNavState->estimated_trajectory(
-      mrpt::Clock::time_point::min(), mrpt::Clock::time_point::max(),
-      liodom->params_.publish_reference_frame);
+      mrpt::Clock::time_point::min(), mrpt::Clock::time_point::max(), estimatorOutFrame);
 
     if (traj.has_value()) {
       std::cout << "\nSaving the state estimator's smoothed path (" << traj->size()
