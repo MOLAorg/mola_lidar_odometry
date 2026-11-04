@@ -494,7 +494,8 @@ void LidarOdometry::handleInitialLocalizationStateEstimation()
   }
 }
 
-void LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & observation)
+void LidarOdometry::doGlobalSearchForInitialPose(
+  const mp2p_icp::metric_map_t & observation, const mrpt::Clock::time_point & scan_ref_time)
 {
 #if defined(MOLA_RELOCALIZATION_HAS_CANDIDATES)
   const auto & gs = params_.initial_localization.global_search;
@@ -552,11 +553,11 @@ void LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
     "Global search around %s (+-%.2f m, +-%.1f deg): starting, %zu initial guesses...",
     prior.mean.asString().c_str(), halfXY, mrpt::RAD2DEG(halfYaw), region.initial_guesses);
 
-  // The estimator pose at this scan time, to later carry the found pose over
-  // the vehicle motion during the search (the estimator may forget this time
-  // meanwhile):
+  // The estimator pose at the time of the searched cloud, to later carry the
+  // found pose over the vehicle motion during the search (the estimator may
+  // forget this time meanwhile):
   const auto estimatorAtScan =
-    state_.navstate_fuse->estimated_navstate(now, params_.publish_reference_frame);
+    state_.navstate_fuse->estimated_navstate(scan_ref_time, params_.publish_reference_frame);
 
   mola::RelocalizationICP_SE2::Input in;
   in.reference_map = *state_.local_map;
@@ -672,20 +673,23 @@ void LidarOdometry::doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & 
   // since the searched scan (its absolute pose is too uncertain, but not its
   // relative motion), and the next ICP corrects what remains.
   const double newestStamp = std::max(latest_obs_time_.load(), mrpt::Clock::toDouble(now));
-  const double searchLag = newestStamp - mrpt::Clock::toDouble(now);
+  const double searchLag = newestStamp - mrpt::Clock::toDouble(scan_ref_time);
   const auto estimatorAtNewest = state_.navstate_fuse->estimated_navstate(
     mrpt::Clock::fromDouble(newestStamp), params_.publish_reference_frame);
   if (estimatorAtScan && estimatorAtNewest) {
-    // Only its planar part, as in the search: the vertical one is the least
-    // reliable without precise GNSS altitude.
-    const mrpt::poses::CPose3D motion3D = estimatorAtNewest->pose.mean - estimatorAtScan->pose.mean;
-    const auto motion = mrpt::poses::CPose3D::FromXYZYawPitchRoll(
-      motion3D.x(), motion3D.y(), 0.0, motion3D.yaw(), 0.0, 0.0);
+    // Only its planar part, as in the search (the vertical one is the least
+    // reliable without precise GNSS altitude), composed in SE(2) to keep the
+    // found z, pitch and roll:
+    const auto motion =
+      mrpt::poses::CPose2D(estimatorAtNewest->pose.mean - estimatorAtScan->pose.mean);
+    const auto carried = mrpt::poses::CPose2D(found.mean) + motion;
     MRPT_LOG_INFO_STREAM(
       "Global search: localized at " << found.mean << " at its scan time; plus the motion "
                                      << motion << " in the " << searchLag
                                      << " s until the end of the search");
-    found.mean = found.mean + motion;
+    found.mean.x(carried.x());
+    found.mean.y(carried.y());
+    found.mean.setYawPitchRoll(carried.phi(), found.mean.pitch(), found.mean.roll());
   } else {
     MRPT_LOG_WARN_STREAM(
       "Global search: localized at "

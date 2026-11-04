@@ -970,7 +970,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
   // afterwards, even if localized: the search may take long, and the next scan
   // continues from the found pose.
   if (state_.global_search_prior) {
-    doGlobalSearchForInitialPose(*observation);
+    doGlobalSearchForInitialPose(*observation, scan_ref_time);
     return;
   }
 
