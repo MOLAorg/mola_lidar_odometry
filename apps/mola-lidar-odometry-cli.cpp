@@ -1112,9 +1112,6 @@ int main_odometry(Cli & cli)
   // what --output-tum-path writes: a second front-end reaches those only
   // through the motion prior, so its contribution is largely invisible there.
   std::optional<mrpt::poses::CPose3DInterpolator> outFusedPath;
-  const std::string estimatorOutFrame = cli.arg_outEstimatorFrame.isSet()
-                                          ? cli.arg_outEstimatorFrame.getValue()
-                                          : liodom->params_.publish_reference_frame;
 
   bool liodom_emitted_log = false;
   std::mutex liodom_emitted_log_mtx;
@@ -1150,6 +1147,11 @@ int main_odometry(Cli & cli)
 
   // liodom->initialize_common(cfg); // can be skipped for a non-MOLA system
   liodom->initialize(cfg);
+
+  // Resolved after initialize(), which loads publish_reference_frame:
+  const std::string estimatorOutFrame = cli.arg_outEstimatorFrame.isSet()
+                                          ? cli.arg_outEstimatorFrame.getValue()
+                                          : liodom->params_.publish_reference_frame;
 
   if (cli.arg_outPathFused.isSet()) {
     ASSERTMSG_(
