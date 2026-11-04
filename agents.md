@@ -316,7 +316,9 @@ basin is not used directly: the next filtered scan is matched against the map
 from a lattice of initial guesses around it (`mola::RelocalizationICP_SE2`,
 yaw too if uncertain, e.g. no IMU), see `doGlobalSearchForInitialPose()`. Only
 an unambiguous best match (`mola::select_relocalization_candidate()`) is
-accepted, and then it resets the state estimator to it; otherwise LO reports
+accepted, and then it resets the state estimator to it, at the newest sensor
+time plus the estimator's planar relative motion since the searched scan (the
+vehicle may move during a long search); otherwise LO reports
 nothing and retries every `retry_period`, around the latest estimator pose
 only if its search is not larger (`search_region()`: the estimator covariance
 can blow up between measurements), or if its mean left the kept region. Searches over `max_initial_guesses` are not

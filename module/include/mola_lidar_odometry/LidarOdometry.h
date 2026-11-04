@@ -2154,8 +2154,9 @@ private:
   void relocalize_from_gnss_impl();
 
   /// Runs the pending global search for the initial pose with this
-  /// (filtered) observation. Once localized, the found pose is taken as the
-  /// pose at the newest sensor time (the vehicle is assumed still meanwhile).
+  /// (filtered) observation. Once localized, the found pose is carried to the
+  /// newest sensor time with the vehicle motion the state estimator observed
+  /// during the search.
   void doGlobalSearchForInitialPose(const mp2p_icp::metric_map_t & observation);
   MapServer::ReturnStatus map_load_impl(const std::string & path);
   MapServer::ReturnStatus map_save_impl(const std::string & path);
