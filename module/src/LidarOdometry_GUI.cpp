@@ -20,6 +20,7 @@
  */
 
 // This module:
+#include <mola_lidar_odometry/ImuBiasCorrection.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
 
 // MOLA:
@@ -178,6 +179,19 @@ mola::gui::Tab LidarOdometry::buildTabStatus()
   tab.widgets.emplace_back(Label{gui_.lbTime});
   tab.widgets.emplace_back(Label{gui_.lbLidarQueue});
   tab.widgets.emplace_back(Label{gui_.lbMapStats});
+#if defined(MOLA_LO_HAS_IMU_BIAS_SOURCE)
+  // Only with a bias source (found at initialize(), before the GUI is built):
+  bool hasBiasSource = false;
+  {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    hasBiasSource = !imu_bias_sources_.empty();
+  }
+  if (hasBiasSource) {
+    for (const auto & lb : gui_.lbImuBias) {
+      tab.widgets.emplace_back(Label{lb});
+    }
+  }
+#endif
   return tab;
 }
 
@@ -430,6 +444,9 @@ void LidarOdometry::internalBuildGUI()
   gui_.lbSpeed = std::make_shared<LiveString>(" ");
   gui_.lbLidarQueue = std::make_shared<LiveString>(" ");
   gui_.lbMapStats = std::make_shared<LiveString>(" ");
+  for (auto & lb : gui_.lbImuBias) {
+    lb = std::make_shared<LiveString>(" ");
+  }
 
   // Background 3D scene: change background color (backend-agnostic)
   visualizer_->execute_custom_code_on_background_scene([this](mrpt::viz::Scene & scene) {
@@ -1307,6 +1324,18 @@ void LidarOdometry::updateVisualizationTextLabels()
   } else {
     gui_.lbSpeed->set("Speed: (Not available)");
   }
+
+#if defined(MOLA_LO_HAS_IMU_BIAS_SOURCE)
+  {
+    // The current estimate of the IMU in use:
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    const auto lines =
+      imu_bias_status_lines(imu_bias_sources_, imu_bias_gui_label_, imu_bias_gui_stamp_);
+    for (size_t i = 0; i < lines.size(); i++) {
+      gui_.lbImuBias[i]->set(lines[i]);
+    }
+  }
+#endif
 }
 
 }  // namespace mola

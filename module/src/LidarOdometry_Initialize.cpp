@@ -569,6 +569,8 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
   {
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     imu_bias_sources_.clear();
+    imu_bias_gui_label_.clear();
+    imu_bias_gui_stamp_.reset();
   }
   if (params_.use_imu_bias_source) {
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
