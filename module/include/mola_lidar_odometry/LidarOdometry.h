@@ -1999,6 +1999,7 @@ private:
     mola::gui::LiveString::Ptr lbSpeed;
     mola::gui::LiveString::Ptr lbLidarQueue;
     mola::gui::LiveString::Ptr lbMapStats;
+    std::array<mola::gui::LiveString::Ptr, 3> lbImuBias;
   };
 
   // Accessing this struct in gui_ requires acquiring state_gui_mtx_
@@ -2122,6 +2123,9 @@ private:
   /// IMU bias providers (use_imu_bias_source), guarded by imu_state_mtx_.
   std::vector<std::shared_ptr<mola::ImuBiasSource>> imu_bias_sources_;
   bool imu_bias_first_use_logged_ = false;
+  /// Label and stamp of the newest IMU reading, for the GUI (imu_state_mtx_).
+  std::string imu_bias_gui_label_;
+  std::optional<mrpt::Clock::time_point> imu_bias_gui_stamp_;
 #endif
 
   /// Guards the *contents* (layers) of MethodState::local_map.

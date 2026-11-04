@@ -232,6 +232,8 @@ and the gravity estimator; the IMU initializer and the map gravity estimator kee
 the raw readings (they estimate biases themselves). Sources are found at
 `initialize()` (`imu_bias_sources_`, under `imu_state_mtx_`); readings of IMUs
 without an estimate pass through. `MOLA_LO_USE_IMU_BIAS_SOURCE` (default true).
+The GUI Status tab shows the current estimate of the IMU in use
+(`imu_bias_status_lines()`, queried at GUI rate), if there is a bias source.
 
 ## Attitude-only IMU for the simplemap (`attitude_imu_sensor_label`)
 

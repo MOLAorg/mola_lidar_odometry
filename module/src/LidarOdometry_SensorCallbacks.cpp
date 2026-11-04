@@ -707,6 +707,8 @@ mrpt::obs::CObservationIMU::ConstPtr LidarOdometry::imuBiasCorrected(
   if (imu_bias_sources_.empty()) {
     return imu;
   }
+  imu_bias_gui_label_ = imu->sensorLabel;
+  imu_bias_gui_stamp_ = imu->timestamp;
   auto [out, bias] = remove_imu_gyro_bias(imu, imu_bias_sources_);
   if (bias && !imu_bias_first_use_logged_) {
     imu_bias_first_use_logged_ = true;
