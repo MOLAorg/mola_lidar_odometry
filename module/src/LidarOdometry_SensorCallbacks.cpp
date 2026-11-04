@@ -20,6 +20,7 @@
  */
 
 // This module:
+#include <mola_lidar_odometry/ImuBiasCorrection.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
 
 // Others:
@@ -666,12 +667,15 @@ void LidarOdometry::consumePendingImu(const double upToTime)
   mp2p_icp::metric_map_t dummy_map;
 
   for (const auto & imuPtr : pending_imu_.take_up_to(upToTime)) {
-    const auto & imu = *imuPtr;
-
-    // 1) Initial pitch/roll estimation:
+    // 1) Initial pitch/roll estimation: raw readings, as it estimates the bias
+    //    at rest itself.
     if (state_.imu_initializer.has_value()) {
       state_.imu_initializer->add(imuPtr);
     }
+
+    // Below, the gyroscope bias is removed if a bias source knows it:
+    const auto correctedPtr = imuBiasCorrected(imuPtr);
+    const auto & imu = *correctedPtr;
 
     // 2) Precise scan de-skewing is done via Generator, which in turns passes the IMU data to the
     //    LocalVelocityBuffer inside the ParameterSource.
@@ -688,11 +692,32 @@ void LidarOdometry::consumePendingImu(const double upToTime)
       //     accelerometer average above, this consumes EVERY sample and does not
       //     require the platform to be quasi-static.
       if (params_.imu_gravity_correction.map_gravity.enabled) {
-        accumulateImuForMapGravity(imu);
+        // Raw readings: it estimates the gyroscope bias itself.
+        accumulateImuForMapGravity(*imuPtr);
       }
 #endif
     }
   }
+}
+
+mrpt::obs::CObservationIMU::ConstPtr LidarOdometry::imuBiasCorrected(
+  const mrpt::obs::CObservationIMU::ConstPtr & imu)
+{
+#if defined(MOLA_LO_HAS_IMU_BIAS_SOURCE)
+  if (imu_bias_sources_.empty()) {
+    return imu;
+  }
+  auto [out, bias] = remove_imu_gyro_bias(imu, imu_bias_sources_);
+  if (bias && !imu_bias_first_use_logged_) {
+    imu_bias_first_use_logged_ = true;
+    MRPT_LOG_INFO_STREAM(
+      "Removing the gyroscope bias of '" << imu->sensorLabel << "': " << bias->gyro.asString()
+                                         << " rad/s");
+  }
+  return out;
+#else
+  return imu;
+#endif
 }
 
 void LidarOdometry::onGPS(const CObservation::ConstPtr & o)

@@ -223,6 +223,16 @@ the measurements behind that and behind its loose velocity sigmas. The one
 exception is `MOLA_GRANDTOUR_LIDAR=hesai_raw`, which turns it on and uses it
 for de-skewing.
 
+## IMU gyroscope biases from other modules (`use_imu_bias_source`)
+
+If a module offers `mola::ImuBiasSource` (e.g. the smoother with
+`imu_bias_tracking`), `consumePendingImu()` removes each reading's gyro bias
+(`remove_imu_gyro_bias()`, `ImuBiasCorrection.h`) before the de-skew generators
+and the gravity estimator; the IMU initializer and the map gravity estimator keep
+the raw readings (they estimate biases themselves). Sources are found at
+`initialize()` (`imu_bias_sources_`, under `imu_state_mtx_`); readings of IMUs
+without an estimate pass through. `MOLA_LO_USE_IMU_BIAS_SOURCE` (default true).
+
 ## Attitude-only IMU for the simplemap (`attitude_imu_sensor_label`)
 
 Keyframes store the IMU reading closest in time (`simplemap.save_imu_max_age`),

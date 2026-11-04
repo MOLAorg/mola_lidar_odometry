@@ -31,6 +31,11 @@ params:
   # is derived from this odometry's own registrations:
   deskew_odometry_sensor_label: "${MOLA_DESKEW_ODOMETRY_NAME|}"
 
+  # If another module offers IMU bias estimates (e.g. the state estimator with
+  # imu_bias_tracking), remove the gyroscope bias of each IMU reading before
+  # using it for de-skew and gravity alignment:
+  use_imu_bias_source: ${MOLA_LO_USE_IMU_BIAS_SOURCE|true}
+
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 1e-3 # [seconds]
 

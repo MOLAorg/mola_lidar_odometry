@@ -172,6 +172,10 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       }
     }
 
+    if (cfg.has("use_imu_bias_source")) {
+      params_.use_imu_bias_source = cfg["use_imu_bias_source"].as<bool>();
+    }
+
     if (cfg.has("deskew_odometry_sensor_label")) {
       const auto label = cfg["deskew_odometry_sensor_label"].as<std::string>();
       if (!label.empty()) {
@@ -553,6 +557,27 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     if (!sinks.empty()) {
       state_.shared_keyframe_map_sink = std::dynamic_pointer_cast<SharedKeyframeMap>(sinks[0]);
       MRPT_LOG_DEBUG("Detected a SharedKeyframeMap sink: will push central-map keyframes to it.");
+    }
+  }
+#endif
+
+#if defined(MOLA_LO_HAS_IMU_BIAS_SOURCE)
+  // Optional: IMU bias estimates from another module (e.g. the state estimator).
+  {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    imu_bias_sources_.clear();
+  }
+  if (params_.use_imu_bias_source) {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    for (const auto & m : findService<mola::ImuBiasSource>()) {
+      if (auto src = std::dynamic_pointer_cast<mola::ImuBiasSource>(m); src) {
+        imu_bias_sources_.push_back(src);
+      }
+    }
+    if (!imu_bias_sources_.empty()) {
+      MRPT_LOG_DEBUG_STREAM(
+        "Detected " << imu_bias_sources_.size()
+                    << " IMU bias source(s): gyro biases will be removed from IMU readings.");
     }
   }
 #endif

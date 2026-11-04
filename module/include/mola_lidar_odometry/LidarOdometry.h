@@ -32,6 +32,10 @@
 #include <mola_kernel/interfaces/MapSourceBase.h>
 #include <mola_kernel/interfaces/NavStateFilter.h>
 #include <mola_kernel/interfaces/Relocalization.h>
+#if __has_include(<mola_kernel/interfaces/ImuBiasSource.h>)
+#include <mola_kernel/interfaces/ImuBiasSource.h>
+#define MOLA_LO_HAS_IMU_BIAS_SOURCE 1
+#endif
 #if __has_include(<mola_kernel/interfaces/SharedKeyframeMap.h>)
 #include <mola_kernel/interfaces/SharedKeyframeMap.h>
 #define MOLA_HAS_SHARED_KEYFRAME_MAP_SINK 1
@@ -251,6 +255,13 @@ public:
      *  If the source does not cover a sweep, the estimator's twist is used.
      */
     std::optional<std::string> deskew_odometry_sensor_label;
+
+    /** If true and another module offers IMU bias estimates (mola::ImuBiasSource,
+     *  e.g. the state estimator with `imu_bias_tracking`), the gyroscope bias of
+     *  each IMU reading is subtracted before using it for IMU-based de-skew and
+     *  gravity alignment. Readings of IMUs without an estimate yet are used as is.
+     */
+    bool use_imu_bias_source = true;
 
     /** Minimum time (seconds) between scans for being attempted to be
          * aligned. Scans faster than this rate will be just silently ignored.
@@ -1985,6 +1996,12 @@ private:
   /// threading a lock object through a dozen signatures.
   mutable std::recursive_mutex imu_state_mtx_;
 
+#if defined(MOLA_LO_HAS_IMU_BIAS_SOURCE)
+  /// IMU bias providers (use_imu_bias_source), guarded by imu_state_mtx_.
+  std::vector<std::shared_ptr<mola::ImuBiasSource>> imu_bias_sources_;
+  bool imu_bias_first_use_logged_ = false;
+#endif
+
   /// Guards the *contents* (layers) of MethodState::local_map.
   /// Rendering the map is O(map size) and would stall every other user of
   /// state_mtx_ (dataset reader, sensor input, executor thread) if done under it,
@@ -2112,6 +2129,11 @@ private:
    *  them from pending_imu_.
    *  Caller must hold state_mtx_. */
   void consumePendingImu(double upToTime);
+
+  /** The reading with its gyroscope bias removed, if a mola::ImuBiasSource has
+   *  an estimate for it; else the same one. Caller holds imu_state_mtx_. */
+  [[nodiscard]] mrpt::obs::CObservationIMU::ConstPtr imuBiasCorrected(
+    const mrpt::obs::CObservationIMU::ConstPtr & imu);
 
   void onGPS(const CObservation::ConstPtr & o);
   void onGPSImpl(const CObservation::ConstPtr & o);
