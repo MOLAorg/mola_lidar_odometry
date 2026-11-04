@@ -563,9 +563,12 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
 
 #if defined(MOLA_LO_HAS_IMU_BIAS_SOURCE)
   // Optional: IMU bias estimates from another module (e.g. the state estimator).
-  if (params_.use_imu_bias_source) {
+  {
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     imu_bias_sources_.clear();
+  }
+  if (params_.use_imu_bias_source) {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     for (const auto & m : findService<mola::ImuBiasSource>()) {
       if (auto src = std::dynamic_pointer_cast<mola::ImuBiasSource>(m); src) {
         imu_bias_sources_.push_back(src);
