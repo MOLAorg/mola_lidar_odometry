@@ -120,9 +120,9 @@ TEST(ImuBiasCorrection, CorrectedHeadingDoesNotDrift)
     yawRaw += raw->get(mrpt::obs::IMU_WZ) / RATE;
     yawCorrected += corr->get(mrpt::obs::IMU_WZ) / RATE;
   }
-  // 63 s at -0.2 deg/s: ~13 deg of drift, vs the noise integral (~0.02 deg):
+  // 63 s at -0.2 deg/s: ~13 deg of drift, vs the noise integral (0.14 deg, 1 sigma):
   EXPECT_GT(std::abs(yawRaw - yawTrue), mrpt::DEG2RAD(12.0));
-  EXPECT_LT(std::abs(yawCorrected - yawTrue), mrpt::DEG2RAD(0.1));
+  EXPECT_LT(std::abs(yawCorrected - yawTrue), mrpt::DEG2RAD(0.6));
 }
 
 // Readings without a usable estimate are passed through unchanged; the first
