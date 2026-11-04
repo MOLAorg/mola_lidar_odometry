@@ -1142,6 +1142,12 @@ The smoother also needs `-l <libmola_state_estimation_smoother.so>`; the CLI
 does not load that plugin by default and the class factory otherwise fails with
 "unknown class name".
 
+`--output-tum-path-fused` samples the estimator at the stamp of the newest
+registered pose (the scan's reference time), not at the observation stamp,
+which can be half a sweep later: that would score an extrapolation. The query
+at the observation stamp is still made, since the simple estimator fuses its
+buffered IMU readings on a query, so the run itself does not change.
+
 ## A second front-end in the batch CLI: `--module`
 
 `mola-lidar-odometry-cli` can run arbitrary extra MOLA modules alongside the

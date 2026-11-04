@@ -1112,6 +1112,7 @@ int main_odometry(Cli & cli)
   // what --output-tum-path writes: a second front-end reaches those only
   // through the motion prior, so its contribution is largely invisible there.
   std::optional<mrpt::poses::CPose3DInterpolator> outFusedPath;
+  std::optional<mrpt::Clock::time_point> lastFusedSampleStamp;
 
   bool liodom_emitted_log = false;
   std::mutex liodom_emitted_log_mtx;
@@ -1461,12 +1462,25 @@ int main_odometry(Cli & cli)
     }
 
     // Sample the fused estimate for this scan, now that the worker is done and
-    // whatever the other front-ends contributed is already in the graph:
+    // whatever the other front-ends contributed is already in the graph. It is
+    // sampled at the stamp of the newest registered pose (the scan's reference
+    // time, which may differ from the observation stamp), so that it is the
+    // estimator's solved state and not an extrapolation from it:
     if (outFusedPath && obsIsLidarScan) {
-      const auto st =
-        stateEstimatorAsNavState->estimated_navstate(obs->timestamp, estimatorOutFrame);
-      if (st.has_value()) {
-        outFusedPath->insert(obs->timestamp, st->pose.mean.asTPose());
+      // Some estimators advance their own state on a query (e.g. fusing the
+      // buffered IMU readings up to the queried time), so the query at the
+      // observation stamp is kept: without it the run would change, not only
+      // what is written out.
+      (void)stateEstimatorAsNavState->estimated_navstate(obs->timestamp, estimatorOutFrame);
+
+      const auto traj = liodom->estimatedTrajectory();
+      const auto tSample = traj.empty() ? obs->timestamp : traj.rbegin()->first;
+      if (!lastFusedSampleStamp || tSample > *lastFusedSampleStamp) {
+        const auto st = stateEstimatorAsNavState->estimated_navstate(tSample, estimatorOutFrame);
+        if (st.has_value()) {
+          outFusedPath->insert(tSample, st->pose.mean.asTPose());
+          lastFusedSampleStamp = tSample;
+        }
       }
     }
 
