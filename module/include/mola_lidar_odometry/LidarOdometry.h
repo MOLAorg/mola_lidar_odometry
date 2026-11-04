@@ -657,6 +657,13 @@ public:
       /// Past scans forming the reference cloud of the feature evaluator.
       uint32_t window_scans = 25;
 
+      /// Multiplies the covariance handed to the state estimator (learned or,
+      /// with no model, the solver's own). For experiments separating the
+      /// level of a covariance from its shape; 1 changes nothing.
+      double variance_scale = 1.0;
+
+      bool scales() const { return variance_scale != 1.0; }
+
       /// Context labels the model was trained with (framework_name, sensor,
       /// mode); unknown ones contribute nothing.
       std::map<std::string, std::string> context = {
@@ -1841,6 +1848,7 @@ private:
     /// poses (the feature evaluator's reference), oldest first.
     std::deque<std::pair<mrpt::maps::CPointsMap::Ptr, mrpt::poses::CPose3D>> learned_cov_window;
     std::shared_ptr<mp2p_icp::CovFeatureEvaluator> learned_cov_evaluator;
+    bool learned_cov_reference_dirty = false;  //!< window changed since last use
     double last_learned_cov_p_fail = 0;
 #endif
 

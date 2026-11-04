@@ -52,16 +52,11 @@ void LidarOdometry::applyLearnedCovariance(
     return;
   }
 
-  if (!state_.learned_cov_evaluator) {
-    state_.learned_cov_evaluator = std::make_shared<mp2p_icp::CovFeatureEvaluator>();
-  }
   auto & ev = *state_.learned_cov_evaluator;
-
-  std::vector<std::pair<const mrpt::maps::CPointsMap *, mrpt::poses::CPose3D>> refs;
-  for (const auto & [pts, p] : state_.learned_cov_window) {
-    refs.emplace_back(pts.get(), p);
+  if (state_.learned_cov_reference_dirty) {
+    ev.finalizeReference();
+    state_.learned_cov_reference_dirty = false;
   }
-  ev.setReference(refs);
   ev.setScan(*scan);
 
   mp2p_icp::CovFeatureContext ctx;
@@ -103,10 +98,20 @@ void LidarOdometry::pushLearnedCovarianceWindow(
   if (!scan || scan->empty()) {
     return;
   }
+  if (!state_.learned_cov_evaluator) {
+    state_.learned_cov_evaluator = std::make_shared<mp2p_icp::CovFeatureEvaluator>();
+  }
+  // The window slides one scan per step: update the evaluator's reference
+  // incrementally instead of rebuilding it from every scan in the window.
+  auto & ev = *state_.learned_cov_evaluator;
   state_.learned_cov_window.emplace_back(scan, pose);
+  ev.addReferenceCloud(*scan, pose);
   while (state_.learned_cov_window.size() > lc.window_scans) {
+    const auto & [oldScan, oldPose] = state_.learned_cov_window.front();
+    ev.removeReferenceCloud(*oldScan, oldPose);
     state_.learned_cov_window.pop_front();
   }
+  state_.learned_cov_reference_dirty = true;
 }
 
 #endif

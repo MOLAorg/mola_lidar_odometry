@@ -1398,6 +1398,9 @@ void LidarOdometry::processLidarScan(  // NOLINT
       ProfilerEntry tle_lc(profiler_, "onLidar.3b.learned_covariance");
       applyLearnedCovariance(*observation, in, icp_result, out.found_pose_to_wrt_from);
     }
+    if (params_.learned_covariance.scales()) {
+      out.found_pose_to_wrt_from.cov *= params_.learned_covariance.variance_scale;
+    }
 #endif
 
 #ifdef MOLA_KERNEL_VIZ_HAS_METRICS

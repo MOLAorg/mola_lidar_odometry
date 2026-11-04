@@ -243,6 +243,11 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     if (cfg.has("learned_covariance")) {
       params_.learned_covariance.initialize(cfg["learned_covariance"]);
     }
+#if !defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
+    ASSERTMSG_(
+      !params_.learned_covariance.scales(),
+      "learned_covariance.variance_scale needs an mp2p_icp with LearnedCovariance");
+#endif
     if (params_.learned_covariance.enabled()) {
 #if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
       learned_cov_model_.load(params_.learned_covariance.model_file);
