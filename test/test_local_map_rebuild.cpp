@@ -43,7 +43,8 @@
 namespace mola
 {
 /** A central map like a global mapper: it keeps the keyframes pushed by LO,
- *  plus some of an earlier visit, and gives them back with the poses it has. */
+ *  plus some of an earlier visit, and gives them back with the poses it has,
+ *  in its own map frame (offset from LO's). */
 class MockCentralMap : public ExecutableBase,
                        public SharedKeyframeMap,
                        public LocalMapCorrectionSource
@@ -60,7 +61,9 @@ public:
   std::optional<KeyFrameID> requestInsertKeyframe(const KeyframeInsertRequest & req) override
   {
     auto lck = mrpt::lockHelper(mtx_);
-    kfs_.push_back({req.timestamp, req.pose_in_source.mean, req.observations});
+    kfs_.push_back(
+      {req.timestamp, MAP_FROM_ODOM + req.pose_in_source.mean, req.observations,
+       req.source_frame_id});
     return kfs_.size() - 1;
   }
 
@@ -68,7 +71,8 @@ public:
   void add_earlier_keyframe(const mrpt::poses::CPose3D & pose, mrpt::obs::CSensoryFrame sf)
   {
     auto lck = mrpt::lockHelper(mtx_);
-    earlier_.push_back({mrpt::Clock::fromDouble(1.0), pose, std::move(sf)});
+    earlier_.push_back(
+      {mrpt::Clock::fromDouble(1.0), MAP_FROM_ODOM + pose, std::move(sf), "other"});
   }
 
   [[nodiscard]] std::size_t pushed_count() const
@@ -88,9 +92,14 @@ private:
   struct Kf
   {
     mrpt::Clock::time_point stamp;
-    mrpt::poses::CPose3D pose;
+    mrpt::poses::CPose3D pose;  ///< in the central map frame
     mrpt::obs::CSensoryFrame sf;
+    std::string source;
   };
+
+  /// The central map frame differs from LO's: only relative poses can match.
+  inline static const mrpt::poses::CPose3D MAP_FROM_ODOM =
+    mrpt::poses::CPose3D::FromXYZYawPitchRoll(50.0, -20.0, 1.0, 0.7, 0.0, 0.0);
 
   [[nodiscard]] std::optional<std::vector<LocalMapKeyframe>> local_map_keyframes_impl(
     KeyFrameID reference, double radius) const override
@@ -108,7 +117,7 @@ private:
       LocalMapKeyframe k;
       k.id = id;
       k.timestamp = kf.stamp;
-      k.source_frame_id = "test";
+      k.source_frame_id = kf.source;
       k.pose_from_reference = kf.pose - ref;
       k.observations = kf.sf;
       out.push_back(std::move(k));
@@ -181,7 +190,7 @@ std::size_t points_in_box(
 
 }  // namespace
 
-TEST(LocalMapRebuild, ReusesEarlierVisitWithoutPoseJump)
+void reuses_earlier_visit_without_pose_jump(const std::string & pipelineFile, bool pointCloudMap)
 {
   const auto world = unique_hall();
   // A diagonal run, so the reference keyframe is rotated:
@@ -223,7 +232,7 @@ TEST(LocalMapRebuild, ReusesEarlierVisitWithoutPoseJump)
   stateEstimator->initialize(
     mola::load_yaml_file(mrpt::get_env<std::string>("LO_STATE_ESTIM_YAML")));
   liodom->setMinLoggingLevel(mrpt::system::LVL_WARN);
-  liodom->initialize(mola::load_yaml_file(mrpt::get_env<std::string>("LO_PIPELINE_YAML")));
+  liodom->initialize(mola::load_yaml_file(pipelineFile));
   liodom->params_.simplemap.generate = false;
   liodom->params_.estimated_trajectory.output_file.clear();
   liodom->params_.lidar_sensor_labels.assign(1, std::regex("lidar"));
@@ -242,6 +251,17 @@ TEST(LocalMapRebuild, ReusesEarlierVisitWithoutPoseJump)
   };
   drive(40);
   ASSERT_GT(central->pushed_count(), 2U);
+
+  // LO tracks the vehicle before the rebuild:
+  {
+    const auto traj = liodom->estimatedTrajectory();
+    ASSERT_FALSE(traj.empty());
+    const CPose3D last(traj.rbegin()->second);
+    const auto truth = p0 + CPose3D::FromTranslation(0.2 * 39, 0, 0);
+    const double err = (last.translation() - truth.translation()).norm();
+    std::cout << "Position error before the rebuild: " << err << " m\n";
+    ASSERT_LT(err, 0.10);
+  }
 
   const auto before = save_local_map(*liodom);
   const auto nTrueBefore = points_in_box(before, trueFaceLo, trueFaceHi);
@@ -264,9 +284,11 @@ TEST(LocalMapRebuild, ReusesEarlierVisitWithoutPoseJump)
             << ", hidden pillar side points " << nTrueBefore << " (shifted: " << nShiftedBefore
             << "); after: " << after.contents_summary() << ", " << nTrueAfter << " ("
             << nShiftedAfter << ")\n";
-  EXPECT_EQ(nTrueBefore + nShiftedBefore, 0U);
-  EXPECT_EQ(nTrueAfter, 0U);
-  EXPECT_GT(nShiftedAfter, 10U);
+  if (pointCloudMap) {
+    EXPECT_EQ(nTrueBefore + nShiftedBefore, 0U);
+    EXPECT_EQ(nTrueAfter, 0U);
+    EXPECT_GT(nShiftedAfter, 10U);
+  }
 
   // On the rebuilt map, the odometry goes on without a jump:
   drive(30);
@@ -289,6 +311,22 @@ TEST(LocalMapRebuild, ReusesEarlierVisitWithoutPoseJump)
   EXPECT_LT(maxStep, 0.3);
   EXPECT_LT(endErr, 0.10);
   EXPECT_EQ(liodom->localMapRebuildCount(), 1U);
+}
+
+TEST(LocalMapRebuild, ReusesEarlierVisitWithoutPoseJump)
+{
+  // A point cloud local map (IncrementalPointCloud):
+  reuses_earlier_visit_without_pose_jump(mrpt::get_env<std::string>("LO_PIPELINE_YAML"), true);
+}
+
+TEST(LocalMapRebuild, RebuildsNdtMapWithoutPoseJump)
+{
+  // A local map that is not a point cloud (keyframes go in from their own
+  // poses), whose points cannot be counted here:
+  const auto f =
+    mrpt::system::extractFileDirectory(mrpt::get_env<std::string>("LO_PIPELINE_YAML")) +
+    "/lidar3d-ndt.yaml";
+  reuses_earlier_visit_without_pose_jump(f, false);
 }
 
 #else

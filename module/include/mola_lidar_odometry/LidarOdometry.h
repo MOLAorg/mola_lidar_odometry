@@ -2025,6 +2025,10 @@ private:
   bool local_map_rebuild_exit_ = false;
   /// Stops a rebuild in progress (shutdown).
   std::atomic<bool> local_map_rebuild_cancel_{false};
+  /// A correction not applied yet: retried after the next pushed keyframe.
+  std::atomic<bool> local_map_rebuild_pending_{false};
+  /// lastInitConfig_ when the rebuild started (the pipelines are built from it).
+  Yaml rebuild_config_;
 
   /** Changed whenever the local map or the odometry frame change other than by
    *  a scan insertion (restart, map load, re-leveling, reset): a rebuild that
@@ -2054,11 +2058,12 @@ private:
   /// Unsubscribes and joins the rebuild thread (from shutdownCleanup()).
   void stopLocalMapRebuild();
   void localMapRebuildThreadLoop();
-  void rebuildLocalMap();
+  /// False if it could not be done now and should be retried later.
+  bool rebuildLocalMap();
   /// The keyframe observations, as a scan would be before its ICP.
   [[nodiscard]] std::optional<mp2p_icp::metric_map_t> preprocessKeyframeForRebuild(
     const mrpt::obs::CSensoryFrame & sf, const mrpt::Clock::time_point & stamp,
-    const std::vector<std::regex> & lidarLabels);
+    const std::vector<std::regex> & lidarLabels, bool earlyDeskew);
   /** Discards the reference and the buffered insertions of a rebuild, and any
    *  rebuild in progress. Caller holds state_mtx_. */
   void invalidateLocalMapRebuild();

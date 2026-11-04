@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <chrono>
 #include <regex>
+#include <utility>
 
 namespace mola
 {
@@ -162,6 +163,16 @@ void LidarOdometry::startLocalMapRebuild()
   if (!local_map_correction_source_) {
     return;
   }
+  if (params_.simplemap.generate && params_.simplemap.generate_lazy_load_scan_files) {
+    // Those keyframe scans are moved to disk and unloaded by another thread,
+    // while a rebuild would read them.
+    local_map_correction_source_.reset();
+    MRPT_LOG_WARN(
+      "Local map rebuilds disabled: not compatible with "
+      "simplemap.generate_lazy_load_scan_files.");
+    return;
+  }
+  rebuild_config_ = lastInitConfig_;
 
   local_map_rebuild_thread_ = std::thread([this]() { localMapRebuildThreadLoop(); });
   local_map_correction_subscription_ =
@@ -209,13 +220,17 @@ void LidarOdometry::localMapRebuildThreadLoop()
       // Corrections arriving while rebuilding are merged into the next one:
       local_map_rebuild_requested_ = false;
     }
+    bool done = false;
     try {
-      rebuildLocalMap();
+      done = rebuildLocalMap();
     } catch (const std::exception & e) {
       MRPT_LOG_ERROR_STREAM("Local map rebuild failed: " << e.what());
       auto lck = mrpt::lockHelper(state_mtx_);
       state_.local_map_rebuild_reference.reset();
     }
+    // Not done (e.g. no reference yet, or the map changed meanwhile): retried
+    // after the next pushed keyframe, since the source will not repeat it.
+    local_map_rebuild_pending_ = !done;
   }
 }
 
@@ -234,6 +249,13 @@ void LidarOdometry::onKeyframePushed(
     return;
   }
   state_.last_pushed_keyframe = MethodState::PushedKeyframe{id, stamp, pose};
+  if (local_map_rebuild_pending_.exchange(false)) {
+    {
+      auto lck = mrpt::lockHelper(local_map_rebuild_mtx_);
+      local_map_rebuild_requested_ = true;
+    }
+    local_map_rebuild_cv_.notify_one();
+  }
 
   // Only the insertions after the reference of the next rebuild (or of the one
   // in progress) are needed:
@@ -249,7 +271,7 @@ void LidarOdometry::onKeyframePushed(
 
 std::optional<mp2p_icp::metric_map_t> LidarOdometry::preprocessKeyframeForRebuild(
   const mrpt::obs::CSensoryFrame & sf, const mrpt::Clock::time_point & stamp,
-  const std::vector<std::regex> & lidarLabels)
+  const std::vector<std::regex> & lidarLabels, bool earlyDeskew)
 {
   auto & p = *rebuild_pipelines_;
 
@@ -311,7 +333,7 @@ std::optional<mp2p_icp::metric_map_t> LidarOdometry::preprocessKeyframeForRebuil
     out.merge_with(thisObs);
   }
   mp2p_icp_filters::apply_filter_pipeline(p.prefilter, out);
-  if (!p.deskew.empty()) {
+  if (earlyDeskew) {
     mp2p_icp_filters::apply_filter_pipeline(p.deskew, out);
   } else if (const auto it = out.layers.find("raw"); it != out.layers.end()) {
     out.layers["deskewed"] = it->second;
@@ -326,12 +348,12 @@ std::optional<mp2p_icp::metric_map_t> LidarOdometry::preprocessKeyframeForRebuil
   return out;
 }
 
-void LidarOdometry::rebuildLocalMap()
+bool LidarOdometry::rebuildLocalMap()
 {
   using mrpt::poses::CPose3D;
   const auto t0 = std::chrono::steady_clock::now();
 
-  // 1/4: what to rebuild, from the scan thread state:
+  // 1/5: what to rebuild, from the scan thread state:
   MethodState::PushedKeyframe ref;
   uint64_t generation = 0;
   double radius = 0;
@@ -340,19 +362,19 @@ void LidarOdometry::rebuildLocalMap()
   std::vector<std::regex> lidarLabels;
   std::string ownSource;
   bool reexpressInReference = true;
+  bool earlyDeskew = false;
   std::map<std::string, double> variables;
-  std::optional<Yaml> config;
   {
     auto lck = mrpt::lockHelper(state_mtx_);
-    if (
-      !state_.last_pushed_keyframe || !state_.local_map || !params_.local_map_updates.enabled ||
-      state_.local_map_rebuild_reference) {
-      return;
-    }
     if (state_.map_has_been_loaded) {
       // Its contents are not in the central map: a rebuild would drop them.
       MRPT_LOG_ONCE_INFO("Local map not rebuilt after corrections: it was loaded from a file.");
-      return;
+      return true;
+    }
+    if (
+      !state_.last_pushed_keyframe || !state_.local_map || !params_.local_map_updates.enabled ||
+      state_.local_map_rebuild_reference) {
+      return false;
     }
     ref = *state_.last_pushed_keyframe;
     generation = local_map_generation_.load();
@@ -369,35 +391,58 @@ void LidarOdometry::rebuildLocalMap()
       }
     }
     state_.local_map_rebuild_reference = ref.stamp;
-    if (!rebuild_pipelines_) {
-      config = lastInitConfig_;
-    }
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    // As preprocessScan():
+    earlyDeskew =
+      !state_.pc_deskew.empty() && (!params_.optimize_twist || isPipelineUsingIMU_locked());
     variables = state_.parameter_source.getVariableValues();
   }
   const auto finish = [this]() {
     auto lck = mrpt::lockHelper(state_mtx_);
     state_.local_map_rebuild_reference.reset();
   };
+  const auto aborted = [&]() {
+    return local_map_rebuild_cancel_.load() || generation != local_map_generation_.load();
+  };
   if (radius <= 0) {
     radius = 100.0;  // a local map without distant keyframe removal
   }
 
-  // 2/4: the corrected keyframes around the reference:
+  // 2/5: the corrected keyframes around the reference, newest first, one per
+  // rebuild_keyframe_spacing (denser ones mostly repeat points). Own keyframes
+  // pushed after the reference are among the recent scans already.
   const auto keyframes = local_map_correction_source_->local_map_keyframes(ref.id, radius);
-  if (!keyframes || keyframes->empty()) {
+  if (!keyframes) {
     finish();
-    return;
+    return false;
+  }
+  std::vector<const LocalMapKeyframe *> selected;
+  for (auto it = keyframes->rbegin(); it != keyframes->rend(); ++it) {
+    const auto & kf = *it;
+    if (kf.source_frame_id == ownSource && kf.timestamp > ref.stamp) {
+      continue;
+    }
+    const auto pos = kf.pose_from_reference.translation();
+    const bool tooClose = std::any_of(selected.begin(), selected.end(), [&](const auto * u) {
+      return (u->pose_from_reference.translation() - pos).norm() < spacing;
+    });
+    if (!tooClose) {
+      selected.push_back(&kf);
+    }
+  }
+  if (!reexpressInReference) {
+    // Inserted from their own poses, these classes evict around each one: the
+    // farthest first, and the reference last.
+    std::stable_sort(selected.begin(), selected.end(), [](const auto * a, const auto * b) {
+      return a->pose_from_reference.translation().norm() >
+             b->pose_from_reference.translation().norm();
+    });
   }
 
-  // 3/4: the new local map, anchored at the reference pose of this odometry, so
-  // the vehicle pose does not jump. For point clouds, each keyframe goes in
-  // expressed in the reference frame, with the reference as robot pose, so the
-  // map keeps the points within its radius of the reference, wherever each one
-  // was taken from. Other map classes get each keyframe from its own pose.
-  if (config) {
+  // 3/5: the pipelines, once:
+  if (!rebuild_pipelines_) {
     auto p = std::make_unique<RebuildPipelines>();
-    const auto & c = *config;
+    const auto & c = rebuild_config_;
     const auto v = this->getMinLoggingLevel();
     if (c.has("observations_generator") && !c["observations_generator"].isNullNode()) {
       p->obs_generators = mp2p_icp_filters::generators_from_yaml(c["observations_generator"], v);
@@ -447,113 +492,149 @@ void LidarOdometry::rebuildLocalMap()
   }
   p.parameter_source.realize();
 
+  // 4/5: the new local map, anchored at the reference pose of this odometry, so
+  // the vehicle pose does not jump. For point clouds, each keyframe goes in
+  // expressed in the reference frame, with the reference as robot pose, so the
+  // map keeps the points within its radius of the reference, wherever each one
+  // was taken from. Other map classes get each keyframe from its own pose.
   auto newMap = mp2p_icp::metric_map_t::Create();
-  // Sensor poses for the new keyframe decider, inserted oldest first below:
-  std::vector<std::pair<double, CPose3D>> deciderEntries;
-  double oldestAge = 0;
-  // Newest first, so the most recent views of each place come first, and one
-  // keyframe per rebuild_keyframe_spacing: denser ones mostly repeat points.
-  std::vector<mrpt::math::TPoint3D> usedPositions;
-  for (auto it = keyframes->rbegin(); it != keyframes->rend(); ++it) {
-    if (local_map_rebuild_cancel_.load()) {
-      finish();
-      return;
-    }
-    const auto & kf = *it;
-    // Pushed after the reference was taken: they are among the recent scans.
-    if (kf.source_frame_id == ownSource && kf.timestamp > ref.stamp) {
-      continue;
-    }
-    const auto pos = kf.pose_from_reference.translation();
-    const bool tooClose = std::any_of(
-      usedPositions.begin(), usedPositions.end(),
-      [&](const mrpt::math::TPoint3D & u) { return (u - pos).norm() < spacing; });
-    if (tooClose) {
-      continue;
-    }
-    auto obs = preprocessKeyframeForRebuild(kf.observations, kf.timestamp, lidarLabels);
-    if (!obs) {
-      continue;
-    }
-    const auto lidarObs = lidar_observations(kf.observations, lidarLabels);
-    if (newMap->empty()) {
+  for (const auto * kf : selected) {
+    const auto lidarObs = lidar_observations(kf->observations, lidarLabels);
+    if (!lidarObs.empty()) {
       for (const auto & o : lidarObs) {
         mp2p_icp_filters::apply_generators(p.local_map_generators, *o, *newMap);
       }
+      break;
     }
-    const CPose3D kfPose = ref.pose + kf.pose_from_reference;
-    if (reexpressInReference) {
-      transform_point_layers(*obs, kf.pose_from_reference);
-      merge_into_map(p.parameter_source, p.obs2map_merge, *obs, ref.pose, *newMap);
-    } else {
-      merge_into_map(p.parameter_source, p.obs2map_merge, *obs, kfPose, *newMap);
-    }
-
-    // The keyframe decider holds sensor poses:
-    deciderEntries.emplace_back(
-      mrpt::Clock::toDouble(lidarObs.front()->timestamp),
-      kfPose + lidarObs.front()->getSensorPose());
-    usedPositions.push_back(pos);
-    oldestAge = std::max(oldestAge, mrpt::system::timeDifference(kf.timestamp, ref.stamp));
   }
-  if (deciderEntries.empty()) {
+  if (newMap->layers.empty()) {
     finish();
-    return;
-  }
-  KeyframeDecider newDecider(deciderOptions);
-  std::sort(deciderEntries.begin(), deciderEntries.end(), [](const auto & a, const auto & b) {
-    return a.first < b.first;
-  });
-  for (const auto & [stamp, pose] : deciderEntries) {
-    newDecider.insert(pose, stamp);
+    return true;  // nothing to rebuild from
   }
 
-  // 4/4: the scans inserted since the reference, again, and the swap. Most of
-  // them are merged without state_mtx_, so the scan thread is not blocked; only
-  // the last few, under it, right before the swap.
+  // The recent scans: merged first into point clouds, so their points win over
+  // older ones nearby; last into the others, so eviction centers on them.
   std::size_t numRecent = 0;
   auto mergedUpTo = ref.stamp;
-  for (int pass = 0;; pass++) {
-    std::vector<MethodState::LocalMapInsertion> todo;
-    std::unique_lock<std::mutex> lck(state_mtx_);
-    if (
-      generation != local_map_generation_.load() || !state_.local_map ||
-      !params_.local_map_updates.enabled || local_map_rebuild_cancel_.load()) {
-      state_.local_map_rebuild_reference.reset();
-      MRPT_LOG_INFO("Local map rebuild discarded: the local map changed meanwhile.");
-      return;
+  std::vector<std::pair<double, CPose3D>> recentDeciderEntries;
+  const auto mergeRecent = [&](const std::vector<MethodState::LocalMapInsertion> & todo) {
+    for (const auto & ins : todo) {
+      merge_into_map(p.parameter_source, p.obs2map_merge, ins.observation, ins.robot_pose, *newMap);
+      recentDeciderEntries.emplace_back(ins.obs_timestamp, ins.robot_pose + ins.sensor_pose);
+      mergedUpTo = ins.stamp;
+      numRecent++;
     }
+  };
+  const auto recentSince = [&](const mrpt::Clock::time_point & t) {
+    std::vector<MethodState::LocalMapInsertion> todo;
     for (const auto & ins : state_.recent_local_map_insertions) {
-      if (ins.stamp > mergedUpTo) {
+      if (ins.stamp > t) {
         todo.push_back(ins);
       }
     }
+    return todo;
+  };
+  if (reexpressInReference) {
+    std::vector<MethodState::LocalMapInsertion> todo;
+    {
+      auto lck = mrpt::lockHelper(state_mtx_);
+      todo = recentSince(mergedUpTo);
+    }
+    mergeRecent(todo);
+  }
+
+  // Sensor poses for the new keyframe decider, inserted in time order below:
+  std::vector<std::pair<double, CPose3D>> deciderEntries;
+  double oldestAge = 0;
+  std::size_t numFailed = 0;
+  for (const auto * kfp : selected) {
+    if (aborted()) {
+      finish();
+      return false;
+    }
+    const auto & kf = *kfp;
+    try {
+      auto obs =
+        preprocessKeyframeForRebuild(kf.observations, kf.timestamp, lidarLabels, earlyDeskew);
+      if (!obs) {
+        continue;
+      }
+      const auto lidarObs = lidar_observations(kf.observations, lidarLabels);
+      const CPose3D kfPose = ref.pose + kf.pose_from_reference;
+      if (reexpressInReference) {
+        transform_point_layers(*obs, kf.pose_from_reference);
+        merge_into_map(p.parameter_source, p.obs2map_merge, *obs, ref.pose, *newMap);
+      } else {
+        merge_into_map(p.parameter_source, p.obs2map_merge, *obs, kfPose, *newMap);
+      }
+      // The keyframe decider holds sensor poses:
+      deciderEntries.emplace_back(
+        mrpt::Clock::toDouble(lidarObs.front()->timestamp),
+        kfPose + lidarObs.front()->getSensorPose());
+      oldestAge = std::max(oldestAge, mrpt::system::timeDifference(kf.timestamp, ref.stamp));
+    } catch (const std::exception & e) {
+      // E.g. a keyframe of another front end: the others still count.
+      numFailed++;
+      MRPT_LOG_DEBUG_STREAM("Local map rebuild: keyframe " << kf.id << " skipped: " << e.what());
+    }
+  }
+  if (deciderEntries.empty()) {
+    finish();
+    return true;
+  }
+  if (numFailed > 0) {
+    MRPT_LOG_WARN_FMT("Local map rebuild: %zu keyframes could not be used.", numFailed);
+  }
+
+  // 5/5: the scans inserted since, and the swap. Most of them are merged without
+  // state_mtx_, so the scan thread is not blocked; only the last few, under it,
+  // right before the swap.
+  mp2p_icp::metric_map_t::Ptr oldMap;
+  for (int pass = 0;; pass++) {
+    std::unique_lock<std::mutex> lck(state_mtx_);
+    if (aborted() || !state_.local_map || !params_.local_map_updates.enabled) {
+      state_.local_map_rebuild_reference.reset();
+      MRPT_LOG_INFO("Local map rebuild discarded: the local map changed meanwhile.");
+      return false;
+    }
+    const auto todo = recentSince(mergedUpTo);
     constexpr std::size_t MAX_UNDER_LOCK = 5;
     constexpr int MAX_PASSES = 4;
     const bool last = todo.size() <= MAX_UNDER_LOCK || pass + 1 >= MAX_PASSES;
     if (!last) {
       lck.unlock();
     }
-    for (const auto & ins : todo) {
-      merge_into_map(p.parameter_source, p.obs2map_merge, ins.observation, ins.robot_pose, *newMap);
-      newDecider.insert(ins.robot_pose + ins.sensor_pose, ins.obs_timestamp);
-      mergedUpTo = ins.stamp;
-      numRecent++;
-    }
+    mergeRecent(todo);
     if (!last) {
       continue;
     }
+
+    KeyframeDecider newDecider(deciderOptions);
+    std::sort(deciderEntries.begin(), deciderEntries.end(), [](const auto & a, const auto & b) {
+      return a.first < b.first;
+    });
+    std::sort(
+      recentDeciderEntries.begin(), recentDeciderEntries.end(),
+      [](const auto & a, const auto & b) { return a.first < b.first; });
+    for (const auto * entries : {&deciderEntries, &recentDeciderEntries}) {
+      for (const auto & [stamp, pose] : *entries) {
+        newDecider.insert(pose, stamp);
+      }
+    }
+
     state_.local_map_rebuild_reference.reset();
     newMap->metadata = state_.local_map->metadata;
     newMap->georeferencing = state_.local_map->georeferencing;
     {
       auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
-      state_.local_map = newMap;
+      // Destroyed below, without the locks (a large map takes a while):
+      oldMap = std::exchange(state_.local_map, newMap);
     }
     state_.kf_decider_local_map.emplace(std::move(newDecider));
     state_.mark_local_map_as_updated(true /*force_republish*/);
     break;
   }
+  oldMap.reset();
   local_map_rebuilds_++;
 
   MRPT_LOG_INFO_FMT(
@@ -561,6 +642,7 @@ void LidarOdometry::rebuildLocalMap()
     "the reference) and %zu recent scans, in %.0f ms.",
     deciderEntries.size(), keyframes->size(), oldestAge, numRecent,
     1e3 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+  return true;
 }
 
 }  // namespace mola
