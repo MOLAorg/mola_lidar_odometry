@@ -338,6 +338,11 @@ void LidarOdometry::applyMapFrameRelevel()
   const auto & b = *pending;
   const ProfilerEntry tle(profiler_, "onLidar.map_frame_relevel");
 
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+  // The rebuild reference pose is in the old frame:
+  invalidateLocalMapRebuild();
+#endif
+
   // 1/6: the local map contents.
   {
     auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
@@ -953,6 +958,9 @@ void LidarOdometry::processLidarScan(  // NOLINT
   // Built inside the lock, invoked after releasing state_mtx_ (see below):
   std::optional<mola::SharedKeyframeMap::KeyframeInsertRequest> pendingKfReq;
   std::shared_ptr<mola::SharedKeyframeMap> pendingKfSink;
+#endif
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+  const uint64_t localMapGeneration = local_map_generation_.load();
 #endif
 
   // First time we cannot do ICP since we need at least two pointclouds:
@@ -1852,6 +1860,28 @@ void LidarOdometry::processLidarScan(  // NOLINT
   // Stage 3: a new keyframe into the local map:
   if (updateLocalMap) {
     insertScanIntoLocalMap(sf, *observation, scan_ref_time);
+
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+    // Kept to insert it again into a rebuilt local map:
+    if (local_map_correction_source_) {
+      MethodState::LocalMapInsertion ins;
+      ins.stamp = scan_ref_time;
+      ins.robot_pose = state_.last_lidar_pose.mean;
+      ins.sensor_pose = obs->getSensorPose();
+      ins.obs_timestamp = mrpt::Clock::toDouble(obs->timestamp);
+      ins.observation = *observation;  // shallow copy of the layers
+      // Without what the scan does not keep after its ICP (e.g. full clouds):
+      mp2p_icp_filters::apply_filter_pipeline(state_.pc_filter3, ins.observation);
+      auto & q = state_.recent_local_map_insertions;
+      q.push_back(std::move(ins));
+      // Bounded, in case the central map stops accepting keyframes. Dropping
+      // one that a rebuild needs would leave a gap in it: no rebuild then.
+      constexpr std::size_t MAX_RECENT_INSERTIONS = 1000;
+      if (q.size() > MAX_RECENT_INSERTIONS) {
+        invalidateLocalMapRebuild();
+      }
+    }
+#endif
   }
 
   // Stage 4: optional simplemap, and shared keyframe map:
@@ -1899,7 +1929,17 @@ void LidarOdometry::processLidarScan(  // NOLINT
     updateStatusSnapshot();
     lckState.unlock();
     try {
-      pendingKfSink->requestInsertKeyframe(*pendingKfReq);
+      const auto kfId = pendingKfSink->requestInsertKeyframe(*pendingKfReq);
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+      if (kfId && local_map_correction_source_) {
+        lckState.lock();
+        onKeyframePushed(
+          *kfId, pendingKfReq->timestamp, pendingKfReq->pose_in_source.mean, localMapGeneration);
+        lckState.unlock();
+      }
+#else
+      (void)kfId;
+#endif
     } catch (const std::exception & e) {
       MRPT_LOG_WARN_STREAM(
         "shared keyframe map push failed at t="
@@ -2065,6 +2105,9 @@ void LidarOdometry::startMapAtFirstScan(
 
 void LidarOdometry::restartLocalMapFromScratch()
 {
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+  invalidateLocalMapRebuild();
+#endif
   // Re-start the local map:
   {
     auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
@@ -2422,11 +2465,18 @@ void LidarOdometry::appendKeyframeMetadataObs(
   }
 
   // Store local velocity buffer in the KF metadata so it is possible to deskew
-  // the scan later on with precision.
-  kf_metadata["local_velocity_buffer"] = [this]() {
+  // the scan later on with precision, and the twist used for the de-skew:
+  {
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
-    return state_.parameter_source.localVelocityBuffer.toYAML();
-  }();
+    kf_metadata["local_velocity_buffer"] = state_.parameter_source.localVelocityBuffer.toYAML();
+    const auto & vars = state_.parameter_source.getVariableValues();
+    auto twist = mrpt::containers::yaml::Sequence();
+    for (const char * name : {"vx", "vy", "vz", "wx", "wy", "wz"}) {
+      const auto it = vars.find(name);
+      twist.asSequence().emplace_back(it != vars.end() ? it->second : 0.0);
+    }
+    kf_metadata["deskew_twist"] = twist;
+  }
 
 #if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
   // A map-frame gauge change makes the keyframe poses of this run

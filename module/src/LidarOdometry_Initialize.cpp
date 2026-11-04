@@ -560,6 +560,9 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     }
   }
 #endif
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+  startLocalMapRebuild();
+#endif
 
 #if defined(MOLA_LO_HAS_IMU_BIAS_SOURCE)
   // Optional: IMU bias estimates from another module (e.g. the state estimator).
@@ -670,6 +673,9 @@ void LidarOdometry::doPreloadLocalMap()
 
     state_.mark_local_map_as_updated(true);
     state_.mark_local_map_georef_as_updated();
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+    invalidateLocalMapRebuild();
+#endif
 
     // Pre-warm ICP search structures for each layer that supports it.
     //

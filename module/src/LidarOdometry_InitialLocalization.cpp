@@ -269,6 +269,9 @@ void LidarOdometry::handleInitialLocalization()
             auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
             state_.local_map->clear();
           }
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+          invalidateLocalMapRebuild();
+#endif
           state_.gravity_calib_pitch_roll.reset();  // new map origin: recapture at next first KF
           state_.gravity_calib_pose.reset();
           state_.gravity_calib_first_available_time.reset();

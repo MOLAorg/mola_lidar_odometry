@@ -96,6 +96,9 @@ MapServer::ReturnStatus LidarOdometry::map_load_impl(const std::string & path)
     ASSERT_(state_.local_map);
     state_.local_map->clear();
     local_map_contents_stamp_ = {};
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+    invalidateLocalMapRebuild();
+#endif
     state_.gravity_calib_pitch_roll.reset();  // new map origin: recapture at next first KF
     state_.gravity_calib_pose.reset();
     state_.gravity_calib_first_available_time.reset();

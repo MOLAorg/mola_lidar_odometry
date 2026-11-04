@@ -436,6 +436,31 @@ not here -- but two structural changes live in this file:
 `pushKeyframeToSharedKeyframeMap()`'s dedicated frame name, and the
 distance-checker `insert()` gating fix mentioned above.
 
+## Local map rebuild from a LocalMapCorrectionSource (`LidarOdometry_LocalMapRebuild.cpp`)
+
+If the keyframe sink module is also a `mola::LocalMapCorrectionSource` (e.g. `mola_mapper`,
+which advertises a correction after solves with new loop closures) and
+`local_map_updates.rebuild_on_corrections` (`MOLA_LO_LOCAL_MAP_REBUILD`, default on),
+a dedicated thread rebuilds the local map (not if it was loaded from a file):
+- Reference: the newest pushed keyframe accepted by the sink (`last_pushed_keyframe`:
+  its id and LIO's own pose of it). Keyframes come back relative to it, so the map is
+  anchored at LIO's pose and the vehicle pose does not jump.
+- Keyframes within `max_distance_to_keep_keyframes` (keep it equal to the map's own point
+  eviction distance), earlier passes included, newest first, one per
+  `rebuild_keyframe_spacing`. Each is preprocessed again by a second copy of the pipelines
+  with its own `ParameterSource` (`RebuildPipelines`), de-skewed with the velocity buffer
+  and twist stored in its metadata (`deskew_twist`). Into point cloud maps it goes
+  re-expressed in the reference frame, with the reference as the robot pose, so their
+  distance eviction stays centered there; other classes (keyframe maps, TSDF, NDT) use the
+  insertion pose as a viewpoint, so they get each keyframe from its own pose.
+- Then the local map insertions after the reference (`recent_local_map_insertions`, trimmed
+  by the final-pass filter) are merged again, mostly outside `state_mtx_`, the last few
+  under it, and the `state_.local_map` pointer is swapped. `kf_decider_local_map` is
+  rebuilt from all of them.
+- `invalidateLocalMapRebuild()` (map restart/load/preload, relocalization, re-leveling, a
+  full insertion buffer, and `local_map_generation_` in `reset()`) drops the reference and
+  any rebuild in progress. Known gap: those frame changes are not told to the central map.
+
 ## Scan enqueue & overload handling (drop stale, keep freshest)
 
 Incoming LiDAR scans reach a single worker thread (`worker_lidar_`) via

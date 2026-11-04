@@ -777,6 +777,14 @@ Local map update
   away than this distance, measured from the current robot pose, will be removed. This saves memory and avoids
   inconsistencies before loop-closure (which is handled outside of the LO module).
 
+- ``MOLA_LO_LOCAL_MAP_REBUILD`` (Default: ``true``): If a central map that corrects the pushed keyframes is
+  running (e.g. ``mola_mapper``, after loop closures), rebuild the local map after each correction from its keyframes
+  within ``MOLA_LOCAL_MAP_MAX_SIZE``, with their corrected poses, including those of earlier visits to the same place.
+  The rebuilt map is anchored at the newest pushed keyframe, so the vehicle pose does not jump.
+
+- ``MOLA_LO_LOCAL_MAP_REBUILD_SPACING`` (In meters; default: ``1.0``): Minimum distance between the keyframes used to
+  rebuild the local map (the newest ones are kept).
+
 - ``MOLA_LOCAL_VOXELMAP_RESOLUTION`` (In meters; default: heuristic formula, see YAML file): Size of voxels for the local map.
   **Not used in the GICP pipeline**, which uses a keyframe-based map instead.
 

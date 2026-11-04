@@ -103,6 +103,10 @@ void LidarOdometry::shutdownCleanup()
 
   try  // must never throw
   {
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+    stopLocalMapRebuild();
+#endif
+
     // Before the workers are told to stop: no further input is coming, so any
     // scan still waiting for IMU data must be processed now or be lost.
     flushPendingLidarScans();
@@ -252,6 +256,9 @@ void LidarOdometry::reset()
       is_busy_mtx_, drop_stats_mtx_);
     state_ = MethodState();
     session_id_++;
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+    local_map_generation_++;  // a rebuild in progress belongs to the old state
+#endif
     // The compiled parameter formulas in params_ reference variables owned by
     // the parameter source destroyed above: drop them, initialize() declares
     // them again. The rest of params_ is kept, since the input thread may be

@@ -77,6 +77,23 @@ if(mola_metric_maps_FOUND AND mola_state_estimation_simple_FOUND)
   )
 endif()
 
+# Test: the local map rebuilt from the keyframes of a central map after one of
+# its corrections, on synthetic data generated on the fly: no dataset needed.
+# ------------------------------------------------------------------------------
+if(mola_metric_maps_FOUND AND mola_state_estimation_simple_FOUND)
+  ament_add_gtest(test_local_map_rebuild test_local_map_rebuild.cpp
+    TIMEOUT 600
+    ENV LO_PIPELINE_YAML=${mola_lidar_odometry_SOURCE_DIR}/pipelines/lidar3d-default.yaml
+    ENV LO_STATE_ESTIM_YAML=${mola_lidar_odometry_SOURCE_DIR}/state-estimator-params/state-estimation-simple.yaml
+    ENV MOLA_PROFILER=false
+  )
+  target_link_libraries(test_local_map_rebuild
+    mrpt::mrpt_obs
+    mola::mola_state_estimation_simple
+    mola::mola_lidar_odometry
+  )
+endif()
+
 # Test: initial localization from a poor GNSS (with or without IMU), with the
 # real smoother and a global search. Synthetic world and sensor data are
 # generated on the fly: no dataset needed.
