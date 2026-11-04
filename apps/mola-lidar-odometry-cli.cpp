@@ -1249,7 +1249,10 @@ int main_odometry(Cli & cli)
 
     std::cout << "Ground truth available. Saving it to: " << gtOutFile << "\n";
 
-    gtPath.saveToTextFile_TUM(gtOutFile);
+    // Written before the run: an unwritable output directory fails here, not
+    // after the whole dataset has been processed.
+    ASSERTMSG_(
+      gtPath.saveToTextFile_TUM(gtOutFile), "Cannot write the ground truth to: " + gtOutFile);
   }
 
   const double tStart = mrpt::Clock::nowDouble();
@@ -1471,6 +1474,16 @@ int main_odometry(Cli & cli)
     }
   }
 
+  // A failed write must not pass silently: every output is still attempted,
+  // and the exit code reports any that could not be written.
+  bool saveFailed = false;
+  const auto checkSaved = [&saveFailed](bool ok, const std::string & fil) {
+    if (!ok) {
+      std::cerr << "\nERROR: could not write: " << fil << "\n";
+      saveFailed = true;
+    }
+  };
+
   if (cli.arg_outPath.isSet()) {
     const auto fil = cli.arg_outPath.getValue();
     std::cout << "\nSaving estimated path in TUM format to: " << fil
@@ -1478,7 +1491,7 @@ int main_odometry(Cli & cli)
 
     const mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory = liodom->estimatedTrajectory();
 
-    lastEstimatedTrajectory.saveToTextFile_TUM(fil);
+    checkSaved(lastEstimatedTrajectory.saveToTextFile_TUM(fil), fil);
   }
 
   if (outFusedPath) {
@@ -1486,7 +1499,7 @@ int main_odometry(Cli & cli)
     std::cout << "\nSaving the state estimator's fused path (" << outFusedPath->size()
               << " poses) in TUM format to: " << fil
               << std::endl;  // NOLINT(performance-avoid-endl)
-    outFusedPath->saveToTextFile_TUM(fil);
+    checkSaved(outFusedPath->saveToTextFile_TUM(fil), fil);
   }
 
   if (cli.arg_outPathSmoothed.isSet()) {
@@ -1504,7 +1517,7 @@ int main_odometry(Cli & cli)
       std::cout << "\nSaving the state estimator's smoothed path (" << traj->size()
                 << " poses) in TUM format to: " << fil
                 << std::endl;  // NOLINT(performance-avoid-endl)
-      traj->saveToTextFile_TUM(fil);
+      checkSaved(traj->saveToTextFile_TUM(fil), fil);
     } else {
       std::cerr << "\nWARNING: the state estimator returned no smoothed trajectory; nothing "
                    "written to "
@@ -1521,19 +1534,23 @@ int main_odometry(Cli & cli)
     std::cout << "\nSaving reconstructed map with " << sm.size() << " keyframes to: " << fil
               << std::endl;  // NOLINT(performance-avoid-endl)
 
-    ASSERTMSG_(sm.saveToFile(fil), "Error saving reconstructed simplemap file");
+    checkSaved(sm.saveToFile(fil), fil);
   }
 
   if (outTwist) {
     const auto fil = cli.arg_outTwist.getValue();
     std::cout << "\nSaving estimated twist to: " << fil
               << std::endl;  // NOLINT(performance-avoid-endl)
-    outTwist->saveToTextFile(fil);
+    checkSaved(outTwist->saveToTextFile(fil), fil);
   }
 
   if (liodom->hasFatalError()) {
     std::cerr << "\nERROR: the LiDAR odometry stopped after a fatal error (see the log above); "
                  "the outputs only cover the dataset up to that point.\n";
+    return 1;
+  }
+
+  if (saveFailed) {
     return 1;
   }
 
