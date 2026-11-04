@@ -240,6 +240,22 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       params_.diagnostics.initialize(cfg["diagnostics"]);
     }
 
+    if (cfg.has("learned_covariance")) {
+      params_.learned_covariance.initialize(cfg["learned_covariance"]);
+    }
+    if (params_.learned_covariance.enabled()) {
+#if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
+      learned_cov_model_.load(params_.learned_covariance.model_file);
+      MRPT_LOG_INFO_STREAM(
+        "Learned registration covariance: " << learned_cov_model_.numMembers() << " members from '"
+                                            << params_.learned_covariance.model_file << "'");
+#else
+      THROW_EXCEPTION(
+        "learned_covariance.model_file is set, but this build of mp2p_icp has no "
+        "LearnedCovariance");
+#endif
+    }
+
     if (cfg.has("visualization")) {
       params_.visualization.initialize(cfg["visualization"]);
     }

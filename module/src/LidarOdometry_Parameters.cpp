@@ -28,6 +28,20 @@
 namespace mola
 {
 
+void LidarOdometry::Parameters::LearnedCovariance::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(model_file, std::string);
+  YAML_LOAD_OPT(scan_layer, std::string);
+  YAML_LOAD_OPT(window_scans, uint32_t);
+  ASSERT_GT_(window_scans, 0U);
+  if (cfg.has("context")) {
+    ASSERT_(cfg["context"].isMap());
+    for (const auto & [k, v] : cfg["context"].asMapRange()) {
+      context[k.as<std::string>()] = v.as<std::string>();
+    }
+  }
+}
+
 void LidarOdometry::Parameters::Diagnostics::initialize(const Yaml & cfg)
 {
   YAML_LOAD_OPT(icp_quality_warn, double);

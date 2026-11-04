@@ -43,6 +43,7 @@ set(LIB_SRCS
   module/src/LidarOdometry_Parameters.cpp
   module/src/LidarOdometry_Initialize.cpp
   module/src/LidarOdometry_ProcessScan.cpp
+  module/src/LidarOdometry_LearnedCovariance.cpp
   module/src/LidarOdometry_AdaptiveVariables.cpp
   module/src/LidarOdometry_LocalMapRebuild.cpp
   module/src/LidarOdometry_MapServer.cpp

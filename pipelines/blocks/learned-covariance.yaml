@@ -1,0 +1,14 @@
+# Optional learned covariance of each registration: a model trained offline
+# (mp2p_icp::LearnedCovariance) replaces the solver's covariance in what is
+# handed to the state estimator. Disabled while model_file is empty. The
+# observation pipeline must then keep the full-resolution layer named by
+# scan_layer, which the default observation blocks delete.
+params:
+  learned_covariance:
+    model_file: "${MOLA_LEARNED_COVARIANCE_MODEL|}"
+    scan_layer: "${MOLA_LEARNED_COVARIANCE_SCAN_LAYER|deskewed}"
+    window_scans: ${MOLA_LEARNED_COVARIANCE_WINDOW|25}
+    context:
+      framework_name: "mp2p_gicp"
+      mode: "s2m"
+      sensor: "${MOLA_LEARNED_COVARIANCE_SENSOR|}"

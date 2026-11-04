@@ -1393,6 +1393,13 @@ void LidarOdometry::processLidarScan(  // NOLINT
     out.goodness = icp_result.quality;
     out.icp_iterations = icp_result.nIterations;
 
+#if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
+    if (params_.learned_covariance.enabled()) {
+      ProfilerEntry tle_lc(profiler_, "onLidar.3b.learned_covariance");
+      applyLearnedCovariance(*observation, in, icp_result, out.found_pose_to_wrt_from);
+    }
+#endif
+
 #ifdef MOLA_KERNEL_VIZ_HAS_METRICS
     // Stream ICP metrics to the visualizer's live plot windows, if any
     // (mola_viz_imgui "Plots" menu; no-op on the nanogui backend / when
@@ -1567,6 +1574,12 @@ void LidarOdometry::processLidarScan(  // NOLINT
     } else if (usePrediction) {
       state_.last_lidar_pose.copyFrom(state_.last_motion_model_output->pose);
     }
+
+#if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
+    if (params_.learned_covariance.enabled() && (icpIsGood || usePrediction)) {
+      pushLearnedCovarianceWindow(*observation, state_.last_lidar_pose.mean);
+    }
+#endif
 
     // Update velocity model:
     // Snapshot before it gets decremented below, so the map-freeze check
