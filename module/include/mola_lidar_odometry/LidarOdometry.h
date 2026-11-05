@@ -123,12 +123,14 @@
 #include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
+#include <deque>
 #include <fstream>
 #include <future>
 #include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <regex>
 #include <stdexcept>
 #include <string>
@@ -1235,6 +1237,11 @@ public:
      * Multi-thread safe to call.
      */
   mrpt::poses::CPose3DInterpolator estimatedTrajectory() const;
+
+  /** Timestamp of the newest pose in estimatedTrajectory(), or std::nullopt
+   *  if it is still empty. Multi-thread safe to call; it copies nothing else.
+   */
+  std::optional<mrpt::Clock::time_point> newestTrajectoryStamp() const;
 
   /** Returns the last estimated kinematic state: pose of the vehicle in the LiDAR odometry
    *  frame, and its estimated local (body-frame) twist vector.

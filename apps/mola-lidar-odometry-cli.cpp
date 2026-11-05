@@ -1473,8 +1473,7 @@ int main_odometry(Cli & cli)
       // what is written out.
       (void)stateEstimatorAsNavState->estimated_navstate(obs->timestamp, estimatorOutFrame);
 
-      const auto traj = liodom->estimatedTrajectory();
-      const auto tSample = traj.empty() ? obs->timestamp : traj.rbegin()->first;
+      const auto tSample = liodom->newestTrajectoryStamp().value_or(obs->timestamp);
       if (!lastFusedSampleStamp || tSample > *lastFusedSampleStamp) {
         const auto st = stateEstimatorAsNavState->estimated_navstate(tSample, estimatorOutFrame);
         if (st.has_value()) {
