@@ -382,7 +382,11 @@ to an `mp2p_icp::LearnedCovarianceEstimator` (worker thread, window of the last
 estimator with `fuse_pose_deferred()` and the covariance as a future (the
 solver's own if no learned one); the smoother waits for it in its backend.
 `MOLA_LEARNED_COVARIANCE_SENSOR` selects the model's sensor one-hot. The
-smoother only uses it with `MOLA_REL_POSE_INCR_FROM_SOURCE_COV=true`.
+smoother only uses it with `MOLA_REL_POSE_INCR_FROM_SOURCE_COV=true`; the
+simple estimator only puts it in its prediction covariance (under its
+`MOLA_NAVSTATE_SIGMA_POSITION` floor, 0.5 m) and reads the deferred
+covariance at the next query. Using it as simple's velocity noise was
+measured and dropped (no gain).
 
 ### REP-105 `map -> odom` published directly (jitter-free)
 

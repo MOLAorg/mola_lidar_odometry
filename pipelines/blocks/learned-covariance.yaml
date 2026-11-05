@@ -3,7 +3,8 @@
 # the state estimator receives it through fuse_pose_deferred(). Disabled
 # while model_file is empty. With the smoother, set
 # relative_pose_increment_from_source_covariance (MOLA_REL_POSE_INCR_FROM_SOURCE_COV)
-# for it to weigh the odometry increments.
+# for it to weigh the odometry increments. The simple estimator only puts it
+# in its prediction covariance, under its sigma_relative_pose_* floor.
 params:
   learned_covariance:
     model_file: "${MOLA_LEARNED_COVARIANCE_MODEL|}"
