@@ -27,6 +27,7 @@
 #include <mola_kernel/pretty_print_exception.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
+#include <mp2p_icp/metricmap.h>
 #include <mrpt/core/Clock.h>
 #include <mrpt/core/exceptions.h>
 #include <mrpt/core/get_env.h>
@@ -97,6 +98,7 @@
 #include <cstdlib>
 #include <deque>
 #include <exception>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <mutex>
@@ -221,6 +223,7 @@ struct Cli
   Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
   Opt<std::string> arg_outSimpleMap;
+  Opt<std::string> arg_outGeoRef;
   Opt<int> arg_firstN;
   Opt<int> arg_skipFirstN;
   Opt<std::string> arg_lidarLabel;
@@ -364,6 +367,16 @@ struct Cli
       cmd
         .add_option("--output-twist", arg_outTwist.value, "Save the estimated twist as a TXT file")
         ->option_text("output-twist.txt");
+
+    arg_outGeoRef.opt =
+      cmd
+        .add_option(
+          "--output-georef", arg_outGeoRef.value,
+          "Save the state estimator's final geo-reference (datum + T_enu_to_map), fixed or "
+          "estimated from GNSS, as YAML in the mp2p_icp georeferencing format. Needs an "
+          "estimator implementing NavStateFilter::get_geo_reference(). Use "
+          "--output-estimator-frame enu to save the trajectories in that ENU frame.")
+        ->option_text("output.georef.yaml");
 
     arg_outSimpleMap.opt = cmd
                              .add_option(
@@ -1581,6 +1594,33 @@ int main_odometry(Cli & cli)
                 << fil << ". For the smoother, it must run with keep_finalized_trajectory enabled."
                 << std::endl;  // NOLINT(performance-avoid-endl)
     }
+  }
+
+  if (cli.arg_outGeoRef.isSet()) {
+    const auto fil = cli.arg_outGeoRef.getValue();
+    ASSERTMSG_(
+      stateEstimatorAsNavState,
+      "--output-georef needs a state estimator implementing mola::NavStateFilter");
+#if defined(MOLA_KERNEL_NAVSTATE_FILTER_HAS_GEO_REFERENCE)
+    if (const auto g = stateEstimatorAsNavState->get_geo_reference(); g.has_value()) {
+      mp2p_icp::metric_map_t::Georeferencing mg;
+      mg.geo_coord = g->geo_coord;
+      mg.T_enu_to_map = g->T_enu_to_map;
+      std::cout << "\nSaving the state estimator's geo-reference to: " << fil
+                << std::endl;  // NOLINT(performance-avoid-endl)
+      std::ofstream f(fil);
+      if (f.is_open()) {
+        f << mp2p_icp::ToYAML(mg);
+      }
+      checkSaved(f.is_open() && f.good(), fil);
+    } else {
+      std::cerr << "\nWARNING: the state estimator has no geo-reference; nothing written to " << fil
+                << std::endl;  // NOLINT(performance-avoid-endl)
+    }
+#else
+    std::cerr << "\nWARNING: this MOLA version cannot query geo-references; nothing written to "
+              << fil << std::endl;  // NOLINT(performance-avoid-endl)
+#endif
   }
 
   if (cli.arg_outSimpleMap.isSet()) {
