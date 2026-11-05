@@ -382,6 +382,14 @@ void LidarOdometry::applyMapFrameRelevel()
   }
   state_.last_deskewed_scan_for_publishing.reset();
 
+#if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
+  // The learned-covariance reference window holds map-frame scan poses too;
+  // it refills from the next accepted scans.
+  if (state_.learned_cov) {
+    state_.learned_cov->clearWindow();
+  }
+#endif
+
   // 5/6: the state estimator, whose stored poses are map-frame too.
   if (state_.navstate_fuse) {
 #if defined(MOLA_KERNEL_NAVSTATE_FILTER_HAS_TRANSFORM_FRAME)

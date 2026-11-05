@@ -1089,8 +1089,9 @@ frame once, about the map origin, by the estimator's `Result::correction`.
 It is a **gauge change**, not a state update, and must stay one:
 `MapFrameRelevel.h` applies `p -> b + p` to the local map, the simplemap, the
 trajectory; `KeyframeDecider`/`SearchablePoseList::transform_left_multiply()`
-move the keyframe-density bookkeeping with them; and
-`NavStateFilter::transform_frame()` does the same inside the state estimator.
+move the keyframe-density bookkeeping with them;
+`NavStateFilter::transform_frame()` does the same inside the state estimator;
+and the learned-covariance reference window is cleared (it refills).
 Anything expressed in the *vehicle* frame (twists, sensor extrinsics) is
 invariant and must not be touched. The decision is taken in
 `evaluateMapFrameRelevel()` and applied by `applyMapFrameRelevel()`, which runs
