@@ -373,6 +373,21 @@ method) and is not fused back into the estimator. With `estimate_geo_reference`,
 the smoother anchors the map frame where the vehicle starts, so that pose is the
 origin unless the vehicle moved before the first scan.
 
+### Optional learned registration covariance (`learned_covariance`)
+
+`pipelines/blocks/learned-covariance.yaml` (GICP pipeline), off while
+`MOLA_LEARNED_COVARIANCE_MODEL` is empty. Each accepted registration is queued
+to an `mp2p_icp::LearnedCovarianceEstimator` (worker thread, window of the last
+25 `deskewed` scans) BEFORE the scan joins its window, and the pose goes to the
+estimator with `fuse_pose_deferred()` and the covariance as a future (the
+solver's own if no learned one); the smoother waits for it in its backend.
+`MOLA_LEARNED_COVARIANCE_SENSOR` selects the model's sensor one-hot. The
+smoother only uses it with `MOLA_REL_POSE_INCR_FROM_SOURCE_COV=true`; the
+simple estimator only puts it in its prediction covariance (under its
+`MOLA_NAVSTATE_SIGMA_POSITION` floor, 0.5 m) and reads the deferred
+covariance at the next query. Using it as simple's velocity noise was
+measured and dropped (no gain).
+
 ### REP-105 `map -> odom` published directly (jitter-free)
 
 By default, under `publish_localization_following_rep105: true` the bridge
@@ -1074,8 +1089,9 @@ frame once, about the map origin, by the estimator's `Result::correction`.
 It is a **gauge change**, not a state update, and must stay one:
 `MapFrameRelevel.h` applies `p -> b + p` to the local map, the simplemap, the
 trajectory; `KeyframeDecider`/`SearchablePoseList::transform_left_multiply()`
-move the keyframe-density bookkeeping with them; and
-`NavStateFilter::transform_frame()` does the same inside the state estimator.
+move the keyframe-density bookkeeping with them;
+`NavStateFilter::transform_frame()` does the same inside the state estimator;
+and the learned-covariance reference window is cleared (it refills).
 Anything expressed in the *vehicle* frame (twists, sensor extrinsics) is
 invariant and must not be touched. The decision is taken in
 `evaluateMapFrameRelevel()` and applied by `applyMapFrameRelevel()`, which runs
@@ -1126,6 +1142,12 @@ results, only CPU use (offline: 16 hardware threads, same speed as 8 at 2x the C
 The smoother also needs `-l <libmola_state_estimation_smoother.so>`; the CLI
 does not load that plugin by default and the class factory otherwise fails with
 "unknown class name".
+
+`--output-tum-path-fused` samples the estimator at the stamp of the newest
+registered pose (the scan's reference time), not at the observation stamp,
+which can be half a sweep later: that would score an extrapolation. The query
+at the observation stamp is still made, since the simple estimator fuses its
+buffered IMU readings on a query, so the run itself does not change.
 
 ## A second front-end in the batch CLI: `--module`
 

@@ -332,6 +332,15 @@ mrpt::poses::CPose3DInterpolator LidarOdometry::estimatedTrajectory() const
   return state_.estimated_trajectory;
 }
 
+std::optional<mrpt::Clock::time_point> LidarOdometry::newestTrajectoryStamp() const
+{
+  auto lck = mrpt::lockHelper(state_trajectory_mtx_);
+  if (state_.estimated_trajectory.empty()) {
+    return std::nullopt;
+  }
+  return state_.estimated_trajectory.rbegin()->first;
+}
+
 mrpt::maps::CSimpleMap LidarOdometry::reconstructedMap() const
 {
   auto lck = mrpt::lockHelper(state_simplemap_mtx_);

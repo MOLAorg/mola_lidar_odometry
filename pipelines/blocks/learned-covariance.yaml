@@ -1,0 +1,18 @@
+# Optional learned covariance of each registration: a model trained offline
+# (mp2p_icp::LearnedCovarianceEstimator) predicts it on a worker thread, and
+# the state estimator receives it through fuse_pose_deferred(). Disabled
+# while model_file is empty. With the smoother, set
+# relative_pose_increment_from_source_covariance (MOLA_REL_POSE_INCR_FROM_SOURCE_COV)
+# for it to weigh the odometry increments. The simple estimator only puts it
+# in its prediction covariance, under its sigma_relative_pose_* floor.
+params:
+  learned_covariance:
+    model_file: "${MOLA_LEARNED_COVARIANCE_MODEL|}"
+    # Full-resolution, de-skewed scan; the reference window must match the
+    # model's training.
+    scan_layer: "deskewed"
+    window_scans: 25
+    context:
+      framework_name: "mp2p_gicp"
+      mode: "s2m"
+      sensor: "${MOLA_LEARNED_COVARIANCE_SENSOR|}"

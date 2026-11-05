@@ -28,6 +28,7 @@ $import:
   - ${MOLA_LO_BLOCK_OBSERVATIONS|blocks/observations-gicp.yaml}
   - ${MOLA_LO_BLOCK_DESKEW_EARLY|blocks/deskew-early.yaml}
   - ${MOLA_LO_BLOCK_DESKEW_VIZ|blocks/deskew-viz.yaml}
+  - ${MOLA_LO_BLOCK_LEARNED_COVARIANCE|blocks/learned-covariance.yaml}
 
 params:
   pipeline_name: "GICP (Generalized ICP) with cov-to-cov pairings" # For display/debug only

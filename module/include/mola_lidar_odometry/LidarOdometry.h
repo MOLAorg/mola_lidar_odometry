@@ -100,6 +100,11 @@
 #include <mp2p_icp/GravityPrior.h>
 #define MOLA_LO_HAS_MP2P_GRAVITY_PRIOR 1
 #endif
+// Learned registration covariance (optional, recent mp2p_icp only).
+#if __has_include(<mp2p_icp/LearnedCovarianceEstimator.h>)
+#include <mp2p_icp/LearnedCovarianceEstimator.h>
+#define MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE 1
+#endif
 #endif
 
 // MRPT
@@ -125,6 +130,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <regex>
 #include <stdexcept>
 #include <string>
@@ -632,6 +638,35 @@ public:
       void initialize(const Yaml & c);
     };
     Diagnostics diagnostics;
+
+    /** Optional learned registration covariance: a model trained offline
+     *  (mp2p_icp::LearnedCovarianceEstimator) predicts the covariance of each
+     *  accepted registration, on a worker thread. The state estimator gets
+     *  the pose at once and the covariance when it is ready, through
+     *  NavStateFilter::fuse_pose_deferred(); the solver's own covariance is
+     *  what it gets if no learned one can be computed. */
+    struct LearnedCovariance
+    {
+      /// Model file; empty disables the feature.
+      std::string model_file;
+
+      /// Observation layer with the full-resolution, de-skewed scan.
+      std::string scan_layer = "deskewed";
+
+      /// Past scans forming the reference cloud of the feature evaluator.
+      /// Must match the model's training.
+      uint32_t window_scans = 25;
+
+      /// Context labels the model was trained with (framework_name, sensor,
+      /// mode); unknown ones contribute nothing.
+      std::map<std::string, std::string> context = {
+        {"framework_name", "mp2p_gicp"}, {"mode", "s2m"}};
+
+      bool enabled() const { return !model_file.empty(); }
+
+      void initialize(const Yaml & c);
+    };
+    LearnedCovariance learned_covariance;
 
     /** ICP parameters for the case of having, or not, a good velocity
          * model that works a good prior. Each entry in the vector is an
@@ -1202,6 +1237,11 @@ public:
      * Multi-thread safe to call.
      */
   mrpt::poses::CPose3DInterpolator estimatedTrajectory() const;
+
+  /** Timestamp of the newest pose in estimatedTrajectory(), or std::nullopt
+   *  if it is still empty. Multi-thread safe to call; it copies nothing else.
+   */
+  std::optional<mrpt::Clock::time_point> newestTrajectoryStamp() const;
 
   /** Returns the last estimated kinematic state: pose of the vehicle in the LiDAR odometry
    *  frame, and its estimated local (body-frame) twist vector.
@@ -1801,6 +1841,11 @@ private:
     void append_gnss_stamp(
       const mrpt::Clock::time_point & stamp, const mrpt::system::COutputLogger & logger);
 
+#if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
+    /// Created in initialize() if Parameters::learned_covariance is enabled.
+    std::shared_ptr<mp2p_icp::LearnedCovarianceEstimator> learned_cov;
+#endif
+
   };  // end of MethodState
 
   /// Number of scans enqueued on worker_lidar_ that have neither finished
@@ -1969,6 +2014,20 @@ private:
     1, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_pub_map"};
 
   MethodState state_;
+
+#if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
+  /** Queues the learned covariance of an accepted registration, against the
+   *  window of the previous scans. Returns the covariance (MRPT's
+   *  CPose3DPDFGaussian convention) as a future, or nothing if this
+   *  observation has no usable scan layer. */
+  std::optional<std::shared_future<mrpt::math::CMatrixDouble66>> submitLearnedCovariance(
+    const mp2p_icp::metric_map_t & observation, const ICP_Input & in, const mp2p_icp::Results & res,
+    const mrpt::poses::CPose3DPDFGaussian & pose);
+
+  /// Appends the scan to the evaluator's reference window.
+  void pushLearnedCovarianceWindow(
+    const mp2p_icp::metric_map_t & observation, const mrpt::poses::CPose3D & pose);
+#endif
   const MethodState & state() const { return state_; }
   MethodState stateCopy() const { return state_; }
 
