@@ -59,6 +59,10 @@ without forking the profile. Two variables the caller sets:
 - `MOLA_LO_SKIP_STATE_ESTIMATOR=1`: for callers running a method with its
   own internal estimator (the DLIO / Fast-LIO2 wrappers).
 
+`MOLA_STATE_ESTIMATOR_YAML` given without `MOLA_STATE_ESTIMATOR` picks the
+class from the YAML itself (the smoother if it has `sliding_window_length`,
+the simple estimator otherwise), in every profile.
+
 A profile may also pick the pipeline, by publishing
 `MOLA_ODOMETRY_PIPELINE_YAML` the same way. Only where a dataset has a measured
 reason to differ, and the evidence goes in the profile.
