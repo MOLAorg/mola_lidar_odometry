@@ -21,6 +21,13 @@ ament_add_gtest(test_pipelines_load test_pipelines_load.cpp
 )
 target_link_libraries(test_pipelines_load mola::mola_lidar_odometry mola::mola_yaml)
 
+# The dataset-profile library's choice of state estimator class:
+ament_add_test(test_dataset_profile_estimator
+  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/test_dataset_profile_estimator.sh
+    ${mola_lidar_odometry_SOURCE_DIR}/scripts/lib/dataset-profile.sh
+  GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+)
+
 # -----------------------------------------------------------------------
 # Data-dependent integration tests (require optional packages):
 # -----------------------------------------------------------------------
