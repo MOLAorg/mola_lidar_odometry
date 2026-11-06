@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks how the dataset-profile library picks the state estimator class from
-# MOLA_STATE_ESTIMATOR / MOLA_STATE_ESTIMATOR_YAML. Needs no dataset: the
-# rawlog profile only routes the file name.
+# MOLA_STATE_ESTIMATOR / MOLA_STATE_ESTIMATOR_YAML, and the smoother defaults
+# that follow from it. Needs no dataset: the rawlog profile only routes the
+# file name.
 #
 # Usage: test_dataset_profile_estimator.sh <path to dataset-profile.sh>
 set -uo pipefail
@@ -26,10 +27,11 @@ check() {
   fi
 }
 
-# Runs one sequence of loads in a clean shell and prints the final class.
-# Each argument is either "load" or a VAR=value / unset:VAR assignment.
+# Runs one sequence of loads in a clean shell and prints the final value of
+# the variable named by SHOW (default: the class). Each argument is either
+# "load" or a VAR=value / unset:VAR assignment.
 run() {
-  env -i PATH="$PATH" HOME="$HOME" bash -c '
+  env -i PATH="$PATH" HOME="$HOME" SHOW="${SHOW:-MOLA_STATE_ESTIMATOR}" bash -c '
     set -euo pipefail
     source "$1"
     shift
@@ -41,7 +43,7 @@ run() {
         *) export "${step?}" ;;
       esac
     done
-    echo "${MOLA_STATE_ESTIMATOR:-unset}"
+    echo "${!SHOW:-unset}"
   ' _ "$LIB" "$@"
 }
 
@@ -61,5 +63,21 @@ check "inferred class dropped with the YAML" unset \
 check "explicit class set after an inference survives a YAML change" my::CustomEstimator \
   "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/simple.yaml" load MOLA_STATE_ESTIMATOR=my::CustomEstimator \
     MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
+
+# LiDAR-grade increment sigma with the smoother only, unless the caller set one:
+SHOW=MOLA_REL_POSE_INCR_SIGMA_ANG
+check "smoother: LiDAR increment sigma" 1e-5 "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
+check "simple: no increment sigma" unset "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/simple.yaml" load)"
+check "smoother: caller's increment sigma wins" 0.003 \
+  "$(run MOLA_REL_POSE_INCR_SIGMA_ANG=0.003 MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
+check "smoother + another odometry source: increment sigma left alone" unset \
+  "$(run MOLA_ODOMETRY_TOPIC=/odom MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
+check "repeated load: default dropped once an odometry topic is fused" unset \
+  "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load MOLA_ODOMETRY_TOPIC=/odom load)"
+check "repeated load: default dropped with the simple estimator" unset \
+  "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load MOLA_STATE_ESTIMATOR_YAML="$TMP/simple.yaml" load)"
+check "repeated load: caller's value set after a load survives" 0.003 \
+  "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load MOLA_REL_POSE_INCR_SIGMA_ANG=0.003 \
+    MOLA_ODOMETRY_TOPIC=/odom load)"
 
 exit "$FAILS"
