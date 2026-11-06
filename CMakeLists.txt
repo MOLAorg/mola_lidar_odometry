@@ -36,6 +36,7 @@ find_package(mola_relocalization REQUIRED)
 # define lib:
 set(LIB_SRCS
   module/src/IcpPrior.cpp
+  module/src/KeyframeAttachments.cpp
   module/src/KeyframeDecider.cpp
   module/src/LidarOdometry_Main.cpp
   module/src/MapFrameRelevel.cpp
@@ -57,6 +58,7 @@ set(LIB_SRCS
 
 set(LIB_PUBLIC_HDRS
   module/include/mola_lidar_odometry/IcpPrior.h
+  module/include/mola_lidar_odometry/KeyframeAttachments.h
   module/include/mola_lidar_odometry/LidarOdometry.h
   module/include/mola_lidar_odometry/MapFrameRelevel.h
 )
@@ -219,6 +221,17 @@ if(mola_input_rosbag2_FOUND)
   message(STATUS "mola-lidar-odometry-cli: With rosbag2 = YES")
   target_link_libraries(mola-lidar-odometry-cli mola::mola_input_rosbag2)
   target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_ROSBAG2)
+
+  # Offline: adds observations from a rosbag2 (e.g. images) to simplemap keyframes
+  mola_add_executable(
+    TARGET  mola-sm-attach-observations
+    SOURCES apps/mola-sm-attach-observations.cpp
+    LINK_LIBRARIES
+    ${PROJECT_NAME}
+    mrpt::mrpt_maps
+    mola::mola_input_rosbag2
+    CLI11::CLI11
+  )
 else()
   message(STATUS "mola-lidar-odometry-cli: With rosbag2 = NO")
 endif()

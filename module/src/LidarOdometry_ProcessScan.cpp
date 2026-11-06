@@ -2563,61 +2563,28 @@ void LidarOdometry::doUpdateSimpleMap(
       keyframe_obs->insert(od);
     }
 
-    const auto curLidarStamp = scan_ref_time;
-
-    // insert GNSS too? Search for a close-enough observation:
-    std::optional<double> closestTimeAbsDiff;
-    mrpt::obs::CObservationGPS::ConstPtr closestGPS;
-
-    {
-      // Appended to by the sensor-input thread:
-      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
-
-      for (const auto & [gpsStamp, gpsObs] : state_.last_gnss_) {
-        const double timeDiff = std::abs(mrpt::system::timeDifference(gpsStamp, curLidarStamp));
-
-        if (timeDiff > params_.simplemap.save_gnss_max_age) {
-          continue;
-        }
-
-        if (!closestTimeAbsDiff || timeDiff < *closestTimeAbsDiff) {
-          closestTimeAbsDiff = timeDiff;
-          closestGPS = gpsObs;
-        }
-      }
-    }
-    if (closestGPS) {
-      *keyframe_obs += std::const_pointer_cast<mrpt::obs::CObservationGPS>(closestGPS);
-    }
-
-    // insert IMU too? Same search as for GNSS above. Worth storing even
-    // though the live run has already consumed the reading: the IMU absolute
+    // Observations of other sensors, the one closest in time from each source
+    // (GNSS, IMU, simplemap.attach_observations). The IMU is worth storing even
+    // though the live run has already consumed the reading: its absolute
     // attitude is the only azimuth observation that offline georeferencing of
     // this simplemap can use, and it cannot be recovered from anything else
     // saved here.
-    if (params_.simplemap.save_imu_max_age > 0) {
-      std::optional<double> closestImuTimeAbsDiff;
-      mrpt::obs::CObservationIMU::ConstPtr closestIMU;
-
-      {
-        auto lckImu = mrpt::lockHelper(imu_state_mtx_);
-
-        for (const auto & [imuStamp, imuObs] : state_.last_imu_) {
-          const double timeDiff = std::abs(mrpt::system::timeDifference(imuStamp, curLidarStamp));
-
-          if (timeDiff > params_.simplemap.save_imu_max_age) {
-            continue;
-          }
-
-          if (!closestImuTimeAbsDiff || timeDiff < *closestImuTimeAbsDiff) {
-            closestImuTimeAbsDiff = timeDiff;
-            closestIMU = imuObs;
-          }
+    std::vector<mrpt::obs::CObservation::ConstPtr> attached;
+    {
+      // Appended to by the sensor-input thread:
+      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+      for (auto & src : state_.attach_sources) {
+        if (auto o = src.buffer.take_closest(scan_ref_time); o) {
+          attached.push_back(o);
         }
       }
-
-      if (closestIMU) {
-        *keyframe_obs += std::const_pointer_cast<mrpt::obs::CObservationIMU>(closestIMU);
+    }
+    for (const auto & o : attached) {
+      // The same observation may match more than one source:
+      const bool dup = std::any_of(
+        keyframe_obs->begin(), keyframe_obs->end(), [&](const auto & e) { return e == o; });
+      if (!dup) {
+        keyframe_obs->insert(std::const_pointer_cast<mrpt::obs::CObservation>(o));
       }
     }
   } else {

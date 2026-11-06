@@ -281,6 +281,7 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
     if (cfg.has("simplemap")) {
       params_.simplemap.initialize(cfg["simplemap"], params_);
     }
+    createKeyframeAttachSources();
 
     if (cfg.has("estimated_trajectory")) {
       params_.estimated_trajectory.initialize(cfg["estimated_trajectory"]);

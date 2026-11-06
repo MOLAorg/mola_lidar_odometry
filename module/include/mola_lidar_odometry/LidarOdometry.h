@@ -65,6 +65,7 @@
 #define MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR 1
 #endif
 #include <mola_lidar_odometry/ImuScanSync.h>
+#include <mola_lidar_odometry/KeyframeAttachments.h>
 #include <mola_lidar_odometry/KeyframeDecider.h>
 #include <mola_lidar_odometry/MapFrameRelevel.h>
 
@@ -722,6 +723,38 @@ public:
         * next to a keyframe's point cloud.
         */
       double save_imu_max_age = 0.1;  // [s]
+
+      /** Observations of other sensors (e.g. camera images) to store in
+       *  each keyframe, with the same "closest in time" rule as GNSS and IMU
+       *  above, among the observations received by the time the keyframe is
+       *  created (mola_mapper and mola-sm-attach-observations, which can wait
+       *  for later ones, attach more). One entry per sensor; YAML:
+       *  \code
+       *  attach_observations:
+       *    - sensor_label: 'camera_left'  # regex; empty: entry ignored
+       *      max_age: 0.5                 # [s]
+       *      attach_once: true            # never the same one in two keyframes
+       *      queue_max_size: 10
+       *  \endcode
+       */
+      struct AttachedObservation
+      {
+        std::string sensor_label;
+        double max_age = 0.5;  // [s]
+        bool attach_once = false;
+        uint32_t queue_max_size = 10;
+      };
+      std::vector<AttachedObservation> attach_observations;
+
+      /** How images (CObservationImage) stored in keyframes are saved: "jpg"
+       *  or "png" files in the `<map>_Images/` directory next to
+       *  `save_final_map_to_file`, or "inline" (pixels inside the
+       *  .simplemap). Files are only written if save_final_map_to_file is
+       *  set; else images stay inline. */
+      std::string image_format = "jpg";
+
+      /// Quality [1-100] of "jpg" keyframe images.
+      int jpeg_quality = 95;
 
       /** If enabled, a directory will be create alongside the .simplemap
              *  and pointclouds will be externally serialized there, for much
@@ -1772,14 +1805,20 @@ private:
     mp2p_icp::ICP::Ptr global_search_refine_icp;
     std::shared_ptr<mp2p_icp::ParameterSource> global_search_refine_param_source;
 
-    // GNSS: keep a list of recent observations to later on search the one
-    // closest to each LIDAR observation. Guarded by imu_state_mtx_.
-    std::map<mrpt::Clock::time_point, std::shared_ptr<const mrpt::obs::CObservationGPS>> last_gnss_;
-
-    // IMU: same as last_gnss_ above, but for the simplemap only. Independent
-    // of pending_imu_, which the LiDAR worker drains as it consumes readings.
-    // Guarded by imu_state_mtx_.
-    std::map<mrpt::Clock::time_point, std::shared_ptr<const mrpt::obs::CObservationIMU>> last_imu_;
+    // Recent observations to attach to simplemap keyframes, the one closest
+    // in time to each: GNSS and IMU (fed by onGPS() and the IMU callbacks,
+    // after validation), and one per simplemap.attach_observations entry (fed
+    // by sensor label). The IMU one is independent of pending_imu_, which the
+    // LiDAR worker drains as it consumes readings. Guarded by imu_state_mtx_.
+    struct AttachSource
+    {
+      KeyframeAttachmentBuffer buffer;
+      /// Sensor label regex of simplemap.attach_observations entries.
+      std::optional<std::regex> sensor_label;
+    };
+    std::vector<AttachSource> attach_sources;
+    std::optional<std::size_t> attach_source_gnss;
+    std::optional<std::size_t> attach_source_imu;
 
     // Visualization:
     // Cache only the *expensive*, read-only-after-load vehicle model
@@ -2162,7 +2201,7 @@ private:
   /// straight back into scan submission latency.
   ///
   /// Covers pending_imu_ and, in MethodState: imu_initializer,
-  /// gravity_estimator, map_gravity, recent_imu_stamps, last_imu_, last_gnss_,
+  /// gravity_estimator, map_gravity, recent_imu_stamps, attach_sources,
   /// recent_gnss_stamps, parameter_source (its variable map, the realize()
   /// "evaluated" flags, and localVelocityBuffer), and any *invocation* of
   /// obs_generators (which writes the velocity buffer and reads those flags).
@@ -2300,9 +2339,17 @@ private:
    *  for simplemap keyframes. Inline on the caller's thread, like onIMU(). */
   void onAttitudeIMU(const CObservation::ConstPtr & o);
 
-  /** Keeps `imu` in last_imu_ for simplemap keyframes, if enabled.
+  /** Keeps `imu` for simplemap keyframes, if enabled.
    *  Caller must hold imu_state_mtx_. */
   void storeImuForSimplemap(const mrpt::obs::CObservationIMU::ConstPtr & imu);
+
+  /** Creates state_.attach_sources from the parameters (GNSS, IMU and the
+   *  simplemap.attach_observations entries). */
+  void createKeyframeAttachSources();
+
+  /** Keeps `o` for simplemap keyframes in the attach_observations buffers
+   *  whose sensor label matches. Caller must hold imu_state_mtx_. */
+  void storeForSimplemapByLabel(const CObservation::ConstPtr & o);
 
   /** Stores the "up" direction implied by an odometry observation's absolute
    *  attitude, for use as the verticality reading. Like onIMU(), it only
@@ -2447,6 +2494,10 @@ private:
 
   void handleUnloadSinglePastObservation(
     CObservation::Ptr & o, const std::string & simplemapFile) const;
+
+  /** The lazy-load directory of `simplemapFile` ("<map>_Images"), created if
+   *  needed and set as mrpt::io::setLazyLoadPathBase(). */
+  std::string prepareLazyLoadDirectory(const std::string & simplemapFile) const;
 
   void onPublishDiagnostics();
 

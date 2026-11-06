@@ -1170,11 +1170,12 @@ int main_odometry(Cli & cli)
     // Lazy-load scan files are written next to save_final_map_to_file, which
     // was just cleared, so the module silently keeps every scan in RAM:
     if (liodom->params_.simplemap.generate_lazy_load_scan_files) {
-      std::cerr << "[mola-lidar-odometry-cli] Warning: lazy-load simplemap generation "
-                   "(MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD) is ignored with --output-simplemap: all "
-                   "scans are kept in RAM and saved inside the .simplemap. Use "
-                   "MOLA_GENERATE_SIMPLEMAP=true and MOLA_SIMPLEMAP_OUTPUT=<file> instead."
-                << std::endl;  // NOLINT(performance-avoid-endl)
+      std::cerr
+        << "[mola-lidar-odometry-cli] Warning: lazy-load simplemap generation "
+           "(MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD) is ignored with --output-simplemap: all "
+           "scans (and keyframe images) are kept in RAM and saved inside the .simplemap. Use "
+           "MOLA_GENERATE_SIMPLEMAP=true and MOLA_SIMPLEMAP_OUTPUT=<file> instead."
+        << std::endl;  // NOLINT(performance-avoid-endl)
     }
   }
 

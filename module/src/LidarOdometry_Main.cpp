@@ -31,6 +31,7 @@
 #include <mrpt/core/initializer.h>
 #include <mrpt/io/lazy_load_path.h>
 #include <mrpt/maps/CPointsMap.h>
+#include <mrpt/obs/CObservationImage.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/poses/CPose3DPDFGaussian.h>
@@ -498,40 +499,8 @@ void LidarOdometry::unloadPastSimplemapObservations(
   }
 }
 
-void LidarOdometry::handleUnloadSinglePastObservation(
-  mrpt::obs::CObservation::Ptr & o, const std::string & simplemapFile) const
+std::string LidarOdometry::prepareLazyLoadDirectory(const std::string & simplemapFile) const
 {
-  using mrpt::obs::CObservationPointCloud;
-
-  // Generic method first: it will work with datasets providing input
-  // observations *already* in lazy-load format:
-  o->unload();
-
-  // special case: point cloud
-  auto oPts = std::dynamic_pointer_cast<CObservationPointCloud>(o);
-  if (!oPts) {
-    return;
-  }
-
-  if (oPts->isExternallyStored()) {
-    return;  // already external, do nothing.
-  }
-
-  if (simplemapFile.empty()) {
-    return;  // no generation of simplemap requested by the user
-  }
-
-  if (!params_.simplemap.generate_lazy_load_scan_files) {
-    return;  // feature is disabled
-  }
-
-  ASSERT_(oPts->pointcloud);
-
-  const std::string filename = mrpt::format(
-    "%s_%.09f.bin", mrpt::system::fileNameStripInvalidChars(oPts->sensorLabel).c_str(),
-    mrpt::Clock::toDouble(oPts->timestamp));
-
-  // Create the default "/Images" directory.
   const std::string out_basedir = mrpt::system::pathJoin(
     {mrpt::system::extractFileDirectory(simplemapFile),
      mrpt::system::extractFileName(simplemapFile) + std::string("_Images")});
@@ -548,6 +517,69 @@ void LidarOdometry::handleUnloadSinglePastObservation(
 
   // Establish as reference external path base:
   mrpt::io::setLazyLoadPathBase(out_basedir);
+
+  return out_basedir;
+}
+
+void LidarOdometry::handleUnloadSinglePastObservation(
+  mrpt::obs::CObservation::Ptr & o, const std::string & simplemapFile) const
+{
+  using mrpt::obs::CObservationImage;
+  using mrpt::obs::CObservationPointCloud;
+
+  // Generic method first: it will work with datasets providing input
+  // observations *already* in lazy-load format:
+  o->unload();
+
+  if (simplemapFile.empty()) {
+    return;  // no generation of simplemap requested by the user
+  }
+
+  // Images: replaced in the keyframe by a copy that refers to an image file,
+  // written from the original (shared with other modules, so left untouched):
+  if (auto oImg = std::dynamic_pointer_cast<CObservationImage>(o); oImg) {
+    const auto & fmt = params_.simplemap.image_format;
+    if (oImg->image.isExternallyStored() || fmt == "inline") {
+      return;
+    }
+    const auto filename = external_observation_file_name(*oImg, fmt);
+    const auto path = mrpt::system::pathJoin({prepareLazyLoadDirectory(simplemapFile), filename});
+    o = external_image_copy(*oImg, filename);
+
+    const int quality = params_.simplemap.jpeg_quality;
+    const auto fut = this->worker_disk_io_.enqueue([oImg, path, quality]() {
+      try {
+        if (!oImg->image.saveToFile(path, quality)) {
+          std::cerr << "[LidarOdometry] Error saving keyframe image to: " << path << "\n";
+        }
+      } catch (const std::exception & e) {
+        std::cerr << "[LidarOdometry] Error saving keyframe image to: " << path << ": " << e.what()
+                  << "\n";
+      }
+    });
+    (void)fut;
+    return;
+  }
+
+  // special case: point cloud
+  auto oPts = std::dynamic_pointer_cast<CObservationPointCloud>(o);
+  if (!oPts) {
+    return;
+  }
+
+  if (oPts->isExternallyStored()) {
+    return;  // already external, do nothing.
+  }
+
+  if (!params_.simplemap.generate_lazy_load_scan_files) {
+    return;  // feature is disabled
+  }
+
+  ASSERT_(oPts->pointcloud);
+
+  const std::string filename = external_observation_file_name(*oPts, "bin");
+
+  prepareLazyLoadDirectory(simplemapFile);
 
   oPts->setAsExternalStorage(
     filename, CObservationPointCloud::ExternalStorageFormat::MRPT_Serialization);
