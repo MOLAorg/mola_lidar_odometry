@@ -179,13 +179,25 @@ SEARCH_END_PREFIXES = ('Global search: localized', 'Global search: no good match
 class _PauseReplayDuringSearch:
     """Pauses the bag replay while LIO runs a global search."""
 
+    # A search that never ends fails the test instead of keeping the replay paused:
+    MAX_PAUSE_SECONDS = 600.0
+
     def __init__(self, node):
         self._node = node
         self._pause = node.create_client(Pause, '/rosbag2_player/pause')
         self._resume = node.create_client(Resume, '/rosbag2_player/resume')
         self._seen = 0
         self._paused_since = None
-        self.paused_seconds = 0.0
+        self._paused_before = 0.0
+
+    @property
+    def paused(self):
+        return self._paused_since is not None
+
+    def paused_seconds(self):
+        """Total time paused, including an ongoing pause."""
+        ongoing = time.time() - self._paused_since if self.paused else 0.0
+        return self._paused_before + ongoing
 
     def update(self, proc_output):
         lines = []
@@ -193,21 +205,32 @@ class _PauseReplayDuringSearch:
             lines += io.text.decode(errors='replace').splitlines()
             self._seen += 1
         for line in lines:
-            if SEARCH_START_PREFIX in line and SEARCH_START in line and self._paused_since is None:
-                if self._call(self._pause, Pause.Request()):
-                    self._paused_since = time.time()
-            elif any(p in line for p in SEARCH_END_PREFIXES) and self._paused_since is not None:
-                self._call(self._resume, Resume.Request())
-                self.paused_seconds += time.time() - self._paused_since
-                self._paused_since = None
+            if SEARCH_START_PREFIX in line and SEARCH_START in line and not self.paused:
+                self._call(self._pause, Pause.Request())
+                self._paused_since = time.time()
+            elif any(p in line for p in SEARCH_END_PREFIXES) and self.paused:
+                self.resume()
+        if self.paused and time.time() - self._paused_since > self.MAX_PAUSE_SECONDS:
+            self.resume()
+            raise AssertionError(
+                f'The global search did not end within {self.MAX_PAUSE_SECONDS:.0f} s')
+
+    def resume(self):
+        if not self.paused:
+            return
+        self._call(self._resume, Resume.Request())
+        self._paused_before += time.time() - self._paused_since
+        self._paused_since = None
 
     def _call(self, client, request, timeout=5.0):
+        """Calls a replay-control service, failing the test unless it answers (Humble's
+        responses are empty, so the answer itself is the confirmation)."""
         if not client.wait_for_service(timeout_sec=timeout):
-            print(f'[test] {client.srv_name} not available: replay not paused')
-            return False
+            raise AssertionError(f'{client.srv_name} is not available')
         future = client.call_async(request)
         rclpy.spin_until_future_complete(self._node, future, timeout_sec=timeout)
-        return future.done()
+        if not future.done():
+            raise AssertionError(f'{client.srv_name} did not answer within {timeout:.0f} s')
 
 
 class TestInitialLocalization(unittest.TestCase):
@@ -241,11 +264,18 @@ class TestInitialLocalization(unittest.TestCase):
         timeout does not count the time the replay was paused."""
         pauser = _PauseReplayDuringSearch(self.node)
         start = time.time()
-        while time.time() < start + timeout + pauser.paused_seconds and not condition():
-            rclpy.spin_once(self.node, timeout_sec=0.1)
-            pauser.update(proc_output)
-        if pauser.paused_seconds > 0:
-            print(f'[test] replay paused {pauser.paused_seconds:.1f} s during global searches')
+        try:
+            while time.time() < start + timeout + pauser.paused_seconds() and not condition():
+                rclpy.spin_once(self.node, timeout_sec=0.1)
+                pauser.update(proc_output)
+        finally:
+            if pauser.paused:
+                try:
+                    pauser.resume()
+                except AssertionError as e:
+                    print(f'[test] could not resume the replay: {e}')
+        if pauser.paused_seconds() > 0:
+            print(f'[test] replay paused {pauser.paused_seconds():.1f} s during global searches')
         return condition()
 
     def test_initial_localization(self, case, proc_output):
