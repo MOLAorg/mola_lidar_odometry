@@ -63,11 +63,13 @@ without forking the profile. Two variables the caller sets:
 class from the YAML itself (the smoother if it has `sliding_window_length`,
 the simple estimator otherwise), in every profile.
 
-With the smoother, every profile and the ROS 2 launch default
-`MOLA_REL_POSE_INCR_SIGMA_ANG` to `1e-5` (LiDAR-grade; the smoother's own
-default suits wheel or visual odometry), unless an odometry topic is fused too
-(`MOLA_ODOMETRY_TOPIC`, `MOLA_ODOM_TOPIC`, `odom_topic_name`): the setting is
-shared by every odometry source. An exported value wins.
+With the smoother, every profile defaults `MOLA_REL_POSE_INCR_SIGMA_ANG` to
+`1e-5` (LiDAR-grade; the smoother's own default suits wheel or visual
+odometry), unless an odometry topic is fused too (`MOLA_ODOMETRY_TOPIC`,
+`MOLA_ODOM_TOPIC`): the setting is shared by every odometry source. An
+exported value wins. The ROS 2 launch is not affected: there LO publishes in
+the smoother's reference frame (`mola_lo_reference_frame:=map`), which is fused
+as absolute poses, not as increments.
 
 A profile may also pick the pipeline, by publishing
 `MOLA_ODOMETRY_PIPELINE_YAML` the same way. Only where a dataset has a measured
