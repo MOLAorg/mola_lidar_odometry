@@ -171,10 +171,14 @@ mola_lo_resolve_state_estimator() {
     return 0
   fi
   # A class inferred here for a different YAML (an earlier load in the same
-  # shell) is not the caller's choice: infer it again.
+  # shell) is not the caller's choice: infer it again, unless the caller has
+  # set a different class since.
   if [ -n "${MOLA_LO_SE_INFERRED_FOR:-}" ] &&
     [ "$MOLA_LO_SE_INFERRED_FOR" != "${MOLA_STATE_ESTIMATOR_YAML:-}" ]; then
-    unset MOLA_STATE_ESTIMATOR MOLA_LO_SE_INFERRED_FOR
+    if [ "${MOLA_STATE_ESTIMATOR:-}" = "${MOLA_LO_SE_INFERRED_CLASS:-}" ]; then
+      unset MOLA_STATE_ESTIMATOR
+    fi
+    unset MOLA_LO_SE_INFERRED_FOR MOLA_LO_SE_INFERRED_CLASS
   fi
   if [ -n "${MOLA_STATE_ESTIMATOR:-}" ] || [ -z "${MOLA_STATE_ESTIMATOR_YAML:-}" ]; then
     return 0
@@ -185,6 +189,7 @@ mola_lo_resolve_state_estimator() {
     MOLA_STATE_ESTIMATOR=mola::state_estimation_simple::StateEstimationSimple
   fi
   MOLA_LO_SE_INFERRED_FOR=$MOLA_STATE_ESTIMATOR_YAML
+  MOLA_LO_SE_INFERRED_CLASS=$MOLA_STATE_ESTIMATOR
   export MOLA_STATE_ESTIMATOR
 }
 
