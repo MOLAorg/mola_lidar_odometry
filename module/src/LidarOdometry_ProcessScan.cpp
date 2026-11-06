@@ -2579,12 +2579,15 @@ void LidarOdometry::doUpdateSimpleMap(
         }
       }
     }
-    for (const auto & o : attached) {
-      // The same observation may match more than one source:
-      const bool dup = std::any_of(
-        keyframe_obs->begin(), keyframe_obs->end(), [&](const auto & e) { return e == o; });
+    for (std::size_t i = 0; i < attached.size(); i++) {
+      const auto & o = attached[i];
+      // The same observation may match more than one source, or be in `sf`:
+      const bool dup =
+        std::find(attached.begin(), attached.begin() + static_cast<std::ptrdiff_t>(i), o) !=
+          attached.begin() + static_cast<std::ptrdiff_t>(i) ||
+        std::any_of(sf.begin(), sf.end(), [&](const auto & e) { return e == o; });
       if (!dup) {
-        keyframe_obs->insert(std::const_pointer_cast<mrpt::obs::CObservation>(o));
+        keyframe_obs->insert(keyframeObservation(o));
       }
     }
   } else {

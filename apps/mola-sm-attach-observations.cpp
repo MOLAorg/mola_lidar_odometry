@@ -37,6 +37,7 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -181,6 +182,15 @@ int main(int argc, char ** argv)
         kfs.push_back({*t, kf.sf});
       }
     }
+    // Observations already in the map (e.g. from the live run), never added again:
+    std::set<std::pair<std::string, mrpt::Clock::time_point>> existing;
+    for (const auto & kf : kfs) {
+      for (const auto & o : *kf.sf) {
+        if (label2topic.count(o->sensorLabel) != 0) {
+          existing.emplace(o->sensorLabel, o->timestamp);
+        }
+      }
+    }
     std::sort(
       kfs.begin(), kfs.end(), [](const auto & a, const auto & b) { return a.stamp < b.stamp; });
     if (kfs.empty()) {
@@ -222,9 +232,12 @@ int main(int argc, char ** argv)
       }
       auto obs = c.obs;
       if (auto img = std::dynamic_pointer_cast<mrpt::obs::CObservationImage>(obs);
-          img && imageFormat != "inline") {
+          img && imageFormat != "inline" && !img->image.isExternallyStored() &&
+          img->image.getPixelDepth() == mrpt::img::PixelDepth::D8U) {
         const auto name = mola::external_observation_file_name(*img, imageFormat);
         const auto path = mrpt::system::pathJoin({outDir, name});
+        // Never write through a hard link to a file of the input map:
+        std::filesystem::remove(path);
         if (!img->image.saveToFile(path, jpegQuality)) {
           throw std::runtime_error("Cannot write: " + path);
         }
@@ -276,6 +289,9 @@ int main(int argc, char ** argv)
           continue;
         }
         numObs++;
+        if (existing.count({o->sensorLabel, o->timestamp}) != 0) {
+          continue;
+        }
         const double t = mrpt::Clock::toDouble(o->timestamp);
         if (t < tFirst || t > tLast) {
           continue;
@@ -295,7 +311,9 @@ int main(int argc, char ** argv)
         if (const auto c = slot.find(k); c == slot.end() || dt < c->second.dt) {
           slot[k] = {std::const_pointer_cast<mrpt::obs::CObservation>(o), dt};
         }
-        commitUpTo(t);
+        // With a margin: the bag is in receive order, not in stamp order.
+        constexpr double STAMP_ORDER_MARGIN = 2.0;  // [s]
+        commitUpTo(t - STAMP_ORDER_MARGIN);
       }
       if (i % 1000 == 0) {
         std::cout << mrpt::format(

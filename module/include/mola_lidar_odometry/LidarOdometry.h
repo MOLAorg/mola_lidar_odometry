@@ -728,7 +728,8 @@ public:
        *  each keyframe, with the same "closest in time" rule as GNSS and IMU
        *  above, among the observations received by the time the keyframe is
        *  created (mola_mapper and mola-sm-attach-observations, which can wait
-       *  for later ones, attach more). One entry per sensor; YAML:
+       *  for later ones, attach more). One entry per sensor: a regex matching
+       *  two cameras stores one image per keyframe. YAML:
        *  \code
        *  attach_observations:
        *    - sensor_label: 'camera_left'  # regex; empty: entry ignored
@@ -741,7 +742,7 @@ public:
       {
         std::string sensor_label;
         double max_age = 0.5;  // [s]
-        bool attach_once = false;
+        bool attach_once = true;
         uint32_t queue_max_size = 10;
       };
       std::vector<AttachedObservation> attach_observations;
@@ -749,8 +750,9 @@ public:
       /** How images (CObservationImage) stored in keyframes are saved: "jpg"
        *  or "png" files in the `<map>_Images/` directory next to
        *  `save_final_map_to_file`, or "inline" (pixels inside the
-       *  .simplemap). Files are only written if save_final_map_to_file is
-       *  set; else images stay inline. */
+       *  .simplemap). Files are written as keyframes are created, only if
+       *  save_final_map_to_file is set; else images stay inline. Images that
+       *  are already files, or not 8-bit, are stored as they are. */
       std::string image_format = "jpg";
 
       /// Quality [1-100] of "jpg" keyframe images.
@@ -2496,8 +2498,15 @@ private:
     CObservation::Ptr & o, const std::string & simplemapFile) const;
 
   /** The lazy-load directory of `simplemapFile` ("<map>_Images"), created if
-   *  needed and set as mrpt::io::setLazyLoadPathBase(). */
-  std::string prepareLazyLoadDirectory(const std::string & simplemapFile) const;
+   *  needed, and optionally set as mrpt::io::setLazyLoadPathBase(). */
+  std::string prepareLazyLoadDirectory(
+    const std::string & simplemapFile, bool setAsLazyLoadPathBase) const;
+
+  /** The observation to store in a simplemap keyframe for `o`: for images, a
+   *  copy that refers to an image file (see simplemap.image_format), queued
+   *  to be written; else `o` itself. Caller must hold state_mtx_. */
+  mrpt::obs::CObservation::Ptr keyframeObservation(
+    const mrpt::obs::CObservation::ConstPtr & o) const;
 
   void onPublishDiagnostics();
 

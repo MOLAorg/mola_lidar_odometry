@@ -131,7 +131,8 @@ modules:
           type: CObservationIMU
           is_optional: true
 
-        # Optional camera, for visualization only (disabled by default):
+        # Optional camera, for visualization, and stored in simplemap keyframes
+        # with MOLA_SIMPLEMAP_ATTACH_LABEL=camera (disabled by default):
         - topic: ${MOLA_CAMERA_TOPIC|''}
           is_optional: true
           sensorLabel: ${MOLA_CAMERA_SENSOR_NAME|camera}

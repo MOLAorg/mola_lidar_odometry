@@ -682,16 +682,16 @@ void LidarOdometry::createKeyframeAttachSources()
   s.attach_source_gnss.reset();
   s.attach_source_imu.reset();
 
-  if (params_.gnss_sensor_label && params_.simplemap.save_gnss_max_age > 0) {
+  // Without checking the sensor labels: only their callbacks feed these two,
+  // and the labels may be set after initialize() (e.g. by the CLI).
+  if (params_.simplemap.save_gnss_max_age > 0) {
     s.attach_source_gnss = s.attach_sources.size();
     s.attach_sources.push_back(
       {KeyframeAttachmentBuffer(
          {params_.simplemap.save_gnss_max_age, false, params_.gnss_queue_max_size}),
        std::nullopt});
   }
-  if (
-    (params_.attitude_imu_sensor_label || params_.imu_sensor_label) &&
-    params_.simplemap.save_imu_max_age > 0) {
+  if (params_.simplemap.save_imu_max_age > 0) {
     s.attach_source_imu = s.attach_sources.size();
     s.attach_sources.push_back(
       {KeyframeAttachmentBuffer(

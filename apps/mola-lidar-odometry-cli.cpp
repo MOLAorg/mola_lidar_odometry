@@ -34,6 +34,7 @@
 #include <mrpt/obs/CObservation3DRangeScan.h>
 #include <mrpt/obs/CObservationGPS.h>
 #include <mrpt/obs/CObservationIMU.h>
+#include <mrpt/obs/CObservationImage.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CObservationRobotPose.h>
@@ -1355,6 +1356,15 @@ int main_odometry(Cli & cli)
     for (auto * consumer : extraModulesAsRawConsumers) {
       for (const auto & anyObs : *sf) {
         consumer->onNewObservation(anyObs);
+      }
+    }
+
+    // Camera images, only for simplemap keyframes (simplemap.attach_observations):
+    if (!liodom->params_.simplemap.attach_observations.empty()) {
+      for (const auto & anyObs : *sf) {
+        if (std::dynamic_pointer_cast<mrpt::obs::CObservationImage>(anyObs)) {
+          liodom->onNewObservation(anyObs);
+        }
       }
     }
 

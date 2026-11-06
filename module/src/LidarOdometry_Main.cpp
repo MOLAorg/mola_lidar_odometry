@@ -499,7 +499,8 @@ void LidarOdometry::unloadPastSimplemapObservations(
   }
 }
 
-std::string LidarOdometry::prepareLazyLoadDirectory(const std::string & simplemapFile) const
+std::string LidarOdometry::prepareLazyLoadDirectory(
+  const std::string & simplemapFile, bool setAsLazyLoadPathBase) const
 {
   const std::string out_basedir = mrpt::system::pathJoin(
     {mrpt::system::extractFileDirectory(simplemapFile),
@@ -516,50 +517,57 @@ std::string LidarOdometry::prepareLazyLoadDirectory(const std::string & simplema
   }
 
   // Establish as reference external path base:
-  mrpt::io::setLazyLoadPathBase(out_basedir);
+  if (setAsLazyLoadPathBase) {
+    mrpt::io::setLazyLoadPathBase(out_basedir);
+  }
 
   return out_basedir;
+}
+
+mrpt::obs::CObservation::Ptr LidarOdometry::keyframeObservation(
+  const mrpt::obs::CObservation::ConstPtr & o) const
+{
+  using mrpt::obs::CObservationImage;
+
+  auto img = std::dynamic_pointer_cast<const CObservationImage>(o);
+  const auto & file = params_.simplemap.save_final_map_to_file;
+  const auto & fmt = params_.simplemap.image_format;
+  // Already a file (e.g. from a lazy-load dataset), not 8-bit, or no files
+  // requested: stored as is.
+  if (
+    !img || img->image.isExternallyStored() ||
+    img->image.getPixelDepth() != mrpt::img::PixelDepth::D8U || file.empty() || fmt == "inline") {
+    return std::const_pointer_cast<mrpt::obs::CObservation>(o);
+  }
+
+  // A copy that refers to an image file, written from the original, which is
+  // shared with other modules and left untouched. Not the lazy-load path base
+  // of the process: nothing loads these images back in this run.
+  const auto filename = external_observation_file_name(*img, fmt);
+  const auto path = mrpt::system::pathJoin({prepareLazyLoadDirectory(file, false), filename});
+  const int quality = params_.simplemap.jpeg_quality;
+  const auto fut = this->worker_disk_io_.enqueue([img, path, quality]() {
+    try {
+      if (!img->image.saveToFile(path, quality)) {
+        std::cerr << "[LidarOdometry] Error saving keyframe image to: " << path << "\n";
+      }
+    } catch (const std::exception & e) {
+      std::cerr << "[LidarOdometry] Error saving keyframe image to: " << path << ": " << e.what()
+                << "\n";
+    }
+  });
+  (void)fut;
+  return external_image_copy(*img, filename);
 }
 
 void LidarOdometry::handleUnloadSinglePastObservation(
   mrpt::obs::CObservation::Ptr & o, const std::string & simplemapFile) const
 {
-  using mrpt::obs::CObservationImage;
   using mrpt::obs::CObservationPointCloud;
 
   // Generic method first: it will work with datasets providing input
   // observations *already* in lazy-load format:
   o->unload();
-
-  if (simplemapFile.empty()) {
-    return;  // no generation of simplemap requested by the user
-  }
-
-  // Images: replaced in the keyframe by a copy that refers to an image file,
-  // written from the original (shared with other modules, so left untouched):
-  if (auto oImg = std::dynamic_pointer_cast<CObservationImage>(o); oImg) {
-    const auto & fmt = params_.simplemap.image_format;
-    if (oImg->image.isExternallyStored() || fmt == "inline") {
-      return;
-    }
-    const auto filename = external_observation_file_name(*oImg, fmt);
-    const auto path = mrpt::system::pathJoin({prepareLazyLoadDirectory(simplemapFile), filename});
-    o = external_image_copy(*oImg, filename);
-
-    const int quality = params_.simplemap.jpeg_quality;
-    const auto fut = this->worker_disk_io_.enqueue([oImg, path, quality]() {
-      try {
-        if (!oImg->image.saveToFile(path, quality)) {
-          std::cerr << "[LidarOdometry] Error saving keyframe image to: " << path << "\n";
-        }
-      } catch (const std::exception & e) {
-        std::cerr << "[LidarOdometry] Error saving keyframe image to: " << path << ": " << e.what()
-                  << "\n";
-      }
-    });
-    (void)fut;
-    return;
-  }
 
   // special case: point cloud
   auto oPts = std::dynamic_pointer_cast<CObservationPointCloud>(o);
@@ -571,6 +579,10 @@ void LidarOdometry::handleUnloadSinglePastObservation(
     return;  // already external, do nothing.
   }
 
+  if (simplemapFile.empty()) {
+    return;  // no generation of simplemap requested by the user
+  }
+
   if (!params_.simplemap.generate_lazy_load_scan_files) {
     return;  // feature is disabled
   }
@@ -579,7 +591,7 @@ void LidarOdometry::handleUnloadSinglePastObservation(
 
   const std::string filename = external_observation_file_name(*oPts, "bin");
 
-  prepareLazyLoadDirectory(simplemapFile);
+  prepareLazyLoadDirectory(simplemapFile, true);
 
   oPts->setAsExternalStorage(
     filename, CObservationPointCloud::ExternalStorageFormat::MRPT_Serialization);

@@ -984,7 +984,9 @@ Simple-map generation
 - ``MOLA_SIMPLEMAP_ATTACH_LABEL`` (Default: empty, disabled): Sensor label (regex) of observations of another sensor,
   e.g. camera images, to store in simple-map keyframes, the one closest in time to each keyframe, as for GNSS and
   IMU. ``MOLA_SIMPLEMAP_ATTACH_MAX_AGE`` (Default: ``0.5`` s) is the maximum time offset, and
-  ``MOLA_SIMPLEMAP_ATTACH_ONCE`` (Default: ``true``) never stores the same observation in two keyframes. More than
+  ``MOLA_SIMPLEMAP_ATTACH_ONCE`` (Default: ``true``) never stores the same observation in two keyframes, and
+  ``MOLA_SIMPLEMAP_ATTACH_QUEUE_SIZE`` (Default: ``10``) is how many recent observations are kept to choose from (raise
+  it for high-rate cameras). Use one entry per camera: a regex matching two stores one image per keyframe. More than
   one sensor can be listed in the ``simplemap.attach_observations`` section of the pipeline. Only observations
   received by the time a keyframe is created are candidates: ``mola-sm-attach-observations`` adds them offline
   from a rosbag2 instead, choosing the closest keyframe of each one. Image inputs: with
@@ -993,7 +995,9 @@ Simple-map generation
 
 - ``MOLA_SIMPLEMAP_IMAGE_FORMAT`` (Default: ``jpg``): Keyframe images are written as ``jpg`` or ``png`` files to
   ``<map>_Images/`` next to ``MOLA_SIMPLEMAP_OUTPUT`` (``MOLA_SIMPLEMAP_JPEG_QUALITY``, default ``95``), or kept
-  ``inline`` in the ``.simplemap``. They are also inline with ``mola-lidar-odometry-cli --output-simplemap``.
+  ``inline`` in the ``.simplemap``. They are also inline with ``mola-lidar-odometry-cli --output-simplemap``. Images
+  are written as keyframes are created; those already stored as files, or not 8-bit, are kept as they are. A map saved
+  elsewhere with the ``map_save`` service still refers to the files in ``<map>_Images/`` of ``MOLA_SIMPLEMAP_OUTPUT``.
 
 
 Trajectory files generation
