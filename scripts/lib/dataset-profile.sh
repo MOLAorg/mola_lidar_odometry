@@ -164,8 +164,18 @@ mola_lo_use_smoother() {
 # A params YAML given without its class (MOLA_STATE_ESTIMATOR_YAML alone) would
 # otherwise run whatever the launch file or the binary defaults to, which may
 # not be the estimator the YAML was written for. The class is inferred from a
-# key only the smoother has (and requires).
+# key only the smoother has (and requires). Callers that pick their own
+# estimator (MOLA_LO_SKIP_STATE_ESTIMATOR=1) are left alone.
 mola_lo_resolve_state_estimator() {
+  if [ "${MOLA_LO_SKIP_STATE_ESTIMATOR:-0}" = "1" ]; then
+    return 0
+  fi
+  # A class inferred here for a different YAML (an earlier load in the same
+  # shell) is not the caller's choice: infer it again.
+  if [ -n "${MOLA_LO_SE_INFERRED_FOR:-}" ] &&
+    [ "$MOLA_LO_SE_INFERRED_FOR" != "${MOLA_STATE_ESTIMATOR_YAML:-}" ]; then
+    unset MOLA_STATE_ESTIMATOR MOLA_LO_SE_INFERRED_FOR
+  fi
   if [ -n "${MOLA_STATE_ESTIMATOR:-}" ] || [ -z "${MOLA_STATE_ESTIMATOR_YAML:-}" ]; then
     return 0
   fi
@@ -174,6 +184,7 @@ mola_lo_resolve_state_estimator() {
   else
     MOLA_STATE_ESTIMATOR=mola::state_estimation_simple::StateEstimationSimple
   fi
+  MOLA_LO_SE_INFERRED_FOR=$MOLA_STATE_ESTIMATOR_YAML
   export MOLA_STATE_ESTIMATOR
 }
 
