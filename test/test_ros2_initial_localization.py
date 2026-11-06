@@ -28,6 +28,7 @@ from nav_msgs.msg import Odometry
 import pytest
 import rclpy
 from rclpy.qos import qos_profile_sensor_data
+from rosbag2_interfaces.srv import Pause, Resume
 import yaml
 
 # With the state estimator, the vehicle pose is its output:
@@ -165,6 +166,50 @@ def _wrap_deg(a):
     return abs((math.degrees(a) + 180.0) % 360.0 - 180.0)
 
 
+# LIO's global search assumes the vehicle is still meanwhile, but it takes a time
+# that depends on the machine (from ~40 s to over two minutes on CI runners),
+# while the fragment keeps playing and its robot starts moving: the replay is
+# paused for the duration of each search.
+SEARCH_START = 'starting'
+SEARCH_START_PREFIX = 'Global search around'
+SEARCH_END_PREFIXES = ('Global search: localized', 'Global search: no good match',
+                       'Global search: ambiguous', 'Global search: aborted')
+
+
+class _PauseReplayDuringSearch:
+    """Pauses the bag replay while LIO runs a global search."""
+
+    def __init__(self, node):
+        self._node = node
+        self._pause = node.create_client(Pause, '/rosbag2_player/pause')
+        self._resume = node.create_client(Resume, '/rosbag2_player/resume')
+        self._seen = 0
+        self._paused_since = None
+        self.paused_seconds = 0.0
+
+    def update(self, proc_output):
+        lines = []
+        for io in list(proc_output)[self._seen:]:
+            lines += io.text.decode(errors='replace').splitlines()
+            self._seen += 1
+        for line in lines:
+            if SEARCH_START_PREFIX in line and SEARCH_START in line and self._paused_since is None:
+                if self._call(self._pause, Pause.Request()):
+                    self._paused_since = time.time()
+            elif any(p in line for p in SEARCH_END_PREFIXES) and self._paused_since is not None:
+                self._call(self._resume, Resume.Request())
+                self.paused_seconds += time.time() - self._paused_since
+                self._paused_since = None
+
+    def _call(self, client, request, timeout=5.0):
+        if not client.wait_for_service(timeout_sec=timeout):
+            print(f'[test] {client.srv_name} not available: replay not paused')
+            return False
+        future = client.call_async(request)
+        rclpy.spin_until_future_complete(self._node, future, timeout_sec=timeout)
+        return future.done()
+
+
 class TestInitialLocalization(unittest.TestCase):
 
     @classmethod
@@ -191,10 +236,16 @@ class TestInitialLocalization(unittest.TestCase):
         self.poses.append((t, p.position.x, p.position.y, p.position.z,
                            _yaw(o.x, o.y, o.z, o.w)))
 
-    def _spin_until(self, condition, timeout):
-        end = time.time() + timeout
-        while time.time() < end and not condition():
+    def _spin_until(self, condition, timeout, proc_output):
+        """Spins until condition() holds, pausing the replay during global searches. The
+        timeout does not count the time the replay was paused."""
+        pauser = _PauseReplayDuringSearch(self.node)
+        start = time.time()
+        while time.time() < start + timeout + pauser.paused_seconds and not condition():
             rclpy.spin_once(self.node, timeout_sec=0.1)
+            pauser.update(proc_output)
+        if pauser.paused_seconds > 0:
+            print(f'[test] replay paused {pauser.paused_seconds:.1f} s during global searches')
         return condition()
 
     def test_initial_localization(self, case, proc_output):
@@ -212,7 +263,8 @@ class TestInitialLocalization(unittest.TestCase):
         self.assertTrue(
             self._spin_until(
                 lambda: self.poses and self.poses[-1][0] >= last_scan - 0.3,
-                STARTUP_SECONDS + dataset['duration'] / tc.get('bag_rate', BAG_RATE)),
+                STARTUP_SECONDS + dataset['duration'] / tc.get('bag_rate', BAG_RATE),
+                proc_output),
             f'The poses on {POSE_TOPIC} did not reach the end of the fragment')
 
         # Errors of the poses of the evaluated period, against the nearest ground
