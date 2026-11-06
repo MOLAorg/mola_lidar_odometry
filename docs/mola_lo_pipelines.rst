@@ -986,13 +986,14 @@ Simple-map generation
   IMU. ``MOLA_SIMPLEMAP_ATTACH_MAX_AGE`` (Default: ``0.5`` s) is the maximum time offset, and
   ``MOLA_SIMPLEMAP_ATTACH_ONCE`` (Default: ``true``) never stores the same observation in two keyframes, and
   ``MOLA_SIMPLEMAP_ATTACH_QUEUE_SIZE`` (Default: ``10``) is how many recent observations are kept to choose from (raise
-  it for high-rate cameras). Use one entry per camera: a regex matching two stores one image per keyframe. More than
-  one sensor can be listed in the ``simplemap.attach_observations`` section of the pipeline. Only observations
+  it for high-rate cameras). A regex matching several cameras (e.g. ``camera.*``) stores one image of each in every
+  keyframe. Other sensors can be listed in the ``simplemap.attach_observations`` section of the pipeline. Only observations
   received by the time a keyframe is created are candidates: ``mola-sm-attach-from-rosbag2`` (or ``-rosbag1``)
   adds them offline from a bag instead, choosing the closest keyframe of each one. Image inputs: with
-  ``mola-lidar-odometry-cli``, ``MOLA_CAMERA_TOPIC_0`` (label ``image_0``); with ``mola-lo-gui-rosbag2``,
-  ``MOLA_CAMERA_TOPIC`` (label ``camera``); with the ROS 2 node, ``camera_topic_name:=`` (which also sets
-  ``MOLA_SIMPLEMAP_ATTACH_LABEL=camera``).
+  ``mola-lidar-odometry-cli``, ``MOLA_CAMERA_TOPIC_0``, ``_1``, ``_2`` (labels ``image_0``, ``image_1``,
+  ``image_2``: use ``image_.*``); with ``mola-lo-gui-rosbag2``, ``MOLA_CAMERA_TOPIC``, ``_1``, ``_2`` (labels
+  ``camera``, ``camera_1``, ``camera_2``: use ``camera.*``); with the ROS 2 node, ``camera_topic_name:=/a,/b``
+  (which also sets ``MOLA_SIMPLEMAP_ATTACH_LABEL=camera.*``).
 
 - ``MOLA_SIMPLEMAP_IMAGE_FORMAT`` (Default: ``jpg``): Keyframe images are written as ``jpg`` or ``png`` files to
   ``<map>_Images/`` next to ``MOLA_SIMPLEMAP_OUTPUT`` (``MOLA_SIMPLEMAP_JPEG_QUALITY``, default ``95``), or kept

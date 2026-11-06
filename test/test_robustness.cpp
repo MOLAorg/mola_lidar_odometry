@@ -338,6 +338,51 @@ TEST(Robustness, KeyframeImagesAttachedOnceAndSavedAsFiles)
   EXPECT_EQ(numReloaded, numAttached);
 }
 
+// A label regex matching two cameras with synchronized stamps stores one image
+// of each camera in a keyframe, never the same image twice.
+TEST(Robustness, KeyframeImagesFromTwoCameras)
+{
+  set_env("MOLA_SIMPLEMAP_ATTACH_LABEL", "camera.*");
+  set_env("MOLA_SIMPLEMAP_IMAGE_FORMAT", "inline");
+  Fixture f(true /*simplemap*/);
+  set_env("MOLA_SIMPLEMAP_ATTACH_LABEL", "");
+  set_env("MOLA_SIMPLEMAP_IMAGE_FORMAT", "jpg");
+
+  for (int i = 0; i < kNumScans; i++) {
+    if (i % 3 == 0) {
+      for (const char * label : {"camera", "camera_1"}) {
+        auto img = mrpt::obs::CObservationImage::Create();
+        img->sensorLabel = label;
+        img->timestamp = mrpt::Clock::fromDouble(scanTime(i) - 0.01);  // same stamp
+        img->image = mrpt::img::CImage(8, 6, mrpt::img::CH_RGB);
+        f.liodom->onNewObservation(img);
+      }
+    }
+    f.feedScan(i);
+  }
+
+  std::map<std::string, std::set<double>> stamps;
+  size_t kfsWithBoth = 0;
+  for (const auto & kf : f.liodom->reconstructedMap()) {
+    std::map<std::string, int> perKf;
+    for (const auto & o : *kf.sf) {
+      if (std::dynamic_pointer_cast<mrpt::obs::CObservationImage>(o)) {
+        perKf[o->sensorLabel]++;
+        EXPECT_TRUE(stamps[o->sensorLabel].insert(mrpt::Clock::toDouble(o->timestamp)).second)
+          << "an image was stored in two keyframes";
+      }
+    }
+    for (const auto & [label, n] : perKf) {
+      EXPECT_EQ(n, 1) << label;
+    }
+    if (perKf.size() == 2) {
+      kfsWithBoth++;
+    }
+  }
+  EXPECT_GT(kfsWithBoth, 0U);
+  EXPECT_EQ(stamps["camera"], stamps["camera_1"]);
+}
+
 // map_save() requests are served from spinOnce() too: saving must not race
 // with the map updates of scans being processed meanwhile.
 TEST(Robustness, MapSaveWhileProcessing)

@@ -689,6 +689,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           sensorLabel: ${MOLA_CAMERA_LABEL_1|image_1}
           type: CObservationImage
           is_optional: true
+        - topic: ${MOLA_CAMERA_TOPIC_2|''}
+          sensorLabel: ${MOLA_CAMERA_LABEL_2|image_2}
+          type: CObservationImage
+          is_optional: true
 )"""",
     bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(), cli.arg_tfTopic.getValue().c_str(),
     cli.arg_tfStaticTopic.getValue().c_str(),
@@ -796,6 +800,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
           is_optional: true
         - topic: ${MOLA_CAMERA_TOPIC_1|''}
           sensorLabel: ${MOLA_CAMERA_LABEL_1|image_1}
+          type: CObservationImage
+          is_optional: true
+        - topic: ${MOLA_CAMERA_TOPIC_2|''}
+          sensorLabel: ${MOLA_CAMERA_LABEL_2|image_2}
           type: CObservationImage
           is_optional: true
 )"""",

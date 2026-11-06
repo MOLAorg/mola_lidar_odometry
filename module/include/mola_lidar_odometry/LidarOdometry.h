@@ -728,8 +728,9 @@ public:
        *  each keyframe, with the same "closest in time" rule as GNSS and IMU
        *  above, among the observations received by the time the keyframe is
        *  created (mola_mapper and mola-sm-attach-from-rosbag1/2, which can wait
-       *  for later ones, attach more). One entry per sensor: a regex matching
-       *  two cameras stores one image per keyframe. YAML:
+       *  for later ones, attach more). One entry per sensor or group of
+       *  sensors: a regex matching several cameras stores one image of each
+       *  in every keyframe. YAML:
        *  \code
        *  attach_observations:
        *    - sensor_label: 'camera_left'  # regex; empty: entry ignored
@@ -1810,13 +1811,23 @@ private:
     // Recent observations to attach to simplemap keyframes, the one closest
     // in time to each: GNSS and IMU (fed by onGPS() and the IMU callbacks,
     // after validation), and one per simplemap.attach_observations entry (fed
-    // by sensor label). The IMU one is independent of pending_imu_, which the
-    // LiDAR worker drains as it consumes readings. Guarded by imu_state_mtx_.
+    // by sensor label, with one buffer per label: a regex matching several
+    // cameras stores one image of each). The IMU one is independent of
+    // pending_imu_, which the LiDAR worker drains as it consumes readings.
+    // Guarded by imu_state_mtx_.
     struct AttachSource
     {
-      KeyframeAttachmentBuffer buffer;
+      KeyframeAttachmentBuffer::Options options;
       /// Sensor label regex of simplemap.attach_observations entries.
       std::optional<std::regex> sensor_label;
+      /// By sensor label (a single one, "", for GNSS and IMU).
+      std::map<std::string, KeyframeAttachmentBuffer> buffers;
+
+      void add(const mrpt::obs::CObservation::ConstPtr & o)
+      {
+        const std::string key = sensor_label ? o->sensorLabel : std::string();
+        buffers.try_emplace(key, options).first->second.add(o);
+      }
     };
     std::vector<AttachSource> attach_sources;
     std::optional<std::size_t> attach_source_gnss;

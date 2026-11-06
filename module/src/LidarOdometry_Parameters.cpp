@@ -299,6 +299,9 @@ void LidarOdometry::Parameters::SimpleMapOptions::initialize(const Yaml & cfg, P
   ASSERTMSG_(
     is_valid_keyframe_image_format(image_format),
     "simplemap.image_format must be one of: jpg, png, inline. Got: '" + image_format + "'");
+  ASSERTMSG_(
+    jpeg_quality >= 1 && jpeg_quality <= 100,
+    mrpt::format("simplemap.jpeg_quality must be in [1,100], got %d", jpeg_quality));
 
   attach_observations.clear();
   if (cfg.has("attach_observations") && !cfg["attach_observations"].isNullNode()) {
@@ -315,6 +318,10 @@ void LidarOdometry::Parameters::SimpleMapOptions::initialize(const Yaml & cfg, P
       // An empty label disables the entry, so a YAML can leave it to an
       // environment variable:
       if (!a.sensor_label.empty()) {
+        ASSERTMSG_(
+          a.max_age >= 0 && a.queue_max_size > 0,
+          "simplemap.attach_observations: max_age must be >= 0 and queue_max_size > 0 ('" +
+            a.sensor_label + "')");
         attach_observations.push_back(a);
       }
     }

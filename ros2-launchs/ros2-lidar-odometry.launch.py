@@ -253,22 +253,29 @@ def generate_launch_description():
     # ~~~~~~~~~~~~
     camera_topic_name_arg = DeclareLaunchArgument(
         "camera_topic_name", default_value="",
-        description="Optional sensor_msgs/Image topic (raw, not compressed; e.g. a low-rate camera). Its "
-                    "images are only stored into simplemap keyframes (needs generate_simplemap:=True), "
-                    "the closest in time to each (for visual place recognition), as jpg/png files next "
-                    "to the simplemap. Its frame must be in /tf (or set MOLA_USE_FIXED_CAMERA_POSE). "
-                    "Empty (default) disables it.")
+        description="Optional sensor_msgs/Image topics (raw, not compressed; e.g. low-rate cameras), "
+                    "comma-separated, up to three. Their images are only stored into simplemap keyframes "
+                    "(needs generate_simplemap:=True), one of each camera per keyframe, the closest in "
+                    "time (for visual place recognition), as jpg/png files next to the simplemap. Their "
+                    "frames must be in /tf (or set MOLA_USE_FIXED_CAMERA_POSE, _CAMERA_1_POSE, "
+                    "_CAMERA_2_POSE). Empty (default) disables it.")
 
-    # Naming the topic is enough: also tell the odometry to store its images,
-    # unless MOLA_SIMPLEMAP_ATTACH_LABEL is already set.
+    # Naming the topics is enough: they go to the camera slots of the YAML
+    # (labels camera, camera_1, camera_2), and the odometry is told to store
+    # their images, unless MOLA_SIMPLEMAP_ATTACH_LABEL is already set.
     def _apply_camera_topic(context, *args, **kwargs):
-        v = LaunchConfiguration('camera_topic_name').perform(context).strip()
-        if not v:
+        v = LaunchConfiguration('camera_topic_name').perform(context)
+        topics = [t.strip() for t in v.split(',') if t.strip()]
+        if not topics:
             return []
-        actions = [SetEnvironmentVariable(name='MOLA_CAMERA_TOPIC', value=v)]
+        if len(topics) > 3:
+            raise RuntimeError(
+                f"camera_topic_name: at most three topics are supported, got {len(topics)}")
+        actions = [SetEnvironmentVariable(name='MOLA_CAMERA_TOPIC' + ('' if i == 0 else f'_{i}'),
+                                          value=t) for i, t in enumerate(topics)]
         if not os.environ.get('MOLA_SIMPLEMAP_ATTACH_LABEL'):
-            label = os.environ.get('MOLA_CAMERA_SENSOR_NAME') or 'camera'
-            actions.append(SetEnvironmentVariable(name='MOLA_SIMPLEMAP_ATTACH_LABEL', value=label))
+            actions.append(SetEnvironmentVariable(
+                name='MOLA_SIMPLEMAP_ATTACH_LABEL', value='camera.*'))
         return actions
     camera_topic_env_var = OpaqueFunction(function=_apply_camera_topic)
 

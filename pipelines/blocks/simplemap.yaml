@@ -38,8 +38,8 @@ params:
 
     # Observations of other sensors to store in each keyframe, the closest in
     # time (e.g. camera images, for visual place recognition). One entry per
-    # sensor or camera: a regex matching two stores one of them per keyframe.
-    # An empty sensor_label (regex) disables the entry.
+    # sensor or group of sensors: a regex matching several cameras (e.g.
+    # 'camera.*') stores one image of each. An empty sensor_label disables it.
     attach_observations:
       - sensor_label: "${MOLA_SIMPLEMAP_ATTACH_LABEL|}"
         max_age: ${MOLA_SIMPLEMAP_ATTACH_MAX_AGE|0.5} # [s]

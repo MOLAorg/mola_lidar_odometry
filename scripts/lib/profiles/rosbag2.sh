@@ -14,7 +14,7 @@ mola_lo_profile_usage() {
   echo "  MOLA_ATTITUDE_IMU_TOPIC  Attitude-only IMU (AHRS) for simplemap keyframes (optional)"
   echo "  MOLA_ODOMETRY_TOPIC    Wheels 2D odometry (optional)"
   echo "  MOLA_SIMPLEMAP_ATTACH_LABEL  Camera images stored in simplemap keyframes (optional):"
-  echo "                         'camera' with MOLA_CAMERA_TOPIC (gui), 'image_0' with MOLA_CAMERA_TOPIC_0 (cli)"
+  echo "                         'camera.*' with MOLA_CAMERA_TOPIC[_1,_2] (gui), 'image_.*' with MOLA_CAMERA_TOPIC_0/1/2 (cli)"
   echo "  MOLA_TF_BASE_LINK      Robot base /tf frame id (default: 'base_link')"
   echo "  MOLA_TF_TOPIC          /tf topic in the bag (default: '/tf')"
   echo "  MOLA_TF_STATIC_TOPIC   /tf_static topic in the bag (default: '/tf_static')"

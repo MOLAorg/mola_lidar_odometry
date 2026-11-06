@@ -2574,8 +2574,10 @@ void LidarOdometry::doUpdateSimpleMap(
       // Appended to by the sensor-input thread:
       auto lckImu = mrpt::lockHelper(imu_state_mtx_);
       for (auto & src : state_.attach_sources) {
-        if (auto o = src.buffer.take_closest(scan_ref_time); o) {
-          attached.push_back(o);
+        for (auto & [label, buffer] : src.buffers) {
+          if (auto o = buffer.take_closest(scan_ref_time); o) {
+            attached.push_back(o);
+          }
         }
       }
     }

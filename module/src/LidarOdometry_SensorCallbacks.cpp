@@ -660,7 +660,7 @@ void LidarOdometry::onAttitudeIMU(const CObservation::ConstPtr & o)
 void LidarOdometry::storeImuForSimplemap(const mrpt::obs::CObservationIMU::ConstPtr & imu)
 {
   if (state_.attach_source_imu) {
-    state_.attach_sources.at(*state_.attach_source_imu).buffer.add(imu);
+    state_.attach_sources.at(*state_.attach_source_imu).add(imu);
   }
 }
 
@@ -668,7 +668,7 @@ void LidarOdometry::storeForSimplemapByLabel(const CObservation::ConstPtr & o)
 {
   for (auto & src : state_.attach_sources) {
     if (src.sensor_label && std::regex_match(o->sensorLabel, *src.sensor_label)) {
-      src.buffer.add(o);
+      src.add(o);
     }
   }
 }
@@ -687,21 +687,18 @@ void LidarOdometry::createKeyframeAttachSources()
   if (params_.simplemap.save_gnss_max_age > 0) {
     s.attach_source_gnss = s.attach_sources.size();
     s.attach_sources.push_back(
-      {KeyframeAttachmentBuffer(
-         {params_.simplemap.save_gnss_max_age, false, params_.gnss_queue_max_size}),
-       std::nullopt});
+      {{params_.simplemap.save_gnss_max_age, false, params_.gnss_queue_max_size},
+       std::nullopt,
+       {}});
   }
   if (params_.simplemap.save_imu_max_age > 0) {
     s.attach_source_imu = s.attach_sources.size();
     s.attach_sources.push_back(
-      {KeyframeAttachmentBuffer(
-         {params_.simplemap.save_imu_max_age, false, params_.imu_queue_max_size}),
-       std::nullopt});
+      {{params_.simplemap.save_imu_max_age, false, params_.imu_queue_max_size}, std::nullopt, {}});
   }
   for (const auto & a : params_.simplemap.attach_observations) {
     s.attach_sources.push_back(
-      {KeyframeAttachmentBuffer({a.max_age, a.attach_once, a.queue_max_size}),
-       std::regex(a.sensor_label)});
+      {{a.max_age, a.attach_once, a.queue_max_size}, std::regex(a.sensor_label), {}});
     MRPT_LOG_INFO_FMT(
       "Simplemap keyframes will store observations of '%s' (max_age=%.03f s, attach_once=%s)",
       a.sensor_label.c_str(), a.max_age, a.attach_once ? "true" : "false");
@@ -824,7 +821,7 @@ void LidarOdometry::onGPSImpl(const CObservation::ConstPtr & o)
 
   // Keep the latest GPS observations for simplemap insertion:
   if (state_.attach_source_gnss) {
-    state_.attach_sources.at(*state_.attach_source_gnss).buffer.add(gps);
+    state_.attach_sources.at(*state_.attach_source_gnss).add(gps);
   }
 }
 
