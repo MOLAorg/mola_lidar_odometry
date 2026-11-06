@@ -200,14 +200,24 @@ mola_lo_resolve_state_estimator() {
 # odometry source, so it is left alone when another one is fused too. The
 # caller's value still wins.
 mola_lo_smoother_lidar_defaults() {
+  # A value set here by an earlier load in the same shell is not the caller's
+  # choice: drop it, unless the caller has changed it since.
+  if [ -n "${MOLA_LO_SIGMA_ANG_DEFAULTED:-}" ] &&
+    [ "${MOLA_REL_POSE_INCR_SIGMA_ANG:-}" = "$MOLA_LO_SIGMA_ANG_DEFAULTED" ]; then
+    unset MOLA_REL_POSE_INCR_SIGMA_ANG
+  fi
+  unset MOLA_LO_SIGMA_ANG_DEFAULTED
   if [ "${MOLA_STATE_ESTIMATOR:-}" != "mola::state_estimation_smoother::StateEstimationSmoother" ]; then
     return 0
   fi
   if [ -n "${MOLA_ODOMETRY_TOPIC:-}" ] || [ -n "${MOLA_ODOM_TOPIC:-}" ]; then
     return 0
   fi
-  : "${MOLA_REL_POSE_INCR_SIGMA_ANG:=1e-5}"
-  export MOLA_REL_POSE_INCR_SIGMA_ANG
+  if [ -z "${MOLA_REL_POSE_INCR_SIGMA_ANG:-}" ]; then
+    MOLA_REL_POSE_INCR_SIGMA_ANG=1e-5
+    MOLA_LO_SIGMA_ANG_DEFAULTED=$MOLA_REL_POSE_INCR_SIGMA_ANG
+    export MOLA_REL_POSE_INCR_SIGMA_ANG
+  fi
 }
 
 # Sources a profile and runs it. $1 is the profile name, the rest are the
