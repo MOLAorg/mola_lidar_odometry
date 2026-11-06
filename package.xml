@@ -69,7 +69,7 @@
   <exec_depend>mola_launcher</exec_depend>
   <exec_depend>mola_viz</exec_depend>
   <exec_depend>mola_viz_imgui</exec_depend>
-  <exec_depend>mola_bridge_ros2</exec_depend>
+  <exec_depend version_gt="3.4.0">mola_bridge_ros2</exec_depend> <!-- Image input, for camera_topic_name -->
   <exec_depend>mola_metric_maps</exec_depend> <!-- the 3D pipelines load its map classes at runtime -->
 
   <!-- Test datasets to run on them: -->
