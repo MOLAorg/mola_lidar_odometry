@@ -165,7 +165,9 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       Optional ``sensor_msgs/Image`` topic. Its images are only stored into simplemap
       keyframes, the closest in time to each (``MOLA_SIMPLEMAP_ATTACH_LABEL``, set to
       ``camera`` by the launch file unless already set), e.g. for visual place recognition.
-      Use a low-rate topic: every image is decoded.
+      Needs ``generate_simplemap:=True``. Raw images only (not ``CompressedImage``), and the
+      camera frame must be in ``/tf`` (or use ``MOLA_USE_FIXED_CAMERA_POSE``). Use a low-rate
+      topic: every image is decoded.
 
     * ``enforce_planar_motion`` (default ``False``):
       Whether to enforce z, pitch, and roll to be zero.
@@ -440,6 +442,14 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       Setting the topic is enough with ``mola-lo-gui-rosbag2``, ``mola-lo-cli-rosbag2`` and the ROS 2 launch file
       (``attitude_imu_topic_name:=``). Running ``lidar_odometry_from_rosbag2.yaml`` directly with ``mola-cli`` also
       needs ``MOLA_ATTITUDE_IMU_NAME=imu_attitude`` (see :ref:`pipeline sensor inputs <mola_lo_pipeline_sensor_inputs>`).
+
+    - ``MOLA_CAMERA_TOPIC`` (Default: empty, disabled): A ``sensor_msgs/Image`` topic (label
+      ``MOLA_CAMERA_SENSOR_NAME``, default ``camera``), whose images are stored into simple-map keyframes if
+      ``MOLA_SIMPLEMAP_ATTACH_LABEL`` matches the label (the ROS 2 launch file sets both with ``camera_topic_name:=``).
+
+    - ``MOLA_USE_FIXED_CAMERA_POSE`` (Default: ``false``): If false, the camera pose will be retrieved from ``/tf``.
+      Else, from ``CAMERA_POSE_X``, ``CAMERA_POSE_Y``, ``CAMERA_POSE_Z`` (in meters) and ``CAMERA_POSE_YAW``,
+      ``CAMERA_POSE_PITCH``, ``CAMERA_POSE_ROLL`` (in degrees).
 
 
 .. dropdown:: More LO parameters

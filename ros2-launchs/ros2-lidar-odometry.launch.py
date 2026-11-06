@@ -253,9 +253,11 @@ def generate_launch_description():
     # ~~~~~~~~~~~~
     camera_topic_name_arg = DeclareLaunchArgument(
         "camera_topic_name", default_value="",
-        description="Optional sensor_msgs/Image topic (e.g. a low-rate camera). Its images are only "
-                    "stored into simplemap keyframes, the closest in time to each (for visual place "
-                    "recognition), as jpg/png files next to the simplemap. Empty (default) disables it.")
+        description="Optional sensor_msgs/Image topic (raw, not compressed; e.g. a low-rate camera). Its "
+                    "images are only stored into simplemap keyframes (needs generate_simplemap:=True), "
+                    "the closest in time to each (for visual place recognition), as jpg/png files next "
+                    "to the simplemap. Its frame must be in /tf (or set MOLA_USE_FIXED_CAMERA_POSE). "
+                    "Empty (default) disables it.")
 
     # Naming the topic is enough: also tell the odometry to store its images,
     # unless MOLA_SIMPLEMAP_ATTACH_LABEL is already set.
@@ -263,10 +265,10 @@ def generate_launch_description():
         v = LaunchConfiguration('camera_topic_name').perform(context).strip()
         if not v:
             return []
-        actions = [SetEnvironmentVariable(name='MOLA_CAMERA_TOPIC', value=v),
-                   SetEnvironmentVariable(name='MOLA_CAMERA_SENSOR_NAME', value='camera')]
+        actions = [SetEnvironmentVariable(name='MOLA_CAMERA_TOPIC', value=v)]
         if not os.environ.get('MOLA_SIMPLEMAP_ATTACH_LABEL'):
-            actions.append(SetEnvironmentVariable(name='MOLA_SIMPLEMAP_ATTACH_LABEL', value='camera'))
+            label = os.environ.get('MOLA_CAMERA_SENSOR_NAME') or 'camera'
+            actions.append(SetEnvironmentVariable(name='MOLA_SIMPLEMAP_ATTACH_LABEL', value=label))
         return actions
     camera_topic_env_var = OpaqueFunction(function=_apply_camera_topic)
 

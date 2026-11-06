@@ -988,8 +988,8 @@ Simple-map generation
   ``MOLA_SIMPLEMAP_ATTACH_QUEUE_SIZE`` (Default: ``10``) is how many recent observations are kept to choose from (raise
   it for high-rate cameras). Use one entry per camera: a regex matching two stores one image per keyframe. More than
   one sensor can be listed in the ``simplemap.attach_observations`` section of the pipeline. Only observations
-  received by the time a keyframe is created are candidates: ``mola-sm-attach-from-rosbag2`` (or ``-rosbag1``) adds them offline
-  from a bag instead, choosing the closest keyframe of each one. Image inputs: with
+  received by the time a keyframe is created are candidates: ``mola-sm-attach-from-rosbag2`` (or ``-rosbag1``)
+  adds them offline from a bag instead, choosing the closest keyframe of each one. Image inputs: with
   ``mola-lidar-odometry-cli``, ``MOLA_CAMERA_TOPIC_0`` (label ``image_0``); with ``mola-lo-gui-rosbag2``,
   ``MOLA_CAMERA_TOPIC`` (label ``camera``); with the ROS 2 node, ``camera_topic_name:=`` (which also sets
   ``MOLA_SIMPLEMAP_ATTACH_LABEL=camera``).

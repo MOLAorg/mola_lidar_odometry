@@ -221,7 +221,6 @@ if(mola_input_rosbag2_FOUND)
   message(STATUS "mola-lidar-odometry-cli: With rosbag2 = YES")
   target_link_libraries(mola-lidar-odometry-cli mola::mola_input_rosbag2)
   target_compile_definitions(mola-lidar-odometry-cli PRIVATE HAVE_MOLA_INPUT_ROSBAG2)
-
 else()
   message(STATUS "mola-lidar-odometry-cli: With rosbag2 = NO")
 endif()

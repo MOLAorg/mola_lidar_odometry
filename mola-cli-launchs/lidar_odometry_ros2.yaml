@@ -211,6 +211,8 @@ modules:
         - topic: ${MOLA_CAMERA_TOPIC|}
           msg_type: Image
           output_sensor_label: ${MOLA_CAMERA_SENSOR_NAME|camera}
+          fixed_sensor_pose: "${CAMERA_POSE_X|0} ${CAMERA_POSE_Y|0} ${CAMERA_POSE_Z|0} ${CAMERA_POSE_YAW|0} ${CAMERA_POSE_PITCH|0} ${CAMERA_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg'
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_CAMERA_POSE|false}
 
         # Optional: direct subscription to a nav_msgs/Odometry topic (e.g., wheel odometry).
         # Leave MOLA_ODOM_TOPIC empty (default) to disable. Set to e.g. "/wheel_odom" to enable.
