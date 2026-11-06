@@ -193,6 +193,18 @@ mola_lo_resolve_state_estimator() {
   export MOLA_STATE_ESTIMATOR
 }
 
+# The smoother's default accuracy for one odometry increment suits wheel or
+# visual odometry. LiDAR registration is far more accurate in rotation; with
+# that default, the smoother's IMU factors override the LiDAR attitude and the
+# fused estimate drifts away from the odometry. The caller's value still wins.
+mola_lo_smoother_lidar_defaults() {
+  if [ "${MOLA_STATE_ESTIMATOR:-}" != "mola::state_estimation_smoother::StateEstimationSmoother" ]; then
+    return 0
+  fi
+  : "${MOLA_REL_POSE_INCR_SIGMA_ANG:=1e-5}"
+  export MOLA_REL_POSE_INCR_SIGMA_ANG
+}
+
 # Sources a profile and runs it. $1 is the profile name, the rest are the
 # wrapper's own arguments. Returns non-zero on any failure rather than
 # exiting: callers other than the wrappers (a CI harness, say) need to report
@@ -224,6 +236,7 @@ mola_lo_load_profile() {
 
   mola_lo_profile_resolve "$@" || return
   mola_lo_resolve_state_estimator
+  mola_lo_smoother_lidar_defaults
 }
 
 # Both exec helpers below default the pipeline YAML the same way every

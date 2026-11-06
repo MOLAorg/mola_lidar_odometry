@@ -541,6 +541,15 @@ def generate_launch_description():
             v = '0'
         return [SetEnvironmentVariable(name='MOLA_IMU_GRAVITY_ALIGNMENT_SIGMA', value=v)]
 
+    # The smoother's default accuracy for one odometry increment suits wheel or
+    # visual odometry; LiDAR registration is far more accurate in rotation (see
+    # mola_lo_smoother_lidar_defaults in scripts/lib/dataset-profile.sh). A value
+    # already in the environment wins.
+    def _apply_lidar_increment_sigma(context, *args, **kwargs):
+        if 'MOLA_REL_POSE_INCR_SIGMA_ANG' in os.environ:
+            return []
+        return [SetEnvironmentVariable(name='MOLA_REL_POSE_INCR_SIGMA_ANG', value='1e-5')]
+
     # Environment variables that only apply if the smoother is active.
     # Not scoped: a scoped group restores the environment when it ends, so these
     # variables would never reach the mola-cli process.
@@ -551,6 +560,7 @@ def generate_launch_description():
             OpaqueFunction(function=_apply_navstate_args),
             OpaqueFunction(function=_apply_estimate_geo_ref),
             OpaqueFunction(function=_apply_imu_gravity_alignment_sigma),
+            OpaqueFunction(function=_apply_lidar_increment_sigma),
         ]
     )
 
