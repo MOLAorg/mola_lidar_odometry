@@ -235,14 +235,31 @@ without an estimate pass through. `MOLA_LO_USE_IMU_BIAS_SOURCE` (default true).
 The GUI Status tab shows the current estimate of the IMU in use
 (`imu_bias_status_lines()`, queried at GUI rate), if there is a bias source.
 
+## Observations attached to simplemap keyframes
+
+`state_.attach_sources` (`KeyframeAttachmentBuffer`, `KeyframeAttachments.h`): one buffer
+per source, from which each new keyframe takes the observation closest in time. GNSS and
+IMU are fed by their callbacks after validation (`save_gnss_max_age`, `save_imu_max_age`);
+`simplemap.attach_observations` entries (`MOLA_SIMPLEMAP_ATTACH_LABEL`), e.g. camera
+images, by sensor label, optionally `attach_once`. Images are written to `<map>_Images/`
+(`image_format` jpg/png/inline) as the keyframe is created (`keyframeObservation()`,
+disk worker thread): the keyframe gets a copy pointing to the file, since `CImage` copies
+are shallow and the input observation is shared with other modules. The GNSS and IMU
+sources exist whenever `save_*_max_age > 0`, since the CLI sets labels after
+`initialize()`; the CLI forwards images to the odometry only if `attach_observations`
+is set. Live: `camera_topic_name:=/a,/b` (up to three BridgeROS2 `Image` subscriptions,
+labels `camera`, `camera_1`, `camera_2`, attach label = those in use; unused slots cleared). Each attach entry keeps
+one buffer per matching label, so a regex over several cameras stores one image of each.
+`mola-sm-attach-from-rosbag2` / `-rosbag1` (mola repo, mola_input_rosbag1) do the same offline.
+
 ## Attitude-only IMU for the simplemap (`attitude_imu_sensor_label`)
 
 Keyframes store the IMU reading closest in time (`simplemap.save_imu_max_age`),
 which is what gives `mola-sm-georeferencing` an azimuth observation. The LiDAR's
 built-in IMU is the right one for de-skew but carries no orientation, so an
 external AHRS can be named with `attitude_imu_sensor_label`
-(`MOLA_ATTITUDE_IMU_NAME`): its readings feed only `last_imu_`, and the main IMU
-then stops feeding it. All inputs (offline CLI, `lidar_odometry_from_rosbag2.yaml`,
+(`MOLA_ATTITUDE_IMU_NAME`): its readings feed only the simplemap IMU buffer, and the
+main IMU then stops feeding it. All inputs (offline CLI, `lidar_odometry_from_rosbag2.yaml`,
 `lidar_odometry_ros2.yaml`) read it from `MOLA_ATTITUDE_IMU_TOPIC` with label
 `imu_attitude`. The label must only be set when the topic is, so each entry point
 sets `MOLA_ATTITUDE_IMU_NAME` conditionally: the CLI binary, `profiles/rosbag2.sh`
@@ -777,7 +794,7 @@ straight back into scan-submission latency.
 
 `imu_state_mtx_` (recursive) now guards exactly the state the two threads share:
 `pending_imu_`, `imu_initializer`, `gravity_estimator`, `map_gravity`,
-`recent_imu_stamps`, the simplemap GNSS/IMU buffers (`last_gnss_`, `last_imu_`,
+`recent_imu_stamps`, the simplemap keyframe buffers (`attach_sources`,
 `recent_gnss_stamps`), `parameter_source` (variable map, `realize()` flags, and the
 `localVelocityBuffer` that IMU samples write and the deskew stage reads), and
 any *invocation* of `obs_generators`. GNSS is handled inline like IMU (it only
@@ -1181,8 +1198,8 @@ Notes:
   here; `mola::VisualSlam` is synchronous by design and therefore deterministic.
 - Sensors the LiDAR odometry ignores are not published by default. `--module`
   switches KITTI's `publish_image_0/1` on; for rosbags, name the topics with
-  `MOLA_CAMERA_TOPIC_0` / `MOLA_CAMERA_TOPIC_1` (labels `image_0` / `image_1`,
-  overridable with `MOLA_CAMERA_LABEL_0/1`), same empty-by-default convention as
+  `MOLA_CAMERA_TOPIC_0` / `_1` / `_2` (labels `image_0` / `image_1` / `image_2`,
+  overridable with `MOLA_CAMERA_LABEL_0/1/2`), same empty-by-default convention as
   `MOLA_ODOMETRY_TOPIC`.
 - A second front-end that pushes poses under its **own** frame id adds a frame
   variable to the smoother's factor graph, which is gauge-free on the first
@@ -1268,8 +1285,11 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_LO_REG_GATE_LOG` | string | (empty = off) | `module/src/LidarOdometry_ProcessScan.cpp` | Path to a TSV dump, one row per scan: correction, predicted and ICP sigmas, and the Mahalanobis statistic, for choosing the threshold above from data. Same idiom as `MOLA_LO_MAP_GATE_LOG` |
 | `MOLA_LO_DISABLE_VERSION_CHECK` | bool | false | `module/src/LidarOdometry_Main.cpp` | Skips the daily online check for a newer release. Set in CI, so test coverage does not depend on network timing |
 | `MOLA_DROP_STALE_SCANS` | bool | true | all `pipelines/*.yaml` | false = lossless input queue (producer blocks instead of the queue evicting the older scan). `mola-lidar-odometry-cli` defaults it to false |
-| `MOLA_CAMERA_TOPIC_0` / `_1` | string | (empty = off) | `apps/mola-lidar-odometry-cli.cpp` | Rosbag camera topics to publish, for a `--module` front-end |
-| `MOLA_CAMERA_LABEL_0` / `_1` | string | `image_0` / `image_1` | `apps/mola-lidar-odometry-cli.cpp` | Sensor labels for the topics above |
+| `MOLA_CAMERA_TOPIC_0` / `_1` / `_2` | string | (empty = off) | `apps/mola-lidar-odometry-cli.cpp` | Rosbag camera topics to publish, for a `--module` front-end or simplemap keyframes |
+| `MOLA_CAMERA_LABEL_0` / `_1` / `_2` | string | `image_0` / `image_1` / `image_2` | `apps/mola-lidar-odometry-cli.cpp` | Sensor labels for the topics above |
+| `MOLA_SIMPLEMAP_ATTACH_LABEL` | string | (empty = off) | `pipelines/blocks/simplemap.yaml` | Sensor label regex of observations (e.g. images) stored in simplemap keyframes |
+| `MOLA_SIMPLEMAP_ATTACH_MAX_AGE` / `_ATTACH_ONCE` / `_ATTACH_QUEUE_SIZE` | double / bool / int | 0.5 / true / 10 | `pipelines/blocks/simplemap.yaml` | Max time offset to the keyframe; never the same observation in two keyframes |
+| `MOLA_SIMPLEMAP_IMAGE_FORMAT` / `MOLA_SIMPLEMAP_JPEG_QUALITY` | string / int | jpg / 95 | `pipelines/blocks/simplemap.yaml` | Keyframe images as jpg/png files in `<map>_Images/`, or inline |
 | `LO_PIPELINE_YAML` | string | (unset) | `test/test_lidar_odometry_rawlog.cpp`, `test/test_lidar_odometry_rosbag2.cpp` | Path to the LO pipeline YAML used by the test |
 | `LO_STATE_ESTIM_YAML` | string | (unset) | same tests | Path to the state-estimator YAML used by the test |
 | `LO_TEST_RAWLOG` | string | (unset) | `test/test_lidar_odometry_rawlog.cpp` | Path to the input rawlog dataset |

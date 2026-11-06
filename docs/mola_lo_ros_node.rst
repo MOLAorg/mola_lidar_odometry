@@ -161,6 +161,15 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       Its readings are only stored into simplemap keyframes, for later
       geo-referencing, instead of those of ``imu_topic_name``.
 
+    * ``camera_topic_name`` (default ``""``, disabled):
+      Optional ``sensor_msgs/Image`` topics, comma-separated, up to three (labels ``camera``,
+      ``camera_1``, ``camera_2``). Their images are only stored into simplemap keyframes, one
+      of each camera per keyframe, the closest in time (``MOLA_SIMPLEMAP_ATTACH_LABEL``, set to
+      their labels by the launch file unless already set), e.g. for visual place recognition.
+      Needs ``generate_simplemap:=True`` and a ``BridgeROS2`` with image support. Raw images only
+      (not ``CompressedImage``), and the camera frames must be in ``/tf`` (or use the fixed poses
+      below). Use low-rate topics: every image is decoded.
+
     * ``enforce_planar_motion`` (default ``False``):
       Whether to enforce z, pitch, and roll to be zero.
 
@@ -434,6 +443,19 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       Setting the topic is enough with ``mola-lo-gui-rosbag2``, ``mola-lo-cli-rosbag2`` and the ROS 2 launch file
       (``attitude_imu_topic_name:=``). Running ``lidar_odometry_from_rosbag2.yaml`` directly with ``mola-cli`` also
       needs ``MOLA_ATTITUDE_IMU_NAME=imu_attitude`` (see :ref:`pipeline sensor inputs <mola_lo_pipeline_sensor_inputs>`).
+
+    - ``MOLA_CAMERA_TOPIC``, ``MOLA_CAMERA_TOPIC_1``, ``MOLA_CAMERA_TOPIC_2`` (Default: empty, disabled): Up to
+      three ``sensor_msgs/Image`` topics (labels ``MOLA_CAMERA_SENSOR_NAME``, ``_1``, ``_2``, defaults ``camera``,
+      ``camera_1``, ``camera_2``), whose images are stored into simple-map keyframes if
+      ``MOLA_SIMPLEMAP_ATTACH_LABEL`` matches their labels (the ROS 2 launch file sets all of them with
+      ``camera_topic_name:=``). ``MOLA_CAMERA_QOS_DEPTH`` (Default: ``5``) and ``MOLA_CAMERA_QOS_RELIABILITY``
+      (Default: ``best_effort``), live only.
+
+    - ``MOLA_USE_FIXED_CAMERA_POSE`` (Default: ``false``): If false, the camera pose will be retrieved from ``/tf``.
+      Else, from ``CAMERA_POSE_X``, ``CAMERA_POSE_Y``, ``CAMERA_POSE_Z`` (in meters) and ``CAMERA_POSE_YAW``,
+      ``CAMERA_POSE_PITCH``, ``CAMERA_POSE_ROLL`` (in degrees). The same for the other two cameras with
+      ``MOLA_USE_FIXED_CAMERA_1_POSE`` / ``CAMERA_1_POSE_*`` and ``MOLA_USE_FIXED_CAMERA_2_POSE`` /
+      ``CAMERA_2_POSE_*`` (ROS 2 node and rosbag1 inputs).
 
 
 .. dropdown:: More LO parameters

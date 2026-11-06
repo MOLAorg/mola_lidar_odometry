@@ -294,6 +294,38 @@ void LidarOdometry::Parameters::SimpleMapOptions::initialize(const Yaml & cfg, P
   YAML_LOAD_OPT(save_gnss_max_age, double);
   YAML_LOAD_OPT(save_imu_max_age, double);
   YAML_LOAD_OPT(save_deskewed_scans, bool);
+  YAML_LOAD_OPT(image_format, std::string);
+  YAML_LOAD_OPT(jpeg_quality, int);
+  ASSERTMSG_(
+    is_valid_keyframe_image_format(image_format),
+    "simplemap.image_format must be one of: jpg, png, inline. Got: '" + image_format + "'");
+  ASSERTMSG_(
+    jpeg_quality >= 1 && jpeg_quality <= 100,
+    mrpt::format("simplemap.jpeg_quality must be in [1,100], got %d", jpeg_quality));
+
+  attach_observations.clear();
+  if (cfg.has("attach_observations") && !cfg["attach_observations"].isNullNode()) {
+    ASSERTMSG_(
+      cfg["attach_observations"].isSequence(), "simplemap.attach_observations must be a sequence");
+    const auto entries = cfg["attach_observations"].asSequence();
+    for (const auto & e : entries) {
+      const auto entry = Yaml(e);
+      AttachedObservation a;
+      a.sensor_label = entry.getOrDefault<std::string>("sensor_label", a.sensor_label);
+      a.max_age = entry.getOrDefault<double>("max_age", a.max_age);
+      a.attach_once = entry.getOrDefault<bool>("attach_once", a.attach_once);
+      a.queue_max_size = entry.getOrDefault<uint32_t>("queue_max_size", a.queue_max_size);
+      // An empty label disables the entry, so a YAML can leave it to an
+      // environment variable:
+      if (!a.sensor_label.empty()) {
+        ASSERTMSG_(
+          a.max_age >= 0 && a.queue_max_size > 0,
+          "simplemap.attach_observations: max_age must be >= 0 and queue_max_size > 0 ('" +
+            a.sensor_label + "')");
+        attach_observations.push_back(a);
+      }
+    }
+  }
 }
 
 void LidarOdometry::Parameters::MultipleLidarOptions::initialize(

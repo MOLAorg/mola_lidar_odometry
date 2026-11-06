@@ -31,6 +31,7 @@
 #include <mrpt/core/initializer.h>
 #include <mrpt/io/lazy_load_path.h>
 #include <mrpt/maps/CPointsMap.h>
+#include <mrpt/obs/CObservationImage.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/poses/CPose3DPDFGaussian.h>
@@ -498,6 +499,67 @@ void LidarOdometry::unloadPastSimplemapObservations(
   }
 }
 
+std::string LidarOdometry::prepareLazyLoadDirectory(
+  const std::string & simplemapFile, bool setAsLazyLoadPathBase) const
+{
+  const std::string out_basedir = mrpt::system::pathJoin(
+    {mrpt::system::extractFileDirectory(simplemapFile),
+     mrpt::system::extractFileName(simplemapFile) + std::string("_Images")});
+
+  if (!mrpt::system::directoryExists(out_basedir)) {
+    const bool dirCreatedOk = mrpt::system::createDirectory(out_basedir);
+    ASSERTMSG_(
+      dirCreatedOk,
+      mrpt::format(
+        "Error creating lazy-load directory for output simplemap: '%s'", out_basedir.c_str()));
+
+    MRPT_LOG_INFO_STREAM("Creating lazy-load directory for output .simplemap: " << out_basedir);
+  }
+
+  // Establish as reference external path base:
+  if (setAsLazyLoadPathBase) {
+    mrpt::io::setLazyLoadPathBase(out_basedir);
+  }
+
+  return out_basedir;
+}
+
+mrpt::obs::CObservation::Ptr LidarOdometry::keyframeObservation(
+  const mrpt::obs::CObservation::ConstPtr & o) const
+{
+  using mrpt::obs::CObservationImage;
+
+  auto img = std::dynamic_pointer_cast<const CObservationImage>(o);
+  const auto & file = params_.simplemap.save_final_map_to_file;
+  const auto & fmt = params_.simplemap.image_format;
+  // Already a file (e.g. from a lazy-load dataset), not 8-bit, or no files
+  // requested: stored as is.
+  if (
+    !img || img->image.isExternallyStored() ||
+    img->image.getPixelDepth() != mrpt::img::PixelDepth::D8U || file.empty() || fmt == "inline") {
+    return std::const_pointer_cast<mrpt::obs::CObservation>(o);
+  }
+
+  // A copy that refers to an image file, written from the original, which is
+  // shared with other modules and left untouched. Not the lazy-load path base
+  // of the process: nothing loads these images back in this run.
+  const auto filename = external_observation_file_name(*img, fmt);
+  const auto path = mrpt::system::pathJoin({prepareLazyLoadDirectory(file, false), filename});
+  const int quality = params_.simplemap.jpeg_quality;
+  const auto fut = this->worker_disk_io_.enqueue([img, path, quality]() {
+    try {
+      if (!img->image.saveToFile(path, quality)) {
+        std::cerr << "[LidarOdometry] Error saving keyframe image to: " << path << "\n";
+      }
+    } catch (const std::exception & e) {
+      std::cerr << "[LidarOdometry] Error saving keyframe image to: " << path << ": " << e.what()
+                << "\n";
+    }
+  });
+  (void)fut;
+  return external_image_copy(*img, filename);
+}
+
 void LidarOdometry::handleUnloadSinglePastObservation(
   mrpt::obs::CObservation::Ptr & o, const std::string & simplemapFile) const
 {
@@ -527,27 +589,9 @@ void LidarOdometry::handleUnloadSinglePastObservation(
 
   ASSERT_(oPts->pointcloud);
 
-  const std::string filename = mrpt::format(
-    "%s_%.09f.bin", mrpt::system::fileNameStripInvalidChars(oPts->sensorLabel).c_str(),
-    mrpt::Clock::toDouble(oPts->timestamp));
+  const std::string filename = external_observation_file_name(*oPts, "bin");
 
-  // Create the default "/Images" directory.
-  const std::string out_basedir = mrpt::system::pathJoin(
-    {mrpt::system::extractFileDirectory(simplemapFile),
-     mrpt::system::extractFileName(simplemapFile) + std::string("_Images")});
-
-  if (!mrpt::system::directoryExists(out_basedir)) {
-    const bool dirCreatedOk = mrpt::system::createDirectory(out_basedir);
-    ASSERTMSG_(
-      dirCreatedOk,
-      mrpt::format(
-        "Error creating lazy-load directory for output simplemap: '%s'", out_basedir.c_str()));
-
-    MRPT_LOG_INFO_STREAM("Creating lazy-load directory for output .simplemap: " << out_basedir);
-  }
-
-  // Establish as reference external path base:
-  mrpt::io::setLazyLoadPathBase(out_basedir);
+  prepareLazyLoadDirectory(simplemapFile, true);
 
   oPts->setAsExternalStorage(
     filename, CObservationPointCloud::ExternalStorageFormat::MRPT_Serialization);

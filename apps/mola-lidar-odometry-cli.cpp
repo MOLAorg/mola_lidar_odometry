@@ -34,6 +34,7 @@
 #include <mrpt/obs/CObservation3DRangeScan.h>
 #include <mrpt/obs/CObservationGPS.h>
 #include <mrpt/obs/CObservationIMU.h>
+#include <mrpt/obs/CObservationImage.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CObservationRobotPose.h>
@@ -688,6 +689,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
           sensorLabel: ${MOLA_CAMERA_LABEL_1|image_1}
           type: CObservationImage
           is_optional: true
+        - topic: ${MOLA_CAMERA_TOPIC_2|''}
+          sensorLabel: ${MOLA_CAMERA_LABEL_2|image_2}
+          type: CObservationImage
+          is_optional: true
 )"""",
     bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(), cli.arg_tfTopic.getValue().c_str(),
     cli.arg_tfStaticTopic.getValue().c_str(),
@@ -795,6 +800,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
           is_optional: true
         - topic: ${MOLA_CAMERA_TOPIC_1|''}
           sensorLabel: ${MOLA_CAMERA_LABEL_1|image_1}
+          type: CObservationImage
+          is_optional: true
+        - topic: ${MOLA_CAMERA_TOPIC_2|''}
+          sensorLabel: ${MOLA_CAMERA_LABEL_2|image_2}
           type: CObservationImage
           is_optional: true
 )"""",
@@ -1170,11 +1179,12 @@ int main_odometry(Cli & cli)
     // Lazy-load scan files are written next to save_final_map_to_file, which
     // was just cleared, so the module silently keeps every scan in RAM:
     if (liodom->params_.simplemap.generate_lazy_load_scan_files) {
-      std::cerr << "[mola-lidar-odometry-cli] Warning: lazy-load simplemap generation "
-                   "(MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD) is ignored with --output-simplemap: all "
-                   "scans are kept in RAM and saved inside the .simplemap. Use "
-                   "MOLA_GENERATE_SIMPLEMAP=true and MOLA_SIMPLEMAP_OUTPUT=<file> instead."
-                << std::endl;  // NOLINT(performance-avoid-endl)
+      std::cerr
+        << "[mola-lidar-odometry-cli] Warning: lazy-load simplemap generation "
+           "(MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD) is ignored with --output-simplemap: all "
+           "scans (and keyframe images) are kept in RAM and saved inside the .simplemap. Use "
+           "MOLA_GENERATE_SIMPLEMAP=true and MOLA_SIMPLEMAP_OUTPUT=<file> instead."
+        << std::endl;  // NOLINT(performance-avoid-endl)
     }
   }
 
@@ -1354,6 +1364,15 @@ int main_odometry(Cli & cli)
     for (auto * consumer : extraModulesAsRawConsumers) {
       for (const auto & anyObs : *sf) {
         consumer->onNewObservation(anyObs);
+      }
+    }
+
+    // Camera images, only for simplemap keyframes (simplemap.attach_observations):
+    if (!liodom->params_.simplemap.attach_observations.empty()) {
+      for (const auto & anyObs : *sf) {
+        if (std::dynamic_pointer_cast<mrpt::obs::CObservationImage>(anyObs)) {
+          liodom->onNewObservation(anyObs);
+        }
       }
     }
 

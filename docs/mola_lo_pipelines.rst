@@ -981,6 +981,27 @@ Simple-map generation
 - ``MOLA_SAVE_DESKEWED_SCANS`` (Default: ``false``): If enabled, deskewed (motion-compensated) scans are stored
   into simple-map keyframes instead of raw scans. Useful when post-processing requires already-compensated clouds.
 
+- ``MOLA_SIMPLEMAP_ATTACH_LABEL`` (Default: empty, disabled): Sensor label (regex) of observations of another sensor,
+  e.g. camera images, to store in simple-map keyframes, the one closest in time to each keyframe, as for GNSS and
+  IMU. ``MOLA_SIMPLEMAP_ATTACH_MAX_AGE`` (Default: ``0.5`` s) is the maximum time offset, and
+  ``MOLA_SIMPLEMAP_ATTACH_ONCE`` (Default: ``true``) never stores the same observation in two keyframes, and
+  ``MOLA_SIMPLEMAP_ATTACH_QUEUE_SIZE`` (Default: ``10``) is how many recent observations are kept to choose from (raise
+  it for high-rate cameras). A regex matching several cameras (e.g. ``camera.*``) stores one image of each in every
+  keyframe. Other sensors can be listed in the ``simplemap.attach_observations`` section of the pipeline. Only observations
+  received by the time a keyframe is created are candidates: ``mola-sm-attach-from-rosbag2`` (or ``-rosbag1``)
+  adds them offline from a bag instead, choosing the closest keyframe of each one. Image inputs: with
+  ``mola-lidar-odometry-cli``, ``MOLA_CAMERA_TOPIC_0``, ``_1``, ``_2`` (labels ``image_0``, ``image_1``,
+  ``image_2``: use ``image_.*``); with ``mola-lo-gui-rosbag2`` and ``mola-lo-gui-rosbag1``, ``MOLA_CAMERA_TOPIC``,
+  ``_1``, ``_2`` (labels ``camera``, ``camera_1``, ``camera_2``: use ``camera.*``; note the different names of the
+  first camera in the CLI and the GUIs); with the ROS 2 node, ``camera_topic_name:=/a,/b`` (which also sets
+  ``MOLA_SIMPLEMAP_ATTACH_LABEL`` to their labels).
+
+- ``MOLA_SIMPLEMAP_IMAGE_FORMAT`` (Default: ``jpg``): Keyframe images are written as ``jpg`` or ``png`` files to
+  ``<map>_Images/`` next to ``MOLA_SIMPLEMAP_OUTPUT`` (``MOLA_SIMPLEMAP_JPEG_QUALITY``, default ``95``), or kept
+  ``inline`` in the ``.simplemap``. They are also inline with ``mola-lidar-odometry-cli --output-simplemap``. Images
+  are written as keyframes are created; those already stored as files, or not 8-bit, are kept as they are. A map saved
+  elsewhere with the ``map_save`` service still refers to the files in ``<map>_Images/`` of ``MOLA_SIMPLEMAP_OUTPUT``.
+
 
 Trajectory files generation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

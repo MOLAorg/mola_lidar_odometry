@@ -204,6 +204,36 @@ modules:
           msg_type: Imu
           output_sensor_label: ${MOLA_ATTITUDE_IMU_NAME|imu_attitude}
 
+        # Optional cameras (up to three), only stored into simplemap keyframes
+        # with MOLA_SIMPLEMAP_ATTACH_LABEL='camera.*' (the launch file sets both
+        # from camera_topic_name). Each one is disabled unless its topic is set.
+        # Use low-rate topics: every image is decoded (and demosaiced).
+        # Requires a BridgeROS2 (mola) with sensor_msgs/Image support.
+        - topic: ${MOLA_CAMERA_TOPIC|}
+          msg_type: Image
+          output_sensor_label: ${MOLA_CAMERA_SENSOR_NAME|camera}
+          fixed_sensor_pose: "${CAMERA_POSE_X|0} ${CAMERA_POSE_Y|0} ${CAMERA_POSE_Z|0} ${CAMERA_POSE_YAW|0} ${CAMERA_POSE_PITCH|0} ${CAMERA_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg'
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_CAMERA_POSE|false}
+          qos:
+            reliability: ${MOLA_CAMERA_QOS_RELIABILITY|best_effort}
+            depth: ${MOLA_CAMERA_QOS_DEPTH|5}  # few: images are large
+        - topic: ${MOLA_CAMERA_TOPIC_1|}
+          msg_type: Image
+          output_sensor_label: ${MOLA_CAMERA_SENSOR_NAME_1|camera_1}
+          fixed_sensor_pose: "${CAMERA_1_POSE_X|0} ${CAMERA_1_POSE_Y|0} ${CAMERA_1_POSE_Z|0} ${CAMERA_1_POSE_YAW|0} ${CAMERA_1_POSE_PITCH|0} ${CAMERA_1_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg'
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_CAMERA_1_POSE|false}
+          qos:
+            reliability: ${MOLA_CAMERA_QOS_RELIABILITY|best_effort}
+            depth: ${MOLA_CAMERA_QOS_DEPTH|5}  # few: images are large
+        - topic: ${MOLA_CAMERA_TOPIC_2|}
+          msg_type: Image
+          output_sensor_label: ${MOLA_CAMERA_SENSOR_NAME_2|camera_2}
+          fixed_sensor_pose: "${CAMERA_2_POSE_X|0} ${CAMERA_2_POSE_Y|0} ${CAMERA_2_POSE_Z|0} ${CAMERA_2_POSE_YAW|0} ${CAMERA_2_POSE_PITCH|0} ${CAMERA_2_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg'
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_CAMERA_2_POSE|false}
+          qos:
+            reliability: ${MOLA_CAMERA_QOS_RELIABILITY|best_effort}
+            depth: ${MOLA_CAMERA_QOS_DEPTH|5}  # few: images are large
+
         # Optional: direct subscription to a nav_msgs/Odometry topic (e.g., wheel odometry).
         # Leave MOLA_ODOM_TOPIC empty (default) to disable. Set to e.g. "/wheel_odom" to enable.
         # Mutually exclusive with `forward_ros_tf_as_mola_odometry_observations` (TF-driven path):

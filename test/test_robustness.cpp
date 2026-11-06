@@ -28,7 +28,10 @@
 #include <mp2p_icp/metricmap.h>
 #include <mrpt/containers/yaml.h>
 #include <mrpt/core/get_env.h>
+#include <mrpt/io/lazy_load_path.h>
 #include <mrpt/maps/CPointsMap.h>
+#include <mrpt/maps/CSimpleMap.h>
+#include <mrpt/obs/CObservationImage.h>
 #include <mrpt/system/filesystem.h>
 #include <mrpt/system/string_utils.h>
 
@@ -40,6 +43,7 @@
 #include <limits>
 #include <map>
 #include <mutex>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -253,6 +257,130 @@ TEST(Robustness, GnssWhileBuildingSimplemap)
     }
   }
   EXPECT_GT(kfsWithGnss, 0U);
+}
+
+// Camera images listed in simplemap.attach_observations: each one is stored in
+// one keyframe at most, and saved as an image file next to the simplemap,
+// while the input observation itself is left untouched.
+TEST(Robustness, KeyframeImagesAttachedOnceAndSavedAsFiles)
+{
+  set_env("MOLA_SIMPLEMAP_ATTACH_LABEL", "camera");
+  set_env("MOLA_SIMPLEMAP_IMAGE_FORMAT", "png");
+  Fixture f(true /*simplemap*/);
+  set_env("MOLA_SIMPLEMAP_ATTACH_LABEL", "");
+  set_env("MOLA_SIMPLEMAP_IMAGE_FORMAT", "jpg");
+
+  std::vector<mrpt::obs::CObservationImage::Ptr> images;
+  for (int i = 0; i < kNumScans; i++) {
+    // One image every 3 scans, slightly before the scan:
+    if (i % 3 == 0) {
+      auto img = mrpt::obs::CObservationImage::Create();
+      img->sensorLabel = "camera";
+      img->timestamp = mrpt::Clock::fromDouble(scanTime(i) - 0.01);
+      img->image = mrpt::img::CImage(32, 24, mrpt::img::CH_RGB);
+      img->image.filledRectangle({0, 0}, {31, 23}, mrpt::img::TColor(10 * i, 100, 200));
+      images.push_back(img);
+      f.liodom->onNewObservation(img);
+    }
+    f.feedScan(i);
+  }
+  f.expectTrackedPath(kNumScans / 2);
+
+  std::set<double> attachedStamps;
+  size_t numAttached = 0;
+  for (const auto & kf : f.liodom->reconstructedMap()) {
+    ASSERT_TRUE(kf.sf);
+    for (const auto & o : *kf.sf) {
+      if (std::dynamic_pointer_cast<mrpt::obs::CObservationImage>(o)) {
+        numAttached++;
+        attachedStamps.insert(mrpt::Clock::toDouble(o->timestamp));
+      }
+    }
+  }
+  EXPECT_GT(numAttached, 0U);
+  EXPECT_LE(numAttached, images.size());
+  EXPECT_EQ(numAttached, attachedStamps.size()) << "an image was stored in two keyframes";
+
+  f.liodom->saveReconstructedMapToFile();
+
+  const std::string smFile = f.tmpBase + "_final.simplemap";
+  const std::string imgDir = f.tmpBase + "_final_Images";
+  for (const double t : attachedStamps) {
+    const auto file = mrpt::system::pathJoin({imgDir, mrpt::format("camera_%.09f.png", t)});
+    // Written by a background thread:
+    for (int retry = 0; retry < 200 && !mrpt::system::fileExists(file); retry++) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    EXPECT_TRUE(mrpt::system::fileExists(file)) << file;
+  }
+
+  // The input observations still hold their pixels:
+  for (const auto & img : images) {
+    EXPECT_FALSE(img->image.isExternallyStored());
+    EXPECT_EQ(img->image.getWidth(), 32);
+  }
+
+  // Reloaded, the keyframe images come from those files:
+  mrpt::maps::CSimpleMap sm;
+  ASSERT_TRUE(sm.loadFromFile(smFile));
+  mrpt::io::setLazyLoadPathBase(imgDir);
+  size_t numReloaded = 0;
+  for (const auto & kf : sm) {
+    for (const auto & o : *kf.sf) {
+      if (auto img = std::dynamic_pointer_cast<mrpt::obs::CObservationImage>(o); img) {
+        EXPECT_TRUE(img->image.isExternallyStored());
+        EXPECT_EQ(img->image.getWidth(), 32);
+        EXPECT_EQ(img->image.getHeight(), 24);
+        numReloaded++;
+      }
+    }
+  }
+  EXPECT_EQ(numReloaded, numAttached);
+}
+
+// A label regex matching two cameras with synchronized stamps stores one image
+// of each camera in a keyframe, never the same image twice.
+TEST(Robustness, KeyframeImagesFromTwoCameras)
+{
+  set_env("MOLA_SIMPLEMAP_ATTACH_LABEL", "camera.*");
+  set_env("MOLA_SIMPLEMAP_IMAGE_FORMAT", "inline");
+  Fixture f(true /*simplemap*/);
+  set_env("MOLA_SIMPLEMAP_ATTACH_LABEL", "");
+  set_env("MOLA_SIMPLEMAP_IMAGE_FORMAT", "jpg");
+
+  for (int i = 0; i < kNumScans; i++) {
+    if (i % 3 == 0) {
+      for (const char * label : {"camera", "camera_1"}) {
+        auto img = mrpt::obs::CObservationImage::Create();
+        img->sensorLabel = label;
+        img->timestamp = mrpt::Clock::fromDouble(scanTime(i) - 0.01);  // same stamp
+        img->image = mrpt::img::CImage(8, 6, mrpt::img::CH_RGB);
+        f.liodom->onNewObservation(img);
+      }
+    }
+    f.feedScan(i);
+  }
+
+  std::map<std::string, std::set<double>> stamps;
+  size_t kfsWithBoth = 0;
+  for (const auto & kf : f.liodom->reconstructedMap()) {
+    std::map<std::string, int> perKf;
+    for (const auto & o : *kf.sf) {
+      if (std::dynamic_pointer_cast<mrpt::obs::CObservationImage>(o)) {
+        perKf[o->sensorLabel]++;
+        EXPECT_TRUE(stamps[o->sensorLabel].insert(mrpt::Clock::toDouble(o->timestamp)).second)
+          << "an image was stored in two keyframes";
+      }
+    }
+    for (const auto & [label, n] : perKf) {
+      EXPECT_EQ(n, 1) << label;
+    }
+    if (perKf.size() == 2) {
+      kfsWithBoth++;
+    }
+  }
+  EXPECT_GT(kfsWithBoth, 0U);
+  EXPECT_EQ(stamps["camera"], stamps["camera_1"]);
 }
 
 // map_save() requests are served from spinOnce() too: saving must not race

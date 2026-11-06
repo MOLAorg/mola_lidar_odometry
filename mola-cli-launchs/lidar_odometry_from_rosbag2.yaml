@@ -131,10 +131,19 @@ modules:
           type: CObservationIMU
           is_optional: true
 
-        # Optional camera, for visualization only (disabled by default):
+        # Optional cameras, for visualization, and stored in simplemap keyframes
+        # with MOLA_SIMPLEMAP_ATTACH_LABEL='camera.*' (disabled by default):
         - topic: ${MOLA_CAMERA_TOPIC|''}
           is_optional: true
           sensorLabel: ${MOLA_CAMERA_SENSOR_NAME|camera}
+          type: CObservationImage
+        - topic: ${MOLA_CAMERA_TOPIC_1|''}
+          is_optional: true
+          sensorLabel: ${MOLA_CAMERA_SENSOR_NAME_1|camera_1}
+          type: CObservationImage
+        - topic: ${MOLA_CAMERA_TOPIC_2|''}
+          is_optional: true
+          sensorLabel: ${MOLA_CAMERA_SENSOR_NAME_2|camera_2}
           type: CObservationImage
 
         # Wheel/robot odometry (disabled by default). CObservationOdometry is
