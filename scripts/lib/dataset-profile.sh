@@ -142,9 +142,8 @@ mola_lo_use_smoother() {
   : "${MOLA_LINK_FIRST_POSE_SIGMA:=1e-6}"
   export MOLA_LINK_FIRST_POSE_SIGMA
 
+  # A caller's own YAML: the class follows it (mola_lo_resolve_state_estimator).
   if [ -n "${MOLA_STATE_ESTIMATOR_YAML:-}" ]; then
-    : "${MOLA_STATE_ESTIMATOR:=mola::state_estimation_smoother::StateEstimationSmoother}"
-    export MOLA_STATE_ESTIMATOR
     return 0
   fi
 
@@ -160,6 +159,22 @@ mola_lo_use_smoother() {
   : "${MOLA_STATE_ESTIMATOR:=mola::state_estimation_smoother::StateEstimationSmoother}"
   MOLA_STATE_ESTIMATOR_YAML="$yaml"
   export MOLA_STATE_ESTIMATOR MOLA_STATE_ESTIMATOR_YAML
+}
+
+# A params YAML given without its class (MOLA_STATE_ESTIMATOR_YAML alone) would
+# otherwise run whatever the launch file or the binary defaults to, which may
+# not be the estimator the YAML was written for. The class is inferred from a
+# key only the smoother has (and requires).
+mola_lo_resolve_state_estimator() {
+  if [ -n "${MOLA_STATE_ESTIMATOR:-}" ] || [ -z "${MOLA_STATE_ESTIMATOR_YAML:-}" ]; then
+    return 0
+  fi
+  if grep -qsE '^[[:space:]]*sliding_window_length:' "$MOLA_STATE_ESTIMATOR_YAML"; then
+    MOLA_STATE_ESTIMATOR=mola::state_estimation_smoother::StateEstimationSmoother
+  else
+    MOLA_STATE_ESTIMATOR=mola::state_estimation_simple::StateEstimationSimple
+  fi
+  export MOLA_STATE_ESTIMATOR
 }
 
 # Sources a profile and runs it. $1 is the profile name, the rest are the
@@ -191,7 +206,8 @@ mola_lo_load_profile() {
     return 1
   fi
 
-  mola_lo_profile_resolve "$@"
+  mola_lo_profile_resolve "$@" || return
+  mola_lo_resolve_state_estimator
 }
 
 # Both exec helpers below default the pipeline YAML the same way every
