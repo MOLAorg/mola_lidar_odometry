@@ -268,12 +268,16 @@ class TestInitialLocalization(unittest.TestCase):
             while time.time() < start + timeout + pauser.paused_seconds() and not condition():
                 rclpy.spin_once(self.node, timeout_sec=0.1)
                 pauser.update(proc_output)
-        finally:
+        except BaseException:
+            # Best effort, keeping the original failure:
             if pauser.paused:
                 try:
                     pauser.resume()
                 except AssertionError as e:
                     print(f'[test] could not resume the replay: {e}')
+            raise
+        # An unconfirmed resume fails the test:
+        pauser.resume()
         if pauser.paused_seconds() > 0:
             print(f'[test] replay paused {pauser.paused_seconds():.1f} s during global searches')
         return condition()
