@@ -248,7 +248,7 @@ are shallow and the input observation is shared with other modules. The GNSS and
 sources exist whenever `save_*_max_age > 0`, since the CLI sets labels after
 `initialize()`; the CLI forwards images to the odometry only if `attach_observations`
 is set. Live: `camera_topic_name:=/a,/b` (up to three BridgeROS2 `Image` subscriptions,
-labels `camera`, `camera_1`, `camera_2`, attach label `camera.*`). Each attach entry keeps
+labels `camera`, `camera_1`, `camera_2`, attach label = those in use; unused slots cleared). Each attach entry keeps
 one buffer per matching label, so a regex over several cameras stores one image of each.
 `mola-sm-attach-from-rosbag2` / `-rosbag1` (mola repo, mola_input_rosbag1) do the same offline.
 

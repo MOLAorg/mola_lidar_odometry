@@ -165,7 +165,7 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       Optional ``sensor_msgs/Image`` topics, comma-separated, up to three (labels ``camera``,
       ``camera_1``, ``camera_2``). Their images are only stored into simplemap keyframes, one
       of each camera per keyframe, the closest in time (``MOLA_SIMPLEMAP_ATTACH_LABEL``, set to
-      ``camera.*`` by the launch file unless already set), e.g. for visual place recognition.
+      their labels by the launch file unless already set), e.g. for visual place recognition.
       Needs ``generate_simplemap:=True`` and a ``BridgeROS2`` with image support. Raw images only
       (not ``CompressedImage``), and the camera frames must be in ``/tf`` (or use the fixed poses
       below). Use low-rate topics: every image is decoded.
@@ -455,7 +455,7 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       Else, from ``CAMERA_POSE_X``, ``CAMERA_POSE_Y``, ``CAMERA_POSE_Z`` (in meters) and ``CAMERA_POSE_YAW``,
       ``CAMERA_POSE_PITCH``, ``CAMERA_POSE_ROLL`` (in degrees). The same for the other two cameras with
       ``MOLA_USE_FIXED_CAMERA_1_POSE`` / ``CAMERA_1_POSE_*`` and ``MOLA_USE_FIXED_CAMERA_2_POSE`` /
-      ``CAMERA_2_POSE_*`` (live only).
+      ``CAMERA_2_POSE_*`` (ROS 2 node and rosbag1 inputs).
 
 
 .. dropdown:: More LO parameters

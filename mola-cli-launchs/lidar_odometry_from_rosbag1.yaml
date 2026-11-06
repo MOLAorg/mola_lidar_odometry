@@ -125,6 +125,20 @@ modules:
           # If present, this will override whatever /tf tells about the sensor pose:
           fixed_sensor_pose: "${CAMERA_POSE_X|0} ${CAMERA_POSE_Y|0} ${CAMERA_POSE_Z|0} ${CAMERA_POSE_YAW|0} ${CAMERA_POSE_PITCH|0} ${CAMERA_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg'
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_CAMERA_POSE|false}
+        # More cameras, e.g. stored in simplemap keyframes with
+        # MOLA_SIMPLEMAP_ATTACH_LABEL='camera.*':
+        - topic: ${MOLA_CAMERA_TOPIC_1|''}
+          is_optional: true
+          sensorLabel: ${MOLA_CAMERA_SENSOR_NAME_1|camera_1}
+          type: CObservationImage
+          fixed_sensor_pose: "${CAMERA_1_POSE_X|0} ${CAMERA_1_POSE_Y|0} ${CAMERA_1_POSE_Z|0} ${CAMERA_1_POSE_YAW|0} ${CAMERA_1_POSE_PITCH|0} ${CAMERA_1_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg'
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_CAMERA_1_POSE|false}
+        - topic: ${MOLA_CAMERA_TOPIC_2|''}
+          is_optional: true
+          sensorLabel: ${MOLA_CAMERA_SENSOR_NAME_2|camera_2}
+          type: CObservationImage
+          fixed_sensor_pose: "${CAMERA_2_POSE_X|0} ${CAMERA_2_POSE_Y|0} ${CAMERA_2_POSE_Z|0} ${CAMERA_2_POSE_YAW|0} ${CAMERA_2_POSE_PITCH|0} ${CAMERA_2_POSE_ROLL|0}" # 'x y z yaw_deg pitch_deg roll_deg'
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_CAMERA_2_POSE|false}
 
         # Wheel/robot odometry (disabled by default). CObservationOdometry is
         # planar: (x, y, yaw) plus a 2D twist. For a 3D odometry source

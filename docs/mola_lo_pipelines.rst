@@ -991,9 +991,10 @@ Simple-map generation
   received by the time a keyframe is created are candidates: ``mola-sm-attach-from-rosbag2`` (or ``-rosbag1``)
   adds them offline from a bag instead, choosing the closest keyframe of each one. Image inputs: with
   ``mola-lidar-odometry-cli``, ``MOLA_CAMERA_TOPIC_0``, ``_1``, ``_2`` (labels ``image_0``, ``image_1``,
-  ``image_2``: use ``image_.*``); with ``mola-lo-gui-rosbag2``, ``MOLA_CAMERA_TOPIC``, ``_1``, ``_2`` (labels
-  ``camera``, ``camera_1``, ``camera_2``: use ``camera.*``); with the ROS 2 node, ``camera_topic_name:=/a,/b``
-  (which also sets ``MOLA_SIMPLEMAP_ATTACH_LABEL=camera.*``).
+  ``image_2``: use ``image_.*``); with ``mola-lo-gui-rosbag2`` and ``mola-lo-gui-rosbag1``, ``MOLA_CAMERA_TOPIC``,
+  ``_1``, ``_2`` (labels ``camera``, ``camera_1``, ``camera_2``: use ``camera.*``; note the different names of the
+  first camera in the CLI and the GUIs); with the ROS 2 node, ``camera_topic_name:=/a,/b`` (which also sets
+  ``MOLA_SIMPLEMAP_ATTACH_LABEL`` to their labels).
 
 - ``MOLA_SIMPLEMAP_IMAGE_FORMAT`` (Default: ``jpg``): Keyframe images are written as ``jpg`` or ``png`` files to
   ``<map>_Images/`` next to ``MOLA_SIMPLEMAP_OUTPUT`` (``MOLA_SIMPLEMAP_JPEG_QUALITY``, default ``95``), or kept

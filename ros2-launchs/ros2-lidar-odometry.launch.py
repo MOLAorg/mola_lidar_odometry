@@ -8,6 +8,7 @@ from launch.actions import (DeclareLaunchArgument, SetEnvironmentVariable,
                             GroupAction, Shutdown, OpaqueFunction)
 from ament_index_python import get_package_share_directory
 import os
+import re
 
 
 def resolve_gnss_mode(context, *args, **kwargs):
@@ -261,8 +262,9 @@ def generate_launch_description():
                     "_CAMERA_2_POSE). Empty (default) disables it.")
 
     # Naming the topics is enough: they go to the camera slots of the YAML
-    # (labels camera, camera_1, camera_2), and the odometry is told to store
-    # their images, unless MOLA_SIMPLEMAP_ATTACH_LABEL is already set.
+    # (labels camera, camera_1, camera_2, or MOLA_CAMERA_SENSOR_NAME[_1,_2]), and
+    # the odometry is told to store their images, unless
+    # MOLA_SIMPLEMAP_ATTACH_LABEL is already set.
     def _apply_camera_topic(context, *args, **kwargs):
         v = LaunchConfiguration('camera_topic_name').perform(context)
         topics = [t.strip() for t in v.split(',') if t.strip()]
@@ -271,11 +273,19 @@ def generate_launch_description():
         if len(topics) > 3:
             raise RuntimeError(
                 f"camera_topic_name: at most three topics are supported, got {len(topics)}")
-        actions = [SetEnvironmentVariable(name='MOLA_CAMERA_TOPIC' + ('' if i == 0 else f'_{i}'),
-                                          value=t) for i, t in enumerate(topics)]
+        suffixes = ['', '_1', '_2']
+        defaults = ['camera', 'camera_1', 'camera_2']
+        actions = []
+        labels = []
+        for i, sfx in enumerate(suffixes):
+            # Slots not given are cleared, so none is inherited from the shell:
+            topic = topics[i] if i < len(topics) else ''
+            actions.append(SetEnvironmentVariable(name='MOLA_CAMERA_TOPIC' + sfx, value=topic))
+            if topic:
+                labels.append(os.environ.get('MOLA_CAMERA_SENSOR_NAME' + sfx) or defaults[i])
         if not os.environ.get('MOLA_SIMPLEMAP_ATTACH_LABEL'):
             actions.append(SetEnvironmentVariable(
-                name='MOLA_SIMPLEMAP_ATTACH_LABEL', value='camera.*'))
+                name='MOLA_SIMPLEMAP_ATTACH_LABEL', value='|'.join(re.escape(l) for l in labels)))
         return actions
     camera_topic_env_var = OpaqueFunction(function=_apply_camera_topic)
 
