@@ -161,6 +161,12 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       Its readings are only stored into simplemap keyframes, for later
       geo-referencing, instead of those of ``imu_topic_name``.
 
+    * ``camera_topic_name`` (default ``""``, disabled):
+      Optional ``sensor_msgs/Image`` topic. Its images are only stored into simplemap
+      keyframes, the closest in time to each (``MOLA_SIMPLEMAP_ATTACH_LABEL``, set to
+      ``camera`` by the launch file unless already set), e.g. for visual place recognition.
+      Use a low-rate topic: every image is decoded.
+
     * ``enforce_planar_motion`` (default ``False``):
       Whether to enforce z, pitch, and roll to be zero.
 

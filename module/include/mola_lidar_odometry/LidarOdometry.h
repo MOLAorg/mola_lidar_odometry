@@ -727,7 +727,7 @@ public:
       /** Observations of other sensors (e.g. camera images) to store in
        *  each keyframe, with the same "closest in time" rule as GNSS and IMU
        *  above, among the observations received by the time the keyframe is
-       *  created (mola_mapper and mola-sm-attach-observations, which can wait
+       *  created (mola_mapper and mola-sm-attach-from-rosbag2, which can wait
        *  for later ones, attach more). One entry per sensor: a regex matching
        *  two cameras stores one image per keyframe. YAML:
        *  \code

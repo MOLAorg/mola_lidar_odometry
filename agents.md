@@ -247,8 +247,8 @@ disk worker thread): the keyframe gets a copy pointing to the file, since `CImag
 are shallow and the input observation is shared with other modules. The GNSS and IMU
 sources exist whenever `save_*_max_age > 0`, since the CLI sets labels after
 `initialize()`; the CLI forwards images to the odometry only if `attach_observations`
-is set.
-`mola-sm-attach-observations` does the same offline, from a rosbag2.
+is set. Live: `camera_topic_name:=` (BridgeROS2 `Image` subscription, label `camera`).
+`mola-sm-attach-from-rosbag2` / `-rosbag1` (mola repo, mola_input_rosbag1) do the same offline.
 
 ## Attitude-only IMU for the simplemap (`attitude_imu_sensor_label`)
 

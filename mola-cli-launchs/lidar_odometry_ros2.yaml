@@ -204,6 +204,14 @@ modules:
           msg_type: Imu
           output_sensor_label: ${MOLA_ATTITUDE_IMU_NAME|imu_attitude}
 
+        # Optional camera, only stored into simplemap keyframes with
+        # MOLA_SIMPLEMAP_ATTACH_LABEL=camera (the launch file sets both when
+        # camera_topic_name is given). Disabled unless MOLA_CAMERA_TOPIC is set.
+        # Use a low-rate topic: every image is decoded (and demosaiced).
+        - topic: ${MOLA_CAMERA_TOPIC|}
+          msg_type: Image
+          output_sensor_label: ${MOLA_CAMERA_SENSOR_NAME|camera}
+
         # Optional: direct subscription to a nav_msgs/Odometry topic (e.g., wheel odometry).
         # Leave MOLA_ODOM_TOPIC empty (default) to disable. Set to e.g. "/wheel_odom" to enable.
         # Mutually exclusive with `forward_ros_tf_as_mola_odometry_observations` (TF-driven path):
