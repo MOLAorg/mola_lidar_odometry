@@ -196,9 +196,14 @@ mola_lo_resolve_state_estimator() {
 # The smoother's default accuracy for one odometry increment suits wheel or
 # visual odometry. LiDAR registration is far more accurate in rotation; with
 # that default, the smoother's IMU factors override the LiDAR attitude and the
-# fused estimate drifts away from the odometry. The caller's value still wins.
+# fused estimate drifts away from the odometry. The setting is shared by every
+# odometry source, so it is left alone when another one is fused too. The
+# caller's value still wins.
 mola_lo_smoother_lidar_defaults() {
   if [ "${MOLA_STATE_ESTIMATOR:-}" != "mola::state_estimation_smoother::StateEstimationSmoother" ]; then
+    return 0
+  fi
+  if [ -n "${MOLA_ODOMETRY_TOPIC:-}" ] || [ -n "${MOLA_ODOM_TOPIC:-}" ]; then
     return 0
   fi
   : "${MOLA_REL_POSE_INCR_SIGMA_ANG:=1e-5}"

@@ -543,10 +543,13 @@ def generate_launch_description():
 
     # The smoother's default accuracy for one odometry increment suits wheel or
     # visual odometry; LiDAR registration is far more accurate in rotation (see
-    # mola_lo_smoother_lidar_defaults in scripts/lib/dataset-profile.sh). A value
-    # already in the environment wins.
+    # mola_lo_smoother_lidar_defaults in scripts/lib/dataset-profile.sh). The
+    # setting is shared by every odometry source, so it is left alone when an
+    # odometry topic is fused too. A value already in the environment wins.
     def _apply_lidar_increment_sigma(context, *args, **kwargs):
         if 'MOLA_REL_POSE_INCR_SIGMA_ANG' in os.environ:
+            return []
+        if LaunchConfiguration('odom_topic_name').perform(context).strip():
             return []
         return [SetEnvironmentVariable(name='MOLA_REL_POSE_INCR_SIGMA_ANG', value='1e-5')]
 

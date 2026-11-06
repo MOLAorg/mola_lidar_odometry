@@ -70,5 +70,7 @@ check "smoother: LiDAR increment sigma" 1e-5 "$(run MOLA_STATE_ESTIMATOR_YAML="$
 check "simple: no increment sigma" unset "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/simple.yaml" load)"
 check "smoother: caller's increment sigma wins" 0.003 \
   "$(run MOLA_REL_POSE_INCR_SIGMA_ANG=0.003 MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
+check "smoother + another odometry source: increment sigma left alone" unset \
+  "$(run MOLA_ODOMETRY_TOPIC=/odom MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
 
 exit "$FAILS"

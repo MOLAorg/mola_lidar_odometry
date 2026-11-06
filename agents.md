@@ -65,7 +65,9 @@ the simple estimator otherwise), in every profile.
 
 With the smoother, every profile and the ROS 2 launch default
 `MOLA_REL_POSE_INCR_SIGMA_ANG` to `1e-5` (LiDAR-grade; the smoother's own
-default suits wheel or visual odometry). An exported value wins.
+default suits wheel or visual odometry), unless an odometry topic is fused too
+(`MOLA_ODOMETRY_TOPIC`, `MOLA_ODOM_TOPIC`, `odom_topic_name`): the setting is
+shared by every odometry source. An exported value wins.
 
 A profile may also pick the pipeline, by publishing
 `MOLA_ODOMETRY_PIPELINE_YAML` the same way. Only where a dataset has a measured
