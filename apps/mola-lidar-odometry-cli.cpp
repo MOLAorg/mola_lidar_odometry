@@ -1560,6 +1560,14 @@ int main_odometry(Cli & cli)
       saveFailed = true;
     }
   };
+  // An output that could not be produced must not leave a previous run's file
+  // behind, where a later step would take it for this run's:
+  const auto removeStaleOutput = [&saveFailed](const std::string & fil) {
+    if (mrpt::system::fileExists(fil) && !mrpt::system::deleteFile(fil)) {
+      std::cerr << "\nERROR: could not remove a stale file: " << fil << "\n";
+      saveFailed = true;
+    }
+  };
 
   if (cli.arg_outPath.isSet()) {
     const auto fil = cli.arg_outPath.getValue();
@@ -1621,10 +1629,12 @@ int main_odometry(Cli & cli)
     } else {
       std::cerr << "\nWARNING: the state estimator has no geo-reference; nothing written to " << fil
                 << std::endl;  // NOLINT(performance-avoid-endl)
+      removeStaleOutput(fil);
     }
 #else
     std::cerr << "\nWARNING: this MOLA version cannot query geo-references; nothing written to "
               << fil << std::endl;  // NOLINT(performance-avoid-endl)
+    removeStaleOutput(fil);
 #endif
   }
 
