@@ -103,6 +103,12 @@ mola_lo_profile_resolve() {
   : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
   export MOLA_LO_INITIAL_LOCALIZATION_METHOD MOLA_DESKEW_METHOD
 
+  # Hand-held: a spherical minimum-range filter, so narrow stairwells and
+  # corridors keep their nearest walls (the default cube is sized for a
+  # vehicle footprint).
+  : "${MOLA_MINIMUM_RANGE_FILTER_L_INFINITY:=false}"
+  export MOLA_MINIMUM_RANGE_FILTER_L_INFINITY
+
   # No GNSS: pin the first pose or the smoother's graph is rank-deficient
   # and it gives up after two scans with "underconstrained variables".
   : "${MOLA_LINK_FIRST_POSE_SIGMA:=1e-6}"

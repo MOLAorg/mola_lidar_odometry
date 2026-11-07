@@ -71,6 +71,11 @@ exported value wins. The ROS 2 launch is not affected: there LO publishes in
 the smoother's reference frame (`mola_lo_reference_frame:=map`), which is fused
 as absolute poses, not as increments.
 
+The hand-held profiles (hilti2022, newer-college, oxford-spires) set
+`MOLA_MINIMUM_RANGE_FILTER_L_INFINITY=false`: the range filter becomes a
+sphere, so narrow stairwells keep their nearest walls. The default cube is for
+vehicle footprints, and it is better on legged and vehicle data.
+
 A profile may also pick the pipeline, by publishing
 `MOLA_ODOMETRY_PIPELINE_YAML` the same way. Only where a dataset has a measured
 reason to differ, and the evidence goes in the profile.
@@ -665,7 +670,8 @@ instead of a brief quality dip that recovers to the true pose).
 
 The radius is an EMA updated from the first non-empty point layer of the
 **filtered** observation, and that filtering clips at
-`1.2*ESTIMATED_OBSERVATION_RADIUS` (L-infinity cube, `blocks/deskew-early.yaml`).
+`1.2*ESTIMATED_OBSERVATION_RADIUS` (L-infinity cube unless
+`MOLA_MINIMUM_RANGE_FILTER_L_INFINITY=false`, `blocks/deskew-early.yaml`).
 So it can only grow by a few percent per scan. When the scene outgrows it
 faster (a drone taking off from 3 m ranges at ~7 m/s), every point is cut and
 the radius could never update again: permanent `NoPairings`. When no filtered

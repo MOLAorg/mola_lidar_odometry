@@ -147,6 +147,12 @@ mola_lo_profile_resolve() {
   : "${MOLA_DESKEW_IGNORE_ACCELEROMETER:=false}"
   export MOLA_LO_INITIAL_LOCALIZATION_METHOD MOLA_DESKEW_METHOD MOLA_DESKEW_IGNORE_ACCELEROMETER
 
+  # Hand-held: a spherical minimum-range filter, so narrow stairwells and
+  # corridors keep their nearest walls (the default cube is sized for a
+  # vehicle footprint).
+  : "${MOLA_MINIMUM_RANGE_FILTER_L_INFINITY:=false}"
+  export MOLA_MINIMUM_RANGE_FILTER_L_INFINITY
+
   # GICP-pipeline decimation tuning -- per-dataset, not a shipped pipeline
   # default. See the KITTI profile for the shared rationale/evidence; this
   # dataset independently confirmed the same configuration (56% cut in
