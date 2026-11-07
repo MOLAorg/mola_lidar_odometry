@@ -1183,6 +1183,12 @@ int main_odometry(Cli & cli)
     outFusedPath.emplace();
   }
 
+  if (cli.arg_outGeoRef.isSet()) {
+    ASSERTMSG_(
+      stateEstimatorAsNavState,
+      "--output-georef needs a state estimator implementing mola::NavStateFilter");
+  }
+
   if (cli.arg_outSimpleMap.isSet()) {
     liodom->params_.simplemap.generate = true;
     // don't save within the LidarOdometry object, we will do it here in
@@ -1598,9 +1604,6 @@ int main_odometry(Cli & cli)
 
   if (cli.arg_outGeoRef.isSet()) {
     const auto fil = cli.arg_outGeoRef.getValue();
-    ASSERTMSG_(
-      stateEstimatorAsNavState,
-      "--output-georef needs a state estimator implementing mola::NavStateFilter");
 #if defined(MOLA_KERNEL_NAVSTATE_FILTER_HAS_GEO_REFERENCE)
     if (const auto g = stateEstimatorAsNavState->get_geo_reference(); g.has_value()) {
       mp2p_icp::metric_map_t::Georeferencing mg;
@@ -1609,10 +1612,12 @@ int main_odometry(Cli & cli)
       std::cout << "\nSaving the state estimator's geo-reference to: " << fil
                 << std::endl;  // NOLINT(performance-avoid-endl)
       std::ofstream f(fil);
-      if (f.is_open()) {
+      const bool opened = f.is_open();
+      if (opened) {
         f << mp2p_icp::ToYAML(mg);
+        f.close();
       }
-      checkSaved(f.is_open() && f.good(), fil);
+      checkSaved(opened && !f.fail(), fil);
     } else {
       std::cerr << "\nWARNING: the state estimator has no geo-reference; nothing written to " << fil
                 << std::endl;  // NOLINT(performance-avoid-endl)
