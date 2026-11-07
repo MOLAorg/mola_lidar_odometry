@@ -15,7 +15,7 @@ observations_filter_deskew_for_visualization:
       output_layer_between: "raw_filtered"
       range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
       range_max: 1.2*ESTIMATED_OBSERVATION_RADIUS
-      metric_l_infinity: true
+      metric_l_infinity: "${MOLA_MINIMUM_RANGE_FILTER_L_INFINITY|true}"
 
   # De-skew in place: "raw_filtered" is a new layer that nothing else references.
   - class_name: mp2p_icp_filters::FilterDeskew

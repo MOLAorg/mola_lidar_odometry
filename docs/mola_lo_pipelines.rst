@@ -593,6 +593,11 @@ Sensor inputs: LiDAR
   (L-infinity cube around ``base_link``) for 3D points used by ICP; intended to cut out points coming from
   the robot/vehicle body itself or a person standing right next to it.
 
+- ``MOLA_MINIMUM_RANGE_FILTER_L_INFINITY`` (Default: ``true``): Shape of the minimum (and maximum) range
+  filter. ``true``: L-infinity cube around ``base_link``, which covers a vehicle footprint. ``false``:
+  Euclidean sphere, which keeps the closest structure along the cube's diagonals (narrow stairwells and
+  corridors). The hand-held dataset profiles set it to ``false``.
+
 Sensor inputs: IMU (optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

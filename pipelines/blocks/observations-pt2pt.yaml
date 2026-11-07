@@ -50,7 +50,7 @@ observations_filter_1st_pass:
       output_layer_between: "decimated_for_map_by_range"
       range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
       range_max: 1.2*ESTIMATED_OBSERVATION_RADIUS
-      metric_l_infinity: true
+      metric_l_infinity: "${MOLA_MINIMUM_RANGE_FILTER_L_INFINITY|true}"
 
   # Remove close ceilings (problematic in most cases!)
   - class_name: mp2p_icp_filters::FilterBoundingBox

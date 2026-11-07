@@ -16,6 +16,9 @@ observations_deskew_pass:
   # is unset → anchored at base_link (the vehicle origin), *not* at the
   # sensor. This is intentional so the deadzone covers the whole
   # vehicle footprint regardless of where the sensor is mounted on it.
+  # MOLA_MINIMUM_RANGE_FILTER_L_INFINITY=false makes it a sphere instead,
+  # better for hand-held sensors in tight spaces, where the cube's corners
+  # also remove the nearest walls and steps.
   # If you also need a sensor-anchored cut (e.g. the sensor's blind
   # sphere when it is mounted significantly off base_link), add an
   # extra filter via observations_prefilter_file.
@@ -25,7 +28,7 @@ observations_deskew_pass:
       output_layer_between: "raw_range_filtered"
       range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
       range_max: "${MOLA_MAXIMUM_RANGE_FILTER|1.2*ESTIMATED_OBSERVATION_RADIUS}"
-      metric_l_infinity: true
+      metric_l_infinity: "${MOLA_MINIMUM_RANGE_FILTER_L_INFINITY|true}"
 
   # De-skew in place: "raw_range_filtered" is a new layer that nothing else
   # references, so this avoids copying the whole cloud with all its fields.
