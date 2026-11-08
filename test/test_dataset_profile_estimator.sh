@@ -70,14 +70,31 @@ check "smoother: LiDAR increment sigma" 1e-5 "$(run MOLA_STATE_ESTIMATOR_YAML="$
 check "simple: no increment sigma" unset "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/simple.yaml" load)"
 check "smoother: caller's increment sigma wins" 0.003 \
   "$(run MOLA_REL_POSE_INCR_SIGMA_ANG=0.003 MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
-check "smoother + another odometry source: increment sigma left alone" unset \
+check "smoother + another odometry source: its looser sigma" 0.005 \
   "$(run MOLA_ODOMETRY_TOPIC=/odom MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
-check "repeated load: default dropped once an odometry topic is fused" unset \
+check "repeated load: LiDAR default replaced once an odometry topic is fused" 0.005 \
   "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load MOLA_ODOMETRY_TOPIC=/odom load)"
 check "repeated load: default dropped with the simple estimator" unset \
   "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load MOLA_STATE_ESTIMATOR_YAML="$TMP/simple.yaml" load)"
 check "repeated load: caller's value set after a load survives" 0.003 \
   "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load MOLA_REL_POSE_INCR_SIGMA_ANG=0.003 \
     MOLA_ODOMETRY_TOPIC=/odom load)"
+
+# The linear sigma and preintegration follow the smoother's own defaults for
+# LiDAR alone, and fall back to the wheel-odometry settings with another source:
+SHOW=MOLA_REL_POSE_INCR_SIGMA_LIN
+check "smoother: linear sigma from the smoother" unset "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
+check "smoother + another odometry source: linear sigma" 0.02 \
+  "$(run MOLA_ODOM_TOPIC=/odom MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
+check "smoother + another odometry source: caller's linear sigma wins" 0.05 \
+  "$(run MOLA_REL_POSE_INCR_SIGMA_LIN=0.05 MOLA_ODOMETRY_TOPIC=/odom MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
+check "repeated load: linear sigma dropped once the odometry topic is gone" unset \
+  "$(run MOLA_ODOMETRY_TOPIC=/odom MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load unset:MOLA_ODOMETRY_TOPIC load)"
+SHOW=MOLA_SMOOTHER_IMU_PREINTEGRATION
+check "smoother: preintegration from the smoother" unset "$(run MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
+check "smoother + another odometry source: no preintegration" false \
+  "$(run MOLA_ODOMETRY_TOPIC=/odom MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
+check "smoother + another odometry source: caller's preintegration wins" true \
+  "$(run MOLA_SMOOTHER_IMU_PREINTEGRATION=true MOLA_ODOMETRY_TOPIC=/odom MOLA_STATE_ESTIMATOR_YAML="$TMP/smoother.yaml" load)"
 
 exit "$FAILS"

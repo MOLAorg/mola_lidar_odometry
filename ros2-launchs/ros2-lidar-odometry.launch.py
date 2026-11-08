@@ -150,7 +150,22 @@ def resolve_state_estimator_config(context, *args, **kwargs):
         # Default path for the simple estimator
         yaml_path = '../state-estimator-params/state-estimation-simple.yaml'
 
-    return [SetEnvironmentVariable(name='MOLA_STATE_ESTIMATOR_YAML', value=yaml_path)]
+    actions = [SetEnvironmentVariable(name='MOLA_STATE_ESTIMATOR_YAML', value=yaml_path)]
+
+    # The smoother's defaults suit LiDAR odometry alone (tight per-increment
+    # sigmas, IMU preintegration). The sigmas are shared by every odometry
+    # source, so another one (wheel odometry) gets the looser values, with
+    # preintegration off, unless already set in the environment.
+    other_odometry = (
+        LaunchConfiguration('odom_topic_name').perform(context).strip() != '' or
+        LaunchConfiguration('forward_ros_tf_odom_to_mola').perform(context).lower() == 'true')
+    if use_smoother and other_odometry:
+        for name, value in (('MOLA_REL_POSE_INCR_SIGMA_ANG', '0.005'),
+                            ('MOLA_REL_POSE_INCR_SIGMA_LIN', '0.02'),
+                            ('MOLA_SMOOTHER_IMU_PREINTEGRATION', 'false')):
+            if not os.environ.get(name):
+                actions.append(SetEnvironmentVariable(name=name, value=value))
+    return actions
 
 
 def generate_launch_description():

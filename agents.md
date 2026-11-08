@@ -63,11 +63,14 @@ without forking the profile. Two variables the caller sets:
 class from the YAML itself (the smoother if it has `sliding_window_length`,
 the simple estimator otherwise), in every profile.
 
-With the smoother, every profile defaults `MOLA_REL_POSE_INCR_SIGMA_ANG` to
-`1e-5` (LiDAR-grade; the smoother's own default suits wheel or visual
-odometry), unless an odometry topic is fused too (`MOLA_ODOMETRY_TOPIC`,
-`MOLA_ODOM_TOPIC`): the setting is shared by every odometry source. An
-exported value wins. The ROS 2 launch is not affected: there LO publishes in
+The smoother's own defaults suit LiDAR odometry (tight increment sigmas, IMU
+preintegration on). The sigmas are shared by every odometry source, so when an
+odometry topic is fused too (`MOLA_ODOMETRY_TOPIC`, `MOLA_ODOM_TOPIC`), every
+profile sets the wheel-odometry values instead (`MOLA_REL_POSE_INCR_SIGMA_ANG`
+0.005, `MOLA_REL_POSE_INCR_SIGMA_LIN` 0.02, `MOLA_SMOOTHER_IMU_PREINTEGRATION`
+false); with LiDAR alone they still set `_ANG` to `1e-5`, for older smoother
+versions. An exported value wins. The ROS 2 launch does the same with
+`odom_topic_name` or `forward_ros_tf_odom_to_mola`; there LO itself publishes in
 the smoother's reference frame (`mola_lo_reference_frame:=map`), which is fused
 as absolute poses, not as increments.
 
