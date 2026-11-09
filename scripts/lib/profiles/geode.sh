@@ -69,7 +69,7 @@ mola_lo_profile_resolve() {
   base="$(basename "$file")"
   if [ -z "${GEODE_DEVICE:-}" ]; then
     case "$base" in
-      *_alpha*|bridge*|Urban_Tunnel*|urban_tunnel*) GEODE_DEVICE=alpha ;;
+      *_alpha*|*_Alpha*|bridge*|Urban_Tunnel*|urban_tunnel*) GEODE_DEVICE=alpha ;;
       *_beta*|*_Beta*)                              GEODE_DEVICE=beta ;;
       *_gamma*|*_Gamma*|flat_surfaces_*)            GEODE_DEVICE=gamma ;;
       *)

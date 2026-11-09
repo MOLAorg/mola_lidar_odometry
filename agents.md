@@ -90,6 +90,9 @@ change, add a row to the hand-written overview table in the `mola` repo,
 the profile, that table is not). The same applies to any new or renamed
 `mola-lo-{gui,cli}-*` launcher, dataset or not. Check: every
 `scripts/mola-lo-*` suffix must appear in that page.
+A new dataset launcher pair must also be added to `MOLA_LO_DATASET_WRAPPERS`
+in `CMakeLists.txt` (gui-only ones to `MOLA_LO_WRAPPER_PATHS`), or it is
+not installed.
 
 ## Sync rule: user-facing inputs and knobs
 
