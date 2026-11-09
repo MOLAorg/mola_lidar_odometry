@@ -84,7 +84,12 @@ A profile may also pick the pipeline, by publishing
 reason to differ, and the evidence goes in the profile.
 
 Adding a dataset means adding one profile plus two one-line wrappers, and
-listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`.
+listing it in `MOLA_LO_DATASET_WRAPPERS` in `CMakeLists.txt`. In the same
+change, add a row to the hand-written overview table in the `mola` repo,
+`docs/source/supported-sensors.rst` (the per-dataset pages are generated from
+the profile, that table is not). The same applies to any new or renamed
+`mola-lo-{gui,cli}-*` launcher, dataset or not. Check: every
+`scripts/mola-lo-*` suffix must appear in that page.
 
 ## Sync rule: user-facing inputs and knobs
 
