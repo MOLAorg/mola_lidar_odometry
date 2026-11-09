@@ -326,12 +326,14 @@ std::optional<mp2p_icp::metric_map_t> LidarOdometry::preprocessKeyframeForRebuil
   for (const auto & o : lidarObs) {
     mp2p_icp::metric_map_t thisObs;
     mp2p_icp_filters::apply_generators(p.obs_generators, *o, thisObs);
-    p.parameter_source.updateVariable(
-      "SENSOR_TIME_OFFSET", mrpt::system::timeDifference(timeOfFirstObs, o->timestamp));
-    p.parameter_source.realize();
-    mp2p_icp_filters::apply_filter_pipeline(p.adjust_timestamps, thisObs);
+    shiftPointTimes(thisObs, mrpt::system::timeDifference(timeOfFirstObs, o->timestamp));
     out.merge_with(thisObs);
   }
+  if (lidarObs.size() > 1) {
+    p.parameter_source.localVelocityBuffer.set_reference_zero_time(
+      mrpt::Clock::toDouble(timeOfFirstObs));
+  }
+  mp2p_icp_filters::apply_filter_pipeline(p.adjust_timestamps, out);
   mp2p_icp_filters::apply_filter_pipeline(p.prefilter, out);
   if (earlyDeskew) {
     mp2p_icp_filters::apply_filter_pipeline(p.deskew, out);

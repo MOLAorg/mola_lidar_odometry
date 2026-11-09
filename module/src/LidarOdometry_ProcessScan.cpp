@@ -2325,28 +2325,53 @@ mp2p_icp::metric_map_t::Ptr LidarOdometry::observationFromRawSensor(
     {
       // Shares obs_generators (and, through them, the localVelocityBuffer whose
       // reference-zero time they set) with the IMU thread's own
-      // apply_generators() call, plus the realize() flags that thread reads:
+      // apply_generators() call:
       auto lckImu = mrpt::lockHelper(imu_state_mtx_);
 
       mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *obsTrg);
-
-      // Update relative timestamps for multiple lidars:
-      const double dt = mrpt::system::timeDifference(timeOfFirstSFObs, o->timestamp);
-
-      state_.parameter_source.updateVariable("SENSOR_TIME_OFFSET", dt);
-      // Make all changes effective and evaluate the variables now:
-      state_.parameter_source.realize();
     }
-
-    mp2p_icp_filters::apply_filter_pipeline(state_.pc_filterAdjustTimes, *obsTrg, profiler_);
 
     // for multiple LiDAR setups:
     if (obsTrg != observation.get()) {
-      observation->merge_with(*obsTrg);
+      // Make per-point times relative to the first observation's stamp:
+      shiftPointTimes(thisObs, mrpt::system::timeDifference(timeOfFirstSFObs, o->timestamp));
+      observation->merge_with(thisObs);
     }
   }
+
+  if (sf.size() > 1) {
+    // Generators set the reference time to each observation's stamp: restore
+    // the common one the merged per-point times are now relative to.
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    state_.parameter_source.localVelocityBuffer.set_reference_zero_time(
+      mrpt::Clock::toDouble(timeOfFirstSFObs));
+  }
+
+  // Adjust all points at once, so they share one time reference:
+  mp2p_icp_filters::apply_filter_pipeline(state_.pc_filterAdjustTimes, *observation, profiler_);
+
   tle0.stop();
   return observation;
+}
+
+void LidarOdometry::shiftPointTimes(mp2p_icp::metric_map_t & m, const double dt)
+{
+  if (dt == 0) {
+    return;
+  }
+  for (auto & [name, layer] : m.layers) {
+    auto * pts = mp2p_icp::MapToPointsMap(*layer);
+    if (pts == nullptr) {
+      continue;
+    }
+    auto * Ts = pts->getPointsBufferRef_float_field("t");
+    if (Ts == nullptr) {
+      continue;
+    }
+    for (auto & t : *Ts) {
+      t += static_cast<float>(dt);
+    }
+  }
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
