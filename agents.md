@@ -1369,7 +1369,7 @@ We use colcon, the ROS2 build tool, and mola_common with utility cmake helpers.
   Humble and Rolling testing entries exist commented-out, Lyrical has none.
   There, `setup ROS environment` only runs for testing entries, so stable ones
   need a prebuilt `ros:<distro>` image (or the manual `ubuntu:resolute` setup
-  used for pre-buildfarm distros like Lyrical). Self-hosted (arm64) only covers
+  used for pre-buildfarm distros like Lyrical). arm64 (GitHub-hosted `ubuntu-24.04-arm`) only covers
   Humble/Jazzy, each stable + testing, and runs `setup ROS environment`
   unconditionally for both.
 - Style: enforced with `.clang-format` and `.clang-tidy`
