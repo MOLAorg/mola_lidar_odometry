@@ -193,30 +193,41 @@ mola_lo_resolve_state_estimator() {
   export MOLA_STATE_ESTIMATOR
 }
 
-# The smoother's default accuracy for one odometry increment suits wheel or
-# visual odometry. LiDAR registration is far more accurate in rotation; with
-# that default, the smoother's IMU factors override the LiDAR attitude and the
-# fused estimate drifts away from the odometry. The setting is shared by every
-# odometry source, so it is left alone when another one is fused too. The
-# caller's value still wins.
+# The smoother's defaults suit LiDAR odometry: tight per-increment sigmas and
+# IMU preintegration. The sigmas are shared by every odometry source, so when
+# another one (wheel, legged) is fused too, its looser values are used, with
+# preintegration off. The angular sigma is also set for LiDAR alone, which
+# older smoother versions need (their default suits wheel odometry). The
+# caller's values still win.
 mola_lo_smoother_lidar_defaults() {
   # A value set here by an earlier load in the same shell is not the caller's
   # choice: drop it, unless the caller has changed it since.
-  if [ -n "${MOLA_LO_SIGMA_ANG_DEFAULTED:-}" ] &&
-    [ "${MOLA_REL_POSE_INCR_SIGMA_ANG:-}" = "$MOLA_LO_SIGMA_ANG_DEFAULTED" ]; then
-    unset MOLA_REL_POSE_INCR_SIGMA_ANG
-  fi
-  unset MOLA_LO_SIGMA_ANG_DEFAULTED
+  local var mark
+  for var in MOLA_REL_POSE_INCR_SIGMA_ANG MOLA_REL_POSE_INCR_SIGMA_LIN MOLA_SMOOTHER_IMU_PREINTEGRATION; do
+    mark=MOLA_LO_DEFAULTED_$var
+    if [ -n "${!mark:-}" ] && [ "${!var:-}" = "${!mark}" ]; then
+      unset "$var"
+    fi
+    unset "$mark"
+  done
   if [ "${MOLA_STATE_ESTIMATOR:-}" != "mola::state_estimation_smoother::StateEstimationSmoother" ]; then
     return 0
   fi
   if [ -n "${MOLA_ODOMETRY_TOPIC:-}" ] || [ -n "${MOLA_ODOM_TOPIC:-}" ]; then
-    return 0
+    mola_lo_smoother_default MOLA_REL_POSE_INCR_SIGMA_ANG 0.005
+    mola_lo_smoother_default MOLA_REL_POSE_INCR_SIGMA_LIN 0.02
+    mola_lo_smoother_default MOLA_SMOOTHER_IMU_PREINTEGRATION false
+  else
+    mola_lo_smoother_default MOLA_REL_POSE_INCR_SIGMA_ANG 1e-5
   fi
-  if [ -z "${MOLA_REL_POSE_INCR_SIGMA_ANG:-}" ]; then
-    MOLA_REL_POSE_INCR_SIGMA_ANG=1e-5
-    MOLA_LO_SIGMA_ANG_DEFAULTED=$MOLA_REL_POSE_INCR_SIGMA_ANG
-    export MOLA_REL_POSE_INCR_SIGMA_ANG
+}
+
+# Sets and exports $1=$2 unless the caller set $1, remembering it was a default.
+mola_lo_smoother_default() {
+  if [ -z "${!1:-}" ]; then
+    printf -v "$1" '%s' "$2"
+    printf -v "MOLA_LO_DEFAULTED_$1" '%s' "$2"
+    export "${1?}"
   fi
 }
 
