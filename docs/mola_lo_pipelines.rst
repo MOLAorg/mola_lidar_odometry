@@ -704,6 +704,8 @@ Scan de-skew options
 
 - ``MOLA_SCAN_POINT_STAMPS_ADJUST_METHOD`` (Default: ``TimestampAdjustMethod::MiddleIsZero``): Method for adjusting
   per-point timestamps so that the scan mid-point is at time zero. Affects how twist is applied during deskewing.
+  With several LiDARs, it applies to their merged clouds, so time zero (and the pose timestamp) is the middle of the
+  combined sweep.
 
 
 General options

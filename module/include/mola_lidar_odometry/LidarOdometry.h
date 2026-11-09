@@ -2581,6 +2581,12 @@ private:
    *  \return The submitted scan's future, or an invalid future if none was. */
   std::future<void> releaseLidarScansToWorker(double upToImuTime);
   mp2p_icp::metric_map_t::Ptr observationFromRawSensor(const mrpt::obs::CSensoryFrame & sf);
+
+  /** Adds \a dt [s] to the per-point times ("t") of every point layer that
+   *  has them. Used to bring the clouds of several LiDARs to a common
+   *  reference time before merging them. */
+  static void shiftPointTimes(mp2p_icp::metric_map_t & m, double dt);
+
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
 
   void onInitializePersistentState();
