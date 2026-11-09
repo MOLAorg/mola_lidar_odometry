@@ -279,6 +279,7 @@ set(MOLA_LO_DATASET_WRAPPERS
     kitti
     kitti360
     mulran
+    ntu-viral
     oxford-spires
     paris-luco
     rawlog
