@@ -143,6 +143,13 @@ Check: `grep -rn MOLA_NEW_VAR` over both repos must hit every place above.
   no LiDAR in its bags. Note the IMU here reads gravity along -Z, i.e. it is
   mounted upside down; that is the rig, confirmed against both the dataset's
   own extrinsics and its ground-truth attitude, not a frame error.
+- **ntu-viral** (NTU-VIRAL drone dataset) has no `/tf`: poses are fixed from
+  the dataset's calibration in a base_link that is its z-down Body (IMU)
+  frame turned by a 180 deg pitch. Horizontal OS1-16 only (the CLI gives all
+  LiDARs one fixed pose); IMU on by default (`/imu/imu`), measured slightly
+  better than without it. The ground truth is a Leica prism position: score
+  after moving the estimate to the prism, (0.2937, -0.0123, 0.2731) in
+  base_link.
 - **vbr** (Vision Benchmark in Rome) takes a sequence directory (preferring a
   merged `*_lio.bag`, else the upstream `<seq>_NN.bag` chunks) or bag files.
   No `/tf` in the bags: every pose is fixed from `vbr_calib.yaml`, identical
