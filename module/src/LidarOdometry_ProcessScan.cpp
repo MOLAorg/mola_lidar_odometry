@@ -1022,7 +1022,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
     if (!motionModelIsPlausible(mrpt::Clock::toDouble(scan_ref_time), speed)) {
       hasMotionModel = false;
       state_.last_motion_model_output.reset();
-      state_.navstate_fuse->reset();
+      resetNavStateMotion();
       state_.motion_model_implausible++;
     }
   }
@@ -2283,6 +2283,15 @@ bool LidarOdometry::motionModelIsPlausible(const double scanTime, const double p
   return false;
 }
 
+void LidarOdometry::resetNavStateMotion()
+{
+#if defined(MOLA_KERNEL_NAVSTATE_FILTER_HAS_RESET_MOTION)
+  state_.navstate_fuse->reset_motion();
+#else
+  state_.navstate_fuse->reset();
+#endif
+}
+
 void LidarOdometry::recoverFromStall()
 {
   MRPT_LOG_WARN_FMT(
@@ -2302,9 +2311,9 @@ void LidarOdometry::recoverFromStall()
   state_.initial_pose = state_.last_lidar_pose.mean;
   state_.kf_decider_local_map.reset();
 
-  // The estimator may hold a diverged state, and a fresh one is anchored by
-  // the new first scan:
-  state_.navstate_fuse->reset();
+  // The estimator may hold a diverged state. The trajectory goes on in the
+  // same frame, so the estimator keeps its frames:
+  resetNavStateMotion();
   state_.last_motion_model_speed.reset();
   state_.state_estimator_start_stamp.reset();
 
