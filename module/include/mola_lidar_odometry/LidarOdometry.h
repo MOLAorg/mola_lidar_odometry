@@ -2384,9 +2384,18 @@ private:
   /// estimator, keeping the trajectory. Caller must hold state_mtx_.
   void recoverFromStall();
 
-  /// Resets the state estimator's motion but keeps its frames, where the
-  /// estimator supports it; otherwise, a full reset.
+  /// Resets the state estimator's motion but keeps its frames (where the
+  /// estimator overrides reset_motion(); otherwise, a full reset). Caller must
+  /// hold state_mtx_.
   void resetNavStateMotion();
+
+  /// A full reset of the state estimator, which may redefine its frames, and
+  /// a restart of the prediction plausibility check. Caller must hold
+  /// state_mtx_.
+  void resetNavState();
+
+  /// The plausibility check starts over: settling time, no previous speed.
+  void restartPlausibilityCheck();
 
   /// Merges the observation layers into the local map, creating it from the
   /// raw observations if empty. Caller must hold state_mtx_.

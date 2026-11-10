@@ -54,6 +54,26 @@ struct Fixture
   void runPendingRequests() { liodom->spinOnce(); }
 };
 
+// Counts the two kinds of state estimator reset.
+class CountingEstimator : public mola::state_estimation_simple::StateEstimationSimple
+{
+public:
+  void reset() override
+  {
+    fullResets++;
+    StateEstimationSimple::reset();
+  }
+#if defined(MOLA_KERNEL_NAVSTATE_FILTER_HAS_RESET_MOTION)
+  void reset_motion() override
+  {
+    motionResets++;
+    StateEstimationSimple::reset();
+  }
+#endif
+  int fullResets = 0;
+  int motionResets = 0;
+};
+
 mrpt::poses::CPose3DPDFGaussian someRequestedPose()
 {
   mrpt::poses::CPose3DPDFGaussian p;
@@ -125,4 +145,27 @@ TEST(Relocalization, FromGnssForgetsPreviouslyFusedPoses)
   f.runPendingRequests();
 
   EXPECT_FALSE(f.stateEstimator->estimated_navstate(t, frame).has_value());
+}
+
+// A relocalization redefines where the vehicle is: the state estimator starts
+// from scratch, rather than keeping its frames as after an implausible
+// prediction.
+TEST(Relocalization, FromGnssResetsTheEstimatorFromScratch)
+{
+  auto liodom = mola::LidarOdometry::Create();
+  auto estimator = std::make_shared<CountingEstimator>();
+  mola::MinimalModuleContainer moduleContainer = {{liodom, estimator}};
+  liodom->setMinLoggingLevel(mrpt::system::LVL_WARN);
+  liodom->initialize(mola::load_yaml_file(mrpt::get_env<std::string>("LO_PIPELINE_YAML")));
+  estimator->setMinLoggingLevel(mrpt::system::LVL_WARN);
+  estimator->initialize(mola::load_yaml_file(mrpt::get_env<std::string>("LO_STATE_ESTIM_YAML")));
+  liodom->params_.simplemap.generate = false;
+  liodom->params_.estimated_trajectory.output_file.clear();
+
+  const int fullBefore = estimator->fullResets;
+  liodom->relocalize_from_gnss();
+  liodom->spinOnce();
+
+  EXPECT_GT(estimator->fullResets, fullBefore);
+  EXPECT_EQ(estimator->motionResets, 0);
 }
