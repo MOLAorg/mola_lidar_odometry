@@ -709,8 +709,10 @@ the pose freezes for the rest of the run. Two guards, both in
 Both reset the estimator: a diverged smoother does not recover on its own.
 They call `resetNavStateMotion()`, i.e. `reset_motion()` where `mola_kernel` has
 it, since the trajectory goes on in the same frames (the smoother keeps them; its
-`reset()` would anchor {map} to the next pose and level gravity again). The
-initial localization, re-localization and the re-leveling fallback call
+`reset()` would anchor {map} to the next pose and level gravity again). Without
+`reset_motion()` in `mola_kernel`, or for an estimator that does not override it,
+that is a full reset, which may redefine the estimator's frames. The initial
+localization, re-localization and the re-leveling fallback call
 `resetNavState()`, a full `reset()`; it also restarts the plausibility check
 (`restartPlausibilityCheck()`: settling time, no previous speed), as the stall
 recovery does.
