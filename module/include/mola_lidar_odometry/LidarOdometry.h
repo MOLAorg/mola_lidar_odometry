@@ -2384,6 +2384,10 @@ private:
   /// estimator, keeping the trajectory. Caller must hold state_mtx_.
   void recoverFromStall();
 
+  /// Resets the state estimator's motion but keeps its frames, where the
+  /// estimator supports it; otherwise, a full reset.
+  void resetNavStateMotion();
+
   /// Merges the observation layers into the local map, creating it from the
   /// raw observations if empty. Caller must hold state_mtx_.
   void insertScanIntoLocalMap(

@@ -707,6 +707,9 @@ the pose freezes for the rest of the run. Two guards, both in
   scan seeds it, through the first-scan path) and the estimator is reset.
 
 Both reset the estimator: a diverged smoother does not recover on its own.
+They call `resetNavStateMotion()`, i.e. `reset_motion()` (keeps the estimator's
+frames, since the trajectory goes on in them) where `mola_kernel` has it; the
+initial localization and re-localization call a full `reset()`.
 Measured alternatives that failed: a bound from |f| + g alone (a slower runaway
 grew to 15 m/s under it), and comparing with the speed of the last registered
 poses instead of the previous prediction (registration jitter on flat surfaces
