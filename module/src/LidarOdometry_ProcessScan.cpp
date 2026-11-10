@@ -958,6 +958,9 @@ void LidarOdometry::processLidarScan(  // NOLINT
   // A bad ICP right after an empty-map start restarts the map from scratch:
   bool restartFromScratch = false;
 
+  // A stall long enough restarts the local map at the current pose:
+  bool recoverFromStallNow = false;
+
 #if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
   // Whether this scan's keyframe will be pushed to a central-map backend
   // (e.g. mola_mapper_3d), at the same sparsity as the self-written simplemap
@@ -1008,6 +1011,20 @@ void LidarOdometry::processLidarScan(  // NOLINT
   // Nor is its prediction used right after a re-localization (see below):
   if (hasMotionModel && state_.step_counter_post_relocalization > 0) {
     hasMotionModel = false;
+  }
+
+  // Nor if it is physically implausible. Registration seeded by a runaway
+  // prediction may follow it where the geometry does not constrain the pose,
+  // and feed it back to the estimator, so the estimator is reset as well:
+  if (hasMotionModel) {
+    const auto & tw = state_.last_motion_model_output->twist;
+    const double speed = std::sqrt(tw.vx * tw.vx + tw.vy * tw.vy + tw.vz * tw.vz);
+    if (!motionModelIsPlausible(mrpt::Clock::toDouble(scan_ref_time), speed)) {
+      hasMotionModel = false;
+      state_.last_motion_model_output.reset();
+      state_.navstate_fuse->reset();
+      state_.motion_model_implausible++;
+    }
   }
 
   tleMotion.stop();
@@ -1570,6 +1587,18 @@ void LidarOdometry::processLidarScan(  // NOLINT
     const bool usePrediction = !icpIsGood && hasMotionModel && !restartFromScratch;
     state_.last_pose_from_prediction = usePrediction;
 
+    // Neither registered nor predicted: the pose cannot move. If it persists,
+    // no later scan can register either, so restart the local map here:
+    if (!icpIsGood && !usePrediction && !restartFromScratch) {
+      state_.consecutive_stalled_scans++;
+    } else {
+      state_.consecutive_stalled_scans = 0;
+    }
+    recoverFromStallNow =
+      params_.stall_recovery.enabled &&
+      state_.consecutive_stalled_scans >= params_.stall_recovery.after_n_scans &&
+      params_.local_map_updates.enabled && !state_.map_has_been_loaded;
+
     if (icpIsGood) {
       state_.last_lidar_pose = out.found_pose_to_wrt_from;
     } else if (usePrediction) {
@@ -1895,6 +1924,12 @@ void LidarOdometry::processLidarScan(  // NOLINT
     updateLocalMap = false;
   }
 
+  if (recoverFromStallNow) {
+    recoverFromStall();
+    updateLocalMap = false;
+    updateSimpleMap = false;
+  }
+
   // Stage 3: a new keyframe into the local map:
   if (updateLocalMap) {
     insertScanIntoLocalMap(sf, *observation, scan_ref_time);
@@ -2168,6 +2203,116 @@ void LidarOdometry::restartLocalMapFromScratch()
   }
 
   MRPT_LOG_WARN("Bad first ICP, re-starting from scratch with a new local map");
+}
+
+bool LidarOdometry::motionModelIsPlausible(const double scanTime, const double predictedSpeed)
+{
+  const auto prev = state_.last_motion_model_speed;
+  state_.last_motion_model_speed = {scanTime, predictedSpeed};
+
+  const double margin = params_.motion_model_max_extra_acceleration;
+  if (margin <= 0 || !prev) {
+    return true;
+  }
+  const double dt = scanTime - prev->first;
+  constexpr double MAX_DT = 1.0;  // [s] older predictions are not comparable
+  if (dt <= 0 || dt > MAX_DT) {
+    return true;
+  }
+
+  // A newly started estimator is still converging to the actual velocity:
+  constexpr double SETTLING_TIME = 1.0;  // [s]
+  if (!state_.state_estimator_start_stamp) {
+    state_.state_estimator_start_stamp = scanTime;
+  }
+  if (scanTime - *state_.state_estimator_start_stamp < SETTLING_TIME) {
+    return true;
+  }
+
+  // Velocity change measured by the IMU in the interval: its specific forces,
+  // rotated with the attitude of the last odometry pose, plus gravity. The
+  // attitude comes from the odometry, not from the estimator under test.
+  const auto & lastPose = state_.last_lidar_pose.mean;
+  constexpr double GRAVITY = 9.81;  // [m/s^2]
+  mrpt::math::TVector3D dv(0, 0, 0);
+  size_t nInInterval = 0;
+  {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    const auto & buf = state_.recent_specific_force;
+    // Some drivers report accelerations in units of g:
+    double sumNorms = 0;
+    for (const auto & s : buf) {
+      sumNorms += s.f.norm();
+    }
+    constexpr double MAX_MEAN_NORM_IN_G_UNITS = 3.0;
+    const double scale =
+      (!buf.empty() && sumNorms / static_cast<double>(buf.size()) < MAX_MEAN_NORM_IN_G_UNITS)
+        ? GRAVITY
+        : 1.0;
+    double tLast = prev->first;
+    for (const auto & s : buf) {
+      if (s.stamp <= prev->first || s.stamp > scanTime) {
+        continue;
+      }
+      const double h = s.stamp - tLast;
+      tLast = s.stamp;
+      mrpt::math::TVector3D aWorld = lastPose.rotateVector(s.f * scale - s.acc_bias);
+      aWorld.z -= GRAVITY;
+      dv += aWorld * h;
+      nInInterval++;
+    }
+  }
+  if (nInInterval == 0) {
+    return true;  // no IMU readings to compare with
+  }
+
+  // The speed cannot change more than the velocity does:
+  const double speedChange = std::abs(predictedSpeed - prev->second);
+  const double allowed = dv.norm() + margin * dt;
+  if (speedChange <= allowed) {
+    return true;
+  }
+
+  MRPT_LOG_WARN_FMT(
+    "Not using the state estimator prediction, and resetting it: its speed changed by %.2f m/s "
+    "(%.2f -> %.2f m/s) in %.3f s, but the IMU measured a velocity change of %.2f m/s (margin "
+    "%.1f m/s^2)",
+    speedChange, prev->second, predictedSpeed, dt, dv.norm(), margin);
+  state_.last_motion_model_speed.reset();
+  state_.state_estimator_start_stamp = scanTime;
+  return false;
+}
+
+void LidarOdometry::recoverFromStall()
+{
+  MRPT_LOG_WARN_FMT(
+    "Registration stalled for %u scans without a usable prediction: restarting the local map "
+    "at the last pose and resetting the state estimator",
+    state_.consecutive_stalled_scans);
+
+#if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
+  invalidateLocalMapRebuild();
+#endif
+  {
+    auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
+    state_.local_map->clear();
+  }
+  // The next scan starts the new map at this pose, as a first scan does. The
+  // trajectory is kept:
+  state_.initial_pose = state_.last_lidar_pose.mean;
+  state_.kf_decider_local_map.reset();
+
+  // The estimator may hold a diverged state, and a fresh one is anchored by
+  // the new first scan:
+  state_.navstate_fuse->reset();
+  state_.last_motion_model_speed.reset();
+  state_.state_estimator_start_stamp.reset();
+
+  // The matching threshold restarts as at the beginning of a run:
+  state_.adapt_thres_sigma = 0;
+  state_.consecutive_bad_icps = 0;
+  state_.consecutive_stalled_scans = 0;
+  state_.stall_recoveries++;
 }
 
 void LidarOdometry::insertScanIntoLocalMap(

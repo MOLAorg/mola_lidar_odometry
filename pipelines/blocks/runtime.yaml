@@ -44,6 +44,20 @@ params:
   # [m^-2] Minimum motion model covariance (in X,Y,Z) to consider a state estimation as valid as prior for ICP.
   min_motion_model_xyz_cov_inv: 1.0
 
+  # [m/s^2] A state estimator prediction whose speed changes between two scans
+  # by more than the velocity change measured by the IMU (rotated with the
+  # odometry attitude, gravity removed), plus this margin times the interval,
+  # is not used (ICP starts from the last pose) and the estimator is reset.
+  # Needs an IMU; 0 disables it.
+  motion_model_max_extra_acceleration: ${MOLA_MOTION_MODEL_MAX_EXTRA_ACC|10.0}
+
+  # If registration fails and there is no usable prediction for this many
+  # consecutive scans, the pose cannot move again: restart the local map at the
+  # last pose and reset the state estimator. Not applied to a loaded map.
+  stall_recovery:
+    enabled: ${MOLA_STALL_RECOVERY|true}
+    after_n_scans: ${MOLA_STALL_RECOVERY_AFTER_N_SCANS|5}
+
   # Generate CSV with the evolution of internal variables:
   debug_traces:
     save_to_file: "${MOLA_SAVE_DEBUG_TRACES|false}"

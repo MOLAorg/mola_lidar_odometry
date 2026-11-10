@@ -1218,6 +1218,28 @@ public:
     ///  Minimum inverse covariance in (X,Y,Z) for a valid motion model
     double min_motion_model_xyz_cov_inv = 1.0;
 
+    /** [m/s^2] Plausibility margin for the state estimator's prediction. The
+     * IMU accelerations between two scans, rotated with the odometry attitude
+     * and without gravity, give the velocity change of the vehicle. If the
+     * predicted speed changes by more than that, plus this margin times the
+     * interval, the prediction is not used and the estimator is reset.
+     * Needs an IMU; 0 disables the check. */
+    double motion_model_max_extra_acceleration = 10.0;
+
+    /** Recovery from a stall: registration failed and the state estimator gave
+     * no usable prediction, so the pose cannot move. After `after_n_scans` such
+     * consecutive scans, the local map restarts at the last pose and the state
+     * estimator is reset, so registration resumes. Never applied to a loaded
+     * map or with local map updates disabled. */
+    struct StallRecovery
+    {
+      bool enabled = true;
+      uint32_t after_n_scans = 5;
+
+      void initialize(const Yaml & cfg);
+    };
+    StallRecovery stall_recovery;
+
     /** When publishing pose updates, the reference frame for both, estimated robot poses, and the local map.*/
     std::string publish_reference_frame = "odom";
 
@@ -1692,6 +1714,26 @@ private:
     // recovery in AdaptiveThreshold.
     int consecutive_bad_icps = 0;
 
+    /// Consecutive scans neither registered nor predicted (see StallRecovery).
+    uint32_t consecutive_stalled_scans = 0;
+
+    /// Stamp [s] and speed [m/s] of the last accepted state estimator prediction.
+    std::optional<std::pair<double, double>> last_motion_model_speed;
+
+    /// Stamp [s] of the start or last reset of the state estimator: its
+    /// predictions are not checked until it has settled.
+    std::optional<double> state_estimator_start_stamp;
+
+    /// One IMU specific force reading, in the vehicle frame.
+    struct SpecificForce
+    {
+      double stamp = 0;                ///< [s]
+      mrpt::math::TVector3D f;         ///< as read (m/s^2 or units of g)
+      mrpt::math::TVector3D acc_bias;  ///< [m/s^2] from an ImuBiasSource, or zero
+    };
+    /// Recent IMU specific forces. Protected by imu_state_mtx_.
+    std::deque<SpecificForce> recent_specific_force;
+
     /// Run totals, reported once at shutdown. `registration_no_motion_model` is
     /// the one that had no aggregate before: the front end already logs a
     /// throttled warning when the state estimator returns nothing (or returns a
@@ -1704,6 +1746,8 @@ private:
     size_t registration_no_motion_model = 0;
     size_t registration_icp_rejected = 0;
     size_t registration_gate_rejected = 0;
+    size_t motion_model_implausible = 0;
+    size_t stall_recoveries = 0;
 
     // Automatic estimation of the observation bounding-radius (measured from
     // base_link, not from the sensor; see ESTIMATED_OBSERVATION_RADIUS docs):
@@ -2332,6 +2376,14 @@ private:
   /// empty-map start. Caller must hold state_mtx_.
   void restartLocalMapFromScratch();
 
+  /// Whether the change of the predicted speed since the previous scan agrees
+  /// with the IMU. Caller must hold state_mtx_.
+  bool motionModelIsPlausible(double scanTime, double predictedSpeed);
+
+  /// Restarts the local map at the current pose and resets the state
+  /// estimator, keeping the trajectory. Caller must hold state_mtx_.
+  void recoverFromStall();
+
   /// Merges the observation layers into the local map, creating it from the
   /// raw observations if empty. Caller must hold state_mtx_.
   void insertScanIntoLocalMap(
@@ -2378,9 +2430,11 @@ private:
   void consumePendingImu(double upToTime);
 
   /** The reading with its gyroscope bias removed, if a mola::ImuBiasSource has
-   *  an estimate for it; else the same one. Caller holds imu_state_mtx_. */
+   *  an estimate for it; else the same one. If given, `accBias` gets that
+   *  estimate's accelerometer bias [m/s^2] (zero if none). Caller holds
+   *  imu_state_mtx_. */
   [[nodiscard]] mrpt::obs::CObservationIMU::ConstPtr imuBiasCorrected(
-    const mrpt::obs::CObservationIMU::ConstPtr & imu);
+    const mrpt::obs::CObservationIMU::ConstPtr & imu, mrpt::math::TVector3D * accBias = nullptr);
 
   void onGPS(const CObservation::ConstPtr & o);
   void onGPSImpl(const CObservation::ConstPtr & o);

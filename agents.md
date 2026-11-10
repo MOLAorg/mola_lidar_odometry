@@ -688,6 +688,30 @@ reopened, ICP locked onto a self-consistent but WRONG registration (a
 sudden ~30-40 deg yaw error that then persisted for the rest of the run,
 instead of a brief quality dip that recovers to the true pose).
 
+## Implausible predictions and stall recovery
+
+Seen on GEODE with the smoother: a wrong predicted velocity seeds ICP, which
+follows it where the geometry does not constrain the pose (a flat floor),
+and the result is fused back, so the estimator's velocity runs away. Then ICP
+fails, the estimator returns no prediction once its last pose is too old, and
+the pose freezes for the rest of the run. Two guards, both in
+`LidarOdometry_ProcessScan.cpp`:
+
+- `motionModelIsPlausible()`: the change of the predicted speed between scans
+  must agree with the IMU (accelerations rotated with the odometry attitude,
+  gravity removed), within `motion_model_max_extra_acceleration` times the
+  interval; else the prediction is not used and the estimator is reset. Not
+  checked for 1 s after a start or reset, while the estimator settles.
+- `recoverFromStall()`: after `stall_recovery.after_n_scans` scans with neither
+  a good ICP nor a prediction, the local map restarts at the last pose (the next
+  scan seeds it, through the first-scan path) and the estimator is reset.
+
+Both reset the estimator: a diverged smoother does not recover on its own.
+Measured alternatives that failed: a bound from |f| + g alone (a slower runaway
+grew to 15 m/s under it), and comparing with the speed of the last registered
+poses instead of the previous prediction (registration jitter on flat surfaces
+flagged correct predictions).
+
 ## `ESTIMATED_OBSERVATION_RADIUS` is fed back through the range filter
 
 The radius is an EMA updated from the first non-empty point layer of the
