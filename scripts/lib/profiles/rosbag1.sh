@@ -14,6 +14,7 @@ mola_lo_profile_usage() {
   echo "  MOLA_GNSS_TOPIC        GNSS NavSatFix topic name (default: '/gps')"
   echo "  MOLA_ODOMETRY_TOPIC    Wheels 2D odometry (optional)"
   echo "  MOLA_TF_BASE_LINK      Robot base /tf frame id (default: 'base_link')"
+  echo "  MOLA_LIDAR_TIME_OFFSET Constant correction [s] added to the LiDAR stamps (default: 0)"
 }
 
 mola_lo_profile_resolve() {

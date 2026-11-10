@@ -41,6 +41,16 @@ mola_lo_profile_resolve() {
   : "${MOLA_TF_BASE_LINK:=body}"
   export MOLA_LIDAR_TOPIC MOLA_IMU_TOPIC MOLA_TF_BASE_LINK
 
+  # The Ouster driver stamps each cloud when it is published (end of the
+  # sweep), while the per-point times run 0..0.1 s from the sweep start. Read
+  # as-is, every pose lands ~0.11 s late against the IMU and the ground truth:
+  # a constant shift of the LO poses minimizes the prism ATE at -0.08..-0.17 s
+  # on 15 sequences (median -0.11 s, about half the ATE gone). This moves the
+  # LiDAR stamps back by that median. It applies to the .bag files only:
+  # rawlogs whose point times were already centered lag ~0.06 s instead.
+  : "${MOLA_LIDAR_TIME_OFFSET:=-0.110}"
+  export MOLA_LIDAR_TIME_OFFSET
+
   if [ "$MOLA_LO_MODE" = "gui" ]; then
     : "${MOLA_CAMERA_TOPIC:=/left/image_raw}"
     : "${MOLA_USE_FIXED_CAMERA_POSE:=1}"

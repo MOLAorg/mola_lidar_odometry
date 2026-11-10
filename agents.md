@@ -158,6 +158,10 @@ Check: `grep -rn MOLA_NEW_VAR` over both repos must hit every place above.
   better than without it. The ground truth is a Leica prism position: score
   after moving the estimate to the prism, (0.2937, -0.0123, 0.2731) in
   base_link.
+  `MOLA_LIDAR_TIME_OFFSET=-0.110` moves the LiDAR stamps (published at the
+  end of each sweep) back to the sweep they describe. The knob is the ROS 1
+  bag reader's per-sensor `time_offset` (rosbag1 launch and the CLI's rosbag1
+  input); not available for ROS 2 bags or live input.
 - **vbr** (Vision Benchmark in Rome) takes a sequence directory (preferring a
   merged `*_lio.bag`, else the upstream `<seq>_NN.bag` chunks) or bag files.
   No `/tf` in the bags: every pose is fixed from `vbr_calib.yaml`, identical

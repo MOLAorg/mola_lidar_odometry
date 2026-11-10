@@ -424,6 +424,11 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
         - ``LIDAR_POSE_X``, ``LIDAR_POSE_Y``, ``LIDAR_POSE_Z`` (in meters).
         - ``LIDAR_POSE_YAW``, ``LIDAR_POSE_PITCH``, ``LIDAR_POSE_ROLL`` (in degrees).
 
+    - ``MOLA_LIDAR_TIME_OFFSET`` (Default: ``0.0``): A constant correction, in seconds, added to
+      the LiDAR stamps, e.g. for a driver that stamps each cloud at the end of its sweep.
+      ROS 1 bags only (rosbag1 launch and ``mola-lidar-odometry-cli`` with a ``.bag``); not
+      available for ROS 2 bags or live input.
+
     - ``MOLA_GNSS_TOPIC`` (Default: ``'/gps'``): The ``sensor_msgs/NavSatFix`` topic with GNSS data (optional).
     
     - ``MOLA_USE_FIXED_GNSS_POSE`` (Default: ``false``): If false, sensor pose will be retrieved from ``/tf``. You can also set it to true and then the sensor pose will be given by these env. variables:

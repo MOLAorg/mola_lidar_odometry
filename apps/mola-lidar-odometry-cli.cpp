@@ -602,7 +602,8 @@ std::vector<std::string> lidar_sensor_labels(const std::string & labels)
   return out;
 }
 
-std::string lidar_sensor_entries(const std::string & labels)
+// withTimeOffset: only the ROS 1 bag reader supports a per-sensor time_offset.
+std::string lidar_sensor_entries(const std::string & labels, bool withTimeOffset = false)
 {
   std::string s;
   for (const auto & p : lidar_sensor_labels(labels)) {
@@ -616,6 +617,9 @@ std::string lidar_sensor_entries(const std::string & labels)
       "${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} "
       "${LIDAR_POSE_ROLL|0}\"  # 'x y z yaw_deg pitch_deg roll_deg'";
     s += "\n          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}";
+    if (withTimeOffset) {
+      s += "\n          time_offset: ${MOLA_LIDAR_TIME_OFFSET|0.0}";
+    }
   }
   return s;
 }
@@ -821,7 +825,7 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
           is_optional: true
 )"""",
     bagsYaml.c_str(), cli.arg_baseLinkName.getValue().c_str(),
-    lidar_sensor_entries(cli.arg_lidarLabel.getValue()).c_str(),
+    lidar_sensor_entries(cli.arg_lidarLabel.getValue(), true).c_str(),
     cli.arg_imuLabel.getValue().c_str())));
 
   o->initialize(cfg);
