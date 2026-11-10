@@ -292,7 +292,7 @@ std::optional<mp2p_icp::metric_map_t> LidarOdometry::preprocessKeyframeForRebuil
     if (
       y.has("deskew_twist") && y["deskew_twist"].isSequence() &&
       y["deskew_twist"].asSequence().size() == 6) {
-      const auto & tw = y["deskew_twist"].asSequence();
+      const auto tw = y["deskew_twist"].asSequence();
       for (int i = 0; i < 6; i++) {
         twist[i] = tw.at(i).as<double>();
       }
