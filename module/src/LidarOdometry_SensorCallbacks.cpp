@@ -723,7 +723,8 @@ void LidarOdometry::consumePendingImu(const double upToTime)
     }
 
     // Below, the gyroscope bias is removed if a bias source knows it:
-    const auto correctedPtr = imuBiasCorrected(imuPtr);
+    mrpt::math::TVector3D accBias;
+    const auto correctedPtr = imuBiasCorrected(imuPtr, &accBias);
     const auto & imu = *correctedPtr;
 
     // 2) Precise scan de-skewing is done via Generator, which in turns passes the IMU data to the
@@ -732,12 +733,34 @@ void LidarOdometry::consumePendingImu(const double upToTime)
     //    out in updatePipelineDynamicVariables()
     mp2p_icp_filters::apply_generators(state_.obs_generators, imu, dummy_map);
 
-    // 3) Gravity estimation for ICP verticality correction:
+    // 3) Specific forces, to check the plausibility of predictions:
+    if (
+      imu.has(mrpt::obs::IMU_X_ACC) && imu.has(mrpt::obs::IMU_Y_ACC) &&
+      imu.has(mrpt::obs::IMU_Z_ACC)) {
+      const double t = mrpt::Clock::toDouble(imu.timestamp);
+      auto & buf = state_.recent_specific_force;
+      if (buf.empty() || t > buf.back().stamp) {
+        const mrpt::math::TVector3D f(
+          imu.get(mrpt::obs::IMU_X_ACC), imu.get(mrpt::obs::IMU_Y_ACC),
+          imu.get(mrpt::obs::IMU_Z_ACC));
+        MethodState::SpecificForce sf;
+        sf.stamp = t;
+        sf.f = imu.sensorPose.rotateVector(f);
+        sf.acc_bias = imu.sensorPose.rotateVector(accBias);
+        buf.push_back(sf);
+        constexpr double MAX_AGE = 2.0;  // [s]
+        while (buf.front().stamp < t - MAX_AGE) {
+          buf.pop_front();
+        }
+      }
+    }
+
+    // 4) Gravity estimation for ICP verticality correction:
     if (params_.imu_gravity_correction.enabled) {
       state_.gravity_estimator.add(imu, params_.imu_gravity_correction.averaging_samples);
 
 #if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
-      // 3b) Preintegrate for the map-frame gravity estimator. Unlike the
+      // 4b) Preintegrate for the map-frame gravity estimator. Unlike the
       //     accelerometer average above, this consumes EVERY sample and does not
       //     require the platform to be quasi-static.
       if (params_.imu_gravity_correction.map_gravity.enabled) {
@@ -750,13 +773,19 @@ void LidarOdometry::consumePendingImu(const double upToTime)
 }
 
 mrpt::obs::CObservationIMU::ConstPtr LidarOdometry::imuBiasCorrected(
-  const mrpt::obs::CObservationIMU::ConstPtr & imu)
+  const mrpt::obs::CObservationIMU::ConstPtr & imu, mrpt::math::TVector3D * accBias)
 {
+  if (accBias) {
+    *accBias = {0, 0, 0};
+  }
 #if defined(MOLA_LO_HAS_IMU_BIAS_SOURCE)
   if (imu_bias_sources_.empty()) {
     return imu;
   }
   auto [out, bias] = remove_imu_gyro_bias(imu, imu_bias_sources_);
+  if (bias && accBias) {
+    *accBias = bias->acc;
+  }
   if (bias && !imu_bias_first_use_logged_) {
     imu_bias_first_use_logged_ = true;
     MRPT_LOG_INFO_STREAM(

@@ -143,6 +143,12 @@ void LidarOdometry::shutdownCleanup()
         state_.registration_icp_rejected, pctRejected);
     }
 
+    if (state_.motion_model_implausible > 0 || state_.stall_recoveries > 0) {
+      MRPT_LOG_WARN_FMT(
+        "Run totals: implausible_predictions=%zu stall_recoveries=%zu",
+        state_.motion_model_implausible, state_.stall_recoveries);
+    }
+
     if (const auto nInvalid = invalid_input_count_.load(); nInvalid > 0) {
       MRPT_LOG_WARN_FMT("Run totals: %zu observations dropped as invalid input", nInvalid);
     }

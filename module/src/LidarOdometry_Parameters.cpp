@@ -122,6 +122,16 @@ void LidarOdometry::Parameters::AdaptiveThreshold::initialize(const Yaml & cfg)
       "adaptive_threshold: recover_growth_factor (%.3f) must be > 1.0", recover_growth_factor));
 }
 
+void LidarOdometry::Parameters::StallRecovery::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(enabled, bool);
+  YAML_LOAD_OPT(after_n_scans, uint32_t);
+
+  ASSERTMSG_(
+    after_n_scans >= 1,
+    mrpt::format("stall_recovery: after_n_scans (%u) must be >= 1", after_n_scans));
+}
+
 void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
 {
   YAML_LOAD_OPT(map_update_decimation, int);

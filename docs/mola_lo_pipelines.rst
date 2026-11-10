@@ -772,6 +772,21 @@ The adaptive threshold controls the ICP matching window (sigma), following the a
   per bad frame during recovery.
 
 
+Prediction plausibility and stall recovery
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- ``MOLA_MOTION_MODEL_MAX_EXTRA_ACC`` (Default: ``10.0`` [m/s^2]): Between two scans, the IMU accelerations, rotated
+  with the odometry attitude, without gravity and without the accelerometer bias of an IMU bias source, give the
+  velocity change of the vehicle. If the speed of the state estimator prediction changes by more than that, plus this
+  margin times the interval, the prediction is not used (ICP starts from the last pose) and the state estimator is
+  reset. Not checked during the first second after a start or reset. Needs an IMU; ``0`` disables it.
+
+- ``MOLA_STALL_RECOVERY`` (Default: ``true``): If ICP fails and there is no usable prediction, the pose cannot move,
+  and no later scan can register against the map either. After ``MOLA_STALL_RECOVERY_AFTER_N_SCANS`` (Default:
+  ``5``) such consecutive scans, the local map restarts at the last pose and the state estimator is reset. The
+  trajectory is kept. Never applied to a loaded map, or with local map updates disabled.
+
+
 Local map update
 ^^^^^^^^^^^^^^^^^^^^^^
 
