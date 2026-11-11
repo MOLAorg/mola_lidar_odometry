@@ -68,6 +68,7 @@
 #include <mola_lidar_odometry/KeyframeAttachments.h>
 #include <mola_lidar_odometry/KeyframeDecider.h>
 #include <mola_lidar_odometry/MapFrameRelevel.h>
+#include <mola_lidar_odometry/PointTimeOutlierFilter.h>
 
 /** Feature macro: the one-off map-frame gauge change is available.
  *
@@ -341,6 +342,12 @@ public:
     };
 
     MultipleLidarOptions multiple_lidars;
+
+    /** Points whose per-point time is far outside the usual range of their
+     *  sensor (e.g. after a jump of the LiDAR clock) are removed from each
+     *  observation, before its times are adjusted (see PointTimeOutlierFilter).
+     *  YAML block `point_time_outliers`, optional. */
+    PointTimeOutlierFilter::Parameters point_time_outliers;
 
     /** Keyframe-creation policy for the LOCAL METRIC MAP. The distance
          * thresholds, the occupancy count and the temporal window all come
@@ -1748,6 +1755,12 @@ private:
     size_t registration_gate_rejected = 0;
     size_t motion_model_implausible = 0;
     size_t stall_recoveries = 0;
+    /// Scans with per-point time outliers, and points removed for that:
+    size_t point_time_outlier_scans = 0;
+    size_t point_time_outlier_points = 0;
+
+    /// One per LiDAR sensor label (see Parameters::point_time_outliers).
+    std::map<std::string, PointTimeOutlierFilter> point_time_filters;
 
     // Automatic estimation of the observation bounding-radius (measured from
     // base_link, not from the sensor; see ESTIMATED_OBSERVATION_RADIUS docs):
@@ -2206,6 +2219,9 @@ private:
     mp2p_icp_filters::FilterPipeline final_pass;
     mp2p_icp_filters::GeneratorSet local_map_generators;
     mp2p_icp_filters::FilterPipeline obs2map_merge;
+    /// Copies of the scan thread filters (one per LiDAR sensor label), taken
+    /// at each rebuild: old keyframes are checked against them, not learned.
+    std::map<std::string, PointTimeOutlierFilter> point_time_filters;
   };
   std::unique_ptr<RebuildPipelines> rebuild_pipelines_;
 
@@ -2653,6 +2669,15 @@ private:
    *  has them. Used to bring the clouds of several LiDARs to a common
    *  reference time before merging them. */
   static void shiftPointTimes(mp2p_icp::metric_map_t & m, double dt);
+
+  /** Applies the per-point time outlier filter of the observation's sensor
+   *  (created on first use in state_.point_time_filters, which learns from it)
+   *  to the point layers of `m`, the points of that observation alone. */
+  PointTimeOutlierFilter::Result rejectPointTimeOutliers(
+    const mrpt::obs::CObservation & o, mp2p_icp::metric_map_t & m);
+
+  /// The point cloud layers of `m`.
+  static std::vector<mrpt::maps::CPointsMap *> pointCloudLayers(mp2p_icp::metric_map_t & m);
 
   mrpt::obs::CSensoryFrame collectRawObservations(const mrpt::obs::CObservation::ConstPtr & obs);
 

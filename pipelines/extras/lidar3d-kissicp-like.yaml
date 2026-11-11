@@ -19,6 +19,11 @@ params:
   # Can be overridden with cli flag --lidar-sensor-label
   lidar_sensor_labels: ["${MOLA_LIDAR_NAME|lidar}", "/ouster/points"]
 
+  # Per-point time outliers (see blocks/inputs.yaml):
+  point_time_outliers:
+    enabled: ${MOLA_POINT_TIME_OUTLIERS|true}
+    margin_ratio: ${MOLA_POINT_TIME_OUTLIERS_MARGIN_RATIO|0.5}
+
   # Optionally, drop lidar data too close in time:
   min_time_between_scans: 0 # 0.2  # [seconds]
   # Whether a scan arriving while the worker is still busy replaces the one

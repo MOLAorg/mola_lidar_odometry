@@ -143,6 +143,12 @@ void LidarOdometry::shutdownCleanup()
         state_.registration_icp_rejected, pctRejected);
     }
 
+    if (state_.point_time_outlier_scans > 0) {
+      MRPT_LOG_WARN_FMT(
+        "Run totals: point_time_outliers: %zu scans, %zu points dropped",
+        state_.point_time_outlier_scans, state_.point_time_outlier_points);
+    }
+
     if (state_.motion_model_implausible > 0 || state_.stall_recoveries > 0) {
       MRPT_LOG_WARN_FMT(
         "Run totals: implausible_predictions=%zu stall_recoveries=%zu",

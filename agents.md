@@ -721,6 +721,39 @@ grew to 15 m/s under it), and comparing with the speed of the last registered
 poses instead of the previous prediction (registration jitter on flat surfaces
 flagged correct predictions).
 
+## Per-point time outliers (`point_time_outliers`, `PointTimeOutlierFilter`)
+
+Seen on an Ouster OS0-32 left in `TIME_FROM_SYNC_PULSE_IN` with nothing wired to that
+input: spurious edges step the sensor clock by whole seconds inside a scan, so some
+columns get `t` of up to 4 s. `MiddleIsZero` then moves the scan time (and the pose
+stamp) ~1.5 s into the future, the smoother takes it as its chain tail and drops the next
+real readings as non-monotonic, its prediction runs away and the plausibility guard
+resets it; in a map-less (online geo-reference) run, {map} came back 222 m off.
+
+`observationFromRawSensor()` runs one `PointTimeOutlierFilter` per sensor label on each
+observation right after its generators: before the multi-LiDAR time shift and the
+timestamp adjustment (the user prefilter runs after the adjustment: too late). Usual
+range: medians of the per-scan min and max `t` of the last `window_length` (50) scans, as
+given, so a minority of bad scans does not move it. Margin: the largest of `margin_ratio`
+(0.5) of its width, `min_margin` (10 ms) and the sensor period (median interval between
+scan stamps), so sensors that drop no-return points (a narrow sector, then a full sweep)
+never lose good points. Points out of it are removed with all their fields (in-place
+compaction); nothing before `min_window_length` (10) scans. The local map rebuild checks
+old keyframes against a copy of the scan thread filters, taken under `state_mtx_` at each
+rebuild, without learning (`check()`), and logs at DEBUG. On by default
+(`MOLA_POINT_TIME_OUTLIERS`); Run totals report filtered scans and points.
+
+Measured (offline CLI, smoother with GNSS and wheel odometry, 1125 s Husky bag with 27
+bad scans): off, the same future chain tail as the live run, 9 non-monotonic readings,
+1 reset and a {map} 121 m off before it; on, 26 scans filtered, none of those, 0.84 m
+median error to RTK fixed. No rejection in 27k scans of healthy data: VBR (OS0-128, OS1-64), Newer
+College (OS1-64), Oxford Spires (Hesai QT64), GrandTour (Hesai XT32), BotanicGarden
+(VLP-16, Livox Avia), ConSLAM (VLP-16). Cost: ~45 us per 32k-point scan, ~155 us per
+131k-point scan (an equivalent `FilterByExpression` prefilter: ~530 us per 32k points).
+Not covered: scans whose times are compressed but within the usual range, the first
+10 scans after a start or reset, and the raw observations stored in keyframes (simplemap,
+central map), which keep their original times.
+
 ## `ESTIMATED_OBSERVATION_RADIUS` is fed back through the range filter
 
 The radius is an EMA updated from the first non-empty point layer of the
