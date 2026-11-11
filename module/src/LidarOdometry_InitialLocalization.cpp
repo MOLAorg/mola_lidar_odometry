@@ -121,7 +121,7 @@ void LidarOdometry::handleInitialLocalizationDoInitFromPose(
 #endif
   if (resetStateEstimator) {
     ASSERT_(state_.navstate_fuse);
-    state_.navstate_fuse->reset();  // needed after a re-localization to forget the past
+    resetNavState();  // needed after a re-localization to forget the past
 
     // Fake an evolution to be able to have an initial velocity estimation:
     // Use a tiny time step to let the filter remain with a large uncertainty about twist:

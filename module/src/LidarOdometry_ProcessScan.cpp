@@ -404,7 +404,7 @@ void LidarOdometry::applyMapFrameRelevel()
       MRPT_LOG_WARN(
         "The state estimator cannot re-express its state in a new frame; "
         "resetting it instead. Expect one scan without a motion model.");
-      state_.navstate_fuse->reset();
+      resetNavState();
       state_.last_motion_model_output.reset();
     }
   }
@@ -2292,6 +2292,20 @@ void LidarOdometry::resetNavStateMotion()
 #endif
 }
 
+void LidarOdometry::resetNavState()
+{
+  state_.navstate_fuse->reset();
+  restartPlausibilityCheck();
+}
+
+void LidarOdometry::restartPlausibilityCheck()
+{
+  // A fresh estimator settles again, and its first prediction has no previous
+  // one to be compared with:
+  state_.last_motion_model_speed.reset();
+  state_.state_estimator_start_stamp.reset();
+}
+
 void LidarOdometry::recoverFromStall()
 {
   MRPT_LOG_WARN_FMT(
@@ -2312,10 +2326,9 @@ void LidarOdometry::recoverFromStall()
   state_.kf_decider_local_map.reset();
 
   // The estimator may hold a diverged state. The trajectory goes on in the
-  // same frame, so the estimator keeps its frames:
+  // same frame, so an estimator that can keep its frames does:
   resetNavStateMotion();
-  state_.last_motion_model_speed.reset();
-  state_.state_estimator_start_stamp.reset();
+  restartPlausibilityCheck();
 
   // The matching threshold restarts as at the beginning of a run:
   state_.adapt_thres_sigma = 0;

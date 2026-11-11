@@ -100,7 +100,7 @@ void LidarOdometry::relocalize_from_gnss_impl()
   // at the default initial pose): forget them, so it converges from GNSS/IMU
   // alone, not from our own guess.
   if (state_.navstate_fuse) {
-    state_.navstate_fuse->reset();
+    resetNavState();
   }
 
   // Reset adaptive sigma to initial value:
