@@ -14,6 +14,19 @@ params:
     lidar_count: ${MOLA_LIDAR_COUNT|1} # useful only if using several lidar_sensor_labels or regex's.
     max_time_offset: ${MOLA_LIDAR_MAX_TIME_OFFSET|0.1} # [s]
 
+  # Per-point time outliers: points whose time ("t" field) is far outside the
+  # usual [min, max] of the recent scans of their sensor (median of the last
+  # window_length scans, widened by the largest of margin_ratio of its width,
+  # min_margin and the sensor period) are removed before the time adjustment,
+  # e.g. columns stamped after a jump of the LiDAR clock, which would otherwise
+  # move the scan time.
+  point_time_outliers:
+    enabled: ${MOLA_POINT_TIME_OUTLIERS|true}
+    window_length: 50 # [scans]
+    min_window_length: 10 # [scans] nothing removed before this
+    margin_ratio: ${MOLA_POINT_TIME_OUTLIERS_MARGIN_RATIO|0.5}
+    min_margin: 0.01 # [s]
+
   # These sensor labels will be handled as IMU observations:
   imu_sensor_label: "${MOLA_IMU_NAME|imu}"
 
