@@ -147,6 +147,7 @@ mrpt::poses::CPose3D GravityLeveler::add_pose(double t, const mrpt::poses::CPose
     }
     if (ref && t > ref->t) {
       ps.v = (ps.p - ref->p) * (1.0 / (t - ref->t));
+      ps.v_t = 0.5 * (t + ref->t);
     }
     poses_.push_back(ps);
     while (poses_.size() > 2 && poses_.front().t < t - keep) {
@@ -186,10 +187,12 @@ mrpt::poses::CPose3D GravityLeveler::add_pose(double t, const mrpt::poses::CPose
   }
   const mrpt::poses::CPose3D out(R_att, as_vector(p));
 
-  applied_tilt_ = tau;
-  last_in_ = pose;
-  last_out_ = out;
+  // A pose older than the last one is leveled, but does not move the state
+  // the next increments and interpolations start from:
   if (is_new) {
+    applied_tilt_ = tau;
+    last_in_ = pose;
+    last_out_ = out;
     last_t_ = t;
   }
   return out;
@@ -210,16 +213,15 @@ void GravityLeveler::update_filter(double t)
       break;
     }
   }
-  if (!first || now.t - first->t < 0.5 * params_.window) {
+  if (!first || now.v_t - first->v_t < 0.5 * params_.window) {
     return;
   }
-  const mrpt::math::TVector3D a_mean = (*now.v - *first->v) * (1.0 / (now.t - first->t));
+  const mrpt::math::TVector3D a_mean = (*now.v - *first->v) * (1.0 / (now.v_t - first->v_t));
 
-  // Specific force over the same interval: velocities lag their stamps by
-  // half the span, so the IMU window is shifted alike.
-  const double half = 0.5 * params_.velocity_span;
-  const double ta = first->t - half;
-  const double tb = now.t - half;
+  // Specific force over the same interval, between the midpoints of the two
+  // velocities' supports:
+  const double ta = first->v_t;
+  const double tb = now.v_t;
   mrpt::math::TVector3D f_mean(0, 0, 0);
   mrpt::math::CMatrixDouble33 R_mean = mrpt::math::CMatrixDouble33::Zero();
   std::size_t n = 0;

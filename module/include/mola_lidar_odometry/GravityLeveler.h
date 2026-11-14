@@ -126,6 +126,7 @@ private:
     double t = 0;
     mrpt::math::TPoint3D p;
     std::optional<mrpt::math::TVector3D> v;
+    double v_t = 0;  // midpoint of the interval the velocity spans
   };
 
   struct ImuSample

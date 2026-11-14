@@ -171,3 +171,30 @@ TEST(GravityLeveler, NoImuIsPassThrough)
     EXPECT_NEAR((r.out[i].asVectorVal() - r.in[i].asVectorVal()).norm(), 0.0, 1e-9);
   }
 }
+
+TEST(GravityLeveler, StalePoseDoesNotMoveState)
+{
+  // A pose not newer than the previous one is leveled, but the outputs that
+  // follow must be those of a run without it.
+  const auto tilt = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(5.0), 0.0);
+  mola::GravityLeveler a;
+  mola::GravityLeveler b;
+  std::size_t k_imu = 0;
+  for (std::size_t k = 0; k <= 600; k++) {
+    const double t = static_cast<double>(k) / POSE_RATE;
+    while (static_cast<double>(k_imu) / IMU_RATE <= t) {
+      const double ti = static_cast<double>(k_imu) / IMU_RATE;
+      a.add_imu(ti, true_specific_force(ti));
+      b.add_imu(ti, true_specific_force(ti));
+      k_imu++;
+    }
+    const auto p = tilt + true_pose(t);
+    const auto pa = a.add_pose(t, p);
+    const auto pb = b.add_pose(t, p);
+    EXPECT_NEAR((pa.asVectorVal() - pb.asVectorVal()).norm(), 0.0, 1e-9);
+    if (k == 300) {
+      // Stale pose, only to b:
+      (void)b.add_pose(t - 1.0, tilt + true_pose(t - 1.0));
+    }
+  }
+}
