@@ -64,6 +64,13 @@ localmap_generator:
           # See mola::KeyframePointCloudMap's docs before enabling it.
           max_plane_deviation_for_cov: ${MOLA_LOCALMAP_MAX_PLANE_DEV_FOR_COV|0}
           plane_regularization_lambda: ${MOLA_LOCALMAP_PLANE_REG_LAMBDA|0.001}
+          # mola::IncrementalPointCloud only: optional learned per-point
+          # covariances (model file trained offline) for both sides of each
+          # cov-to-cov pairing, replacing the plane regularization above.
+          # Empty (default) disables it.
+          learned_cov_model_file: "${MOLA_LOCALMAP_LEARNED_COV_MODEL|}"
+          # Global factor on the learned variances (1: the model's own scale).
+          learned_cov_variance_scale: ${MOLA_LOCALMAP_LEARNED_COV_VARIANCE_SCALE|1.0}
           # View-direction filter of cov-to-cov pairs (see mola::ViewDirectionFilter):
           # rejects pairs of points seen from opposite sides of a thin surface.
           # Needs the view_x/y/z fields the observation generator adds.
