@@ -42,7 +42,7 @@ namespace mola
  *    acceleration over the same interval. Normalized, its horizontal part is
  *    the frame tilt `tau` (2 DoF, small angles), plus the effect of any
  *    body-fixed accelerometer error.
- *  - Readings beyond `max_tilt` are ignored: a frame tilt is small, and a
+ *  - Readings beyond `max_tilt`, or with gravity not pointing up, are ignored: a frame tilt is small, and a
  *    large reading means the trajectory's attitude itself is failing.
  *  - A Kalman filter with state `[tau (2), b (3)]`: `tau` a random walk with
  *    `tilt_random_walk` deg/sqrt(s), `b` a constant body-frame accelerometer
