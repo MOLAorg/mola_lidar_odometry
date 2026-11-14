@@ -1206,6 +1206,18 @@ The applied rotation is logged once at INFO and written to the local map's
 `metadata` and to every later keyframe's metadata observation, since a run with
 a re-leveled map frame is not pose-comparable with one without it.
 
+## Gravity-leveled fused output (`--output-fused-gravity-leveled`)
+
+`mola::GravityLeveler` (`GravityLeveler.h`) levels an output trajectory
+causally, without touching the odometry, its map or the estimator: a Kalman
+filter on [frame tilt (2), body-frame accelerometer error (3)], read every 1 s
+from the trailing 10 s mean specific force in the trajectory frame minus the
+trajectory's own acceleration; the tilt beyond a deadband (2 deg) is removed by
+rotating each increment and attitude. Only the CLI uses it, opt-in, on the
+`--output-tum-path-fused` path (`-deadband`, `-random-walk` options). The
+deadband is what keeps it inert where the odometry is already level: without
+it the accelerometer's own error (0.3-1.4 deg) is integrated along the path.
+
 ## Reproducible odometry evaluation
 
 Trajectory-to-trajectory comparisons are only meaningful under all of:
