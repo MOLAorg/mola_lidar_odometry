@@ -198,3 +198,27 @@ TEST(GravityLeveler, StalePoseDoesNotMoveState)
     }
   }
 }
+
+TEST(GravityLeveler, SparsePosesDoNotFakeTilt)
+{
+  // A level platform accelerating along x, with poses 9 s apart: the
+  // velocities then reach back beyond the IMU history, and a reading over
+  // mismatched intervals would show up as a tilt.
+  mola::GravityLeveler::Parameters p;
+  p.deadband = 0;
+  mola::GravityLeveler lev(p);
+  const auto x = [](double t) { return t * t * t / 60.0; };
+  std::size_t k_imu = 0;
+  for (std::size_t k = 0; k <= 6; k++) {
+    const double t = 9.0 * static_cast<double>(k);
+    while (static_cast<double>(k_imu) / IMU_RATE <= t) {
+      const double ti = static_cast<double>(k_imu) / IMU_RATE;
+      lev.add_imu(ti, mrpt::math::TVector3D(ti / 10.0, 0, G));
+      k_imu++;
+    }
+    (void)lev.add_pose(t, mrpt::poses::CPose3D(x(t), 0, 0, 0, 0, 0));
+  }
+  if (lev.tilt()) {
+    EXPECT_LT(mrpt::RAD2DEG(std::hypot(lev.tilt()->x, lev.tilt()->y)), 0.1);
+  }
+}

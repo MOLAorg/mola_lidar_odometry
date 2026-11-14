@@ -222,6 +222,11 @@ void GravityLeveler::update_filter(double t)
   // velocities' supports:
   const double ta = first->v_t;
   const double tb = now.v_t;
+  // Sparse poses may reach back beyond the IMU history kept: skip, since the
+  // two means would cover different intervals.
+  if (window_imu_.empty() || window_imu_.front().t > ta) {
+    return;
+  }
   mrpt::math::TVector3D f_mean(0, 0, 0);
   mrpt::math::CMatrixDouble33 R_mean = mrpt::math::CMatrixDouble33::Zero();
   std::size_t n = 0;
