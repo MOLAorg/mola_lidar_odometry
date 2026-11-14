@@ -254,16 +254,16 @@ void GravityLeveler::update_filter(double t)
   R_mean *= 1.0 / total_w;
 
   const auto g = f_mean - a_mean;
-  if (std::abs(g.z) < 0.5 * params_.gravity) {
+  // Not a small frame tilt (or gravity not pointing up): neither a reading
+  // nor a reason to restart.
+  if (
+    g.z < 0.5 * params_.gravity ||
+    std::hypot(g.x, g.y) > g.z * std::tan(mrpt::DEG2RAD(params_.max_tilt))) {
+    stats_.implausible_readings++;
     return;
   }
   Eigen::Vector2d z;
   z << g.x / g.z, g.y / g.z;
-  // Not a small frame tilt: neither a reading nor a reason to restart.
-  if (z.norm() > std::tan(mrpt::DEG2RAD(params_.max_tilt))) {
-    stats_.implausible_readings++;
-    return;
-  }
   stats_.tilt_readings++;
 
   const double q = mrpt::DEG2RAD(params_.tilt_random_walk);

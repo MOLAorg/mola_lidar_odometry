@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <vector>
 
 namespace
@@ -293,4 +294,57 @@ TEST(GravityLeveler, ImplausibleTiltIsIgnored)
   EXPECT_FALSE(lev.tilt().has_value());
   EXPECT_GT(lev.stats().implausible_readings, 0U);
   EXPECT_EQ(lev.stats().restarts, 0U);
+}
+
+TEST(GravityLeveler, InvertedGravityIsIgnored)
+{
+  // An attitude almost upside down gives a small tilt ratio with gravity
+  // pointing down: not a reading either.
+  const auto mis = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, 0.0, mrpt::DEG2RAD(179.0));
+  mola::GravityLeveler lev;
+  const auto r = run(200.0, mrpt::poses::CPose3D(), mis, true, {}, &lev);
+  for (size_t i = 0; i < r.in.size(); i++) {
+    EXPECT_NEAR((r.out[i].asVectorVal() - r.in[i].asVectorVal()).norm(), 0.0, 1e-9);
+  }
+  EXPECT_FALSE(lev.tilt().has_value());
+  EXPECT_GT(lev.stats().implausible_readings, 0U);
+}
+
+TEST(GravityLeveler, ImplausibleReadingsAfterStartKeepTheEstimate)
+{
+  // A running filter (3 deg frame tilt) meets 100 s of a trajectory attitude
+  // 20 deg off gravity, then good readings again.
+  const auto tilt = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(3.0), 0.0);
+  const auto mis = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(20.0), 0.0);
+  mola::GravityLeveler lev;
+  std::size_t k_imu = 0;
+  std::optional<mrpt::math::TVector2D> tilt_before;
+  mola::GravityLeveler::Stats stats_before;
+  for (std::size_t k = 0; k <= static_cast<std::size_t>(300.0 * POSE_RATE); k++) {
+    const double t = static_cast<double>(k) / POSE_RATE;
+    while (static_cast<double>(k_imu) / IMU_RATE <= t) {
+      const double ti = static_cast<double>(k_imu) / IMU_RATE;
+      const bool bad = ti >= 100.0 && ti < 200.0;
+      const auto f = true_specific_force(ti);
+      lev.add_imu(ti, bad ? mis.rotateVector(f) : f);
+      k_imu++;
+    }
+    lev.add_pose(t, tilt + true_pose(t));
+    // From one window after the bad span starts, every reading is implausible:
+    if (std::abs(t - 115.0) < 1e-9) {
+      ASSERT_TRUE(lev.tilt().has_value());
+      tilt_before = lev.tilt();
+      stats_before = lev.stats();
+    }
+    if (std::abs(t - 200.0) < 1e-9) {
+      EXPECT_EQ(lev.tilt()->x, tilt_before->x);
+      EXPECT_EQ(lev.tilt()->y, tilt_before->y);
+      EXPECT_EQ(lev.stats().gated_readings, stats_before.gated_readings);
+      EXPECT_EQ(lev.stats().restarts, stats_before.restarts);
+      EXPECT_GT(lev.stats().implausible_readings, stats_before.implausible_readings + 50);
+    }
+  }
+  EXPECT_EQ(lev.stats().restarts, 0U);
+  ASSERT_TRUE(lev.tilt().has_value());
+  EXPECT_NEAR(mrpt::RAD2DEG(lev.tilt()->norm()), 3.0, 0.5);
 }
