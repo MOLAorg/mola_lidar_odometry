@@ -16,11 +16,13 @@
  */
 #pragma once
 
+#include <mrpt/math/CMatrixFixed.h>
 #include <mrpt/math/TPoint2D.h>
 #include <mrpt/math/TPoint3D.h>
 #include <mrpt/poses/CPose3D.h>
 
 #include <Eigen/Dense>
+#include <cstddef>
 #include <deque>
 #include <optional>
 
@@ -34,18 +36,20 @@ namespace mola
  *  into a vertical drift. This class estimates that tilt and rotates the
  *  trajectory increments to undo it:
  *
- *  - Measurement, every `epoch_period` seconds: the mean specific force over
- *    the trailing `window` seconds, rotated into the trajectory frame with the
- *    trajectory's own attitudes, minus the trajectory's own mean acceleration
- *    over the same window. Normalized, its horizontal part is the frame tilt
- *    `tau` (2 DoF, small angles), plus the effect of any body-fixed
- *    accelerometer error.
+ *  - Measurement, every `epoch_period` seconds: the mean specific force over a
+ *    trailing window, each reading rotated into the trajectory frame with the
+ *    trajectory's attitude at its own time, minus the trajectory's own mean
+ *    acceleration over the same interval. Normalized, its horizontal part is
+ *    the frame tilt `tau` (2 DoF, small angles), plus the effect of any
+ *    body-fixed accelerometer error.
  *  - A Kalman filter with state `[tau (2), b (3)]`: `tau` a random walk with
  *    `tilt_random_walk` deg/sqrt(s), `b` a constant body-frame accelerometer
- *    error (bias plus IMU misalignment). A body-fixed error turns with the
- *    platform and a frame tilt does not, which separates both while the
- *    platform turns. Readings that disagree with the prediction beyond a
- *    chi-squared gate are ignored.
+ *    error (bias plus IMU misalignment), observed through the mean attitude
+ *    over the window. A body-fixed error turns with the platform and a frame
+ *    tilt does not, which separates both while the platform turns. Readings
+ *    beyond a chi-squared gate are ignored; after
+ *    `max_consecutive_rejections` of them in a row the filter restarts from
+ *    the current reading, so a wrong state cannot lock itself in.
  *  - Output: the part of the estimated tilt beyond `deadband` degrees is
  *    removed by rotating every increment of the trajectory, and its attitude,
  *    by the small rotation that levels the frame. The deadband leaves alone a
@@ -76,21 +80,36 @@ public:
     /** Time span for the trajectory's own velocity [s] */
     double velocity_span = 1.0;
     /** Minimum number of IMU readings in a window to take a reading */
-    size_t min_readings_per_window = 10;
+    std::size_t min_readings_per_window = 10;
+    /** Consecutive gated readings after which the filter restarts */
+    std::size_t max_consecutive_rejections = 5;
     /** Standard gravity [m/s^2] */
     double gravity = 9.81;
   };
 
+  /** Counters, for diagnostics */
+  struct Stats
+  {
+    std::size_t imu_readings = 0;
+    std::size_t tilt_readings = 0;
+    std::size_t gated_readings = 0;
+    std::size_t restarts = 0;
+  };
+
   GravityLeveler() = default;
-  explicit GravityLeveler(const Parameters & p) : params_(p) {}
+  /** \throw std::exception on invalid parameters */
+  explicit GravityLeveler(const Parameters & p);
 
   const Parameters & parameters() const { return params_; }
+  const Stats & stats() const { return stats_; }
 
   /** Adds one accelerometer reading (specific force, in the vehicle frame) */
   void add_imu(double t, const mrpt::math::TVector3D & specific_force);
 
-  /** Adds the next pose of the trajectory (timestamps must increase) and
-   *  returns it leveled. IMU readings up to `t` must have been added before.
+  /** Adds the next pose of the trajectory and returns it leveled. IMU
+   *  readings up to `t` should have been added before. A pose not newer than
+   *  the previous one is leveled with the current correction but does not
+   *  update the filter.
    */
   mrpt::poses::CPose3D add_pose(double t, const mrpt::poses::CPose3D & pose);
 
@@ -106,16 +125,18 @@ private:
   {
     double t = 0;
     mrpt::math::TPoint3D p;
-    mrpt::math::TVector3D v;
+    std::optional<mrpt::math::TVector3D> v;
   };
 
   struct ImuSample
   {
     double t = 0;
-    mrpt::math::TVector3D f;
+    mrpt::math::TVector3D f;  // vehicle frame, then trajectory frame
+    mrpt::math::CMatrixDouble33 R;
   };
 
   Parameters params_;
+  Stats stats_;
 
   std::deque<ImuSample> pending_imu_;  // vehicle frame, after the last pose
   std::deque<ImuSample> window_imu_;   // trajectory frame
@@ -125,16 +146,19 @@ private:
   std::optional<double> next_epoch_;
   std::optional<double> last_epoch_;
   bool filter_started_ = false;
+  std::size_t consecutive_rejections_ = 0;
 
   Eigen::Matrix<double, 5, 1> x_ = Eigen::Matrix<double, 5, 1>::Zero();
   Eigen::Matrix<double, 5, 5> P_ = Eigen::Matrix<double, 5, 5>::Zero();
 
   mrpt::math::TVector2D applied_tilt_{0, 0};
 
+  std::optional<double> last_t_;
   std::optional<mrpt::poses::CPose3D> last_in_;
   std::optional<mrpt::poses::CPose3D> last_out_;
 
-  void update_filter(double t, const mrpt::poses::CPose3D & pose);
+  void update_filter(double t);
+  void reset_filter();
 };
 
 }  // namespace mola

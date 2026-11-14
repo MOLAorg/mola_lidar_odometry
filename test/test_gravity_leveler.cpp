@@ -54,21 +54,34 @@ struct RunResult
 // `frame_tilt`, and IMU readings rotated by `imu_misalignment`.
 RunResult run(
   double duration, const mrpt::poses::CPose3D & frame_tilt,
-  const mrpt::poses::CPose3D & imu_misalignment, bool with_imu)
+  const mrpt::poses::CPose3D & imu_misalignment, bool with_imu,
+  const mola::GravityLeveler::Parameters & params = {}, mola::GravityLeveler * out = nullptr)
 {
-  mola::GravityLeveler leveler;
+  mola::GravityLeveler local(params);
+  mola::GravityLeveler & leveler = out ? *out : local;
   RunResult r;
-  double t_imu = 0;
-  for (double t = 0; t <= duration; t += 1.0 / POSE_RATE) {
-    while (with_imu && t_imu <= t) {
-      leveler.add_imu(t_imu, imu_misalignment.rotateVector(true_specific_force(t_imu)));
-      t_imu += 1.0 / IMU_RATE;
+  // Exact timestamps (k / rate), as simulators and fixed-rate logs give them:
+  std::size_t k_imu = 0;
+  const auto n_poses = static_cast<std::size_t>(duration * POSE_RATE);
+  for (std::size_t k = 0; k <= n_poses; k++) {
+    const double t = static_cast<double>(k) / POSE_RATE;
+    while (with_imu && static_cast<double>(k_imu) / IMU_RATE <= t) {
+      const double ti = static_cast<double>(k_imu) / IMU_RATE;
+      leveler.add_imu(ti, imu_misalignment.rotateVector(true_specific_force(ti)));
+      k_imu++;
     }
     const auto p = frame_tilt + true_pose(t);
     r.in.push_back(p);
     r.out.push_back(leveler.add_pose(t, p));
   }
   return r;
+}
+
+// Angle between a pose's z axis and the vertical [deg]
+double tilt_of(const mrpt::poses::CPose3D & p)
+{
+  const auto z = p.rotateVector({0, 0, 1});
+  return mrpt::RAD2DEG(std::acos(std::min(1.0, z.z / z.norm())));
 }
 
 double height_range(const std::vector<mrpt::poses::CPose3D> & v, size_t from)
@@ -97,6 +110,43 @@ TEST(GravityLeveler, RemovesFrameTilt)
   EXPECT_GT(zin, 3.0);
   // Only the deadband (2 deg) is left: about 2 * R * tan(2 deg) = 1.4 m.
   EXPECT_LT(zout, 0.45 * zin);
+}
+
+TEST(GravityLeveler, LevelsAttitudeAndSeparatesImuError)
+{
+  // Tilted frame and a misaligned IMU, no deadband: the filter must attribute
+  // the frame tilt to the frame and the misalignment to the IMU (the platform
+  // turns), so the output attitude ends level.
+  const auto tilt =
+    mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(4.0), mrpt::DEG2RAD(-2.0));
+  const auto mis =
+    mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(0.6), mrpt::DEG2RAD(0.4));
+  mola::GravityLeveler::Parameters p;
+  p.deadband = 0;
+  mola::GravityLeveler lev(p);
+  const auto r = run(600.0, tilt, mis, true, p, &lev);
+
+  EXPECT_GT(tilt_of(r.in.back()), 4.0);
+  EXPECT_LT(tilt_of(r.out.back()), 0.3);
+  ASSERT_TRUE(lev.tilt().has_value());
+  EXPECT_NEAR(
+    mrpt::RAD2DEG(std::hypot(lev.tilt()->x, lev.tilt()->y)),
+    mrpt::RAD2DEG(std::acos(tilt.rotateVector({0, 0, 1}).z)), 0.3);
+  EXPECT_EQ(lev.stats().restarts, 0U);
+}
+
+TEST(GravityLeveler, MovingStartWithExactTimestamps)
+{
+  // A level frame, moving from the first pose on: no fake initial velocity
+  // may show up as acceleration, i.e. a tilt.
+  mola::GravityLeveler::Parameters p;
+  p.deadband = 0;
+  mola::GravityLeveler lev(p);
+  const auto r = run(300.0, mrpt::poses::CPose3D(), mrpt::poses::CPose3D(), true, p, &lev);
+  ASSERT_TRUE(lev.tilt().has_value());
+  EXPECT_LT(mrpt::RAD2DEG(std::hypot(lev.tilt()->x, lev.tilt()->y)), 0.2);
+  EXPECT_LT(height_range(r.out, 0), 0.5);
+  EXPECT_EQ(lev.stats().restarts, 0U);
 }
 
 TEST(GravityLeveler, LeavesLevelFrameAlone)

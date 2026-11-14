@@ -30,6 +30,7 @@
 #include <mola_yaml/yaml_helpers.h>
 #include <mp2p_icp/metricmap.h>
 #include <mrpt/core/Clock.h>
+#include <mrpt/core/bits_math.h>
 #include <mrpt/core/exceptions.h>
 #include <mrpt/core/get_env.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
@@ -51,6 +52,7 @@
 #include <mrpt/system/progress.h>
 #include <mrpt/system/string_utils.h>
 
+#include <cmath>
 #include <memory>
 
 #if defined(HAVE_MOLA_SE_SIMPLE)
@@ -363,21 +365,21 @@ struct Cli
       "(mola::GravityLeveler): a causal correction of the frame tilt that only changes what is "
       "written out, never the odometry or the estimator.");
 
-    arg_levelFusedDeadband.value = 2.0;
+    arg_levelFusedDeadband.value = mola::GravityLeveler::Parameters{}.deadband;
     arg_levelFusedDeadband.opt =
       cmd
         .add_option(
           "--output-fused-gravity-leveled-deadband", arg_levelFusedDeadband.value,
           "Tilt [deg] that --output-fused-gravity-leveled leaves uncorrected.")
-        ->option_text("2.0");
+        ->option_text(std::to_string(arg_levelFusedDeadband.value));
 
-    arg_levelFusedRandomWalk.value = 0.1;
+    arg_levelFusedRandomWalk.value = mola::GravityLeveler::Parameters{}.tilt_random_walk;
     arg_levelFusedRandomWalk.opt =
       cmd
         .add_option(
           "--output-fused-gravity-leveled-random-walk", arg_levelFusedRandomWalk.value,
           "Random walk of the frame tilt [deg/sqrt(s)] assumed by --output-fused-gravity-leveled.")
-        ->option_text("0.1");
+        ->option_text(std::to_string(arg_levelFusedRandomWalk.value));
 
     arg_outPathSmoothed.opt =
       cmd
@@ -1641,6 +1643,22 @@ int main_odometry(Cli & cli)
     const mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory = liodom->estimatedTrajectory();
 
     checkSaved(lastEstimatedTrajectory.saveToTextFile_TUM(fil), fil);
+  }
+
+  if (fusedLeveler) {
+    const auto & st = fusedLeveler->stats();
+    const auto tilt = fusedLeveler->tilt();
+    std::cout << "\nGravity leveling of the fused path: " << st.imu_readings << " IMU readings, "
+              << st.tilt_readings << " tilt readings, " << st.gated_readings << " gated, "
+              << st.restarts << " restarts";
+    if (tilt) {
+      std::cout << ", final tilt " << mrpt::RAD2DEG(std::hypot(tilt->x, tilt->y)) << " deg";
+    }
+    std::cout << "\n";
+    if (st.imu_readings == 0) {
+      std::cerr << "Warning: --output-fused-gravity-leveled received no accelerometer readings "
+                   "matching the IMU sensor label: the fused path was not leveled.\n";
+    }
   }
 
   if (outFusedPath) {
