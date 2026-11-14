@@ -2498,6 +2498,15 @@ mp2p_icp::metric_map_t::Ptr LidarOdometry::observationFromRawSensor(
       mp2p_icp_filters::apply_generators(state_.obs_generators, *o, *obsTrg);
     }
 
+    // Before any use of its per-point times (time adjustment, merging):
+    ProfilerEntry tlePto(profiler_, "onLidar.0.point_time_outliers");
+    const auto pto = rejectPointTimeOutliers(*o, *obsTrg);
+    tlePto.stop();
+    if (pto.rejected > 0) {
+      state_.point_time_outlier_scans++;
+      state_.point_time_outlier_points += pto.rejected;
+    }
+
     // for multiple LiDAR setups:
     if (obsTrg != observation.get()) {
       // Make per-point times relative to the first observation's stamp:
@@ -2519,6 +2528,42 @@ mp2p_icp::metric_map_t::Ptr LidarOdometry::observationFromRawSensor(
 
   tle0.stop();
   return observation;
+}
+
+PointTimeOutlierFilter::Result LidarOdometry::rejectPointTimeOutliers(
+  const mrpt::obs::CObservation & o, mp2p_icp::metric_map_t & m)
+{
+  if (!params_.point_time_outliers.enabled) {
+    return {};
+  }
+  auto it = state_.point_time_filters.find(o.sensorLabel);
+  if (it == state_.point_time_filters.end()) {
+    it = state_.point_time_filters
+           .emplace(o.sensorLabel, PointTimeOutlierFilter(params_.point_time_outliers))
+           .first;
+  }
+  const auto r = it->second.process(pointCloudLayers(m), mrpt::Clock::toDouble(o.timestamp));
+  if (r.rejected > 0 && r.accepted) {
+    MRPT_LOG_THROTTLE_WARN_FMT(
+      2.0,
+      "Point time outliers: dropped %zu of %zu points of a '%s' scan, whose per-point times "
+      "span [%.3f, %.3f] s while the accepted range is [%.3f, %.3f] s (a jump of the sensor "
+      "clock?)",
+      r.rejected, r.points, o.sensorLabel.c_str(), r.scan_min, r.scan_max, r.accepted->first,
+      r.accepted->second);
+  }
+  return r;
+}
+
+std::vector<mrpt::maps::CPointsMap *> LidarOdometry::pointCloudLayers(mp2p_icp::metric_map_t & m)
+{
+  std::vector<mrpt::maps::CPointsMap *> clouds;
+  for (auto & [name, layer] : m.layers) {
+    if (auto * pts = mp2p_icp::MapToPointsMap(*layer); pts != nullptr) {
+      clouds.push_back(pts);
+    }
+  }
+  return clouds;
 }
 
 void LidarOdometry::shiftPointTimes(mp2p_icp::metric_map_t & m, const double dt)

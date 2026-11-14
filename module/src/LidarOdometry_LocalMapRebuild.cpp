@@ -326,6 +326,15 @@ std::optional<mp2p_icp::metric_map_t> LidarOdometry::preprocessKeyframeForRebuil
   for (const auto & o : lidarObs) {
     mp2p_icp::metric_map_t thisObs;
     mp2p_icp_filters::apply_generators(p.obs_generators, *o, thisObs);
+    // Against what the scan thread learned, which is not changed:
+    if (const auto it = p.point_time_filters.find(o->sensorLabel);
+        it != p.point_time_filters.end()) {
+      if (const auto r = it->second.check(pointCloudLayers(thisObs)); r.rejected > 0) {
+        MRPT_LOG_DEBUG_FMT(
+          "Local map rebuild: dropped %zu point time outliers of a '%s' keyframe", r.rejected,
+          o->sensorLabel.c_str());
+      }
+    }
     shiftPointTimes(thisObs, mrpt::system::timeDifference(timeOfFirstObs, o->timestamp));
     out.merge_with(thisObs);
   }
@@ -366,6 +375,7 @@ bool LidarOdometry::rebuildLocalMap()
   bool reexpressInReference = true;
   bool earlyDeskew = false;
   std::map<std::string, double> variables;
+  std::map<std::string, PointTimeOutlierFilter> pointTimeFilters;
   {
     auto lck = mrpt::lockHelper(state_mtx_);
     if (state_.map_has_been_loaded) {
@@ -385,6 +395,7 @@ bool LidarOdometry::rebuildLocalMap()
     deciderOptions = params_.local_map_updates;
     lidarLabels = params_.lidar_sensor_labels;
     ownSource = params_.publish_reference_frame + "_kf";
+    pointTimeFilters = state_.point_time_filters;
     // Point clouds only use the insertion pose to transform the points (and to
     // evict distant ones): other classes keep it (ray origins, keyframe poses).
     for (const auto & [name, layer] : state_.local_map->layers) {
@@ -489,6 +500,7 @@ bool LidarOdometry::rebuildLocalMap()
     rebuild_pipelines_ = std::move(p);
   }
   auto & p = *rebuild_pipelines_;
+  p.point_time_filters = std::move(pointTimeFilters);
   for (const auto & [name, value] : variables) {
     p.parameter_source.updateVariable(name, value);
   }

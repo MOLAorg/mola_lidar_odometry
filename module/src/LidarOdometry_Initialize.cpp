@@ -190,6 +190,17 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       params_.multiple_lidars.initialize(cfg["multiple_lidars"], params_);
     }
 
+    if (cfg.has("point_time_outliers")) {
+      const auto & pto = cfg["point_time_outliers"];
+      auto & p = params_.point_time_outliers;
+      p.enabled = pto.getOrDefault("enabled", p.enabled);
+      p.window_length = pto.getOrDefault("window_length", p.window_length);
+      p.min_window_length = pto.getOrDefault("min_window_length", p.min_window_length);
+      p.margin_ratio = pto.getOrDefault("margin_ratio", p.margin_ratio);
+      p.min_margin = pto.getOrDefault("min_margin", p.min_margin);
+      p.validate();
+    }
+
     // this one is std::optional
     {
       const std::string key = "write_debug_icp_log_if_quality_under";

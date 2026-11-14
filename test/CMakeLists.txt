@@ -15,6 +15,9 @@ target_link_libraries(test_imu_scan_sync mola::mola_lidar_odometry mrpt::mrpt_ob
 ament_add_gtest(test_imu_bias_correction test_imu_bias_correction.cpp)
 target_link_libraries(test_imu_bias_correction mola::mola_lidar_odometry mrpt::mrpt_obs)
 
+ament_add_gtest(test_point_time_outlier_filter test_point_time_outlier_filter.cpp)
+target_link_libraries(test_point_time_outlier_filter mola::mola_lidar_odometry)
+
 # Every shipped pipeline, with its blocks, must resolve to a complete config:
 ament_add_gtest(test_pipelines_load test_pipelines_load.cpp
   ENV LO_PIPELINES_DIR=${mola_lidar_odometry_SOURCE_DIR}/pipelines

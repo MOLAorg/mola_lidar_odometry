@@ -707,6 +707,17 @@ Scan de-skew options
   With several LiDARs, it applies to their merged clouds, so time zero (and the pose timestamp) is the middle of the
   combined sweep.
 
+- ``MOLA_POINT_TIME_OUTLIERS`` (Default: ``true``): Before the per-point times are adjusted, points whose time
+  is far outside the usual range of their sensor are removed (block ``point_time_outliers`` of ``inputs.yaml``, also
+  in ``extras/lidar3d-kissicp-like.yaml``; a pipeline without that block keeps the filter on with its defaults). The
+  usual range is the median of the minimum and of the maximum time of the last 50 scans of that sensor, widened by the
+  largest of ``MOLA_POINT_TIME_OUTLIERS_MARGIN_RATIO`` (Default: ``0.5``) of its width, 10 ms, and the sensor period.
+  It catches columns stamped seconds away from the rest after a jump of the LiDAR clock (e.g. an Ouster in
+  ``TIME_FROM_SYNC_PULSE_IN`` mode with spurious pulses), which would otherwise move the scan time, and with it the
+  pose stamp, by that much. Normal scans are never modified: the cost is one pass over the time field per scan.
+  Not covered: the first 10 scans after a start or reset, and the raw observations stored in keyframes
+  (simplemap, central map), which keep their original times for later processing.
+
 
 General options
 ^^^^^^^^^^^^^^^^^^^^^^
