@@ -227,26 +227,29 @@ void GravityLeveler::update_filter(double t)
   mrpt::math::TVector3D f_mean(0, 0, 0);
   mrpt::math::CMatrixDouble33 R_mean = mrpt::math::CMatrixDouble33::Zero();
   std::size_t n = 0;
-  // Largest time without IMU readings in the interval, ends included: both
-  // means must cover the same interval (sparse poses, IMU dropouts).
+  // Time-weighted means (each reading holds since the previous one), since
+  // IMU readings may be unevenly spaced. The largest time without readings,
+  // ends included, bounds what they miss (sparse poses, IMU dropouts).
   double prev_t = ta;
   double max_gap = 0;
   for (const auto & s : window_imu_) {
     if (s.t <= ta || s.t > tb) {
       continue;
     }
-    max_gap = std::max(max_gap, s.t - prev_t);
+    const double w = s.t - prev_t;
+    max_gap = std::max(max_gap, w);
     prev_t = s.t;
-    f_mean += s.f;
-    R_mean += s.R;
+    f_mean += s.f * w;
+    R_mean.asEigen() += w * s.R.asEigen();
     n++;
   }
   max_gap = std::max(max_gap, tb - prev_t);
-  if (n < params_.min_readings_per_window || max_gap > params_.max_imu_gap) {
+  const double total_w = prev_t - ta;
+  if (n < params_.min_readings_per_window || max_gap > params_.max_imu_gap || total_w <= 0) {
     return;
   }
-  f_mean *= 1.0 / static_cast<double>(n);
-  R_mean *= 1.0 / static_cast<double>(n);
+  f_mean *= 1.0 / total_w;
+  R_mean *= 1.0 / total_w;
 
   const auto g = f_mean - a_mean;
   if (std::abs(g.z) < 0.5 * params_.gravity) {

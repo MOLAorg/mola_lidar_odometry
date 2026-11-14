@@ -14,6 +14,7 @@
 #include <mola_lidar_odometry/GravityLeveler.h>
 #include <mrpt/core/bits_math.h>
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
@@ -250,4 +251,30 @@ TEST(GravityLeveler, ImuDropoutsDoNotFakeTilt)
         << "IMU resumes at " << resume;
     }
   }
+}
+
+TEST(GravityLeveler, UnevenImuRateDoesNotFakeTilt)
+{
+  // A level platform accelerating along x, with the IMU at 200 Hz for 12 s
+  // and at 5 Hz afterwards: windows across the change must weight readings
+  // by time, not by count.
+  mola::GravityLeveler::Parameters p;
+  p.deadband = 0;
+  mola::GravityLeveler lev(p);
+  const auto x = [](double t) { return t * t * t / 60.0; };
+  double ti = 0;
+  double max_tilt = 0;
+  for (std::size_t k = 0; k <= 300; k++) {
+    const double t = static_cast<double>(k) / POSE_RATE;
+    while (ti <= t) {
+      lev.add_imu(ti, mrpt::math::TVector3D(ti / 10.0, 0, G));
+      ti += ti < 12.0 ? 1.0 / 200.0 : 1.0 / 5.0;
+    }
+    (void)lev.add_pose(t, mrpt::poses::CPose3D(x(t), 0, 0, 0, 0, 0));
+    if (lev.tilt()) {
+      max_tilt = std::max(max_tilt, std::hypot(lev.tilt()->x, lev.tilt()->y));
+    }
+  }
+  ASSERT_TRUE(lev.tilt().has_value());
+  EXPECT_LT(mrpt::RAD2DEG(max_tilt), 0.1);
 }
