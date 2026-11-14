@@ -1217,6 +1217,9 @@ rotating each increment and attitude. Only the CLI uses it, opt-in, on the
 `--output-tum-path-fused` path (`-deadband`, `-random-walk` options). The
 deadband is what keeps it inert where the odometry is already level: without
 it the accelerometer's own error (0.3-1.4 deg) is integrated along the path.
+Readings beyond `max_tilt` (5 deg) are ignored, not gated: they come from a
+failing trajectory attitude (seen at 25-100 deg off gravity), and restarting
+the filter into them bends the whole path.
 
 ## Reproducible odometry evaluation
 

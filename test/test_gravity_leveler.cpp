@@ -100,7 +100,7 @@ double height_range(const std::vector<mrpt::poses::CPose3D> & v, size_t from)
 TEST(GravityLeveler, RemovesFrameTilt)
 {
   const auto tilt =
-    mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(5.0), mrpt::DEG2RAD(-3.0));
+    mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(4.0), mrpt::DEG2RAD(-2.0));
   const auto r = run(300.0, tilt, mrpt::poses::CPose3D(), true);
 
   // After convergence (one window plus margin), compare one lap of the
@@ -109,8 +109,8 @@ TEST(GravityLeveler, RemovesFrameTilt)
   const double zin = height_range(r.in, from);
   const double zout = height_range(r.out, from);
   EXPECT_GT(zin, 3.0);
-  // Only the deadband (2 deg) is left: about 2 * R * tan(2 deg) = 1.4 m.
-  EXPECT_LT(zout, 0.45 * zin);
+  // Only the deadband (2 deg) is left: about 2 * R * sin(2 deg) = 1.4 m.
+  EXPECT_LT(zout, 1.6);
 }
 
 TEST(GravityLeveler, LevelsAttitudeAndSeparatesImuError)
@@ -119,7 +119,7 @@ TEST(GravityLeveler, LevelsAttitudeAndSeparatesImuError)
   // the frame tilt to the frame and the misalignment to the IMU (the platform
   // turns), so the output attitude ends level.
   const auto tilt =
-    mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(4.0), mrpt::DEG2RAD(-2.0));
+    mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(3.0), mrpt::DEG2RAD(-2.0));
   const auto mis =
     mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(0.6), mrpt::DEG2RAD(0.4));
   mola::GravityLeveler::Parameters p;
@@ -127,7 +127,7 @@ TEST(GravityLeveler, LevelsAttitudeAndSeparatesImuError)
   mola::GravityLeveler lev(p);
   const auto r = run(600.0, tilt, mis, true, p, &lev);
 
-  EXPECT_GT(tilt_of(r.in.back()), 4.0);
+  EXPECT_GT(tilt_of(r.in.back()), 3.5);
   EXPECT_LT(tilt_of(r.out.back()), 0.3);
   ASSERT_TRUE(lev.tilt().has_value());
   EXPECT_NEAR(
@@ -177,7 +177,7 @@ TEST(GravityLeveler, StalePoseDoesNotMoveState)
 {
   // A pose not newer than the previous one is leveled, but the outputs that
   // follow must be those of a run without it.
-  const auto tilt = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(5.0), 0.0);
+  const auto tilt = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(4.0), 0.0);
   mola::GravityLeveler a;
   mola::GravityLeveler b;
   std::size_t k_imu = 0;
@@ -277,4 +277,20 @@ TEST(GravityLeveler, UnevenImuRateDoesNotFakeTilt)
   }
   ASSERT_TRUE(lev.tilt().has_value());
   EXPECT_LT(mrpt::RAD2DEG(max_tilt), 0.1);
+}
+
+TEST(GravityLeveler, ImplausibleTiltIsIgnored)
+{
+  // Readings far beyond any frame tilt (here, a trajectory attitude 20 deg
+  // off gravity) must leave the output alone, and must not restart the
+  // filter into them.
+  const auto mis = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(20.0), 0.0);
+  mola::GravityLeveler lev;
+  const auto r = run(200.0, mrpt::poses::CPose3D(), mis, true, {}, &lev);
+  for (size_t i = 0; i < r.in.size(); i++) {
+    EXPECT_NEAR((r.out[i].asVectorVal() - r.in[i].asVectorVal()).norm(), 0.0, 1e-9);
+  }
+  EXPECT_FALSE(lev.tilt().has_value());
+  EXPECT_GT(lev.stats().implausible_readings, 0U);
+  EXPECT_EQ(lev.stats().restarts, 0U);
 }

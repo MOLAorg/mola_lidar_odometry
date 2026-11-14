@@ -42,6 +42,8 @@ namespace mola
  *    acceleration over the same interval. Normalized, its horizontal part is
  *    the frame tilt `tau` (2 DoF, small angles), plus the effect of any
  *    body-fixed accelerometer error.
+ *  - Readings beyond `max_tilt` are ignored: a frame tilt is small, and a
+ *    large reading means the trajectory's attitude itself is failing.
  *  - A Kalman filter with state `[tau (2), b (3)]`: `tau` a random walk with
  *    `tilt_random_walk` deg/sqrt(s), `b` a constant body-frame accelerometer
  *    error (bias plus IMU misalignment), observed through the mean attitude
@@ -73,6 +75,9 @@ public:
     double reading_sigma = 0.15;
     /** Tilt left uncorrected [deg] */
     double deadband = 2.0;
+    /** Readings beyond this tilt are ignored: they mean a failing attitude
+     *  of the trajectory, not a tilt of its frame [deg] */
+    double max_tilt = 5.0;
     /** Prior sigma of the initial tilt [deg] */
     double initial_tilt_sigma = 3.0;
     /** Prior sigma of the body-frame accelerometer error [m/s^2] */
@@ -95,6 +100,7 @@ public:
     std::size_t imu_readings = 0;
     std::size_t tilt_readings = 0;
     std::size_t gated_readings = 0;
+    std::size_t implausible_readings = 0;
     std::size_t restarts = 0;
   };
 

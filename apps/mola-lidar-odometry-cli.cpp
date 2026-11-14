@@ -1650,7 +1650,7 @@ int main_odometry(Cli & cli)
     const auto tilt = fusedLeveler->tilt();
     std::cout << "\nGravity leveling of the fused path: " << st.imu_readings << " IMU readings, "
               << st.tilt_readings << " tilt readings, " << st.gated_readings << " gated, "
-              << st.restarts << " restarts";
+              << st.implausible_readings << " implausible, " << st.restarts << " restarts";
     if (tilt) {
       std::cout << ", final tilt " << mrpt::RAD2DEG(std::hypot(tilt->x, tilt->y)) << " deg";
     }

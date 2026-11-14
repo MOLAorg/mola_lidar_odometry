@@ -74,6 +74,8 @@ GravityLeveler::GravityLeveler(const Parameters & p) : params_(p)
   ASSERT_GT_(params_.reading_sigma, 0.0);
   ASSERT_GT_(params_.gravity, 0.0);
   ASSERT_GT_(params_.max_imu_gap, 0.0);
+  ASSERT_GT_(params_.max_tilt, 0.0);
+  ASSERT_LT_(params_.max_tilt, 90.0);
 }
 
 void GravityLeveler::add_imu(double t, const mrpt::math::TVector3D & specific_force)
@@ -257,6 +259,11 @@ void GravityLeveler::update_filter(double t)
   }
   Eigen::Vector2d z;
   z << g.x / g.z, g.y / g.z;
+  // Not a small frame tilt: neither a reading nor a reason to restart.
+  if (z.norm() > std::tan(mrpt::DEG2RAD(params_.max_tilt))) {
+    stats_.implausible_readings++;
+    return;
+  }
   stats_.tilt_readings++;
 
   const double q = mrpt::DEG2RAD(params_.tilt_random_walk);
