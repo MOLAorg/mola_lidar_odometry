@@ -20,6 +20,7 @@
 #include <mrpt/core/exceptions.h>
 #include <mrpt/poses/Lie/SO.h>
 
+#include <algorithm>
 #include <cmath>
 
 using namespace mola;
@@ -72,6 +73,7 @@ GravityLeveler::GravityLeveler(const Parameters & p) : params_(p)
   ASSERT_GE_(params_.tilt_random_walk, 0.0);
   ASSERT_GT_(params_.reading_sigma, 0.0);
   ASSERT_GT_(params_.gravity, 0.0);
+  ASSERT_GT_(params_.max_imu_gap, 0.0);
 }
 
 void GravityLeveler::add_imu(double t, const mrpt::math::TVector3D & specific_force)
@@ -222,23 +224,25 @@ void GravityLeveler::update_filter(double t)
   // velocities' supports:
   const double ta = first->v_t;
   const double tb = now.v_t;
-  // Sparse poses may reach back beyond the IMU history kept: skip, since the
-  // two means would cover different intervals.
-  if (window_imu_.empty() || window_imu_.front().t > ta) {
-    return;
-  }
   mrpt::math::TVector3D f_mean(0, 0, 0);
   mrpt::math::CMatrixDouble33 R_mean = mrpt::math::CMatrixDouble33::Zero();
   std::size_t n = 0;
+  // Largest time without IMU readings in the interval, ends included: both
+  // means must cover the same interval (sparse poses, IMU dropouts).
+  double prev_t = ta;
+  double max_gap = 0;
   for (const auto & s : window_imu_) {
     if (s.t <= ta || s.t > tb) {
       continue;
     }
+    max_gap = std::max(max_gap, s.t - prev_t);
+    prev_t = s.t;
     f_mean += s.f;
     R_mean += s.R;
     n++;
   }
-  if (n < params_.min_readings_per_window) {
+  max_gap = std::max(max_gap, tb - prev_t);
+  if (n < params_.min_readings_per_window || max_gap > params_.max_imu_gap) {
     return;
   }
   f_mean *= 1.0 / static_cast<double>(n);

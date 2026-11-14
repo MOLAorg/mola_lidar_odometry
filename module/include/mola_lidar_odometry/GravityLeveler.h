@@ -81,6 +81,8 @@ public:
     double velocity_span = 1.0;
     /** Minimum number of IMU readings in a window to take a reading */
     std::size_t min_readings_per_window = 10;
+    /** Longest time without IMU readings within a window to take a reading [s] */
+    double max_imu_gap = 0.5;
     /** Consecutive gated readings after which the filter restarts */
     std::size_t max_consecutive_rejections = 5;
     /** Standard gravity [m/s^2] */

@@ -222,3 +222,32 @@ TEST(GravityLeveler, SparsePosesDoNotFakeTilt)
     EXPECT_LT(mrpt::RAD2DEG(std::hypot(lev.tilt()->x, lev.tilt()->y)), 0.1);
   }
 }
+
+TEST(GravityLeveler, ImuDropoutsDoNotFakeTilt)
+{
+  // A level platform accelerating along x, with poses at 10 Hz and the IMU
+  // missing from 5 s on (until 8 s, or for good): windows with no IMU
+  // readings over part of their interval must not be read.
+  const auto x = [](double t) { return t * t * t / 60.0; };
+  for (const double resume : {8.0, 1e9}) {
+    mola::GravityLeveler::Parameters p;
+    p.deadband = 0;
+    mola::GravityLeveler lev(p);
+    std::size_t k_imu = 0;
+    for (std::size_t k = 0; k <= 300; k++) {
+      const double t = static_cast<double>(k) / POSE_RATE;
+      while (static_cast<double>(k_imu) / IMU_RATE <= t) {
+        const double ti = static_cast<double>(k_imu) / IMU_RATE;
+        if (ti < 5.0 || ti >= resume) {
+          lev.add_imu(ti, mrpt::math::TVector3D(ti / 10.0, 0, G));
+        }
+        k_imu++;
+      }
+      (void)lev.add_pose(t, mrpt::poses::CPose3D(x(t), 0, 0, 0, 0, 0));
+    }
+    if (lev.tilt()) {
+      EXPECT_LT(mrpt::RAD2DEG(std::hypot(lev.tilt()->x, lev.tilt()->y)), 0.1)
+        << "IMU resumes at " << resume;
+    }
+  }
+}
