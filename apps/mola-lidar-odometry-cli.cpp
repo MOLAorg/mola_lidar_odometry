@@ -25,10 +25,12 @@
 #include <mola_kernel/interfaces/OfflineDatasetSource.h>
 #include <mola_kernel/interfaces/RawDataConsumer.h>
 #include <mola_kernel/pretty_print_exception.h>
+#include <mola_lidar_odometry/GravityLeveler.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mp2p_icp/metricmap.h>
 #include <mrpt/core/Clock.h>
+#include <mrpt/core/bits_math.h>
 #include <mrpt/core/exceptions.h>
 #include <mrpt/core/get_env.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
@@ -50,6 +52,7 @@
 #include <mrpt/system/progress.h>
 #include <mrpt/system/string_utils.h>
 
+#include <cmath>
 #include <memory>
 
 #if defined(HAVE_MOLA_SE_SIMPLE)
@@ -220,6 +223,9 @@ struct Cli
   Opt<std::string> arg_outPathFused;
   Opt<std::string> arg_outPathSmoothed;
   Opt<std::string> arg_outEstimatorFrame;
+  Opt<bool> arg_levelFused;
+  Opt<double> arg_levelFusedDeadband;
+  Opt<double> arg_levelFusedRandomWalk;
   Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
   Opt<std::string> arg_outSimpleMap;
@@ -352,6 +358,28 @@ struct Cli
           "frame is anchored on the odometry's own poses; the estimator's reference frame "
           "(e.g. 'map') gives its own estimate.")
         ->option_text("map");
+
+    arg_levelFused.opt = cmd.add_flag(
+      "--output-fused-gravity-leveled", arg_levelFused.value,
+      "Level the trajectory saved by --output-tum-path-fused with the IMU's gravity reading "
+      "(mola::GravityLeveler): a causal correction of the frame tilt that only changes what is "
+      "written out, never the odometry or the estimator.");
+
+    arg_levelFusedDeadband.value = mola::GravityLeveler::Parameters{}.deadband;
+    arg_levelFusedDeadband.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-deadband", arg_levelFusedDeadband.value,
+          "Tilt [deg] that --output-fused-gravity-leveled leaves uncorrected.")
+        ->option_text(std::to_string(arg_levelFusedDeadband.value));
+
+    arg_levelFusedRandomWalk.value = mola::GravityLeveler::Parameters{}.tilt_random_walk;
+    arg_levelFusedRandomWalk.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-random-walk", arg_levelFusedRandomWalk.value,
+          "Random walk of the frame tilt [deg/sqrt(s)] assumed by --output-fused-gravity-leveled.")
+        ->option_text(std::to_string(arg_levelFusedRandomWalk.value));
 
     arg_outPathSmoothed.opt =
       cmd
@@ -1139,6 +1167,7 @@ int main_odometry(Cli & cli)
   // through the motion prior, so its contribution is largely invisible there.
   std::optional<mrpt::poses::CPose3DInterpolator> outFusedPath;
   std::optional<mrpt::Clock::time_point> lastFusedSampleStamp;
+  std::optional<mola::GravityLeveler> fusedLeveler;
 
   bool liodom_emitted_log = false;
   std::mutex liodom_emitted_log_mtx;
@@ -1185,6 +1214,14 @@ int main_odometry(Cli & cli)
       stateEstimatorAsNavState,
       "--output-tum-path-fused needs a state estimator implementing mola::NavStateFilter");
     outFusedPath.emplace();
+  }
+  if (cli.arg_levelFused.isSet()) {
+    ASSERTMSG_(
+      cli.arg_outPathFused.isSet(), "--output-fused-gravity-leveled needs --output-tum-path-fused");
+    mola::GravityLeveler::Parameters lp;
+    lp.deadband = cli.arg_levelFusedDeadband.getValue();
+    lp.tilt_random_walk = cli.arg_levelFusedRandomWalk.getValue();
+    fusedLeveler.emplace(lp);
   }
 
   if (cli.arg_outGeoRef.isSet()) {
@@ -1390,6 +1427,27 @@ int main_odometry(Cli & cli)
       }
     }
 
+    // Accelerometer readings for the fused-path leveling, in the vehicle frame:
+    if (fusedLeveler) {
+      for (const auto & anyObs : *sf) {
+        const auto imu = std::dynamic_pointer_cast<CObservationIMU>(anyObs);
+        if (
+          !imu || !imu->has(mrpt::obs::IMU_X_ACC) || !imu->has(mrpt::obs::IMU_Y_ACC) ||
+          !imu->has(mrpt::obs::IMU_Z_ACC)) {
+          continue;
+        }
+        const auto & lbl = liodom->params_.imu_sensor_label;
+        if (lbl && !std::regex_match(imu->sensorLabel, *lbl)) {
+          continue;
+        }
+        const mrpt::math::TVector3D f(
+          imu->get(mrpt::obs::IMU_X_ACC), imu->get(mrpt::obs::IMU_Y_ACC),
+          imu->get(mrpt::obs::IMU_Z_ACC));
+        fusedLeveler->add_imu(
+          mrpt::Clock::toDouble(imu->timestamp), imu->sensorPose.rotateVector(f));
+      }
+    }
+
     // Camera images, only for simplemap keyframes (simplemap.attach_observations):
     if (!liodom->params_.simplemap.attach_observations.empty()) {
       for (const auto & anyObs : *sf) {
@@ -1519,7 +1577,11 @@ int main_odometry(Cli & cli)
       if (!lastFusedSampleStamp || tSample > *lastFusedSampleStamp) {
         const auto st = stateEstimatorAsNavState->estimated_navstate(tSample, estimatorOutFrame);
         if (st.has_value()) {
-          outFusedPath->insert(tSample, st->pose.mean.asTPose());
+          auto p = st->pose.mean;
+          if (fusedLeveler) {
+            p = fusedLeveler->add_pose(mrpt::Clock::toDouble(tSample), p);
+          }
+          outFusedPath->insert(tSample, p.asTPose());
           lastFusedSampleStamp = tSample;
         }
       }
@@ -1581,6 +1643,22 @@ int main_odometry(Cli & cli)
     const mrpt::poses::CPose3DInterpolator lastEstimatedTrajectory = liodom->estimatedTrajectory();
 
     checkSaved(lastEstimatedTrajectory.saveToTextFile_TUM(fil), fil);
+  }
+
+  if (fusedLeveler) {
+    const auto & st = fusedLeveler->stats();
+    const auto tilt = fusedLeveler->tilt();
+    std::cout << "\nGravity leveling of the fused path: " << st.imu_readings << " IMU readings, "
+              << st.tilt_readings << " tilt readings, " << st.gated_readings << " gated, "
+              << st.implausible_readings << " implausible, " << st.restarts << " restarts";
+    if (tilt) {
+      std::cout << ", final tilt " << mrpt::RAD2DEG(std::hypot(tilt->x, tilt->y)) << " deg";
+    }
+    std::cout << "\n";
+    if (st.imu_readings == 0) {
+      std::cerr << "Warning: --output-fused-gravity-leveled received no accelerometer readings "
+                   "matching the IMU sensor label: the fused path was not leveled.\n";
+    }
   }
 
   if (outFusedPath) {
