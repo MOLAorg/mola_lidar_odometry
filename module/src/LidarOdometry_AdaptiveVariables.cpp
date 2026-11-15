@@ -52,14 +52,22 @@ namespace
   return std::isfinite(pt.x) && std::isfinite(pt.y) && std::isfinite(pt.z);
 }
 
-// Attitude `R` at time `t_from`, carried to `t_to` with the angular velocity
-// readings (body frame) in between, each one held until the next.
+// Attitude `R` at time `t_from`, carried to `t_to` (earlier or later) with the
+// angular velocity readings (body frame) in between, each one held until the
+// next.
 [[nodiscard]] mrpt::math::CMatrixDouble33 carryAttitude(
   const mrpt::math::CMatrixDouble33 & R, const std::map<double, mrpt::math::TVector3D> & w,
   const double t_from, const double t_to)
 {
-  if (w.empty() || t_to <= t_from) {
+  if (w.empty() || t_to == t_from) {
     return R;
+  }
+  if (t_to < t_from) {
+    // Undo the rotation from t_to to t_from (e.g. interleaved LiDAR streams):
+    const mrpt::poses::CPose3D fwd(
+      carryAttitude(mrpt::math::CMatrixDouble33::Identity(), w, t_to, t_from),
+      mrpt::math::CVectorFixedDouble<3>::Zero());
+    return R * (-fwd).getRotationMatrix();
   }
   const auto step = [](const mrpt::math::TVector3D & w_b, const double dt) {
     return mrpt::poses::Lie::SO<3>::exp((w_b * dt).asVector<mrpt::math::CVectorFixedDouble<3>>());
