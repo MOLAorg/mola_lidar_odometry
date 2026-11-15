@@ -79,6 +79,15 @@ mola_lo_profile_resolve() {
   esac
   export MOLA_LIDAR_TOPIC MOLA_IMU_TOPIC
 
+  # De-skew with each lidar's own IMU. The VLP-16 borrows another unit's IMU,
+  # which was not validated for de-skew, so it keeps the pipeline default. The
+  # Livox IMUs report the acceleration in units of g, which the de-skew
+  # converts automatically (mola_imu_preintegration newer than 3.0.1).
+  if [ "$TIERS_SENSOR" != "velodyne" ]; then
+    : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
+    export MOLA_DESKEW_METHOD
+  fi
+
   echo "TIERS sequence '$(basename "$file")', sensor '$TIERS_SENSOR':"
   echo "  LiDAR topic: $MOLA_LIDAR_TOPIC"
   echo "  IMU topic  : $MOLA_IMU_TOPIC"

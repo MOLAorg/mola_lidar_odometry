@@ -155,7 +155,9 @@ Check: `grep -rn MOLA_NEW_VAR` over both repos must hit every place above.
   the dataset's calibration in a base_link that is its z-down Body (IMU)
   frame turned by a 180 deg pitch. Horizontal OS1-16 only (the CLI gives all
   LiDARs one fixed pose); IMU on by default (`/imu/imu`), measured slightly
-  better than without it. The ground truth is a Leica prism position: score
+  better than without it, with IMU de-skew. Its orientation output is z-down,
+  about 180 deg off the accelerometer, so `MOLA_IMU_ATTITUDE_SIGMA=0` (the
+  smoother ignores it). The ground truth is a Leica prism position: score
   after moving the estimate to the prism, (0.2937, -0.0123, 0.2731) in
   base_link.
   `MOLA_LIDAR_TIME_OFFSET=-0.110` moves the LiDAR stamps (published at the
@@ -197,7 +199,9 @@ Check: `grep -rn MOLA_NEW_VAR` over both repos must hit every place above.
   so it gets one wrapper per sensor (`-ouster-os0`, `-ouster-os1`,
   `-velodyne`, `-livox-horizon`, `-livox-avia`) rather than one that silently
   picks a winner. Extrinsics are a co-located placeholder: these bags carry
-  no `/tf` and the dataset publishes no calibration.
+  no `/tf` and the dataset publishes no calibration. IMU de-skew with each
+  lidar's own IMU, except the VLP-16 (borrowed IMU, not validated); the Livox
+  IMUs report units of g, converted automatically.
 - **oxford-spires** stitches multipart sequences, ordering the `raw/ros2bag/`
   parts by their trailing `_<n>` numerically.
 - **ouster** is gui-only: a live source, which the offline CLI cannot read.

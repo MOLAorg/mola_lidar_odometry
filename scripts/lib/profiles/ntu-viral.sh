@@ -36,10 +36,20 @@ mola_lo_profile_resolve() {
 
   : "${MOLA_LIDAR_TOPIC:=/os1_cloud_node1/points}"
   # The IMU helps a little (eee_03 / sbs_01 prism ATE: 119 / 90 mm without it,
-  # 112 / 84 mm with it); IMU deskew on top did not improve further.
+  # 112 / 84 mm with it).
   : "${MOLA_IMU_TOPIC:=/imu/imu}"
   : "${MOLA_TF_BASE_LINK:=body}"
   export MOLA_LIDAR_TOPIC MOLA_IMU_TOPIC MOLA_TF_BASE_LINK
+
+  # An aerial platform: de-skew with the IMU.
+  : "${MOLA_DESKEW_METHOD:=MotionCompensationMethod::IMU}"
+  export MOLA_DESKEW_METHOD
+
+  # The IMU's own orientation output follows a z-down convention, about 180 deg
+  # off its accelerometer once in base_link: the smoother must not use it as an
+  # attitude prior. The accelerometer itself is consistent.
+  : "${MOLA_IMU_ATTITUDE_SIGMA:=0}"
+  export MOLA_IMU_ATTITUDE_SIGMA
 
   # The Ouster driver stamps each cloud when it is published (end of the
   # sweep), while the per-point times run 0..0.1 s from the sweep start. Read
