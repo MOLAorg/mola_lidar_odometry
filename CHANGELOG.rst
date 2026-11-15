@@ -2,6 +2,26 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Local map rebuilt from the corrected keyframes of a central map (mola::LocalMapCorrectionSource) after each of its corrections.
+* Guard against implausible state estimator predictions, and recover from stalls, keeping the estimator's frames (reset_motion()).
+* De-skew with the fresh state estimator velocity, at the instant it refers to.
+* Optional gyroscope bias removal with the estimates of a mola::ImuBiasSource (use_imu_bias_source); the GUI Status tab shows the current IMU bias.
+* Optional learned covariance of each registration (off the odometry thread, with shadow mode).
+* Point time outlier filter: drop points whose per-point time is far outside the usual range of their sensor.
+* Keyframe images: attach observations of any sensor (e.g. up to three cameras) to simplemap keyframes, also from the ROS 2 launch.
+* CLI: optional gravity leveling of the fused output (GravityLeveler); --output-georef and --output-estimator-frame; sample the fused estimate at the registered pose stamp; report output files that cannot be written.
+* Initial global search: tighter priors, max_initial_guesses limit, motion compensation during the search, and abort on shutdown.
+* Smoother as estimator: LiDAR-grade rotation accuracy for the odometry increments, unless another odometry source is fused.
+* New dataset profiles: NTU-VIRAL, VBR (Vision Benchmark in Rome); IMU de-skew for TIERS and NTU-VIRAL; geode and newer-college launchers installed; optional ground-truth TUM file for the rosbag inputs.
+* ROS 2: MOLA_ODOM_AS_ROBOT_POSE_OBS=false forwards nav_msgs/Odometry as planar odometry.
+* GUI: colormap range without outliers, optional fixed local map limits.
+* Pipelines: spherical minimum-range filter option (MOLA_MINIMUM_RANGE_FILTER_L_INFINITY); expose the solver's cov2cov information scale in the GICP pipeline.
+* Multiple LiDARs: per-point timestamps adjusted once on the merged cloud.
+* Requires mola_imu_preintegration >= 3.1.0 and mola_bridge_ros2 >= 3.4.1.
+* Contributors: Jose Luis Blanco-Claraco
+
 3.4.0 (2026-11-01)
 ------------------
 * Initial localization: global search around an uncertain state estimator pose, with z from the map ground and a minimum yaw range (MOLA_LO_INIT_GLOBAL_SEARCH_MIN_YAW)
