@@ -155,17 +155,17 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
       }
       state_.deskew_prev_scan_stamp = stamp_s;
 
-      if (const auto tw = deskewTwistFromOdometry(stamp_s, sweep); tw) {
+      if (const auto od = deskewTwistFromOdometry(stamp_s, sweep); od) {
         // Linear part only: the IMU de-skew methods take rotation from the
         // gyroscope, and the angular variables also drive other decisions
         // (e.g. keyframe thresholds), which an odometry's raw, gait-rate
         // angular velocity was measured to destabilize.
-        twistForIcpVars.vx = tw->vx;
-        twistForIcpVars.vy = tw->vy;
-        twistForIcpVars.vz = tw->vz;
-        // The mean velocity over the sweep, i.e. that at its middle:
-        bufferVelocity = {tw->vx, tw->vy, tw->vz};
-        bufferStamp = stamp_s + 0.5 * sweep;
+        twistForIcpVars.vx = od->twist.vx;
+        twistForIcpVars.vy = od->twist.vy;
+        twistForIcpVars.vz = od->twist.vz;
+        // The mean velocity over the covered interval, i.e. that at its middle:
+        bufferVelocity = od->velocity_at_middle;
+        bufferStamp = od->middle_stamp;
         state_.deskew_twist_from_odometry = true;
       } else {
         MRPT_LOG_THROTTLE_WARN_FMT(
@@ -431,7 +431,7 @@ bool LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_ma
   return false;
 }
 
-std::optional<mrpt::math::TTwist3D> LidarOdometry::deskewTwistFromOdometry(
+std::optional<LidarOdometry::DeskewOdometryTwist> LidarOdometry::deskewTwistFromOdometry(
   const double t0, const double span) const
 {
   // Caller holds imu_state_mtx_.
@@ -478,14 +478,24 @@ std::optional<mrpt::math::TTwist3D> LidarOdometry::deskewTwistFromOdometry(
   const auto incr = *pb - *pa;  // in the vehicle frame at ta
   const auto logRot = mrpt::poses::Lie::SO<3>::log(incr.getRotationMatrix());
 
-  mrpt::math::TTwist3D tw;
+  DeskewOdometryTwist out;
+  auto & tw = out.twist;
   tw.vx = incr.x() / dt;
   tw.vy = incr.y() / dt;
   tw.vz = incr.z() / dt;
   tw.wx = logRot[0] / dt;
   tw.wy = logRot[1] / dt;
   tw.wz = logRot[2] / dt;
-  return tw;
+
+  // The same velocity in the vehicle frame at the middle of the interval,
+  // half of the rotation later (constant angular velocity):
+  auto halfRot = logRot;
+  halfRot *= 0.5;
+  const mrpt::poses::CPose3D midFrame(
+    mrpt::poses::Lie::SO<3>::exp(halfRot), mrpt::math::CVectorFixedDouble<3>::Zero());
+  out.velocity_at_middle = midFrame.inverseRotateVector({tw.vx, tw.vy, tw.vz});
+  out.middle_stamp = 0.5 * (ta + tb);
+  return out;
 }
 
 void LidarOdometry::updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw)

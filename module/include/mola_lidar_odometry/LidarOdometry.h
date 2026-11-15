@@ -2060,10 +2060,21 @@ private:
   /// the input sequence.
   void onDeskewOdometry(const mrpt::obs::CObservation::ConstPtr & o);
 
-  /// Mean twist (vehicle frame) of the de-skew odometry source over
-  /// [t0, t0+span], or over its available part if it covers at least half of
-  /// it. Caller must hold imu_state_mtx_.
-  [[nodiscard]] std::optional<mrpt::math::TTwist3D> deskewTwistFromOdometry(
+  /// Mean motion of the de-skew odometry source over an interval.
+  struct DeskewOdometryTwist
+  {
+    /// Mean twist, in the vehicle frame at the start of the interval.
+    mrpt::math::TTwist3D twist;
+    /// Mean linear velocity, in the vehicle frame at the middle of the interval.
+    mrpt::math::TVector3D velocity_at_middle;
+    /// The middle of the interval [s], the instant the mean refers to.
+    double middle_stamp = 0;
+  };
+
+  /// Mean motion of the de-skew odometry source over [t0, t0+span], or over
+  /// its available part if it covers at least half of it. Caller must hold
+  /// imu_state_mtx_.
+  [[nodiscard]] std::optional<DeskewOdometryTwist> deskewTwistFromOdometry(
     double t0, double span) const;
 
   /// Captures the map-origin verticality reference from the accelerometer, if

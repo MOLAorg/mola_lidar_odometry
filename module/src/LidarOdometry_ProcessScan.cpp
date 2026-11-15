@@ -2299,6 +2299,8 @@ void LidarOdometry::resetNavStateMotion()
 void LidarOdometry::resetNavState()
 {
   state_.navstate_fuse->reset();
+  // Its twist at an earlier fused scan is no longer available:
+  state_.last_fused_scan_ref_time.reset();
   restartPlausibilityCheck();
 }
 

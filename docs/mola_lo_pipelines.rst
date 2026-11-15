@@ -705,6 +705,9 @@ Scan de-skew options
   carried to the current sweep by integrating the accelerometer; the gyroscope gives the rotation.
   This needs a velocity that follows accelerations: with the simple state estimator, keep
   ``MOLA_NAVSTATE_IMU_PROPAGATION`` enabled (the default) in custom parameter files.
+  It also needs ``mola_state_estimation`` newer than 3.2.0: earlier versions return their filtered
+  velocity at the stamp of the last pose, even with propagation enabled, so the IMU methods would carry
+  a lagged velocity. With those, set ``MOLA_DESKEW_TWIST_WITH_IMU_METHODS=true``.
   If that velocity is not within the de-skew sample window (twice the point-time span around the
   scan reference time), e.g. after a dropped scan or with a span shorter than half the scan period,
   the twist variables are used at the scan reference time instead, with a throttled warning.
