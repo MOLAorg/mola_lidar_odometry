@@ -63,7 +63,7 @@
   <depend>mola_state_estimation_simple</depend>
   <!-- for it to be selectable via the cli's state estimator flag -->
   <depend>mola_state_estimation_smoother</depend>
-  <depend>mola_imu_preintegration</depend>
+  <depend version_gte="3.1.0">mola_imu_preintegration</depend> <!-- ImuTransformer with accel_scale and rate-aware filters -->
 
   <!-- Needed by the mola-lo-* scripts: -->
   <exec_depend>mola_launcher</exec_depend>
