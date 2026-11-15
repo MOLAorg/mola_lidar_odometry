@@ -1601,8 +1601,10 @@ void LidarOdometry::processLidarScan(  // NOLINT
 
     if (icpIsGood) {
       state_.last_lidar_pose = out.found_pose_to_wrt_from;
+      state_.last_lidar_pose_stamp = mrpt::Clock::toDouble(scan_ref_time);
     } else if (usePrediction) {
       state_.last_lidar_pose.copyFrom(state_.last_motion_model_output->pose);
+      state_.last_lidar_pose_stamp = mrpt::Clock::toDouble(scan_ref_time);
     }
 
     // Learned covariance of this registration, if enabled: queued before the
@@ -1656,6 +1658,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
           state_.navstate_fuse->fuse_pose(
             scan_ref_time, out.found_pose_to_wrt_from, params_.publish_reference_frame);
         }
+        state_.last_fused_scan_ref_time = scan_ref_time;
       }
       if (state_.step_counter_post_relocalization > 0) {
         state_.step_counter_post_relocalization--;
@@ -2166,6 +2169,7 @@ void LidarOdometry::startMapAtFirstScan(
   // "empty" (an empty decider asks for a keyframe at every pose, which would
   // spuriously fire a second keyframe on the very next scan):
   state_.last_lidar_pose = initPose;
+  state_.last_lidar_pose_stamp = mrpt::Clock::toDouble(scan_ref_time);
   if (!state_.kf_decider_simplemap) {
     state_.kf_decider_simplemap.emplace(params_.simplemap);
   }
@@ -2295,6 +2299,8 @@ void LidarOdometry::resetNavStateMotion()
 void LidarOdometry::resetNavState()
 {
   state_.navstate_fuse->reset();
+  // Its twist at an earlier fused scan is no longer available:
+  state_.last_fused_scan_ref_time.reset();
   restartPlausibilityCheck();
 }
 

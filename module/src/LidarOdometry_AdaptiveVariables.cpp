@@ -51,6 +51,40 @@ namespace
 {
   return std::isfinite(pt.x) && std::isfinite(pt.y) && std::isfinite(pt.z);
 }
+
+// Attitude `R` at time `t_from`, carried to `t_to` (earlier or later) with the
+// angular velocity readings (body frame) in between, each one held until the
+// next.
+[[nodiscard]] mrpt::math::CMatrixDouble33 carryAttitude(
+  const mrpt::math::CMatrixDouble33 & R, const std::map<double, mrpt::math::TVector3D> & w,
+  const double t_from, const double t_to)
+{
+  if (w.empty() || t_to == t_from) {
+    return R;
+  }
+  if (t_to < t_from) {
+    // Undo the rotation from t_to to t_from (e.g. interleaved LiDAR streams):
+    const mrpt::poses::CPose3D fwd(
+      carryAttitude(mrpt::math::CMatrixDouble33::Identity(), w, t_to, t_from),
+      mrpt::math::CVectorFixedDouble<3>::Zero());
+    return R * (-fwd).getRotationMatrix();
+  }
+  const auto step = [](const mrpt::math::TVector3D & w_b, const double dt) {
+    return mrpt::poses::Lie::SO<3>::exp((w_b * dt).asVector<mrpt::math::CVectorFixedDouble<3>>());
+  };
+
+  auto it = w.upper_bound(t_from);
+  // The reading in effect at t_from: the last one up to it, else the next one.
+  mrpt::math::TVector3D w_now = it != w.begin() ? std::prev(it)->second : it->second;
+  double t = t_from;
+  mrpt::math::CMatrixDouble33 R_t = R;
+  for (; it != w.end() && it->first < t_to; ++it) {
+    R_t = R_t * step(w_now, it->first - t);
+    t = it->first;
+    w_now = it->second;
+  }
+  return R_t * step(w_now, t_to - t);
+}
 }  // namespace
 
 namespace mola
@@ -71,6 +105,24 @@ void LidarOdometry::updatePipelineDynamicVariablesRobotPoseOnly()
 
 void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point & stamp)
 {
+  // The twist the state estimator holds right after fusing the last scan's
+  // pose, and the instant it refers to. last_motion_model_output was queried
+  // before that fusion, so it describes the motion of one scan earlier.
+  // Only that of the immediately preceding scan is used (an older one may fall
+  // outside the de-skew sample window), so it is consumed here. Only the IMU
+  // de-skew methods use it, and the query may wait for the estimator.
+  std::optional<mrpt::math::TTwist3D> freshTwist;
+  double freshTwistStamp = 0;
+  if (state_.navstate_fuse && state_.last_fused_scan_ref_time && isPipelineUsingIMU_locked()) {
+    const auto ns = state_.navstate_fuse->estimated_navstate(
+      *state_.last_fused_scan_ref_time, params_.publish_reference_frame);
+    if (ns) {
+      freshTwist = ns->twist;
+      freshTwistStamp = mrpt::Clock::toDouble(*state_.last_fused_scan_ref_time);
+    }
+  }
+  state_.last_fused_scan_ref_time.reset();
+
   // Writes the localVelocityBuffer the IMU thread also appends to, and ends
   // with realize(), which flips the "evaluated" flags that thread reads:
   auto lckImu = mrpt::lockHelper(imu_state_mtx_);
@@ -80,9 +132,20 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
   // Set dynamic variables for twist usage within ICP pipelines
   // (e.g. de-skew methods)
   {
+    // The twist variables (used by the Linear de-skew and other decisions):
     mrpt::math::TTwist3D twistForIcpVars = {0, 0, 0, 0, 0, 0};
     if (state_.last_motion_model_output) {
       twistForIcpVars = state_.last_motion_model_output->twist;
+    }
+
+    // The velocity sample of the de-skew buffer, and its stamp: the IMU
+    // de-skew methods integrate the accelerometer from it to the sweep.
+    mrpt::math::TVector3D bufferVelocity(
+      twistForIcpVars.vx, twistForIcpVars.vy, twistForIcpVars.vz);
+    double bufferStamp = stamp_s;
+    if (freshTwist) {
+      bufferVelocity = {freshTwist->vx, freshTwist->vy, freshTwist->vz};
+      bufferStamp = freshTwistStamp;
     }
 
     // Optionally, take the linear velocity from an independent odometry source
@@ -100,14 +163,17 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
       }
       state_.deskew_prev_scan_stamp = stamp_s;
 
-      if (const auto tw = deskewTwistFromOdometry(stamp_s, sweep); tw) {
+      if (const auto od = deskewTwistFromOdometry(stamp_s, sweep); od) {
         // Linear part only: the IMU de-skew methods take rotation from the
         // gyroscope, and the angular variables also drive other decisions
         // (e.g. keyframe thresholds), which an odometry's raw, gait-rate
         // angular velocity was measured to destabilize.
-        twistForIcpVars.vx = tw->vx;
-        twistForIcpVars.vy = tw->vy;
-        twistForIcpVars.vz = tw->vz;
+        twistForIcpVars.vx = od->twist.vx;
+        twistForIcpVars.vy = od->twist.vy;
+        twistForIcpVars.vz = od->twist.vz;
+        // The mean velocity over the covered interval, i.e. that at its middle:
+        bufferVelocity = od->velocity_at_middle;
+        bufferStamp = od->middle_stamp;
         state_.deskew_twist_from_odometry = true;
       } else {
         MRPT_LOG_THROTTLE_WARN_FMT(
@@ -120,8 +186,7 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
 
     this->updatePipelineTwistVariables(twistForIcpVars);
 
-    state_.parameter_source.localVelocityBuffer.add_linear_velocity(
-      stamp_s, {twistForIcpVars.vx, twistForIcpVars.vy, twistForIcpVars.vz});
+    state_.parameter_source.localVelocityBuffer.add_linear_velocity(bufferStamp, bufferVelocity);
     state_.parameter_source.localVelocityBuffer.add_angular_velocity(
       stamp_s, {twistForIcpVars.wx, twistForIcpVars.wy, twistForIcpVars.wz});
   }
@@ -130,7 +195,17 @@ void LidarOdometry::updatePipelineDynamicVariables(const mrpt::Clock::time_point
   updatePipelineDynamicVariablesRobotPoseOnly();
   const auto & p = state_.last_lidar_pose.mean;
 
-  state_.parameter_source.localVelocityBuffer.add_orientation(stamp_s, p.getRotationMatrix());
+  // The attitude sample, at this observation's stamp: that of the last pose,
+  // carried from the instant the pose refers to with the angular velocities in
+  // between. The IMU de-skew methods remove gravity with it, so the attitude of
+  // an earlier instant would leak gravity into the integrated velocity. Kept
+  // at this stamp, the sample is always within the de-skew sample window.
+  auto & buffer = state_.parameter_source.localVelocityBuffer;
+  auto R = p.getRotationMatrix();
+  if (state_.last_lidar_pose_stamp) {
+    R = carryAttitude(R, buffer.get_angular_velocities(), *state_.last_lidar_pose_stamp, stamp_s);
+  }
+  buffer.add_orientation(stamp_s, R);
 
   state_.parameter_source.updateVariable(
     "ADAPTIVE_THRESHOLD_SIGMA", state_.adapt_thres_sigma != 0
@@ -364,7 +439,7 @@ bool LidarOdometry::doUpdateEstimatedObservationRadius(const mp2p_icp::metric_ma
   return false;
 }
 
-std::optional<mrpt::math::TTwist3D> LidarOdometry::deskewTwistFromOdometry(
+std::optional<LidarOdometry::DeskewOdometryTwist> LidarOdometry::deskewTwistFromOdometry(
   const double t0, const double span) const
 {
   // Caller holds imu_state_mtx_.
@@ -411,14 +486,24 @@ std::optional<mrpt::math::TTwist3D> LidarOdometry::deskewTwistFromOdometry(
   const auto incr = *pb - *pa;  // in the vehicle frame at ta
   const auto logRot = mrpt::poses::Lie::SO<3>::log(incr.getRotationMatrix());
 
-  mrpt::math::TTwist3D tw;
+  DeskewOdometryTwist out;
+  auto & tw = out.twist;
   tw.vx = incr.x() / dt;
   tw.vy = incr.y() / dt;
   tw.vz = incr.z() / dt;
   tw.wx = logRot[0] / dt;
   tw.wy = logRot[1] / dt;
   tw.wz = logRot[2] / dt;
-  return tw;
+
+  // The same velocity in the vehicle frame at the middle of the interval,
+  // half of the rotation later (constant angular velocity):
+  auto halfRot = logRot;
+  halfRot *= 0.5;
+  const mrpt::poses::CPose3D midFrame(
+    mrpt::poses::Lie::SO<3>::exp(halfRot), mrpt::math::CVectorFixedDouble<3>::Zero());
+  out.velocity_at_middle = midFrame.inverseRotateVector({tw.vx, tw.vy, tw.vz});
+  out.middle_stamp = 0.5 * (ta + tb);
+  return out;
 }
 
 void LidarOdometry::updatePipelineTwistVariables(const mrpt::math::TTwist3D & tw)

@@ -145,6 +145,7 @@ void LidarOdometry::handleInitialLocalizationDoInitFromPose(
 
   // also, keep it as the last pose for subsequent ICP runs:
   state_.last_lidar_pose = initPose;
+  state_.last_lidar_pose_stamp.reset();
   state_.initial_pose = initPose.mean;
 }
 

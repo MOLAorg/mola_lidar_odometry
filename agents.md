@@ -262,6 +262,29 @@ the measurements behind that and behind its loose velocity sigmas. The one
 exception is `MOLA_GRANDTOUR_LIDAR=hesai_raw`, which turns it on and uses it
 for de-skewing.
 
+De-skew velocity: with an IMU de-skew method, `updatePipelineDynamicVariables()`
+queries the estimator's twist at `last_fused_scan_ref_time` (the reference time
+of the scan just fused; single-use, so only the previous scan's) and stores it
+in the velocity buffer with that stamp. The attitude sample stays at the
+observation stamp: `last_lidar_pose`, carried from `last_lidar_pose_stamp` with
+the buffer's angular velocities (gravity removal in the bridge; always inside
+the de-skew window). The twist variables keep `last_motion_model_output`. The
+de-skew blocks set `use_twist_with_imu_methods: false`, so the IMU methods
+integrate the accelerometer from that stamp to the sweep, while `Linear` uses
+the twist variables at t=0 (`MOLA_DESKEW_TWIST_WITH_IMU_METHODS=true` restores
+that for the IMU methods too). If the velocity sample is outside the window
+(previous scan dropped, or a point-time span shorter than half the scan
+period), mp2p_icp falls back to the twist at t=0 with a throttled warning.
+Hence `imu_propagation` is on in the simple estimator's YAML: its
+constant-twist velocity is filtered with a time constant of seconds, too slow
+for de-skew; bridging from it was measured to be worse than applying it at t=0
+on walking motion. Propagation also drives the ICP initial guess and the twist
+variables, and needs a +Z-up map frame. Requires the estimator version that
+returns the keyframe's own twist at its stamp: older ones return the filtered
+twist there. Hand-held and legged platforms must use the IMU methods: with
+`Linear`, propagation was measured to diverge after poor registrations on
+hand-held motion (4-8x ATE on one sequence), while IMU de-skew was fine there.
+
 ## IMU gyroscope biases from other modules (`use_imu_bias_source`)
 
 If a module offers `mola::ImuBiasSource` (e.g. the smoother with
