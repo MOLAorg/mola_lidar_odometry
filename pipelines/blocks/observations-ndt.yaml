@@ -86,6 +86,9 @@ observations_filter_2nd_pass:
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
       twist: [vx, vy, vz, wx, wy, wz]
+      # IMU methods: take the state estimator's velocity at the instant it refers to,
+      # and carry it to the sweep with the accelerometer (twist is for Linear only).
+      use_twist_with_imu_methods: "${MOLA_DESKEW_TWIST_WITH_IMU_METHODS|false}"
 
   - class_name: mp2p_icp_filters::FilterDeskew
     params:
@@ -98,6 +101,9 @@ observations_filter_2nd_pass:
       # These (vx,...,wz) are variable names that must be defined via the
       # mp2p_icp::Parameterizable API to update them dynamically.
       twist: [vx, vy, vz, wx, wy, wz]
+      # IMU methods: take the state estimator's velocity at the instant it refers to,
+      # and carry it to the sweep with the accelerometer (twist is for Linear only).
+      use_twist_with_imu_methods: "${MOLA_DESKEW_TWIST_WITH_IMU_METHODS|false}"
 
 # final pass:
 observations_filter_final_pass:

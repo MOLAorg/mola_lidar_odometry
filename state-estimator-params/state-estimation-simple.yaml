@@ -19,10 +19,15 @@ params:
 
   # Inertial propagation between pose updates: predict with the gyroscope and
   # the accelerometer (minus gravity) instead of a constant twist, which also
-  # keeps predicting across a few rejected scans. Needs an IMU with
-  # accelerometer and a map frame with +Z up (e.g. initialized from IMU
-  # pitch/roll). Silently ignored by estimator builds that predate it.
-  imu_propagation: ${MOLA_NAVSTATE_IMU_PROPAGATION|false}
+  # keeps predicting across a few rejected scans. Its velocity, unlike that of
+  # the filtered constant-twist model, follows accelerations without lag, which
+  # IMU-based de-skew needs. It also drives the ICP initial guess and the twist
+  # variables (e.g. Linear de-skew). Without IMU accelerometer readings it falls
+  # back to the constant-twist model. Needs a map frame with +Z up (e.g.
+  # initialized from IMU pitch/roll): set it to false otherwise. On hand-held
+  # or legged platforms, use it with an IMU de-skew method, not Linear.
+  # Silently ignored by estimator builds that predate it.
+  imu_propagation: ${MOLA_NAVSTATE_IMU_PROPAGATION|true}
   imu_propagation_max_time: ${MOLA_NAVSTATE_IMU_PROPAGATION_MAX_TIME|2.0} # [s]
   imu_propagation_sigma_acc: ${MOLA_NAVSTATE_IMU_PROPAGATION_SIGMA_ACC|0.5} # [m/s²]
   imu_propagation_sigma_bias: ${MOLA_NAVSTATE_IMU_PROPAGATION_SIGMA_BIAS|0.1} # [m/s²/sqrt(s)]

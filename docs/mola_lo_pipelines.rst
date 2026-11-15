@@ -697,6 +697,20 @@ Scan de-skew options
 
      **IMPORTANT**: If you do not change this from its default, IMU data will not be used for deskewing.
      To fully achieve the best accuracy when an IMU is available, set this to ``MotionCompensationMethod::IMU``.
+     Always do so on hand-held and legged platforms: ``Linear`` assumes a constant velocity over the sweep, which
+     their motion violates, and combined with inertial propagation (``MOLA_NAVSTATE_IMU_PROPAGATION``) it was seen
+     to diverge on such motion after a stretch of poor registrations.
+
+  With the IMU methods, the linear velocity is the state estimator's estimate right after the previous scan,
+  carried to the current sweep by integrating the accelerometer; the gyroscope gives the rotation.
+  This needs a velocity that follows accelerations: with the simple state estimator, keep
+  ``MOLA_NAVSTATE_IMU_PROPAGATION`` enabled (the default) in custom parameter files.
+  If that velocity is not within the de-skew sample window (twice the point-time span around the
+  scan reference time), e.g. after a dropped scan or with a span shorter than half the scan period,
+  the twist variables are used at the scan reference time instead, with a throttled warning.
+
+- ``MOLA_DESKEW_TWIST_WITH_IMU_METHODS`` (Default: ``false``): If ``true``, the IMU methods apply the twist
+  variables at the scan reference time instead, as in earlier versions.
 
 - ``MOLA_IGNORE_NO_POINT_STAMPS`` (Default: ``true``): If enabled (default), input point clouds without per-point timestamps
   will be processed without doing any de-skew. If set to ``false``, an exception is triggered in that event,
@@ -1173,6 +1187,11 @@ A constant velocity motion model is used by default, provided by the ``mola_stat
   velocity model. Larger delays will cause the latest vehicle pose to be used as the initial guess instead.
 - ``MOLA_NAVSTATE_SIGMA_RANDOM_WALK_LINACC`` (Default: ``1.0`` [m/s^2]): Linear acceleration standard deviation.
 - ``MOLA_NAVSTATE_SIGMA_RANDOM_WALK_ANGACC`` (Default: ``10.0`` [rad/s^2]): Angular acceleration standard deviation.
+- ``MOLA_NAVSTATE_IMU_PROPAGATION`` (Default: ``true``): If IMU accelerometer readings are available, predict with
+  the IMU between scans and estimate the velocity inertially. This prediction is the ICP initial guess and gives the
+  twist variables (e.g. for ``Linear`` de-skew) and the velocity for IMU de-skew. Without accelerometer readings, the
+  constant velocity model above is used. It needs a map frame with +Z up (e.g. initialized from the IMU pitch and
+  roll): set it to ``false`` otherwise.
 
 
 .. _pipeline_icp_log_files:

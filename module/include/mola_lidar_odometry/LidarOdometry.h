@@ -1629,6 +1629,12 @@ private:
     /// odometry source. Protected by imu_state_mtx_.
     bool deskew_twist_from_odometry = false;
 
+    /// Reference time of the scan whose pose was just fused into the state
+    /// estimator. The next scan's de-skew queries the twist at this instant,
+    /// stores it in the velocity buffer with this stamp, and clears it.
+    /// Protected by state_mtx_.
+    std::optional<mrpt::Clock::time_point> last_fused_scan_ref_time;
+
     /// True when the map-origin verticality reference was captured from the
     /// odometry attitude source. The per-scan reading is then taken from that
     /// same source and from nowhere else: a reading referenced against a
@@ -1655,6 +1661,10 @@ private:
     std::optional<mrpt::poses::CPose3D> gravity_calib_pose;
 
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
+
+    /// The instant `last_lidar_pose` refers to [s], if known (the reference
+    /// time of the scan it was registered or predicted for).
+    std::optional<double> last_lidar_pose_stamp;
 
     /// Pose set by the last initial localization, whatever its method. The
     /// first keyframe of an empty local map is placed here.
