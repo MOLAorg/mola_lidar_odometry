@@ -31,6 +31,10 @@ params:
   imu_propagation_max_time: ${MOLA_NAVSTATE_IMU_PROPAGATION_MAX_TIME|2.0} # [s]
   imu_propagation_sigma_acc: ${MOLA_NAVSTATE_IMU_PROPAGATION_SIGMA_ACC|0.5} # [m/s²]
   imu_propagation_sigma_bias: ${MOLA_NAVSTATE_IMU_PROPAGATION_SIGMA_BIAS|0.1} # [m/s²/sqrt(s)]
+  # Multiplier taking the accelerometer readings to m/s² (0: automatic, from the
+  # first readings, since some drivers publish them in units of g). The IMU
+  # de-skew decides its own units automatically.
+  imu_accel_scale: ${MOLA_IMU_ACC_SCALE|0}
 
   # Wheel-odometry velocity fusion (CObservationOdometry with hasVelocities=true).
   # Kept tighter than sigma_relative_pose_* above: wheel encoders give a direct
