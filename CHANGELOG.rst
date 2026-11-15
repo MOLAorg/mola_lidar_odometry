@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+3.5.0 (2026-11-15)
+------------------
 * Local map rebuilt from the corrected keyframes of a central map (mola::LocalMapCorrectionSource) after each of its corrections.
 * Guard against implausible state estimator predictions, and recover from stalls, keeping the estimator's frames (reset_motion()).
 * De-skew with the fresh state estimator velocity, at the instant it refers to.
