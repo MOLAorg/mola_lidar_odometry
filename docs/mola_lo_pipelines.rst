@@ -987,7 +987,12 @@ They have no effect on the ICP or NDT pipelines.
   ``mola::IncrementalPointCloud``: that map keeps the whole area around the robot, where ``MaxAngle`` also rejects
   the same surface seen from very different azimuths (e.g. ground), and it measured consistently worse there on
   hand-held sequences. ``SurfaceSide`` only rejects a pair when the matched point's neighborhood is actually flat
-  and both views are clearly (more than ~14.5 deg) off its plane.
+  and both views are clearly (more than ~14.5 deg) off its plane. ``ViewDirectionFilter::SurfaceSideGravityAligned``
+  (opt-in) is ``SurfaceSide`` except on near-horizontal surfaces, whose side it takes from the sign of each view's
+  vertical component, trusted down to ~1.7 deg off the plane: the top face of a floor slab seen at grazing
+  incidence (e.g. from the top of a staircase) is then not paired with its underside, mapped from below. It needs
+  a map frame whose +z axis points up, as with an IMU; in a tilted map frame it could reject the same face seen at
+  grazing incidence.
 
 - ``MOLA_LOCALMAP_VIEW_DIRECTION_FILTER_ANGLE_DEG`` (Default: ``120`` [deg]): Maximum angle between the view
   directions of a pair, for ``ViewDirectionFilter::MaxAngle`` only.
