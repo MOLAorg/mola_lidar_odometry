@@ -24,6 +24,15 @@ params:
 
   max_registration_mahalanobis: ${MOLA_MAX_REGISTRATION_MAHALANOBIS|0}
 
+  # ICP prior rotation from the gyroscope: the last registered pose rotated by the
+  # gyroscope rotation since then (sigma: deg + deg/s * interval), instead of the
+  # motion model's absolute pose uncertainty. Constrains the rotations the scene
+  # does not (e.g. yaw with few distinctive structures). Needs an IMU.
+  gyro_rotation_prior:
+    enabled: ${MOLA_GYRO_ROTATION_PRIOR|false}
+    sigma_deg: ${MOLA_GYRO_ROTATION_PRIOR_SIGMA_DEG|0.05}
+    sigma_deg_per_s: ${MOLA_GYRO_ROTATION_PRIOR_SIGMA_DEG_PER_S|0.5}
+
   # If defined, ".icplog" files will be saved if ICP quality drops below the given threshold.
   # Useful to debug mapping issues. If empty, only the env var MP2P_ICP_GENERATE_DEBUG_FILES and the icp.params setting will define when to save logs.
   write_debug_icp_log_if_quality_under: ${MOLA_WRITE_DEBUG_ICP_LOG_IF_QUALITY_UNDER|""}

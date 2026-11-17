@@ -132,6 +132,27 @@ void LidarOdometry::Parameters::StallRecovery::initialize(const Yaml & cfg)
     mrpt::format("stall_recovery: after_n_scans (%u) must be >= 1", after_n_scans));
 }
 
+void LidarOdometry::Parameters::GyroRotationPrior::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(enabled, bool);
+  YAML_LOAD_OPT(sigma_deg, double);
+  YAML_LOAD_OPT(sigma_deg_per_s, double);
+  YAML_LOAD_OPT(max_reading_gap, double);
+  YAML_LOAD_OPT(max_interval, double);
+
+  ASSERTMSG_(
+    sigma_deg > 0, mrpt::format("gyro_rotation_prior: sigma_deg (%f) must be > 0", sigma_deg));
+  ASSERTMSG_(
+    sigma_deg_per_s >= 0,
+    mrpt::format("gyro_rotation_prior: sigma_deg_per_s (%f) must be >= 0", sigma_deg_per_s));
+  ASSERTMSG_(
+    max_reading_gap > 0,
+    mrpt::format("gyro_rotation_prior: max_reading_gap (%f) must be > 0", max_reading_gap));
+  ASSERTMSG_(
+    max_interval > 0,
+    mrpt::format("gyro_rotation_prior: max_interval (%f) must be > 0", max_interval));
+}
+
 void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
 {
   YAML_LOAD_OPT(map_update_decimation, int);

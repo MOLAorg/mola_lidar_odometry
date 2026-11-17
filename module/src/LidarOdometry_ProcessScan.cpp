@@ -42,6 +42,8 @@
 #include <mrpt/obs/CObservationVelodyneScan.h>
 #include <mrpt/poses/Lie/SO.h>
 
+// Eigen (CMatrixFixed::asEigen() products):
+#include <Eigen/Dense>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -1123,6 +1125,13 @@ void LidarOdometry::processLidarScan(  // NOLINT
           "(pathStep=%zu, timestamp=%s UTC)",
           state_.estimated_trajectory.size(), mrpt::system::dateTimeToString(this_obs_tim).c_str());
       }
+    }
+
+    // Rotation since the last registered pose, from the gyroscope:
+    if (
+      params_.gyro_rotation_prior.enabled && state_.last_lidar_pose_stamp.has_value() &&
+      state_.step_counter_post_relocalization == 0) {
+      applyGyroRotationPrior(in, mrpt::Clock::toDouble(scan_ref_time));
     }
 
     // Apply the IMU verticality constraint as a yaw-free, rank-2 observation
@@ -2207,6 +2216,76 @@ void LidarOdometry::restartLocalMapFromScratch()
   }
 
   MRPT_LOG_WARN("Bad first ICP, re-starting from scratch with a new local map");
+}
+
+std::optional<mrpt::math::CMatrixDouble33> LidarOdometry::gyroAttitudeAtLocked(const double t) const
+{
+  const auto & buf = state_.gyro_attitude;
+  if (
+    buf.empty() || t < buf.front().stamp ||
+    t > buf.back().stamp + params_.gyro_rotation_prior.max_reading_gap) {
+    return std::nullopt;
+  }
+  auto it = std::upper_bound(
+    buf.begin(), buf.end(), t,
+    [](const double tt, const MethodState::GyroAttitude & g) { return tt < g.stamp; });
+  --it;
+  const double dt = t - it->stamp;
+  mrpt::math::CVectorFixedDouble<3> v;
+  v[0] = it->w.x * dt;
+  v[1] = it->w.y * dt;
+  v[2] = it->w.z * dt;
+  return it->R * mrpt::poses::Lie::SO<3>::exp(v);
+}
+
+void LidarOdometry::applyGyroRotationPrior(ICP_Input & in, const double scanTime)
+{
+  const auto & gp = params_.gyro_rotation_prior;
+  const double t0 = *state_.last_lidar_pose_stamp;
+  const double dt = scanTime - t0;
+  if (dt <= 0 || dt > gp.max_interval) {
+    return;
+  }
+  std::optional<mrpt::math::CMatrixDouble33> R0;
+  std::optional<mrpt::math::CMatrixDouble33> R1;
+  {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    R0 = gyroAttitudeAtLocked(t0);
+    R1 = gyroAttitudeAtLocked(scanTime);
+  }
+  if (!R0 || !R1) {
+    return;
+  }
+
+  // Rotation: last registered pose plus the gyroscope rotation since then.
+  // Translation: the motion model's (or the last pose's), as already guessed.
+  const mrpt::math::CMatrixDouble33 R(
+    state_.last_lidar_pose.mean.getRotationMatrix().asEigen() * R0->asEigen().transpose() *
+    R1->asEigen());
+  mrpt::poses::CPose3D mean(in.init_guess_local_wrt_global);
+  mean.setRotationMatrix(R);
+  in.init_guess_local_wrt_global = mean.asTPose();
+
+  if (!in.prior.has_value()) {
+    in.prior.emplace();
+    in.prior->mean = mean;
+    in.prior->cov_inv = mrpt::math::CMatrixDouble66::Zero();
+  } else {
+    set_icp_prior_mean(*in.prior, mean);
+  }
+
+  // Rotation block of the information, in the SE(3) tangent of the mean
+  // (indices 3-5, see IcpPrior.h), replaced by the gyroscope's:
+  const double sigma = mrpt::DEG2RAD(gp.sigma_deg + gp.sigma_deg_per_s * dt);
+  for (int i = 0; i < 6; i++) {
+    for (int j = 3; j < 6; j++) {
+      in.prior->cov_inv(i, j) = 0;
+      in.prior->cov_inv(j, i) = 0;
+    }
+  }
+  for (int j = 3; j < 6; j++) {
+    in.prior->cov_inv(j, j) = 1.0 / (sigma * sigma);
+  }
 }
 
 bool LidarOdometry::motionModelIsPlausible(const double scanTime, const double predictedSpeed)
