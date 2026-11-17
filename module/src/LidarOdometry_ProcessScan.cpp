@@ -42,6 +42,8 @@
 #include <mrpt/obs/CObservationVelodyneScan.h>
 #include <mrpt/poses/Lie/SO.h>
 
+// Eigen (CMatrixFixed::asEigen() products):
+#include <Eigen/Dense>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
