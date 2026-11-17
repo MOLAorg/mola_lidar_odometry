@@ -755,8 +755,8 @@ the map frame (centimeters to meters, degrees), so it is one tie-breaking
 residual against thousands of pairings. Where the scene does not constrain a
 rotation (yaw with few distinctive structures in view) ICP slides, and the slide
 enters the local map, which then agrees with the next wrong registrations. With
-`gyro_rotation_prior.enabled` (`pipelines/blocks/acceptance.yaml`, off by
-default), `consumePendingImu()` integrates the bias-corrected gyroscope, in the
+`gyro_rotation_prior.enabled` (`pipelines/blocks/acceptance.yaml`, on by
+default; inert without IMU readings), `consumePendingImu()` integrates the bias-corrected gyroscope, in the
 vehicle frame, into `state_.gyro_attitude` (restarted on reading gaps), and
 `applyGyroRotationPrior()` sets the rotation of the ICP initial guess and prior
 to the last registered pose times the gyroscope rotation since then, replacing
@@ -765,7 +765,10 @@ the rotation block of the prior information with `1/sigma^2`, sigma = `sigma_deg
 model's. Not applied in the post-relocalization window.
 Ground robot, map-less, smoother with gyro-only preintegration: a 100 s yaw slide
 (-71 deg online) went from 27.5 m to 4.1 m max error, heading p90 42 -> 5 deg; a
-run without degeneracy unchanged. Refusing whole registrations on a LIO vs gyro
+run without degeneracy unchanged. Default-on check: Oxford Spires 13 sequences x 3
+starts APE geomean 0.98-0.99 (simple and smoother; it also removed one divergent
+run), GrandTour 10 missions neutral (0.998 / 1.004).
+Refusing whole registrations on a LIO vs gyro
 disagreement instead was tried and dropped: a sliding window only bounds the
 drift rate, longer ones need the gyro bias first, and without a gyro-aware
 estimator the kept prediction has a wheel-odometry heading.
@@ -1453,7 +1456,7 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_LO_DEBUG_ICP_QUALITY` | bool | false | `module/src/LidarOdometry_ProcessScan.cpp` | Trace ICP quality metrics per scan |
 | `MOLA_ICP_PRIOR_WEIGHT` | double | 1.0 (no change) | `pipelines/lidar3d-gicp.yaml` | Multiplies the information matrix of the pose prior handed to the ICP solver. The prior is one residual against as many residuals as there are pairings, so at unit weight it breaks ties rather than constraining anything. Raise it where the motion source is worth more than a single point pairing |
 | `MOLA_MAX_REGISTRATION_MAHALANOBIS` | double | 0 (off) | `pipelines/lidar3d-gicp.yaml` | Largest distance, in sigmas of the state estimator's predicted pose covariance, that a registration may sit from that prediction and still be accepted. Only meaningful if the estimator reports an honest covariance: a filter whose covariance is dominated by a constant floor can make the statistic poorly reflect the actual prediction error. A rejection here does not count as a bad ICP, so it cannot trigger the sustained-failure recovery path |
-| `MOLA_GYRO_ROTATION_PRIOR` / `_SIGMA_DEG` / `_SIGMA_DEG_PER_S` | bool / double / double | false / 0.05 / 0.5 | `pipelines/blocks/acceptance.yaml` | ICP prior rotation from the last registered pose and the gyroscope (see "Gyroscope rotation prior for ICP") |
+| `MOLA_GYRO_ROTATION_PRIOR` / `_SIGMA_DEG` / `_SIGMA_DEG_PER_S` | bool / double / double | true / 0.05 / 0.5 | `pipelines/blocks/acceptance.yaml` | ICP prior rotation from the last registered pose and the gyroscope (see "Gyroscope rotation prior for ICP") |
 | `MOLA_LO_REG_GATE_LOG` | string | (empty = off) | `module/src/LidarOdometry_ProcessScan.cpp` | Path to a TSV dump, one row per scan: correction, predicted and ICP sigmas, and the Mahalanobis statistic, for choosing the threshold above from data. Same idiom as `MOLA_LO_MAP_GATE_LOG` |
 | `MOLA_LO_DISABLE_VERSION_CHECK` | bool | false | `module/src/LidarOdometry_Main.cpp` | Skips the daily online check for a newer release. Set in CI, so test coverage does not depend on network timing |
 | `MOLA_DROP_STALE_SCANS` | bool | true | all `pipelines/*.yaml` | false = lossless input queue (producer blocks instead of the queue evicting the older scan). `mola-lidar-odometry-cli` defaults it to false |

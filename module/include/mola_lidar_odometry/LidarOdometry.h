@@ -1259,7 +1259,7 @@ public:
      * default. */
     struct GyroRotationPrior
     {
-      bool enabled = false;
+      bool enabled = true;
       double sigma_deg = 0.05;
       double sigma_deg_per_s = 0.5;
       /// [s] A larger gap between gyroscope readings restarts the integration.
