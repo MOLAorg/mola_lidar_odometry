@@ -252,6 +252,10 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       params_.stall_recovery.initialize(cfg["stall_recovery"]);
     }
 
+    if (cfg.has("gyro_rotation_prior")) {
+      params_.gyro_rotation_prior.initialize(cfg["gyro_rotation_prior"]);
+    }
+
     if (cfg.has("diagnostics")) {
       params_.diagnostics.initialize(cfg["diagnostics"]);
     }

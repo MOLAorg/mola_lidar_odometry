@@ -31,6 +31,7 @@
 #include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationRobotPose.h>
+#include <mrpt/poses/Lie/SO.h>
 
 // Std:
 #include <chrono>
@@ -755,12 +756,17 @@ void LidarOdometry::consumePendingImu(const double upToTime)
       }
     }
 
-    // 4) Gravity estimation for ICP verticality correction:
+    // 4) Gyroscope attitude, for the ICP rotation prior:
+    if (params_.gyro_rotation_prior.enabled) {
+      integrateGyroAttitude(imu);
+    }
+
+    // 5) Gravity estimation for ICP verticality correction:
     if (params_.imu_gravity_correction.enabled) {
       state_.gravity_estimator.add(imu, params_.imu_gravity_correction.averaging_samples);
 
 #if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
-      // 4b) Preintegrate for the map-frame gravity estimator. Unlike the
+      // 5b) Preintegrate for the map-frame gravity estimator. Unlike the
       //     accelerometer average above, this consumes EVERY sample and does not
       //     require the platform to be quasi-static.
       if (params_.imu_gravity_correction.map_gravity.enabled) {
@@ -769,6 +775,50 @@ void LidarOdometry::consumePendingImu(const double upToTime)
       }
 #endif
     }
+  }
+}
+
+void LidarOdometry::integrateGyroAttitude(const mrpt::obs::CObservationIMU & imu)
+{
+  using mrpt::obs::IMU_WX;
+  using mrpt::obs::IMU_WY;
+  using mrpt::obs::IMU_WZ;
+
+  if (!imu.has(IMU_WX) || !imu.has(IMU_WY) || !imu.has(IMU_WZ)) {
+    return;
+  }
+  const auto & gp = params_.gyro_rotation_prior;
+  auto & buf = state_.gyro_attitude;
+  const double t = mrpt::Clock::toDouble(imu.timestamp);
+  if (!buf.empty() && t <= buf.back().stamp) {
+    return;
+  }
+
+  MethodState::GyroAttitude s;
+  s.stamp = t;
+  s.w = imu.sensorPose.rotateVector(
+    mrpt::math::TVector3D(imu.get(IMU_WX), imu.get(IMU_WY), imu.get(IMU_WZ)));
+
+  if (buf.empty() || t - buf.back().stamp > gp.max_reading_gap) {
+    // Start (or restart after a gap): the attitude origin is arbitrary, only
+    // rotations between two instants are used.
+    buf.clear();
+    s.R = mrpt::math::CMatrixDouble33::Identity();
+  } else {
+    const auto & prev = buf.back();
+    const double dt = t - prev.stamp;
+    mrpt::math::CVectorFixedDouble<3> v;
+    v[0] = 0.5 * (prev.w.x + s.w.x) * dt;
+    v[1] = 0.5 * (prev.w.y + s.w.y) * dt;
+    v[2] = 0.5 * (prev.w.z + s.w.z) * dt;
+    s.R = prev.R * mrpt::poses::Lie::SO<3>::exp(v);
+  }
+  buf.push_back(s);
+
+  // Keep the longest usable interval, plus margin:
+  const double maxAge = gp.max_interval + 1.0;
+  while (buf.front().stamp < t - maxAge) {
+    buf.pop_front();
   }
 }
 

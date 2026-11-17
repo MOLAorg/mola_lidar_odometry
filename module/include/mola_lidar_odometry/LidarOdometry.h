@@ -1247,6 +1247,30 @@ public:
     };
     StallRecovery stall_recovery;
 
+    /** ICP pose prior rotation from the gyroscope: the last registered pose
+     * rotated by the gyroscope rotation since then, with sigma `sigma_deg` plus
+     * `sigma_deg_per_s` times the interval (gyroscope bias). It replaces the
+     * rotation part of the motion-model prior, whose information is the
+     * absolute uncertainty of the predicted pose (a tie-breaker against the
+     * pairings). This relative one constrains the rotations the scene does not
+     * (e.g. yaw with few distinctive structures in view, where ICP slides and
+     * the slide enters the local map), while the pairings still win where the
+     * scene is well conditioned. Needs an IMU with angular velocity; off by
+     * default. */
+    struct GyroRotationPrior
+    {
+      bool enabled = false;
+      double sigma_deg = 0.05;
+      double sigma_deg_per_s = 0.5;
+      /// [s] A larger gap between gyroscope readings restarts the integration.
+      double max_reading_gap = 0.1;
+      /// [s] Longest interval since the last registered pose to use it.
+      double max_interval = 2.0;
+
+      void initialize(const Yaml & cfg);
+    };
+    GyroRotationPrior gyro_rotation_prior;
+
     /** When publishing pose updates, the reference frame for both, estimated robot poses, and the local map.*/
     std::string publish_reference_frame = "odom";
 
@@ -1750,6 +1774,17 @@ private:
     };
     /// Recent IMU specific forces. Protected by imu_state_mtx_.
     std::deque<SpecificForce> recent_specific_force;
+
+    /// Gyroscope readings integrated into an attitude, in the vehicle frame.
+    struct GyroAttitude
+    {
+      double stamp = 0;               ///< [s]
+      mrpt::math::CMatrixDouble33 R;  ///< attitude since the integration start
+      mrpt::math::TVector3D w;        ///< [rad/s] angular velocity
+    };
+    /// Recent integrated gyroscope attitudes (Parameters::gyro_rotation_prior),
+    /// cleared on a gap. Protected by imu_state_mtx_.
+    std::deque<GyroAttitude> gyro_attitude;
 
     /// Run totals, reported once at shutdown. `registration_no_motion_model` is
     /// the one that had no aggregate before: the front end already logs a
@@ -2416,6 +2451,19 @@ private:
   /// Whether the change of the predicted speed since the previous scan agrees
   /// with the IMU. Caller must hold state_mtx_.
   bool motionModelIsPlausible(double scanTime, double predictedSpeed);
+
+  /** Gyroscope attitude at `t` (MethodState::gyro_attitude), or nothing if the
+   * readings do not cover it. Caller holds imu_state_mtx_. */
+  std::optional<mrpt::math::CMatrixDouble33> gyroAttitudeAtLocked(double t) const;
+
+  /** Parameters::gyro_rotation_prior: sets the rotation of the ICP
+   * initial guess and prior from the last registered pose and the gyroscope.
+   * Caller holds state_mtx_. */
+  void applyGyroRotationPrior(ICP_Input & in, double scanTime);
+
+  /** Integrates one (bias corrected) gyroscope reading into
+   * MethodState::gyro_attitude. Caller holds imu_state_mtx_. */
+  void integrateGyroAttitude(const mrpt::obs::CObservationIMU & imu);
 
   /// Restarts the local map at the current pose and resets the state
   /// estimator, keeping the trajectory. Caller must hold state_mtx_.
