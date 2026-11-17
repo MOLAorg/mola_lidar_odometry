@@ -1021,7 +1021,14 @@ void LidarOdometry::processLidarScan(  // NOLINT
   if (hasMotionModel) {
     const auto & tw = state_.last_motion_model_output->twist;
     const double speed = std::sqrt(tw.vx * tw.vx + tw.vy * tw.vy + tw.vz * tw.vz);
-    if (!motionModelIsPlausible(mrpt::Clock::toDouble(scan_ref_time), speed)) {
+    const double scanTime = mrpt::Clock::toDouble(scan_ref_time);
+    if (motionModelIsTooFast(scanTime, speed)) {
+      hasMotionModel = false;
+      state_.last_motion_model_output.reset();
+      resetNavStateMotion();
+      restartPlausibilityCheck();
+      state_.motion_model_implausible++;
+    } else if (!motionModelIsPlausible(scanTime, speed)) {
       hasMotionModel = false;
       state_.last_motion_model_output.reset();
       resetNavStateMotion();
@@ -1611,6 +1618,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
     if (icpIsGood) {
       state_.last_lidar_pose = out.found_pose_to_wrt_from;
       state_.last_lidar_pose_stamp = mrpt::Clock::toDouble(scan_ref_time);
+      state_.last_registered_lidar_pose = state_.last_lidar_pose.mean;
     } else if (usePrediction) {
       state_.last_lidar_pose.copyFrom(state_.last_motion_model_output->pose);
       state_.last_lidar_pose_stamp = mrpt::Clock::toDouble(scan_ref_time);
@@ -2179,6 +2187,7 @@ void LidarOdometry::startMapAtFirstScan(
   // spuriously fire a second keyframe on the very next scan):
   state_.last_lidar_pose = initPose;
   state_.last_lidar_pose_stamp = mrpt::Clock::toDouble(scan_ref_time);
+  state_.last_registered_lidar_pose = state_.last_lidar_pose.mean;
   if (!state_.kf_decider_simplemap) {
     state_.kf_decider_simplemap.emplace(params_.simplemap);
   }
@@ -2288,6 +2297,30 @@ void LidarOdometry::applyGyroRotationPrior(ICP_Input & in, const double scanTime
   }
 }
 
+bool LidarOdometry::motionModelIsTooFast(const double scanTime, const double predictedSpeed)
+{
+  const double maxSpeed = params_.motion_model_max_speed;
+  if (maxSpeed <= 0) {
+    return false;
+  }
+  // The speed of the prediction, and the one implied by its pose since the last pose:
+  double impliedSpeed = 0;
+  if (state_.last_lidar_pose_stamp && scanTime > *state_.last_lidar_pose_stamp) {
+    const auto & predicted = state_.last_motion_model_output->pose.mean;
+    const double step =
+      (predicted.translation() - state_.last_lidar_pose.mean.translation()).norm();
+    impliedSpeed = step / (scanTime - *state_.last_lidar_pose_stamp);
+  }
+  if (predictedSpeed <= maxSpeed && impliedSpeed <= maxSpeed) {
+    return false;
+  }
+  MRPT_LOG_WARN_FMT(
+    "Not using the state estimator prediction, and resetting it: its speed (%.2f m/s, or %.2f "
+    "m/s from its pose) exceeds motion_model_max_speed (%.1f m/s)",
+    predictedSpeed, impliedSpeed, maxSpeed);
+  return true;
+}
+
 bool LidarOdometry::motionModelIsPlausible(const double scanTime, const double predictedSpeed)
 {
   const auto prev = state_.last_motion_model_speed;
@@ -2395,7 +2428,7 @@ void LidarOdometry::recoverFromStall()
 {
   MRPT_LOG_WARN_FMT(
     "Registration stalled for %u scans without a usable prediction: restarting the local map "
-    "at the last pose and resetting the state estimator",
+    "at the last registered pose and resetting the state estimator",
     state_.consecutive_stalled_scans);
 
 #if defined(MOLA_LO_HAS_LOCAL_MAP_REBUILD)
@@ -2405,9 +2438,10 @@ void LidarOdometry::recoverFromStall()
     auto lckMapContents = mrpt::lockHelper(local_map_content_mtx_);
     state_.local_map->clear();
   }
-  // The next scan starts the new map at this pose, as a first scan does. The
-  // trajectory is kept:
-  state_.initial_pose = state_.last_lidar_pose.mean;
+  // The next scan starts the new map at the last registered pose, as a first
+  // scan does: poses since then came from predictions, which may have run
+  // away. The trajectory is kept:
+  state_.initial_pose = state_.last_registered_lidar_pose.value_or(state_.last_lidar_pose.mean);
   state_.kf_decider_local_map.reset();
 
   // The estimator may hold a diverged state. The trajectory goes on in the

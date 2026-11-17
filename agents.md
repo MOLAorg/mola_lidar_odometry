@@ -729,9 +729,15 @@ the pose freezes for the rest of the run. Two guards, both in
   gravity removed), within `motion_model_max_extra_acceleration` times the
   interval; else the prediction is not used and the estimator is reset. Not
   checked for 1 s after a start or reset, while the estimator settles.
+- `motionModelIsTooFast()`: a prediction faster than `motion_model_max_speed`
+  (its twist, or its pose since the last pose) is rejected always, settling
+  included (a smoother started while moving predicted 3600 m/s within that
+  second; ICP failed and the pose followed the prediction for 700 m).
 - `recoverFromStall()`: after `stall_recovery.after_n_scans` scans with neither
-  a good ICP nor a prediction, the local map restarts at the last pose (the next
-  scan seeds it, through the first-scan path) and the estimator is reset.
+  a good ICP nor a prediction, the local map restarts at the last registered
+  pose (`last_registered_lidar_pose`: a good ICP or the map start, not a pose
+  from predictions; the next scan seeds it, through the first-scan path) and
+  the estimator is reset.
 
 Both reset the estimator: a diverged smoother does not recover on its own.
 They call `resetNavStateMotion()`, i.e. `reset_motion()` where `mola_kernel` has

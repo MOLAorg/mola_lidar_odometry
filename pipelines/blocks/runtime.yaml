@@ -51,9 +51,15 @@ params:
   # Needs an IMU; 0 disables it.
   motion_model_max_extra_acceleration: ${MOLA_MOTION_MODEL_MAX_EXTRA_ACC|10.0}
 
+  # [m/s] A prediction faster than this (its twist, or its pose since the last
+  # pose) is never used, not even while the estimator settles after a start or
+  # reset, and the estimator is reset. 0 disables it.
+  motion_model_max_speed: ${MOLA_MOTION_MODEL_MAX_SPEED|100.0}
+
   # If registration fails and there is no usable prediction for this many
   # consecutive scans, the pose cannot move again: restart the local map at the
-  # last pose and reset the state estimator. Not applied to a loaded map.
+  # last registered pose (not one from predictions, which may have run away)
+  # and reset the state estimator. Not applied to a loaded map.
   stall_recovery:
     enabled: ${MOLA_STALL_RECOVERY|true}
     after_n_scans: ${MOLA_STALL_RECOVERY_AFTER_N_SCANS|5}
