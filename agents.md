@@ -506,7 +506,7 @@ otherwise the tree does not connect (tf2 "two unconnected trees"). LO's own pose
 are fed under `MOLA_LO_PUBLISH_REF_FRAME` (default `map`), so they do not create
 a separate odom source.
 
-## SharedKeyframeMap sink (central-map keyframe push, e.g. mola_mapper_3d)
+## SharedKeyframeMap sink (central-map keyframe push, e.g. mola_mapper)
 
 Separately from the dense `navstate_fuse` querying above, `LidarOdometry`
 optionally detects a `mola::SharedKeyframeMap` sink at init
@@ -530,11 +530,10 @@ distinct from `publish_reference_frame` (the frame the dense, every-scan
 anchor-once tie collide with the dense path's tie on the same
 (relocalization-seeded) keyframe, which threw
 `gtsam::IndeterminantLinearSystemException` at startup in real testing
-against KITTI through `mola_mapper_3d`'s
-`mola-cli-launchs/lidar_odometry_mapper3d_from_kitti.yaml`. See that
-package's agents.md ("Real end-to-end validation lessons") for the full list
-of bugs this integration surfaced, several of which were in `mola_mapper_3d`,
-not here -- but two structural changes live in this file:
+against KITTI through `mola_mapper`'s
+`mola-cli-launchs/lio_smoother_mapper_from_kitti.yaml`. Several of the bugs
+this integration surfaced were in `mola_mapper`, not here -- but two
+structural changes live in this file:
 `pushKeyframeToSharedKeyframeMap()`'s dedicated frame name, and the
 distance-checker `insert()` gating fix mentioned above.
 
