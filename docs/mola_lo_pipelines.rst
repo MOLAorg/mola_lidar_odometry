@@ -104,8 +104,7 @@ ____________________________________________
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 As of Oct 2025, this is the **default and recommended configuration** for most common sensor setups and environments.
 
-A peer-reviewed paper describing this pipeline is in preparation, but very briefly, this pipeline keeps a
-local point cloud map around the vehicle (see :ref:`gicp_localmap_class` below), and exploits the
+This pipeline keeps a local point cloud map around the vehicle (see :ref:`gicp_localmap_class` below), and exploits the
 Generalized ICP algorithm :cite:`segal2009gicp`.
 
 .. image:: https://mrpt.github.io/imgs/MOLA_LIO_Oxford_Spires_stairs.gif
