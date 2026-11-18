@@ -597,8 +597,10 @@ runs **MOLA-LO** on a sequence of the KITTI odometry dataset :cite:`geiger2013vi
 ====================================
 4. Running from ROS 1 bags
 ====================================
-ROS 1 bags are not directly supported by MOLA-LO. However, given the large amount of public datasets
-already published in this format, we provide two pathways to parse them.
+ROS 1 bags (``.bag``) are read directly, with no ROS 1 installation needed, by
+``mola-lo-gui-rosbag1`` and ``mola-lo-cli-rosbag1``, or by ``mola-lidar-odometry-cli --input-rosbag1``.
+Several bags can be given at once, and are replayed jointly as one merged stream.
+See :ref:`dataset_rosbag1`.
 
-- Porting to ROS 2 bags:  :ref:`ros1_to_ros2`.
-- Converting to MRPT rawlog: :ref:`rosbag2rawlog`
+Converting them is also possible, e.g. to use other tools: to ROS 2 bags (:ref:`ros1_to_ros2`)
+or to MRPT rawlogs (:ref:`rosbag2rawlog`).

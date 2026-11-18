@@ -24,7 +24,7 @@ theoretical design.
   you can jump into running some demos with
   the :ref:`provided GUI applications <mola_lo_apps>`,
   the :ref:`CLI interface <mola_lidar_odometry_cli>`,
-  or learn how to :ref:`build a map from your own ROS 2 bag dataset <mola_lo_ros>`.
+  or learn how to :ref:`run it on your own ROS 2 bag <your_own_rosbag>`.
 
 .. contents::
    :depth: 1
@@ -94,7 +94,7 @@ or from rosbags.
 However, to make thinks simpler, a set of executable scripts are provided
 to make launching them easier: :ref:`MOLA GUI apps <mola_lo_apps>`.
 
-Apart of this way to run MOLA-LO, two additional ways are provided for convenience: 
+Apart from this way to run MOLA-LO, two additional ways are provided for convenience:
 
 * :ref:`mola-lidar-odometry-cli <mola_lidar_odometry_cli>`: this standalone program
   is provided as a way to **process a given dataset as fast as possible**, without
@@ -102,7 +102,9 @@ Apart of this way to run MOLA-LO, two additional ways are provided for convenien
   It is also great for scripting and automating SLAM pipelines from raw datasets or rosbags.
 * :ref:`ROS 2 integration <mola_lo_ros>`: ROS 2 launch files are also provided for easier integration
   for real-time odometry and mapping.
-* :ref:`ROS 2 diagnostics (REP-107) <mola_lo_diagnostics>`: health monitoring published on ``/diagnostics``.
+
+When running within ROS 2, its health status is published on ``/diagnostics``:
+see :ref:`ROS 2 diagnostics (REP-107) <mola_lo_diagnostics>`.
 
 |
 

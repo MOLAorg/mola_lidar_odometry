@@ -46,12 +46,13 @@ In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLA
    .. code-block:: bash
 
       # Example using the 3D-NDT alternative pipeline:
-      PIPELINE_YAML=$(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-ndt.yaml \
+      MOLA_ODOMETRY_PIPELINE_YAML=$(ros2 pkg prefix mola_lidar_odometry)/share/mola_lidar_odometry/pipelines/lidar3d-ndt.yaml \
       MOLA_LOCAL_VOXELMAP_RESOLUTION=5.0 \
-      mola-lo-gui-rosbag  # [...]
+      mola-lo-gui-rosbag2  # [...]
 
-   If you use the `CLI interface <mola_lidar_odometry_cli>`_ instead, the pipeline file to use needs to be always explicitly
-   specified, there is none by default.
+   The ``mola-lo-cli-*`` wrappers use the same default and variable. If you call the
+   :ref:`CLI interface <mola_lidar_odometry_cli>` directly instead, the pipeline file must always be
+   given with ``-c``: there is none by default.
 
 
 |
@@ -103,8 +104,9 @@ ____________________________________________
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 As of Oct 2025, this is the **default and recommended configuration** for most common sensor setups and environments.
 
-A peer-reviewed paper describing this pipeline is in preparation, but very briefly, this pipeline defines a
-local map based on key-frames of point clouds, and exploits the Generalized ICP algorithm :cite:`segal2009gicp`.
+A peer-reviewed paper describing this pipeline is in preparation, but very briefly, this pipeline keeps a
+local point cloud map around the vehicle (see :ref:`gicp_localmap_class` below), and exploits the
+Generalized ICP algorithm :cite:`segal2009gicp`.
 
 .. image:: https://mrpt.github.io/imgs/MOLA_LIO_Oxford_Spires_stairs.gif
 
