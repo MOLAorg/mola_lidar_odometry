@@ -54,10 +54,6 @@ Each cell stacks the badges for that ROS 2 distro, in this order (when available
 - RHEL (`x86_64`) -- not available for Humble, since `mrpt3` cannot be built there.
 - Fedora (`x86_64`) -- only available since ROS 2 Lyrical.
 
-| EOL Distro | Last release |
-| ---    |  ---      |
-| ROS2 Iron  (u22.04)   | [![Version](https://img.shields.io/ros/v/iron/mola_lidar_odometry)](https://index.ros.org/?search_packages=true&pkgs=mola_lidar_odometry) |
-
 
 ## Citation
 
