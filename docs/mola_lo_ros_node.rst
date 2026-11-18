@@ -251,6 +251,12 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       (default), the pipeline YAML fallback is used (``FixedPose``) and
       ``gnss_mode:=relocalize`` may switch it to ``FromStateEstimator``.
 
+    * ``initial_pose`` (default ``""``):
+      Known initial pose for ``InitLocalization::FixedPose``, as
+      ``"[x, y, z, yaw_deg, pitch_deg, roll_deg]"`` in the frame of the loaded map. If empty
+      (default), the pipeline YAML fallback is used (the origin, or ``MOLA_INITIAL_X``, ``_Y``,
+      ``_Z``, ``_YAW``, ``_PITCH``, ``_ROLL``).
+
     * ``lidar_scan_validity_minimum_point_count`` (default ``100``):
       Minimum number of points required in an incoming LiDAR scan for it to be processed;
       scans below this threshold are discarded.
@@ -261,6 +267,12 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
     * ``lidar_topic_type`` (default ``PointCloud2``):
       The type of LiDAR topic to subscribe to. Options: ``PointCloud2`` or ``LaserScan``.
+
+    * ``localization_publish_tf_source`` (default ``""``):
+      Which localization source (``method``) is published to ``/tf``. If empty (default),
+      ``state_estimation`` with ``use_state_estimator:=True``, else ``lidar_odometry``.
+      With the smoother publishing ``map → odom`` itself (``MOLA_PUBLISH_MAP_TO_ODOM_TF=true``),
+      set it to ``state_estimation/map_odom``.
 
     * ``mola_bridge_odometry_frame`` (default ``odom``):
       BridgeROS2's odom ``/tf`` frame name (the REP-105 "odom" child or the parent of
@@ -283,7 +295,9 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       Optional path to a keyframes ``.simplemap`` file to load.
 
     * ``mola_lo_pipeline`` (default ``../pipelines/lidar3d-default.yaml``):
-      The LO pipeline configuration YAML file.
+      The LO pipeline configuration YAML file. A relative path is relative to the
+      installed ``share/mola_lidar_odometry/mola-cli-launchs/`` directory, so the
+      provided pipelines can be given as ``../pipelines/<name>.yaml``.
 
     * ``mola_lo_reference_frame`` (default ``map``):
       Parent ``/tf`` frame of the localization update emitted by MOLA-LO (the
@@ -368,6 +382,10 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
     * ``use_namespace`` (default ``false``):
       Whether to apply ``namespace`` to the MOLA stack (remaps ``/tf`` and ``/tf_static``).
+
+    * ``use_namespaced_tf`` (default ``true``):
+      With ``use_namespace:=True``, whether ``/tf`` and ``/tf_static`` are also namespaced.
+      Set it to ``false`` for namespaced sensor topics with global ``/tf`` and ``/tf_static``.
 
     * ``use_rviz`` (default ``True``):
       Whether to launch RViz2 with the default ``lidar-odometry.rviz`` configuration.
