@@ -4,7 +4,7 @@
 
    It is recommended to start with the tutorial on how to :ref:`build a map <building-maps>`.
 
-This launch file (`view sources <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/ros2-launchs/ros2-lidar-odometry.launch.py>`_)
+This launch file (`view sources <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/ros2-launchs/ros2-lidar-odometry.launch.py>`__)
 runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrating a few features**:
 
 .. tip::

@@ -431,7 +431,7 @@ are already working and publishing ROS topics.
 3.2. ROS 2 launch file: LiDAR odometry for KITTI
 --------------------------------------------------
 
-This demo launch file (`view sources <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/ros2-launchs/kitti-ros2-lidar-odometry.launch.py>`_)
+This demo launch file (`view sources <https://github.com/MOLAorg/mola_lidar_odometry/blob/develop/ros2-launchs/kitti-ros2-lidar-odometry.launch.py>`__)
 runs **MOLA-LO** on a sequence of the KITTI odometry dataset :cite:`geiger2013vision`, 
 **demonstrating a few features**:
 
