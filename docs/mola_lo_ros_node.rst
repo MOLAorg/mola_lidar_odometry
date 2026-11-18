@@ -1,4 +1,4 @@
-.. This file becomes embedded into root MOLA / ROS2API docs page, within the MOLA-LO node docs:
+.. This file is included from mola_lo_apps.rst (section: ROS 2 node).
 
 .. note::
 
