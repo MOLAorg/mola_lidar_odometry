@@ -471,5 +471,5 @@ ROS 1 bags (``.bag``) are read directly, with no ROS 1 installation needed, by
 Several bags can be given at once, and are replayed jointly as one merged stream.
 See :ref:`dataset_rosbag1`.
 
-Converting them is also possible, e.g. to use other tools: to ROS 2 bags (:ref:`ros1_to_ros2`)
-or to MRPT rawlogs (:ref:`rosbag2rawlog`).
+They can also be converted, e.g. to use other tools: to ROS 2 bags (:ref:`ros1_to_ros2`)
+or to MRPT rawlogs (:ref:`rosbag2rawlog`, ROS 1 version).
