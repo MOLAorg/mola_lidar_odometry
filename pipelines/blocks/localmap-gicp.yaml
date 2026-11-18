@@ -68,8 +68,13 @@ localmap_generator:
           # rejects pairs of points seen from opposite sides of a thin surface.
           # Needs the view_x/y/z fields the observation generator adds.
           # - use_view_direction_filter: master switch, false disables it.
-          # - view_direction_filter: None, MaxAngle or SurfaceSide (e.g.
+          # - view_direction_filter: None, MaxAngle, SurfaceSide or
+          #   SurfaceSideGravityAligned (e.g.
           #   MOLA_LOCALMAP_VIEW_DIRECTION_FILTER=ViewDirectionFilter::SurfaceSide).
+          #   SurfaceSideGravityAligned, opt-in, also tells apart the two faces of
+          #   a near-horizontal surface (e.g. a floor slab) at grazing views; it
+          #   needs a map frame with +z up (e.g. with an IMU) and a
+          #   mola_metric_maps version that has it.
           #   Left empty, each class keeps its own default: MaxAngle for the
           #   keyframe map, SurfaceSide for the incremental one. The incremental
           #   map keeps the whole area around the robot, where MaxAngle also

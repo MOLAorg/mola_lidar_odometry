@@ -1233,10 +1233,17 @@ public:
      * Needs an IMU; 0 disables the check. */
     double motion_model_max_extra_acceleration = 10.0;
 
+    /** [m/s] A state estimator prediction faster than this, or whose pose is
+     * farther from the last pose than this speed allows, is never used, not
+     * even while the estimator settles after a start or reset; the estimator
+     * is reset. 0 disables it. */
+    double motion_model_max_speed = 100.0;
+
     /** Recovery from a stall: registration failed and the state estimator gave
      * no usable prediction, so the pose cannot move. After `after_n_scans` such
-     * consecutive scans, the local map restarts at the last pose and the state
-     * estimator is reset, so registration resumes. Never applied to a loaded
+     * consecutive scans, the local map restarts at the last registered pose
+     * (the last good ICP, or the start of the map) and the state estimator is
+     * reset, so registration resumes. Never applied to a loaded
      * map or with local map updates disabled. */
     struct StallRecovery
     {
@@ -1685,6 +1692,10 @@ private:
     std::optional<mrpt::poses::CPose3D> gravity_calib_pose;
 
     mrpt::poses::CPose3DPDFGaussian last_lidar_pose;  //!< in local map
+
+    /// The last pose registered by a good ICP, or where the map started: the
+    /// stall recovery restarts here, not at a pose that came from predictions.
+    std::optional<mrpt::poses::CPose3D> last_registered_lidar_pose;
 
     /// The instant `last_lidar_pose` refers to [s], if known (the reference
     /// time of the scan it was registered or predicted for).
@@ -2447,6 +2458,10 @@ private:
   /// Clears the local map and trajectory after a bad ICP right after an
   /// empty-map start. Caller must hold state_mtx_.
   void restartLocalMapFromScratch();
+
+  /// Whether the prediction (last_motion_model_output) moves faster than
+  /// motion_model_max_speed, by its twist or its pose. Caller must hold state_mtx_.
+  bool motionModelIsTooFast(double scanTime, double predictedSpeed);
 
   /// Whether the change of the predicted speed since the previous scan agrees
   /// with the IMU. Caller must hold state_mtx_.
