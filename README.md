@@ -18,12 +18,15 @@ offline datasets.
 ## Build and install
 Refer to: https://docs.mola-slam.org/latest/#installing
 
-Lidar Inertial Odometry (LIO) demo with Oxford Spires:
-![Peek 2025-08-31 11-36](https://github.com/user-attachments/assets/b99d99de-9178-4fda-bf85-cb926f8c5d87)
+## Demo videos
 
-
-Lidar Odometry (LO) demo with KITTI:
-![mola-slam-kitti-demo](https://github.com/user-attachments/assets/45255aba-6ea2-44eb-b5e4-4cc52e8e7615)
+<p align="center">
+  <img src="https://mrpt.github.io/videos/mola_demo_montage.webp" width="100%"
+       alt="MOLA on real data: ANYmal legged robot (GrandTour), Husky robot (University of Almeria), TorWIC warehouse, Oxford Spires handheld, KITTI car, and live loop closure at the Colosseum (VBR)"/>
+  <br/>
+  <sub>Live MOLA GUI on real data: GrandTour (ANYmal legged robot), Husky robot at the University of Almer&iacute;a,
+  TorWIC warehouse, Oxford Spires (handheld), KITTI (car) and VBR Rome (loop closure at the Colosseum).</sub>
+</p>
 
 ## Documentation and tutorials
 See: https://docs.mola-slam.org/
