@@ -91,7 +91,7 @@ provided by the `mola_launcher <https://github.com/MOLAorg/mola/tree/develop/mol
 **Predefined launch files** `are provided <https://github.com/MOLAorg/mola_lidar_odometry/tree/develop/mola-cli-launchs>`_
 for common tasks like running MOLA-LO on well-known public datasets 
 or from rosbags.
-However, to make thinks simpler, a set of executable scripts are provided
+However, to make things simpler, a set of executable scripts are provided
 to make launching them easier: :ref:`MOLA GUI apps <mola_lo_apps>`.
 
 Apart from this way to run MOLA-LO, two additional ways are provided for convenience:

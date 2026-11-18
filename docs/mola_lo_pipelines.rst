@@ -21,7 +21,7 @@ The best way to understand the different parts of this file is to browse the YAM
 provided for 3D LiDARs. Most of the times, comments in the YAML are self-explanatory.
 The 3D pipeline files are short: each one lists the :ref:`pipeline blocks <mola_lo_pipeline_blocks>` it is made of,
 and each block holds one part of the configuration (sensor inputs, ICP, local map, ...).
-In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLAorg/mola/issues>`_ to ask.
+In case of doubts, do not hesitate to `open an issue <https://github.com/MOLAorg/mola/issues>`_ to ask.
 
 .. note::
 
@@ -37,7 +37,7 @@ In case of doubts, do not hesitate in `opening an issue <https://github.com/MOLA
 .. dropdown:: Specifying the pipeline file in MOLA-LO apps
    :icon: checklist
 
-   All MOLA-LO :ref:`GUI applications <mola_lo_apps>` defaults to using the symlink `lidar3d-default.yaml` which at presents
+   All MOLA-LO :ref:`GUI applications <mola_lo_apps>` default to the symlink ``lidar3d-default.yaml``, which at present
    points to the :ref:`3D LiDAR GICP pipeline <mola_3d_gicp_pipeline>`
    defined below. To use the alternative 2D pipeline or any other custom pipeline, please set the corresponding environment
    variable before invoking the :ref:`GUI application <mola_lo_apps>` (or derive your own script by copying and modifying the provided ones).
@@ -102,7 +102,7 @@ ____________________________________________
 
 1. Generalized ICP (GICP) pipeline for 3D LiDAR (``lidar3d-gicp.yaml``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-As of Oct 2025, this is the **default and recommended configuration** for most common sensor setups and environments.
+This is the **default and recommended configuration** for most common sensor setups and environments.
 
 This pipeline keeps a local point cloud map around the vehicle (see :ref:`gicp_localmap_class` below), and exploits the
 Generalized ICP algorithm :cite:`segal2009gicp`.
@@ -213,7 +213,7 @@ ____________________________________________
 2. ICP pipeline for 3D LiDAR (``lidar3d-icp.yaml``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 This was the **reference configuration** used for most examples in the MOLA-LO paper :cite:`blanco2025mola_lo`,
-and should work great out of the box for most common situations; although as of Oct 2025, the newer pipeline :ref:`lidar3d-gicp.yaml <mola_3d_gicp_pipeline>`
+and should work great out of the box for most common situations, although the newer pipeline :ref:`lidar3d-gicp.yaml <mola_3d_gicp_pipeline>`
 is now the default and recommended in general.
 
 As described in the paper :cite:`blanco2025mola_lo`, this pipeline defines a **voxel-based 3D point-cloud local map**,
@@ -289,7 +289,7 @@ ____________________________________________
 This alternative configuration uses an **occupancy voxel map** instead of point clouds
 as local map, and performs **ray-tracing** to accumulate evidence about the freeness
 or occupancy of voxels from 2D LiDAR scans.
-If it recommended to use wheels-based odometry to help the mapping process.
+It is recommended to use wheel odometry to help the mapping process.
 
 .. image:: https://mrpt.github.io/imgs/lidar2d-radish-demo.gif
 

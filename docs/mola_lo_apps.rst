@@ -22,7 +22,7 @@ and CLI usage, next we list the environment variables common to all of them.
 
 .. note::
 
-    Apart of the environment variables defined here, which are **specific** to these
+    Apart from the environment variables defined here, which are **specific** to these
     mola-cli launch files (see: :ref:`role of MOLA-LO module <mola-lo-role>`),
     remember that there are **many additional parameters**
     associated to the LO pipeline YAML file, listed `here <pipelines_env_vars>`_.
@@ -34,7 +34,7 @@ Common elements of all GUI apps
 ---------------------------------
 ``mola_viz`` provides a unified API for all MOLA modules to display custom UI subwindows, controls, and 3D objects.
 Next we describe how to manipulate or interpret the **common elements in this UI**, which is the same in all MOLA-LO
-programs, except ``mola-lidar-odometry-cli`` which is explicitly design not to have any GUI.
+programs, except ``mola-lidar-odometry-cli`` which is explicitly designed not to have any GUI.
 
 .. image:: imgs/gui_parts.png
 
@@ -143,12 +143,12 @@ Environment variables specific for ``mola-lo-gui-rosbag2``:
 
 |
 
-- ``MOLA_TIME_WARP`` (Default: 1.0): Time wrapping for rosbag replay.
+- ``MOLA_TIME_WARP`` (Default: 1.0): Time warping (playback speed factor) for the replay.
 
 - ``MOLA_DATASET_START_PAUSED`` (Default: false): Start with replay paused. Then can be resumed from the GUI.
 
 Also, see :ref:`variables to control sensor inputs <mola_lo_ros_mola-cli-env-vars>`, including
-manually-provided sensor poses for the LiDAR, IMU, or GNNS sensors.
+manually-provided sensor poses for the LiDAR, IMU, or GNSS sensors.
 
 |
 
@@ -168,7 +168,7 @@ Environment variables specific for ``mola-lo-gui-rawlog``:
 
 |
 
-- ``MOLA_TIME_WARP`` (Default: 1.0): Time wrapping for rosbag replay.
+- ``MOLA_TIME_WARP`` (Default: 1.0): Time warping (playback speed factor) for the replay.
 
 - ``MOLA_DATASET_START_PAUSED`` (Default: false): Start with replay paused. Then can be resumed from the GUI.
 

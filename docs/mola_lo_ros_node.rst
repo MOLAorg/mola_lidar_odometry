@@ -128,7 +128,7 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
     To play a bag through the ROS 2 launch file with correct simulated time, use the
     ``use_sim_time:=true`` argument together with ``ros2 bag play --clock``.
     See the **Rosbag playback** tab above for the full example.
-    Note however than MOLA-LO GUI apps can directly read rosbags
+    Note however that MOLA-LO GUI apps can directly read rosbags
     without the need to replay them.
 
     .. code-block:: bash
