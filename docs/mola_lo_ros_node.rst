@@ -25,9 +25,11 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
       .. code-block:: bash
 
-         # Minimal LO use case (requires correct LiDAR sensor /tf):
+         # Minimal LO use case (requires correct LiDAR sensor /tf), without
+         # wheel odometry, so map -> base_link is published (no "odom" frame):
          ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
-            lidar_topic_name:=ouster/points
+            lidar_topic_name:=ouster/points \
+            publish_localization_following_rep105:=False
 
          # LO usage without sensor /tf:
          ros2 launch mola_lidar_odometry ros2-lidar-odometry.launch.py \
@@ -47,7 +49,8 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
            mola_deskew_method:=MotionCompensationMethod::IMU \
            lidar_topic_name:=/ouster/points \
            imu_topic_name:=/ouster/imu \
-           mola_tf_base_link:=os_sensor
+           mola_tf_base_link:=os_sensor \
+           publish_localization_following_rep105:=False
 
    .. tab-item:: LIO usage (No /tf)
 
@@ -321,7 +324,10 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
     * ``publish_localization_following_rep105`` (default ``True``):
       Whether the bridge publishes localization TFs as ``map → odom`` (REP-105, true)
-      or directly ``map → base_link`` (false). REP-105 is incompatible with the smoother.
+      or directly ``map → base_link`` (false). REP-105 needs an ``odom → base_link`` from
+      another source (e.g. wheel odometry): set it to ``false`` if there is none. Recent bridge
+      versions fall back to ``map → base_link`` when no ``odom`` frame appears within a few
+      seconds. It works with both state estimators.
 
     * ``start_active`` (default ``True``):
       Whether MOLA-LO starts active (processing incoming sensor data) or idle.
