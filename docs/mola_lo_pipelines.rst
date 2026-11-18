@@ -660,8 +660,18 @@ extrinsics, and derives pitch and roll from the gravity direction.
 Sensor inputs: Wheels odometry (optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``MOLA_ODOMETRY_NAME`` (Default: ``wheel_odom``): **Sensor label** (or regex) of the observations
-  with wheels odometry, if it exists.
+Wheel (or other) odometry readings are fused by the state estimator, not by the pipeline. The shipped
+launch files forward them under the **sensor label** ``MOLA_ODOM_SENSOR_LABEL`` (default ``odom_wheels``).
+The pipeline itself only uses an odometry label in these optional features:
+
+- ``MOLA_DESKEW_ODOMETRY_NAME`` (Default: empty, disabled): **Sensor label** of an odometry source (e.g. leg
+  or wheel odometry) whose velocity is used to de-skew each sweep, instead of the state estimator's.
+
+- ``MOLA_ODOM_VERTICALITY`` (Default: ``false``): use the attitude of an odometry source as a pitch/roll
+  constraint of the ICP prior, with ``MOLA_ODOM_VERTICALITY_LABEL`` (Default: ``odom_wheels``),
+  ``MOLA_ODOM_VERTICALITY_SIGMA_DEG`` (Default: ``1.0``) and ``MOLA_ODOM_VERTICALITY_MAX_AGE``
+  (Default: ``0.5`` [s]). That source must provide a full 3D pose (``nav_msgs/Odometry`` forwarded as a
+  robot pose), since planar odometry has no pitch or roll.
 
 Sensor inputs: GPS (GNSS) (optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
