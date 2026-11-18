@@ -424,7 +424,7 @@ are already working and publishing ROS topics.
 3.1. ROS 2 launch file: live LiDAR odometry
 --------------------------------------------------
 
-.. include:: mola_lo_ros_node.rst
+.. include:: ../../../mola_lidar_odometry/docs/mola_lo_ros_node.rst
 
 |
 
