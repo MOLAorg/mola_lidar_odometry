@@ -59,7 +59,7 @@ We dub such data structure **view-based map** or **simple-map**.
    Role of an "odometry" module (Figure adapted from :cite:`blanco2025mola_lo`).
 
 
-**Simple-maps** can then be used as input to :ref:`mp2p_icp applications <mp2p_icp_applications>` for analysis, filtering,
+**Simple-maps** can then be used as input to :ref:`mp2p_icp applications <map-tools>` for analysis, filtering,
 or creation of arbitrarily-complex **metric maps** of different kinds, like point clouds, voxel maps, 2D grid maps, etc.
 Refer to :ref:`mp2p_icp_basics`.
 Most often, users might be interested in **analyzing generated simple-maps** with :ref:`sm-cli <app_sm-cli>`,
