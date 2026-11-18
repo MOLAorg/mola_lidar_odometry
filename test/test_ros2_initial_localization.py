@@ -330,8 +330,15 @@ class TestInitialLocalization(unittest.TestCase):
                 proc_output.assertWaitFor(
                     expected['log_contains'], timeout=1.0, stream='stdout')
         else:
-            # Not localized: a pose, but far from the truth.
+            # Not localized: a pose, but far from the truth in position or in
+            # heading. A wrong heading may leave the position error small, since
+            # the vehicle is still and the map is matched around it.
             self.assertTrue(errors, f'No pose on {POSE_TOPIC} over the last '
                             f"{expected['evaluate_last_seconds']} s of the fragment")
-            for e, _ in errors:
-                self.assertGreater(e, expected['min_position_error'])
+            min_yaw_error_deg = expected.get('min_yaw_error_deg', 20.0)
+            for e, a in errors:
+                self.assertTrue(
+                    e > expected['min_position_error'] or a > min_yaw_error_deg,
+                    f'Pose looks localized: position error {e:.2f} m '
+                    f"(min {expected['min_position_error']}), yaw error {a:.1f} deg "
+                    f'(min {min_yaw_error_deg})')
