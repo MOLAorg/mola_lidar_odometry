@@ -2,8 +2,8 @@
 Changelog for package mola_lidar_odometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+3.6.0 (2026-11-20)
+------------------
 * ICP rotation prior from the gyroscope (gyro_rotation_prior), enabled by default.
 * Never use a state estimator prediction faster than motion_model_max_speed; stall recovery restarts at the last registered pose.
 * Docs: ROS 2 node launch arguments, REP-105 notes, ROS 1 bags, SurfaceSideGravityAligned filter; README cleanup.
