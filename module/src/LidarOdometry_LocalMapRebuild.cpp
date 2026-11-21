@@ -32,6 +32,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <limits>
 #include <regex>
 #include <utility>
 
@@ -236,6 +237,7 @@ void LidarOdometry::localMapRebuildThreadLoop()
 
 void LidarOdometry::invalidateLocalMapRebuild()
 {
+  clearLocalMapBeforeRebuild();
   local_map_generation_++;
   state_.last_pushed_keyframe.reset();
   state_.recent_local_map_insertions.clear();
@@ -646,6 +648,12 @@ bool LidarOdometry::rebuildLocalMap()
     }
     state_.kf_decider_local_map.emplace(std::move(newDecider));
     state_.mark_local_map_as_updated(true /*force_republish*/);
+    if (local_map_view_active_) {
+      // In the local map view, the new map right away, next to the old one.
+      // Queued under state_mtx_, so a later invalidation always clears it.
+      state_.mapUpdateCnt = std::numeric_limits<unsigned int>::max();
+      showLocalMapBeforeRebuild(oldMap, params_.visualization.local_map_point_size);
+    }
     break;
   }
   oldMap.reset();

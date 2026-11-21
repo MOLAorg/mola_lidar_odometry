@@ -126,6 +126,8 @@ void LidarOdometry::shutdownCleanup()
     worker_viz_.clear();
     worker_viz_local_map_.clear();
     worker_publish_local_map_.clear();
+    worker_viz_rebuild_.clear();
+    worker_viz_view_.clear();
 
     // Run totals, once, in a form a harness can scrape. `no_motion_model` is
     // the number the corpus had no aggregate for: it is the difference between
