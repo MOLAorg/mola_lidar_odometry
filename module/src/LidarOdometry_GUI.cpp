@@ -1169,16 +1169,21 @@ void LidarOdometry::showLocalMapBeforeRebuild(
   if (!local_map_view_active_ || !oldMap || !visualizer_) {
     return;
   }
+  uint64_t epoch = 0;
   {
     auto lck = mrpt::lockHelper(before_rebuild_pending_mtx_);
     before_rebuild_pending_ = oldMap;
+    epoch = before_rebuild_epoch_;
   }
   auto viz = visualizer_;
   const auto view = local_map_view_name_;
-  vizEnqueue(worker_viz_rebuild_, [this, viz, view, pointSize]() {
+  vizEnqueue(worker_viz_rebuild_, [this, viz, view, pointSize, epoch]() {
     mp2p_icp::metric_map_t::Ptr map;
     {
       auto lck = mrpt::lockHelper(before_rebuild_pending_mtx_);
+      if (epoch != before_rebuild_epoch_) {
+        return;  // queued before a clear: anything pending now is not ours
+      }
       map = std::exchange(before_rebuild_pending_, nullptr);
     }
     if (!map) {
@@ -1208,6 +1213,7 @@ void LidarOdometry::clearLocalMapBeforeRebuild()
   {
     auto lck = mrpt::lockHelper(before_rebuild_pending_mtx_);
     before_rebuild_pending_.reset();
+    before_rebuild_epoch_++;
   }
   auto viz = visualizer_;
   const auto view = local_map_view_name_;

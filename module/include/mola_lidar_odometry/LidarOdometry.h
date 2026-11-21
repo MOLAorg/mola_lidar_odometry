@@ -2222,7 +2222,10 @@ private:
   /** The newest replaced local map not drawn yet: each task draws only this
    *  one, so slow renders never pile up behind frequent rebuilds. */
   mp2p_icp::metric_map_t::Ptr before_rebuild_pending_;
-  std::mutex before_rebuild_pending_mtx_;
+  /** Bumped by each clear: a task queued before it never takes a map
+   *  submitted after it, which is left for its own task. */
+  uint64_t before_rebuild_epoch_ = 0;
+  std::mutex before_rebuild_pending_mtx_;  //!< Protects the two above
 
   /** Mirrors visualization.local_map_view_show_before_rebuild for the
    *  rendering tasks, which read it when they run. */
