@@ -32,6 +32,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <limits>
 #include <regex>
 #include <utility>
 
@@ -646,7 +647,14 @@ bool LidarOdometry::rebuildLocalMap()
     }
     state_.kf_decider_local_map.emplace(std::move(newDecider));
     state_.mark_local_map_as_updated(true /*force_republish*/);
+    if (local_map_view_active_) {
+      // In the local map view, the new map right away, next to the old one:
+      state_.mapUpdateCnt = std::numeric_limits<unsigned int>::max();
+    }
     break;
+  }
+  if (local_map_view_active_) {
+    showLocalMapBeforeRebuild(oldMap);
   }
   oldMap.reset();
   local_map_rebuilds_++;

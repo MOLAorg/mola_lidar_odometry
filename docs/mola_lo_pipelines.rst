@@ -1185,6 +1185,13 @@ Visualization
    - ``MOLA_GUI_SHOW_ESTIMATED_GRAVITY_VECTOR`` (Default: ``false``): Overlay the estimated gravity direction vector in the 3D view.
    - ``MOLA_GUI_BACKGROUND_GRAY_LEVEL`` (Default: ``0.3``): Background brightness for the 3D view (0=black, 1=white).
    - ``MOLA_GUI_SHOW_LOCAL_MAP`` (Default: ``true``): Whether to render the local map in the GUI.
+   - ``MOLA_GUI_LOCAL_MAP_VIEW`` (Default: ``false``): Render the local map in a 3D view of its own (a
+     separate, dockable window with its own camera; ImGui GUI only), in the odometry's own frame, instead of
+     in the main view, where a mapper (e.g. ``mola_mapper``) draws its global map. The view also shows the
+     vehicle and the last scan (white), and, after each local map rebuild from the mapper's loop closures,
+     the local map as it was before it (magenta), to see what the rebuild changed.
+   - ``MOLA_GUI_LOCAL_MAP_VIEW_BEFORE_REBUILD`` (Default: ``true``): In that view, show the local map before
+     the last rebuild. Also a checkbox in the "View" panel.
    - ``MOLA_GUI_SHOW_GROUND_GRID`` (Default: ``true``): Whether to show the ground reference grid in the GUI.
    - ``MOLA_GUI_LOCAL_MAP_COLOR_BY_COORDINATE`` (Default: ``intensity``): Point field used to
      colorize the local map in the GUI (e.g. ``x``, ``y``, ``z``, ``ring``, ``intensity``).

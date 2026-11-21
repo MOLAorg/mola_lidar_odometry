@@ -565,6 +565,12 @@ after the next pushed keyframe:
 - `invalidateLocalMapRebuild()` (map restart/load/preload, any (re)localization pose,
   re-leveling, a full insertion buffer, and `local_map_generation_` in `reset()`) drops the reference and
   any rebuild in progress. Known gap: those frame changes are not told to the central map.
+- With `visualization.local_map_view` (`MOLA_GUI_LOCAL_MAP_VIEW`), the local map is drawn in a
+  3D view of its own (`VizInterface::create_3d_view_subwindow()`, `MOLA_KERNEL_VIZ_HAS_3D_VIEW_SUBWINDOWS`),
+  at its root (LIO's own frame, no movable frame), with the vehicle and the last scan; after
+  each swap, `showLocalMapBeforeRebuild()` draws the old map tinted, on `worker_viz_rebuild_`
+  (FIFO, since the drop-old map worker could lose it; only the newest pending old map is
+  drawn, so slow renders never pile up behind frequent rebuilds).
 
 ## Scan enqueue & overload handling (drop stale, keep freshest)
 

@@ -558,6 +558,15 @@ public:
       /// map, which is a costly operation.
       int map_update_decimation = 10;
 
+      /// Draw the local map in a 3D view of its own (a separate window, if
+      /// the visualizer has them), in this odometry's own frame, instead of
+      /// in the main view: with the vehicle and the last scan, and after each
+      /// local map rebuild (see LocalMapUpdateOptions::rebuild_on_corrections)
+      /// the map as it was before it, tinted.
+      bool local_map_view = false;
+      /// In that view, show the local map before the last rebuild.
+      bool local_map_view_show_before_rebuild = true;
+
       bool gui_subwindow_starts_hidden = false;
 
       // --- Tab visibility ---
@@ -2189,6 +2198,31 @@ private:
   mrpt::WorkerThreadsPool worker_publish_local_map_{
     1, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_pub_map"};
 
+  /** Draws the local map before each rebuild in the local map view. FIFO, so
+   *  the GUI checkbox tasks are never dropped; the rebuild tasks only draw the
+   *  newest pending map (before_rebuild_pending_). Its tasks use `*this`,
+   *  under the same lifetime rules as worker_viz_local_map_ above. */
+  mrpt::WorkerThreadsPool worker_viz_rebuild_{
+    1, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_viz_rbld"};
+
+  /** The local map view (visualization.local_map_view): its name, set once in
+   *  internalBuildGUI() before local_map_view_active_ is raised. */
+  std::string local_map_view_name_;
+  std::atomic_bool local_map_view_active_{false};
+
+  /** The last "before the rebuild" rendering, shown again when re-enabled
+   *  from the GUI. Only used from worker_viz_rebuild_. */
+  mrpt::viz::CSetOfObjects::Ptr gl_local_map_before_rebuild_;
+
+  /** The newest replaced local map not drawn yet: each task draws only this
+   *  one, so slow renders never pile up behind frequent rebuilds. */
+  mp2p_icp::metric_map_t::Ptr before_rebuild_pending_;
+  std::mutex before_rebuild_pending_mtx_;
+
+  /** Mirrors visualization.local_map_view_show_before_rebuild for the
+   *  rendering tasks, which read it when they run. */
+  std::atomic_bool local_map_view_show_before_{true};
+
   MethodState state_;
 
 #if defined(MOLA_LO_HAS_MP2P_LEARNED_COVARIANCE)
@@ -2585,6 +2619,16 @@ private:
   /// that takes; the O(map size) render itself is enqueued on
   /// worker_viz_local_map_ (see local_map_content_mtx_).
   void updateVisualizationLocalMap();
+
+  /** The vehicle, the last scan and the camera of the local map view. */
+  void updateVisualizationLocalMapView(
+    const mrpt::maps::CPointsMap::Ptr & deskewedCloud,
+    const mrpt::viz::CSetOfObjects::Ptr & glVehicle,
+    std::vector<std::function<void()>> & updateTasks);
+
+  /** Draws a local map just replaced by a rebuild in the local map view
+   *  (kept for the GUI checkbox even if not shown now). */
+  void showLocalMapBeforeRebuild(const mp2p_icp::metric_map_t::Ptr & oldMap);
   void updateVisualizationPath(std::vector<std::function<void()>> & updateTasks);
 
   /// Renders the /tf subtree below the configured root frame, as a child of
