@@ -78,6 +78,10 @@ observations_generator:
           max_distance_for_cov: ${MOLA_OBSLAYER_MAX_DISTANCE_FOR_COV|2.0}
           max_plane_deviation_for_cov: ${MOLA_OBSLAYER_MAX_PLANE_DEV_FOR_COV|0}
           plane_regularization_lambda: ${MOLA_OBSLAYER_PLANE_REG_LAMBDA|0.001}
+          # Spatial index of this layer (mola::PointIndexType). Left empty, the
+          # class default applies. Same neighbors either way, only the search
+          # cost changes.
+          index_type: ${MOLA_OBSLAYER_INDEX_TYPE|}
         insertOpts: ~
         likelihoodOpts: ~ # none required
         renderOpts: ~
