@@ -46,6 +46,7 @@
 // STD:
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <limits>
 #include <map>
 #include <mutex>
@@ -67,6 +68,11 @@ constexpr const char * VIEW_VEHICLE_OBJ = "liodom/vehicle";
 // Magenta and white: colors that the usual colormaps (e.g. jet) do not use.
 const mrpt::img::TColor BEFORE_REBUILD_COLOR{0xff, 0x00, 0xff, 0xc8};
 const mrpt::img::TColor VIEW_SCAN_COLOR{0xff, 0xff, 0xff, 0xff};
+
+// Defined below.
+void vizUpsert3D(
+  const mola::VizInterface::Ptr & viz, const std::string & name,
+  const mrpt::viz::CSetOfObjects::Ptr & obj, const std::string & parentFrame);
 
 #if defined(MOLA_HAS_TRANSFORM_TREE_SOURCE)
 /** Splits "a, b ,c" into {"a","b","c"}, ignoring empty items. */
@@ -324,20 +330,19 @@ mola::gui::Tab LidarOdometry::buildTabView()
                  [this, checked]() { params_.visualization.show_localmap = checked; });
              }});
 
-  if (params_.visualization.local_map_view) {
+  if (local_map_view_active_) {
     tab.widgets.emplace_back(CheckBox{
       "Local map view: map before the last rebuild",
       params_.visualization.local_map_view_show_before_rebuild, [this](bool checked) {
         this->enqueue_locked_request([this, checked]() {
           params_.visualization.local_map_view_show_before_rebuild = checked;
         });
+        // Shown again only if kept (it is not drawn while hidden): otherwise
+        // from the next rebuild on.
         local_map_view_show_before_ = checked;
-        if (!local_map_view_active_) {
-          return;
-        }
         auto viz = visualizer_;
         const auto view = local_map_view_name_;
-        (void)worker_viz_rebuild_.enqueue([this, viz, view]() {
+        vizEnqueue(worker_viz_rebuild_, [this, viz, view]() {
           auto gl = (local_map_view_show_before_ && gl_local_map_before_rebuild_)
                       ? gl_local_map_before_rebuild_
                       : mrpt::viz::CSetOfObjects::Create();
@@ -481,6 +486,39 @@ void LidarOdometry::internalBuildGUI()
     lb = std::make_shared<LiveString>(" ");
   }
 
+  // The local map view first: the "View" panel depends on it.
+  if (params_.visualization.local_map_view && !local_map_view_active_) {
+#if defined(MOLA_KERNEL_VIZ_HAS_3D_VIEW_SUBWINDOWS)
+    local_map_view_name_ = "lio_local_map_" + this->getModuleInstanceName();
+    if (visualizer_->create_3d_view_subwindow(local_map_view_name_, "LiDAR Odom: Local map")
+          .get()) {
+      worker_viz_rebuild_.resize(1);
+      worker_viz_view_.resize(1);
+      local_map_view_show_before_ = params_.visualization.local_map_view_show_before_rebuild;
+      local_map_view_active_ = true;
+
+      // The map may have been drawn in the main view already (the first
+      // update comes before this): there it goes, and into the view at once.
+      // state_mtx_ is held by our caller, updateVisualizationAlways().
+      state_.local_map_needs_viz_update = true;
+      state_.mapUpdateCnt = std::numeric_limits<unsigned int>::max();
+      auto viz = visualizer_;
+      const std::string vizFrame = vizParentFrame();
+      vizEnqueue(worker_viz_local_map_, [viz, vizFrame]() {
+        vizUpsert3D(viz, LOCAL_MAP_OBJ, mrpt::viz::CSetOfObjects::Create(), vizFrame);
+      });
+    } else {
+      MRPT_LOG_WARN(
+        "visualization.local_map_view: this visualizer has no extra 3D views; the local map "
+        "stays in the main view.");
+    }
+#else
+    MRPT_LOG_WARN(
+      "visualization.local_map_view: built against a mola_kernel without extra 3D views; the "
+      "local map stays in the main view.");
+#endif
+  }
+
   // Background 3D scene: change background color (backend-agnostic)
   visualizer_->execute_custom_code_on_background_scene([this](mrpt::viz::Scene & scene) {
     const auto f = params_.visualization.background_color_gray_level;
@@ -555,25 +593,6 @@ void LidarOdometry::internalBuildGUI()
     }
     visualizer_->create_subwindow_from_description(desc).get();
   }
-
-  if (params_.visualization.local_map_view && !local_map_view_active_) {
-#if defined(MOLA_KERNEL_VIZ_HAS_3D_VIEW_SUBWINDOWS)
-    local_map_view_name_ = "lio_local_map_" + this->getModuleInstanceName();
-    if (visualizer_->create_3d_view_subwindow(local_map_view_name_, "LiDAR Odom: Local map")
-          .get()) {
-      local_map_view_show_before_ = params_.visualization.local_map_view_show_before_rebuild;
-      local_map_view_active_ = true;
-    } else {
-      MRPT_LOG_WARN(
-        "visualization.local_map_view: this visualizer has no extra 3D views; the local map "
-        "stays in the main view.");
-    }
-#else
-    MRPT_LOG_WARN(
-      "visualization.local_map_view: built against a mola_kernel without extra 3D views; the "
-      "local map stays in the main view.");
-#endif
-  }
 }
 
 void LidarOdometry::doRemoveCloudsWithDecay()
@@ -643,9 +662,7 @@ void vizUpsertLocalMapObject(
 // for map layers that render themselves with their own colors.
 void tintPointClouds(mrpt::viz::CSetOfObjects & objs, const mrpt::img::TColor & c)
 {
-  for (const auto & co : objs) {
-    // Just rendered for this purpose, so not shared yet: safe to modify.
-    const auto o = std::const_pointer_cast<mrpt::viz::CVisualObject>(co);
+  for (const auto & o : objs) {
     if (auto pc = std::dynamic_pointer_cast<mrpt::viz::CPointCloudColoured>(o); pc) {
       for (size_t i = 0; i < pc->size(); i++) {
         pc->setPointColor_u8_fast(i, c.R, c.G, c.B, c.A);
@@ -1121,7 +1138,7 @@ void LidarOdometry::updateVisualizationLocalMapView(
   auto viz = visualizer_;
   auto deskewed = deskewedCloud;  // NOLINT(performance-unnecessary-copy-initialization)
   const float pointSize = params_.visualization.current_observation_point_size;
-  (void)worker_viz_.enqueue([viz, view, deskewed, pose, pointSize]() {
+  vizEnqueue(worker_viz_view_, [viz, view, deskewed, pose, pointSize]() {
     mp2p_icp::metric_map_t mm;
     mm.layers["raw"] = deskewed;
     mp2p_icp::render_params_t rp;
@@ -1133,7 +1150,21 @@ void LidarOdometry::updateVisualizationLocalMapView(
   });
 }
 
-void LidarOdometry::showLocalMapBeforeRebuild(const mp2p_icp::metric_map_t::Ptr & oldMap)
+bool LidarOdometry::vizEnqueue(mrpt::WorkerThreadsPool & pool, std::function<void()> task)
+{
+  if (shutdown_cleanup_done_) {
+    return false;
+  }
+  try {
+    (void)pool.enqueue(std::move(task));
+    return true;
+  } catch (const std::exception &) {
+    return false;  // the pool was stopped meanwhile
+  }
+}
+
+void LidarOdometry::showLocalMapBeforeRebuild(
+  const mp2p_icp::metric_map_t::Ptr & oldMap, float pointSize)
 {
   if (!local_map_view_active_ || !oldMap || !visualizer_) {
     return;
@@ -1144,15 +1175,19 @@ void LidarOdometry::showLocalMapBeforeRebuild(const mp2p_icp::metric_map_t::Ptr 
   }
   auto viz = visualizer_;
   const auto view = local_map_view_name_;
-  const float pointSize = params_.visualization.local_map_point_size;
-  (void)worker_viz_rebuild_.enqueue([this, viz, view, pointSize]() {
+  vizEnqueue(worker_viz_rebuild_, [this, viz, view, pointSize]() {
     mp2p_icp::metric_map_t::Ptr map;
     {
       auto lck = mrpt::lockHelper(before_rebuild_pending_mtx_);
       map = std::exchange(before_rebuild_pending_, nullptr);
     }
     if (!map) {
-      return;  // already drawn by an earlier task
+      return;  // already drawn by an earlier task, or cleared
+    }
+    if (!local_map_view_show_before_) {
+      // Not drawn while hidden (an O(map size) render per rebuild):
+      gl_local_map_before_rebuild_.reset();
+      return;
     }
     // The old map is no longer written to: it is rendered without locks.
     mp2p_icp::render_params_t rp;
@@ -1161,9 +1196,25 @@ void LidarOdometry::showLocalMapBeforeRebuild(const mp2p_icp::metric_map_t::Ptr 
     auto gl = map->get_visualization(rp);
     tintPointClouds(*gl, BEFORE_REBUILD_COLOR);
     gl_local_map_before_rebuild_ = gl;
-    viz->update_3d_object(
-      BEFORE_REBUILD_OBJ, local_map_view_show_before_ ? gl : mrpt::viz::CSetOfObjects::Create(),
-      view, "main");
+    viz->update_3d_object(BEFORE_REBUILD_OBJ, gl, view, "main");
+  });
+}
+
+void LidarOdometry::clearLocalMapBeforeRebuild()
+{
+  if (!local_map_view_active_ || !visualizer_) {
+    return;
+  }
+  {
+    auto lck = mrpt::lockHelper(before_rebuild_pending_mtx_);
+    before_rebuild_pending_.reset();
+  }
+  auto viz = visualizer_;
+  const auto view = local_map_view_name_;
+  // FIFO: after any render already running, so nothing old stays.
+  vizEnqueue(worker_viz_rebuild_, [this, viz, view]() {
+    gl_local_map_before_rebuild_.reset();
+    viz->update_3d_object(BEFORE_REBUILD_OBJ, mrpt::viz::CSetOfObjects::Create(), view, "main");
   });
 }
 

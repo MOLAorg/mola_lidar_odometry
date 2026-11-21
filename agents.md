@@ -570,7 +570,10 @@ after the next pushed keyframe:
   at its root (LIO's own frame, no movable frame), with the vehicle and the last scan; after
   each swap, `showLocalMapBeforeRebuild()` draws the old map tinted, on `worker_viz_rebuild_`
   (FIFO, since the drop-old map worker could lose it; only the newest pending old map is
-  drawn, so slow renders never pile up behind frequent rebuilds).
+  drawn, so slow renders never pile up behind frequent rebuilds), and
+  `invalidateLocalMapRebuild()` clears it. The view and its pools start in
+  `internalBuildGUI()`, which runs after the first `updateVisualizationLocalMap()`: it
+  clears the main view's copy and forces a redraw into the view.
 
 ## Scan enqueue & overload handling (drop stale, keep freshest)
 

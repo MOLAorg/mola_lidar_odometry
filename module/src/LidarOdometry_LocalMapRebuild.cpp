@@ -237,6 +237,7 @@ void LidarOdometry::localMapRebuildThreadLoop()
 
 void LidarOdometry::invalidateLocalMapRebuild()
 {
+  clearLocalMapBeforeRebuild();
   local_map_generation_++;
   state_.last_pushed_keyframe.reset();
   state_.recent_local_map_insertions.clear();
@@ -605,6 +606,7 @@ bool LidarOdometry::rebuildLocalMap()
   // state_mtx_, so the scan thread is not blocked; only the last few, under it,
   // right before the swap.
   mp2p_icp::metric_map_t::Ptr oldMap;
+  float beforePointSize = 1.0f;
   for (int pass = 0;; pass++) {
     std::unique_lock<std::mutex> lck(state_mtx_);
     if (aborted() || !state_.local_map || !params_.local_map_updates.enabled) {
@@ -650,11 +652,12 @@ bool LidarOdometry::rebuildLocalMap()
     if (local_map_view_active_) {
       // In the local map view, the new map right away, next to the old one:
       state_.mapUpdateCnt = std::numeric_limits<unsigned int>::max();
+      beforePointSize = params_.visualization.local_map_point_size;
     }
     break;
   }
   if (local_map_view_active_) {
-    showLocalMapBeforeRebuild(oldMap);
+    showLocalMapBeforeRebuild(oldMap, beforePointSize);
   }
   oldMap.reset();
   local_map_rebuilds_++;

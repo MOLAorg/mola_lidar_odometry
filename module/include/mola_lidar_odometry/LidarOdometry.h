@@ -561,7 +561,7 @@ public:
       /// Draw the local map in a 3D view of its own (a separate window, if
       /// the visualizer has them), in this odometry's own frame, instead of
       /// in the main view: with the vehicle and the last scan, and after each
-      /// local map rebuild (see LocalMapUpdateOptions::rebuild_on_corrections)
+      /// local map rebuild (see MapUpdateOptions::rebuild_on_corrections)
       /// the map as it was before it, tinted.
       bool local_map_view = false;
       /// In that view, show the local map before the last rebuild.
@@ -2203,7 +2203,12 @@ private:
    *  newest pending map (before_rebuild_pending_). Its tasks use `*this`,
    *  under the same lifetime rules as worker_viz_local_map_ above. */
   mrpt::WorkerThreadsPool worker_viz_rebuild_{
-    1, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_viz_rbld"};
+    0 /*started with the view*/, mrpt::WorkerThreadsPool::POLICY_FIFO, "worker_viz_rbld"};
+
+  /** Draws the last scan in the local map view. A pool of its own, as
+   *  worker_viz_local_map_: in worker_viz_, the next frame's task would drop it. */
+  mrpt::WorkerThreadsPool worker_viz_view_{
+    0 /*started with the view*/, mrpt::WorkerThreadsPool::POLICY_DROP_OLD, "worker_viz_view"};
 
   /** The local map view (visualization.local_map_view): its name, set once in
    *  internalBuildGUI() before local_map_view_active_ is raised. */
@@ -2626,9 +2631,15 @@ private:
     const mrpt::viz::CSetOfObjects::Ptr & glVehicle,
     std::vector<std::function<void()>> & updateTasks);
 
-  /** Draws a local map just replaced by a rebuild in the local map view
-   *  (kept for the GUI checkbox even if not shown now). */
-  void showLocalMapBeforeRebuild(const mp2p_icp::metric_map_t::Ptr & oldMap);
+  /** Draws a local map just replaced by a rebuild in the local map view, if
+   *  that is enabled (kept for the GUI checkbox). */
+  void showLocalMapBeforeRebuild(const mp2p_icp::metric_map_t::Ptr & oldMap, float pointSize);
+
+  /** Removes it, when the local map changes frame (see invalidateLocalMapRebuild()). */
+  void clearLocalMapBeforeRebuild();
+
+  /** Enqueues a task on a viz pool, unless shutting down (then it would throw). */
+  bool vizEnqueue(mrpt::WorkerThreadsPool & pool, std::function<void()> task);
   void updateVisualizationPath(std::vector<std::function<void()>> & updateTasks);
 
   /// Renders the /tf subtree below the configured root frame, as a child of
