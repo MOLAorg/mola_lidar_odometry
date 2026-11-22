@@ -1513,6 +1513,13 @@ We use colcon, the ROS2 build tool, and mola_common with utility cmake helpers.
 `launch_testing_ament_cmake` pulls in a `python_cmake_module` that still uses
 `FindPythonInterp`, which CMake >= 3.27 removed (e.g. a pip-installed CMake).
 
+- **ABI and versions**: shared libraries get the SOVERSION `MAJOR.MINOR` of `package.xml`, so a
+  patch release must keep the ABI. Changing the layout of a public type (data members added,
+  removed or reordered, virtual functions) or an exported signature needs a minor bump
+  (`catkin_prepare_release --bump minor`): otherwise packages built against the previous patch
+  release load the new library and silently corrupt memory (e.g. a struct grown by the library
+  overruns the caller's stack copy).
+
 ## Testing
 
 - **Framework**: CMake + GTest
