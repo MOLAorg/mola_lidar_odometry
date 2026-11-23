@@ -639,10 +639,24 @@ def generate_launch_description():
     adaptive_decimation_arg = DeclareLaunchArgument(
         "adaptive_decimation", default_value="False",
         description="Skip LiDAR scans while the platform moves little, and process every scan "
-                    "when it turns, moves fast, or registration gets marginal. Needs an IMU: "
-                    "without gyroscope readings, every scan is processed.")
+                    "when it turns, moves fast, or registration gets marginal. Needs an IMU and "
+                    "gyro_rotation_prior:=True: without them, every scan is processed.")
     adaptive_decimation_env_var = SetEnvironmentVariable(
         name='MOLA_ADAPTIVE_DECIMATION', value=LaunchConfiguration('adaptive_decimation'))
+
+    gyro_rotation_prior_arg = DeclareLaunchArgument(
+        "gyro_rotation_prior", default_value="",
+        description="ICP rotation prior from the gyroscope (True/False). Helps where the scene "
+                    "leaves a rotation unconstrained, but a gyroscope bias that no module "
+                    "removes pulls the heading. Empty (default): MOLA_GYRO_ROTATION_PRIOR from "
+                    "the environment, else off.")
+
+    def _apply_gyro_rotation_prior(context, *args, **kwargs):
+        v = LaunchConfiguration('gyro_rotation_prior').perform(context).strip()
+        if not v:
+            return []
+        return [SetEnvironmentVariable(name='MOLA_GYRO_ROTATION_PRIOR', value=v)]
+    gyro_rotation_prior_env_var = OpaqueFunction(function=_apply_gyro_rotation_prior)
 
     mola_deskew_method_arg = DeclareLaunchArgument(
         "mola_deskew_method", default_value="MotionCompensationMethod::Linear",
@@ -847,6 +861,8 @@ def generate_launch_description():
         min_time_between_scans_env_var,
         adaptive_decimation_arg,
         adaptive_decimation_env_var,
+        gyro_rotation_prior_arg,
+        gyro_rotation_prior_env_var,
         lidar_topic_env_var,
         lidar_topic_name_arg,
         lidar_topic_type_arg,

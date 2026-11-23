@@ -295,7 +295,8 @@ public:
      *  mola::AdaptiveDecimation for the budgets. Keep max_time_gap well inside
      *  the state estimators' velocity model window. It acts on top of
      *  min_time_between_scans, and is ignored with several LiDARs (groups
-     *  must stay in step). Off by default.
+     *  must stay in step) or without gyro_rotation_prior (the rotation of a
+     *  skipped scan only reaches ICP through that prior). Off by default.
      */
     struct AdaptiveDecimation : public ::mola::AdaptiveDecimation::Budgets
     {
@@ -1294,7 +1295,7 @@ public:
      * default. */
     struct GyroRotationPrior
     {
-      bool enabled = true;
+      bool enabled = false;
       double sigma_deg = 0.05;
       double sigma_deg_per_s = 0.5;
       /// [s] A larger gap between gyroscope readings restarts the integration.

@@ -667,7 +667,10 @@ from the estimator twist only when the last registration used the motion model
   with `state_mtx_` held. Counters `adaptive_skipped_count_` (diagnostics key
   `adaptive_skipped_scans`) and `adaptive_process_reasons_` (run totals), both
   since construction.
-- Sensor data only: deterministic offline. Ignored with several LiDARs.
+- Sensor data only: deterministic offline. Ignored with several LiDARs, and without
+  `gyro_rotation_prior` (warning at init): the rotation of the skipped scans only reaches ICP
+  through that prior. Without it, a hand-held rig broke on 4/8 sequences (the sensor rocks while
+  walking, the net rotation stays under budget, the initial guess misses it).
 - Why the quality hold: the one IMU failure of fixed 1 of 3 was geometry, not
   motion (ordinary turn rates); quality sagged for ~5 s before it broke.
 - Why `require_gyro`: the estimator twist is one processed scan old; LiDAR-only
@@ -830,7 +833,7 @@ the map frame (centimeters to meters, degrees), so it is one tie-breaking
 residual against thousands of pairings. Where the scene does not constrain a
 rotation (yaw with few distinctive structures in view) ICP slides, and the slide
 enters the local map, which then agrees with the next wrong registrations. With
-`gyro_rotation_prior.enabled` (`pipelines/blocks/acceptance.yaml`, on by
+`gyro_rotation_prior.enabled` (`pipelines/blocks/acceptance.yaml`, off by
 default; inert without IMU readings), `consumePendingImu()` integrates the bias-corrected gyroscope, in the
 vehicle frame, into `state_.gyro_attitude` (restarted on reading gaps), and
 `applyGyroRotationPrior()` sets the rotation of the ICP initial guess and prior
@@ -843,6 +846,13 @@ Ground robot, map-less, smoother with gyro-only preintegration: a 100 s yaw slid
 run without degeneracy unchanged. Default-on check: Oxford Spires 13 sequences x 3
 starts APE geomean 0.98-0.99 (simple and smoother; it also removed one divergent
 run), GrandTour 10 missions neutral (0.998 / 1.004).
+Back to OFF by default after an A/B on 37 IMU sequences (same build, prior on / off, two start
+offsets): hand-held in a large building x0.42-0.67 APE (smoother), Oxford and GrandTour neutral,
+a few sequences worse (up to x1.8), and a private hand-held rig (MEMS gyro bias ~0.7 deg/s at
+rest, no bias source) broken on 8/8 sequences (x6 to x1400 APE; maps with doubled walls,
+1.2-2.7x the occupied voxels). Raising `sigma_deg_per_s` to 5 removes most of the
+harm but also most of the gains. The prior uses raw readings unless an IMU bias source is active
+(smoother `imu_bias_tracking`, off by default); turning that on did not fix the rig.
 Refusing whole registrations on a LIO vs gyro
 disagreement instead was tried and dropped: a sliding window only bounds the
 drift rate, longer ones need the gyro bias first, and without a gyro-aware
@@ -1531,7 +1541,7 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_LO_DEBUG_ICP_QUALITY` | bool | false | `module/src/LidarOdometry_ProcessScan.cpp` | Trace ICP quality metrics per scan |
 | `MOLA_ICP_PRIOR_WEIGHT` | double | 1.0 (no change) | `pipelines/lidar3d-gicp.yaml` | Multiplies the information matrix of the pose prior handed to the ICP solver. The prior is one residual against as many residuals as there are pairings, so at unit weight it breaks ties rather than constraining anything. Raise it where the motion source is worth more than a single point pairing |
 | `MOLA_MAX_REGISTRATION_MAHALANOBIS` | double | 0 (off) | `pipelines/lidar3d-gicp.yaml` | Largest distance, in sigmas of the state estimator's predicted pose covariance, that a registration may sit from that prediction and still be accepted. Only meaningful if the estimator reports an honest covariance: a filter whose covariance is dominated by a constant floor can make the statistic poorly reflect the actual prediction error. A rejection here does not count as a bad ICP, so it cannot trigger the sustained-failure recovery path |
-| `MOLA_GYRO_ROTATION_PRIOR` / `_SIGMA_DEG` / `_SIGMA_DEG_PER_S` | bool / double / double | true / 0.05 / 0.5 | `pipelines/blocks/acceptance.yaml` | ICP prior rotation from the last registered pose and the gyroscope (see "Gyroscope rotation prior for ICP") |
+| `MOLA_GYRO_ROTATION_PRIOR` / `_SIGMA_DEG` / `_SIGMA_DEG_PER_S` | bool / double / double | false / 0.05 / 0.5 | `pipelines/blocks/acceptance.yaml` | ICP prior rotation from the last registered pose and the gyroscope (see "Gyroscope rotation prior for ICP") |
 | `MOLA_LO_REG_GATE_LOG` | string | (empty = off) | `module/src/LidarOdometry_ProcessScan.cpp` | Path to a TSV dump, one row per scan: correction, predicted and ICP sigmas, and the Mahalanobis statistic, for choosing the threshold above from data. Same idiom as `MOLA_LO_MAP_GATE_LOG` |
 | `MOLA_LO_DISABLE_VERSION_CHECK` | bool | false | `module/src/LidarOdometry_Main.cpp` | Skips the daily online check for a newer release. Set in CI, so test coverage does not depend on network timing |
 | `MOLA_DROP_STALE_SCANS` | bool | true | all `pipelines/*.yaml` | false = lossless input queue (producer blocks instead of the queue evicting the older scan). `mola-lidar-odometry-cli` defaults it to false |
