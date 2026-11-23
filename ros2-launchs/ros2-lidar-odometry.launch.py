@@ -636,6 +636,14 @@ def generate_launch_description():
     min_time_between_scans_env_var = SetEnvironmentVariable(
         name='MOLA_MIN_TIME_BETWEEN_SCANS', value=LaunchConfiguration('min_time_between_scans'))
 
+    adaptive_decimation_arg = DeclareLaunchArgument(
+        "adaptive_decimation", default_value="False",
+        description="Skip LiDAR scans while the platform moves little, and process every scan "
+                    "when it turns, moves fast, or registration gets marginal. Needs an IMU: "
+                    "without gyroscope readings, every scan is processed.")
+    adaptive_decimation_env_var = SetEnvironmentVariable(
+        name='MOLA_ADAPTIVE_DECIMATION', value=LaunchConfiguration('adaptive_decimation'))
+
     mola_deskew_method_arg = DeclareLaunchArgument(
         "mola_deskew_method", default_value="MotionCompensationMethod::Linear",
         description="Motion-compensation (deskew) method for LiDAR scans. Options: MotionCompensationMethod::None, "
@@ -837,6 +845,8 @@ def generate_launch_description():
         lidar_scan_validity_minimum_point_env_var,
         min_time_between_scans_arg,
         min_time_between_scans_env_var,
+        adaptive_decimation_arg,
+        adaptive_decimation_env_var,
         lidar_topic_env_var,
         lidar_topic_name_arg,
         lidar_topic_type_arg,

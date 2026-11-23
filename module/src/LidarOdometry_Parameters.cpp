@@ -153,6 +153,35 @@ void LidarOdometry::Parameters::GyroRotationPrior::initialize(const Yaml & cfg)
     mrpt::format("gyro_rotation_prior: max_interval (%f) must be > 0", max_interval));
 }
 
+void LidarOdometry::Parameters::AdaptiveDecimation::initialize(const Yaml & cfg)
+{
+  YAML_LOAD_OPT(enabled, bool);
+  YAML_LOAD_OPT(max_skipped_scans, uint32_t);
+  YAML_LOAD_OPT(max_rotation_deg, double);
+  YAML_LOAD_OPT(max_distance, double);
+  YAML_LOAD_OPT(max_time_gap, double);
+  YAML_LOAD_OPT(require_gyro, bool);
+  YAML_LOAD_OPT(min_quality_ratio, double);
+  YAML_LOAD_OPT(quality_hold_time, double);
+
+  ASSERTMSG_(
+    max_rotation_deg > 0,
+    mrpt::format("adaptive_decimation: max_rotation_deg (%f) must be > 0", max_rotation_deg));
+  ASSERTMSG_(
+    max_distance > 0,
+    mrpt::format("adaptive_decimation: max_distance (%f) must be > 0", max_distance));
+  ASSERTMSG_(
+    max_time_gap > 0,
+    mrpt::format("adaptive_decimation: max_time_gap (%f) must be > 0", max_time_gap));
+  ASSERTMSG_(
+    min_quality_ratio >= 0 && min_quality_ratio <= 1,
+    mrpt::format(
+      "adaptive_decimation: min_quality_ratio (%f) must be in [0, 1]", min_quality_ratio));
+  ASSERTMSG_(
+    quality_hold_time >= 0,
+    mrpt::format("adaptive_decimation: quality_hold_time (%f) must be >= 0", quality_hold_time));
+}
+
 void LidarOdometry::Parameters::Visualization::initialize(const Yaml & cfg)
 {
   YAML_LOAD_OPT(map_update_decimation, int);

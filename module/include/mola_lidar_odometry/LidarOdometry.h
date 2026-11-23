@@ -64,6 +64,7 @@
  *  freezing it from a single accelerometer average at the first keyframe. */
 #define MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR 1
 #endif
+#include <mola_lidar_odometry/AdaptiveDecimation.h>
 #include <mola_lidar_odometry/ImuScanSync.h>
 #include <mola_lidar_odometry/KeyframeAttachments.h>
 #include <mola_lidar_odometry/KeyframeDecider.h>
@@ -288,6 +289,21 @@ public:
      *  (N - 0.5) / F, which tolerates up to half a period of stamp jitter.
      */
     double min_time_between_scans = 1e-3;
+
+    /** Adaptive scan decimation: skips LiDAR scans while the platform moves
+     *  little, and processes every scan when it moves more. See
+     *  mola::AdaptiveDecimation for the budgets. Keep max_time_gap well inside
+     *  the state estimators' velocity model window. It acts on top of
+     *  min_time_between_scans, and is ignored with several LiDARs (groups
+     *  must stay in step). Off by default.
+     */
+    struct AdaptiveDecimation : public ::mola::AdaptiveDecimation::Budgets
+    {
+      bool enabled = false;
+
+      void initialize(const Yaml & cfg);
+    };
+    AdaptiveDecimation adaptive_decimation;
 
     // Low-pass filter alpha for the EMA of ESTIMATED_OBSERVATION_RADIUS, and
     // the absolute floor for that estimate. Both used to be named *_sensor_*
@@ -1724,6 +1740,8 @@ private:
     /// True if last_lidar_pose is the motion model prediction, since the
     /// registration was not accepted:
     bool last_pose_from_prediction = false;
+    /// The last registration used the motion model's prediction.
+    bool last_motion_model_used = false;
     std::size_t last_icp_iterations = 0;
 
     std::optional<mrpt::Clock::time_point> first_ever_timestamp;
@@ -1808,6 +1826,10 @@ private:
     /// Recent integrated gyroscope attitudes (Parameters::gyro_rotation_prior),
     /// cleared on a gap. Protected by imu_state_mtx_.
     std::deque<GyroAttitude> gyro_attitude;
+
+    /// Parameters::adaptive_decimation: motion since the last processed scan.
+    /// Only used by the LiDAR worker, with state_mtx_ held.
+    ::mola::AdaptiveDecimation adaptive_decimation;
 
     /// Run totals, reported once at shutdown. `registration_no_motion_model` is
     /// the one that had no aggregate before: the front end already logs a
@@ -2603,6 +2625,18 @@ private:
 
   /// Scans skipped by Parameters::min_time_between_scans since construction.
   std::atomic<std::size_t> min_time_skipped_count_{0};
+
+  /// Scans skipped by Parameters::adaptive_decimation since construction.
+  std::atomic<std::size_t> adaptive_skipped_count_{0};
+  /// Why the others were processed, by reason, since construction. Protected
+  /// by state_mtx_.
+  std::map<std::string, std::size_t> adaptive_process_reasons_;
+
+  /// Parameters::adaptive_decimation: whether to skip this scan. Called with
+  /// state_mtx_ held, after the scan's IMU readings were consumed up to
+  /// `imuCoverageEndTime`.
+  bool adaptiveDecimationSkips(
+    const mrpt::obs::CObservation & obs, const std::optional<double> & imuCoverageEndTime);
 
   // Adaptive threshold method:
   void doUpdateAdaptiveThreshold();

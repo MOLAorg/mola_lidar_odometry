@@ -735,6 +735,40 @@ double LidarOdometry::effectiveGravitySigmaRad() const
   return std::sqrt(sigma0 * sigma0 + (*disp) * (*disp));
 }
 
+bool LidarOdometry::adaptiveDecimationSkips(
+  const CObservation & obs, const std::optional<double> & imuCoverageEndTime)
+{
+  ::mola::AdaptiveDecimation::Scan scan;
+  scan.stamp = mrpt::Clock::toDouble(obs.timestamp);
+  // A finite coverage end bounds where the latest gyroscope reading must be:
+  if (imuCoverageEndTime && std::isfinite(*imuCoverageEndTime)) {
+    scan.sweep_end = *imuCoverageEndTime;
+  }
+  const auto itLast = state_.last_obs_tim_by_label.find(obs.sensorLabel);
+  const auto itStamps = state_.recent_lidar_stamps.find(obs.sensorLabel);
+  if (
+    itLast != state_.last_obs_tim_by_label.end() && itStamps != state_.recent_lidar_stamps.end() &&
+    itStamps->second.size() >= 2) {
+    const auto & stamps = itStamps->second;
+    scan.gap = mrpt::system::timeDifference(itLast->second, obs.timestamp);
+    scan.period = stamps.peek(stamps.size() - 1) - stamps.peek(stamps.size() - 2);
+  }
+  scan.last_registration_good = state_.last_icp_was_good && !state_.last_pose_from_prediction;
+  // Only a motion model the last registration actually used: right after a
+  // (re)localization its twist is not an estimate yet.
+  if (state_.last_motion_model_output && state_.last_motion_model_used) {
+    scan.twist = state_.last_motion_model_output->twist;
+  }
+
+  const char * reason = state_.adaptive_decimation.decide(scan, params_.adaptive_decimation);
+  if (!reason) {
+    ++adaptive_skipped_count_;
+    return true;
+  }
+  adaptive_process_reasons_[reason]++;
+  return false;
+}
+
 // here happens the main stuff:
 void LidarOdometry::processLidarScan(  // NOLINT
   const CObservation::ConstPtr & obs, const std::optional<double> imuCoverageEndTime,
@@ -895,6 +929,11 @@ void LidarOdometry::processLidarScan(  // NOLINT
     }
   }
 
+  // Adaptive decimation, driven by the motion since the last processed scan:
+  if (params_.adaptive_decimation.enabled && adaptiveDecimationSkips(*obs, imuCoverageEndTime)) {
+    return;
+  }
+
   // Use the observation to update the estimated sensor range:
   if (!state_.estimated_observation_radius.has_value()) {
     doInitializeEstimatedObservationRadius(*obs);
@@ -904,6 +943,9 @@ void LidarOdometry::processLidarScan(  // NOLINT
     if (!state_.estimated_observation_radius.has_value()) {
       MRPT_LOG_THROTTLE_WARN(
         5.0, "Skipping LiDAR scan with no valid points: cannot estimate the observation radius.");
+      if (params_.adaptive_decimation.enabled) {
+        state_.adaptive_decimation.onScanDropped();
+      }
       return;
     }
   }
@@ -943,6 +985,9 @@ void LidarOdometry::processLidarScan(  // NOLINT
       } else {
         state_.last_obs_tim_by_label.erase(obs->sensorLabel);
       }
+    }
+    if (params_.adaptive_decimation.enabled) {
+      state_.adaptive_decimation.onScanDropped();
     }
     return;
   }
@@ -1049,6 +1094,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
       state_.motion_model_implausible++;
     }
   }
+  state_.last_motion_model_used = hasMotionModel;
 
   tleMotion.stop();
 
@@ -1604,6 +1650,11 @@ void LidarOdometry::processLidarScan(  // NOLINT
     }
     state_.last_icp_quality = out.goodness;
     state_.last_icp_iterations = out.icp_iterations;
+
+    if (params_.adaptive_decimation.enabled) {
+      state_.adaptive_decimation.addRegistrationQuality(
+        mrpt::Clock::toDouble(this_obs_tim), out.goodness, params_.adaptive_decimation);
+    }
 
     restartFromScratch = !icpQualityGood && state_.estimated_trajectory.size() == 1 &&
                          params_.local_map_updates.enabled && !state_.map_has_been_loaded;

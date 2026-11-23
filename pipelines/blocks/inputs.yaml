@@ -54,6 +54,22 @@ params:
   # (N - 0.5) / F, e.g. 0.15 (1 of 2), 0.25 (1 of 3) for a 10 Hz sensor:
   min_time_between_scans: ${MOLA_MIN_TIME_BETWEEN_SCANS|1e-3}
 
+  # Adaptive decimation: skip a scan only if, by the next one, the motion
+  # since the last processed scan stays within all these budgets:
+  adaptive_decimation:
+    enabled: ${MOLA_ADAPTIVE_DECIMATION|false}
+    max_skipped_scans: ${MOLA_ADAPTIVE_DECIMATION_MAX_SKIPPED|3}
+    max_rotation_deg: ${MOLA_ADAPTIVE_DECIMATION_MAX_ROTATION_DEG|8.0}
+    max_distance: ${MOLA_ADAPTIVE_DECIMATION_MAX_DISTANCE|1.5} # [m]
+    max_time_gap: ${MOLA_ADAPTIVE_DECIMATION_MAX_TIME_GAP|0.45} # [s]
+    # Without an IMU, the rotation comes from the estimator twist, which
+    # misses the start of fast turns: by default, every scan is processed.
+    require_gyro: ${MOLA_ADAPTIVE_DECIMATION_REQUIRE_GYRO|true}
+    # Process every scan for the hold time after a registration whose quality
+    # was below this ratio of its recent median (0 in either: off):
+    min_quality_ratio: ${MOLA_ADAPTIVE_DECIMATION_MIN_QUALITY_RATIO|0.97}
+    quality_hold_time: ${MOLA_ADAPTIVE_DECIMATION_QUALITY_HOLD_TIME|2.0} # [s]
+
   # Whether a scan arriving while the worker is still busy replaces the one
   # already queued (real-time behavior) or waits for it (lossless). Set to false
   # for offline batch runs, where every scan must be processed.
