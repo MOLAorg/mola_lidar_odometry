@@ -30,8 +30,9 @@ params:
   # is derived from this odometry's own registrations:
   deskew_odometry_sensor_label: "${MOLA_DESKEW_ODOMETRY_NAME|}"
 
-  # Optionally, drop lidar data too close in time:
-  min_time_between_scans: 1e-3 # [seconds]
+  # Skip scans closer in time than this to the last processed one [seconds]
+  # (see blocks/inputs.yaml):
+  min_time_between_scans: ${MOLA_MIN_TIME_BETWEEN_SCANS|1e-3}
 
   # Whether a scan arriving while the worker is still busy replaces the one
   # already queued (real-time behavior) or waits for it (lossless). Set to false

@@ -49,8 +49,10 @@ params:
   # using it for de-skew and gravity alignment:
   use_imu_bias_source: ${MOLA_LO_USE_IMU_BIAS_SOURCE|true}
 
-  # Optionally, drop lidar data too close in time:
-  min_time_between_scans: 1e-3 # [seconds]
+  # Skip scans closer in time than this to the last processed one of the same
+  # sensor [seconds]. To process 1 out of N scans of an F Hz LiDAR, use
+  # (N - 0.5) / F, e.g. 0.15 (1 of 2), 0.25 (1 of 3) for a 10 Hz sensor:
+  min_time_between_scans: ${MOLA_MIN_TIME_BETWEEN_SCANS|1e-3}
 
   # Whether a scan arriving while the worker is still busy replaces the one
   # already queued (real-time behavior) or waits for it (lossless). Set to false
