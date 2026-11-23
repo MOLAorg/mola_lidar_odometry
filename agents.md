@@ -650,16 +650,23 @@ LiDAR-only):
 
 ### Adaptive decimation: `adaptive_decimation` (`MOLA_ADAPTIVE_DECIMATION`)
 
-Opt-in, on top of `min_time_between_scans`; the logic is the standalone
+Opt-in (ROS 2 launch argument `adaptive_decimation`; 3D pipelines only, via
+`blocks/inputs.yaml`), on top of `min_time_between_scans`; the logic is the standalone
 `mola::AdaptiveDecimation` (`AdaptiveDecimation.h`, unit tested), fed from
 `consumePendingImu()` (gyroscope) and the ICP result (quality). A scan is
 skipped only if, by the next scan, rotation (integrated gyroscope: fresh, it
 covers this scan's sweep), distance (estimator speed x gap), skipped count and
 time gap stay within budget. Every scan is processed after a rejected
-registration, while a quality is below `min_quality_ratio` x its recent median
-(and `quality_hold_time` after it), and without gyroscope readings
-(`require_gyro`).
+registration, for `quality_hold_time` after a quality below `min_quality_ratio`
+x its recent median, after a scan dropped before registration,
+and without gyroscope coverage of the sweep (`require_gyro`). The speed comes
+from the estimator twist only when the last registration used the motion model
+(`last_motion_model_used`), so not right after a (re)localization.
 
+- State: `MethodState::adaptive_decimation`, only touched by the LiDAR worker
+  with `state_mtx_` held. Counters `adaptive_skipped_count_` (diagnostics key
+  `adaptive_skipped_scans`) and `adaptive_process_reasons_` (run totals), both
+  since construction.
 - Sensor data only: deterministic offline. Ignored with several LiDARs.
 - Why the quality hold: the one IMU failure of fixed 1 of 3 was geometry, not
   motion (ordinary turn rates); quality sagged for ~5 s before it broke.

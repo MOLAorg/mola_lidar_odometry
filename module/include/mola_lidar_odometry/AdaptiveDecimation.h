@@ -58,8 +58,9 @@ public:
     /// gap. Otherwise, the rotation then comes from the estimator twist, which
     /// is one processed scan old and misses the start of a fast turn.
     bool require_gyro = true;
-    /// Process every scan while a registration quality is below this ratio
-    /// of the recent median quality, and quality_hold_time after it (0: off).
+    /// Process every scan for quality_hold_time after a registration whose
+    /// quality was below this ratio of the recent median quality. 0 in either
+    /// turns the rule off.
     double min_quality_ratio = 0.97;
     /// [s] See min_quality_ratio.
     double quality_hold_time = 2.0;
@@ -87,11 +88,15 @@ public:
   void addGyro(double t, const mrpt::math::TVector3D & w);
 
   /** Returns nullptr if the scan can be skipped, or the reason why it has to
-   *  be processed ("start", "bad_registration", "max_skipped_scans",
+   *  be processed ("start", "dropped_scan", "bad_registration", "max_skipped_scans",
    *  "quality", "time_gap", "no_gyro", "no_motion_model", "distance" or
    *  "rotation"). In
    *  the latter case, the accumulated motion restarts. */
   const char * decide(const Scan & scan, const Budgets & budgets);
+
+  /// Makes the next decision process its scan: the last scan that passed
+  /// was dropped before being registered.
+  void onScanDropped();
 
   /// Records the quality of a registration done at sensor time `t` [s].
   void addRegistrationQuality(double t, double quality, const Budgets & budgets);
@@ -105,12 +110,12 @@ private:
   mrpt::math::CMatrixDouble33 R_ = mrpt::math::CMatrixDouble33::Identity();
   mrpt::math::CMatrixDouble33 R_sweep_ = mrpt::math::CMatrixDouble33::Identity();
   std::optional<double> lastGyroStamp_;
-  bool gyroSeen_ = false;
   bool sweepCovered_ = false;  ///< readings integrated in the latest sweep
   bool sweepGap_ = false;      ///< a reading gap in the latest sweep
   /// R_ covers the whole interval since the last processed scan (no gap):
   bool intervalCovered_ = true;
   uint32_t skipped_ = 0;
+  bool lastScanDropped_ = false;
   std::deque<double> recentQualities_;
   std::optional<double> lowQualityUntil_;  ///< [s]
 };

@@ -754,14 +754,13 @@ bool LidarOdometry::adaptiveDecimationSkips(
     scan.period = stamps.peek(stamps.size() - 1) - stamps.peek(stamps.size() - 2);
   }
   scan.last_registration_good = state_.last_icp_was_good && !state_.last_pose_from_prediction;
-  if (state_.last_motion_model_output) {
+  // Only a motion model the last registration actually used: right after a
+  // (re)localization its twist is not an estimate yet.
+  if (state_.last_motion_model_output && state_.last_motion_model_used) {
     scan.twist = state_.last_motion_model_output->twist;
   }
 
-  const char * reason = [&]() {
-    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
-    return state_.adaptive_decimation.decide(scan, params_.adaptive_decimation);
-  }();
+  const char * reason = state_.adaptive_decimation.decide(scan, params_.adaptive_decimation);
   if (!reason) {
     ++adaptive_skipped_count_;
     return true;
@@ -944,6 +943,9 @@ void LidarOdometry::processLidarScan(  // NOLINT
     if (!state_.estimated_observation_radius.has_value()) {
       MRPT_LOG_THROTTLE_WARN(
         5.0, "Skipping LiDAR scan with no valid points: cannot estimate the observation radius.");
+      if (params_.adaptive_decimation.enabled) {
+        state_.adaptive_decimation.onScanDropped();
+      }
       return;
     }
   }
@@ -983,6 +985,9 @@ void LidarOdometry::processLidarScan(  // NOLINT
       } else {
         state_.last_obs_tim_by_label.erase(obs->sensorLabel);
       }
+    }
+    if (params_.adaptive_decimation.enabled) {
+      state_.adaptive_decimation.onScanDropped();
     }
     return;
   }
@@ -1089,6 +1094,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
       state_.motion_model_implausible++;
     }
   }
+  state_.last_motion_model_used = hasMotionModel;
 
   tleMotion.stop();
 
@@ -1646,7 +1652,6 @@ void LidarOdometry::processLidarScan(  // NOLINT
     state_.last_icp_iterations = out.icp_iterations;
 
     if (params_.adaptive_decimation.enabled) {
-      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
       state_.adaptive_decimation.addRegistrationQuality(
         mrpt::Clock::toDouble(this_obs_tim), out.goodness, params_.adaptive_decimation);
     }

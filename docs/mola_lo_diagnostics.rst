@@ -25,8 +25,9 @@ MOLA-LO publishes the following ``DiagnosticStatus`` entries on each tick:
 
 * **LidarOdometry: Input Data**: staleness of incoming LiDAR observations
   and dropped-frame ratio. Scans skipped on purpose by scan decimation
-  (``MOLA_MIN_TIME_BETWEEN_SCANS``) are counted apart, as
-  ``min_time_skipped_scans``, and are not dropped frames.
+  (``MOLA_MIN_TIME_BETWEEN_SCANS`` and ``MOLA_ADAPTIVE_DECIMATION``) are counted
+  apart, as ``min_time_skipped_scans`` and ``adaptive_skipped_scans``, and are
+  not dropped frames.
 * **LidarOdometry: ICP Quality**: current ICP quality metric from the last
   scan matching.
 * **LidarOdometry: Timing**: processing time utilization (fraction of the

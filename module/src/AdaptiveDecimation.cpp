@@ -57,7 +57,6 @@ void AdaptiveDecimation::addGyro(double t, const mrpt::math::TVector3D & w)
     const auto dR = mrpt::poses::Lie::SO<3>::exp(v);
     R_ = R_ * dR;
     R_sweep_ = R_sweep_ * dR;
-    gyroSeen_ = true;
     sweepCovered_ = true;
   }
   lastGyroStamp_ = t;
@@ -81,6 +80,8 @@ void AdaptiveDecimation::addRegistrationQuality(double t, double quality, const 
   }
 }
 
+void AdaptiveDecimation::onScanDropped() { lastScanDropped_ = true; }
+
 double AdaptiveDecimation::gyroRotation() const { return mrpt::poses::Lie::SO<3>::log(R_).norm(); }
 
 const char * AdaptiveDecimation::decide(const Scan & scan, const Budgets & b)
@@ -99,6 +100,9 @@ const char * AdaptiveDecimation::decide(const Scan & scan, const Budgets & b)
   const char * reason = [&]() -> const char * {
     if (scan.gap <= 0 || scan.period <= 0) {
       return "start";
+    }
+    if (lastScanDropped_) {
+      return "dropped_scan";
     }
     if (!scan.last_registration_good) {
       return "bad_registration";
@@ -141,8 +145,8 @@ const char * AdaptiveDecimation::decide(const Scan & scan, const Budgets & b)
     return nullptr;
   }
   skipped_ = 0;
+  lastScanDropped_ = false;
   R_ = mrpt::math::CMatrixDouble33::Identity();
-  gyroSeen_ = false;
   intervalCovered_ = true;
   return reason;
 }

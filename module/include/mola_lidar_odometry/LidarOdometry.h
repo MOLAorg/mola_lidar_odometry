@@ -1740,6 +1740,8 @@ private:
     /// True if last_lidar_pose is the motion model prediction, since the
     /// registration was not accepted:
     bool last_pose_from_prediction = false;
+    /// The last registration used the motion model's prediction.
+    bool last_motion_model_used = false;
     std::size_t last_icp_iterations = 0;
 
     std::optional<mrpt::Clock::time_point> first_ever_timestamp;
@@ -1826,7 +1828,7 @@ private:
     std::deque<GyroAttitude> gyro_attitude;
 
     /// Parameters::adaptive_decimation: motion since the last processed scan.
-    /// Protected by imu_state_mtx_.
+    /// Only used by the LiDAR worker, with state_mtx_ held.
     ::mola::AdaptiveDecimation adaptive_decimation;
 
     /// Run totals, reported once at shutdown. `registration_no_motion_model` is

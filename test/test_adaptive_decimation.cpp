@@ -347,3 +347,66 @@ TEST(AdaptiveDecimation, RotationAfterAGapDoesNotUseAPartialGyroInterval)
   s.gap = 3 * PERIOD;
   EXPECT_STREQ(ad.decide(s, b), "rotation");
 }
+
+TEST(AdaptiveDecimation, QualityRuleNeedsWarmUpAndCanBeTurnedOff)
+{
+  mola::AdaptiveDecimation::Scan s;
+  s.gap = PERIOD;
+  s.period = PERIOD;
+  s.twist = twist(0, 0);
+  s.stamp = 1.0;
+  auto b = budgets5();
+  b.require_gyro = false;
+  {
+    // Fewer than 10 earlier registrations: no median yet, no hold.
+    mola::AdaptiveDecimation ad;
+    for (int i = 0; i < 9; i++) {
+      ad.addRegistrationQuality(0.1 * i, 0.99, b);
+    }
+    ad.addRegistrationQuality(0.95, 0.5, b);
+    EXPECT_EQ(ad.decide(s, b), nullptr);
+  }
+  for (const bool ratioOff : {true, false}) {
+    mola::AdaptiveDecimation ad;
+    auto b2 = b;
+    if (ratioOff) {
+      b2.min_quality_ratio = 0;
+    } else {
+      b2.quality_hold_time = 0;
+    }
+    for (int i = 0; i < 20; i++) {
+      ad.addRegistrationQuality(0.01 * i, 0.99, b2);
+    }
+    ad.addRegistrationQuality(0.95, 0.5, b2);
+    EXPECT_EQ(ad.decide(s, b2), nullptr);
+  }
+}
+
+TEST(AdaptiveDecimation, UnknownPeriodAndDroppedScans)
+{
+  mola::AdaptiveDecimation ad;
+  auto b = budgets5();
+  b.require_gyro = false;
+  mola::AdaptiveDecimation::Scan s;
+  s.gap = PERIOD;
+  s.period = 0;
+  s.twist = twist(0, 0);
+  EXPECT_STREQ(ad.decide(s, b), "start");
+
+  s.period = PERIOD;
+  EXPECT_EQ(ad.decide(s, b), nullptr);
+  ad.onScanDropped();
+  EXPECT_STREQ(ad.decide(s, b), "dropped_scan");
+  EXPECT_EQ(ad.decide(s, b), nullptr);
+}
+
+TEST(AdaptiveDecimation, GyroReadingsMustMoveForward)
+{
+  mola::AdaptiveDecimation ad;
+  ad.addGyro(1.0, {0, 0, 0});
+  ad.addGyro(1.005, {0, 0, 1.0});
+  // Repeated and older stamps are ignored:
+  ad.addGyro(1.005, {0, 0, 100.0});
+  ad.addGyro(1.0, {0, 0, 100.0});
+  EXPECT_NEAR(ad.gyroRotation(), 0.005, 1e-9);
+}

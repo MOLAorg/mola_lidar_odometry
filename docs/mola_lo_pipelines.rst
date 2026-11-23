@@ -617,16 +617,21 @@ Sensor inputs: LiDAR
   - ``MOLA_ADAPTIVE_DECIMATION_MAX_TIME_GAP`` (Default: ``0.45`` [s]): time between processed
     scans. Keep it well below the estimator's ``max_time_to_use_velocity_model``.
 
-  It also processes every scan after a rejected registration, and for
-  ``MOLA_ADAPTIVE_DECIMATION_QUALITY_HOLD_TIME`` (Default: ``2.0`` [s]) after a registration whose
-  quality fell below ``MOLA_ADAPTIVE_DECIMATION_MIN_QUALITY_RATIO`` (Default: ``0.97``) times its
-  recent median: in scenes where registration is marginal, the larger steps of skipped scans are
-  what makes it fail.
+  It also processes the scan after a rejected registration or after a dropped scan, and every scan
+  for ``MOLA_ADAPTIVE_DECIMATION_QUALITY_HOLD_TIME`` (Default: ``2.0`` [s]) after a registration
+  whose quality fell below ``MOLA_ADAPTIVE_DECIMATION_MIN_QUALITY_RATIO`` (Default: ``0.97``) times
+  its recent median (``0`` in either turns this rule off): in scenes where registration is
+  marginal, the larger steps of skipped scans are what makes it fail. The distance budget uses the
+  estimator speed only once the motion model is in use again, so right after a (re)localization
+  every scan is processed.
 
   It needs an IMU: without gyroscope readings every scan is processed, unless
   ``MOLA_ADAPTIVE_DECIMATION_REQUIRE_GYRO`` is ``false``, which takes the rotation from the
   estimator twist. That twist is one processed scan old and misses the start of fast turns.
-  It acts on top of ``MOLA_MIN_TIME_BETWEEN_SCANS``, and is ignored with several LiDARs.
+  It acts on top of ``MOLA_MIN_TIME_BETWEEN_SCANS``, and is ignored with several LiDARs. It is
+  available in the 3D pipelines (``lidar3d-*.yaml``), not in ``lidar2d.yaml`` nor in
+  ``extras/lidar3d-kissicp-like.yaml``. Skipped scans are reported in the diagnostics as
+  ``adaptive_skipped_scans``.
 
   Measured with the defaults on the same 22 IMU sequences as above: it processed 26-36% of the
   scans (fewer on slow, smooth platforms), with no registration failure, including the sequence
