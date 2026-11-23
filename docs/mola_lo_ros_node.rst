@@ -278,6 +278,9 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       Skip LiDAR scans closer in time than this [seconds] to the last processed one, to save
       CPU. To process 1 out of N scans of an F Hz LiDAR, use (N - 0.5) / F, e.g. ``0.15``
       (1 of 2) or ``0.25`` (1 of 3) for a 10 Hz sensor. Sets ``MOLA_MIN_TIME_BETWEEN_SCANS``.
+      Use it with an IMU (e.g. ``mola_deskew_method:=MotionCompensationMethod::IMU``): without
+      one, only on smooth vehicles and at most 1 of 2 (see ``MOLA_MIN_TIME_BETWEEN_SCANS`` in the
+      pipeline documentation for the measurements).
       With ``publish_localization_following_rep105:=True``, ``map -> odom`` is still
       re-broadcast at a fixed rate; in direct ``map -> base_link`` mode without the smoother,
       ``/tf`` is only updated once per processed scan.

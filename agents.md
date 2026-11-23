@@ -635,8 +635,18 @@ Opt-in CPU saving: process 1 of N scans with `(N - 0.5) / F` for an F Hz LiDAR
   (0.75 s shipped). With `simple` and direct `map -> base_link`, `/tf` is only
   as fresh as the last processed scan; REP-105 is re-broadcast by the bridge.
 
-First measurement (3 Oxford Spires sequences, smoother): 1 of 2 / 1 of 3 cut
-process CPU by ~44% / ~57% with APE within -6..+10% of the baseline.
+Measured (offline CLI, one core per run; 22 IMU sequences of Oxford Spires,
+GrandTour, FoMo and a wheeled robot, both estimators; KITTI and Oxford
+LiDAR-only):
+
+- With an IMU, 1 of 2 is neutral everywhere (worst APE ratio 1.18) for 35-45%
+  less process CPU. 1 of 3 / 1 of 4 save 50-70%, but broke registration
+  on bodleian-library-02, a marginal scene: the larger steps, not the motion,
+  tip it over (quality sags for seconds before failing).
+- Without an IMU, hand-held fails at 1 of 2 (fast turns defeat the
+  constant-velocity guess); KITTI is fine at 1 of 2 and fails at 1 of 3.
+- Offline runs are deterministic: repeats are bit-identical, so use start
+  offsets (`--skip-first-n`) to measure run-to-run sensitivity.
 
 ## `processLidarScan()` stages; read-ahead in the offline CLI
 

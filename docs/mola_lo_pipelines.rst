@@ -595,6 +595,16 @@ Sensor inputs: LiDAR
   ``max_time_to_use_velocity_model`` (``MOLA_MAX_TIME_TO_USE_VELOCITY_MODEL``, 0.75 s in the shipped
   estimator files), or its velocity model is lost between scans.
 
+  Measured guidance (22 sequences with an IMU: hand-held, legged and wheeled platforms; plus
+  LiDAR-only runs):
+
+  - **With an IMU** (IMU de-skew and the gyroscope rotation prior), 1 of 2 kept the accuracy on
+    every sequence and cut the process CPU by 35-45%. 1 of 3 and 1 of 4 save 50-70%, but
+    made registration fail on a hand-held sequence whose scene was already marginal.
+  - **Without an IMU**, the prediction over the larger gap is a constant-velocity extrapolation.
+    Hand-held runs failed already at 1 of 2, and car sequences at 1 of 3. Use it only on smooth
+    vehicles, and at most 1 of 2.
+
 - ``MOLA_ABS_MIN_SENSOR_RANGE`` (Default: ``5.0`` [m]): Absolute minimum for the otherwise
   automatically detected observation radius (see ``ESTIMATED_OBSERVATION_RADIUS``).
 
