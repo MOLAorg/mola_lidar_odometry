@@ -1,8 +1,8 @@
 .. _mola_lidar_odometry:
 
-=============================
-3D LiDAR (inertial) odometry
-=============================
+====================================================
+LiDAR odometry and LiDAR-inertial odometry (LO/LIO)
+====================================================
 
 :octicon:`mark-github` `MOLA LiDAR odometry (MOLA-LO) <https://github.com/MOLAorg/mola_lidar_odometry/>`_ is
 the main MOLA component for 3D and 2D LiDAR odometry and localization.
