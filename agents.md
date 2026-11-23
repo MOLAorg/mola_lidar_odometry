@@ -648,6 +648,29 @@ LiDAR-only):
 - Offline runs are deterministic: repeats are bit-identical, so use start
   offsets (`--skip-first-n`) to measure run-to-run sensitivity.
 
+### Adaptive decimation: `adaptive_decimation` (`MOLA_ADAPTIVE_DECIMATION`)
+
+Opt-in, on top of `min_time_between_scans`; the logic is the standalone
+`mola::AdaptiveDecimation` (`AdaptiveDecimation.h`, unit tested), fed from
+`consumePendingImu()` (gyroscope) and the ICP result (quality). A scan is
+skipped only if, by the next scan, rotation (integrated gyroscope: fresh, it
+covers this scan's sweep), distance (estimator speed x gap), skipped count and
+time gap stay within budget. Every scan is processed after a rejected
+registration, while a quality is below `min_quality_ratio` x its recent median
+(and `quality_hold_time` after it), and without gyroscope readings
+(`require_gyro`).
+
+- Sensor data only: deterministic offline. Ignored with several LiDARs.
+- Why the quality hold: the one IMU failure of fixed 1 of 3 was geometry, not
+  motion (ordinary turn rates); quality sagged for ~5 s before it broke.
+- Why `require_gyro`: the estimator twist is one processed scan old; LiDAR-only
+  hand-held runs failed with it even at 3 deg budgets. On KITTI (car),
+  `require_gyro=false` with `max_distance` 2.5 m kept 75% of scans, neutral.
+- Measured with the defaults (8 deg, 1.5 m, 3 skipped, 0.45 s, 0.97 / 2 s): 22
+  IMU sequences, both estimators, kept 26-36% of scans with no failure (worst
+  APE ratio 1.28, RPE 1.23, at the start-offset noise floor); without the
+  quality hold, looser budgets broke bodleian-library-02 like fixed 1 of 3.
+
 ## `processLidarScan()` stages; read-ahead in the offline CLI
 
 `processLidarScan()` runs, with `state_mtx_` held: `preprocessScan()` (points,
@@ -1506,6 +1529,7 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_LO_DISABLE_VERSION_CHECK` | bool | false | `module/src/LidarOdometry_Main.cpp` | Skips the daily online check for a newer release. Set in CI, so test coverage does not depend on network timing |
 | `MOLA_DROP_STALE_SCANS` | bool | true | all `pipelines/*.yaml` | false = lossless input queue (producer blocks instead of the queue evicting the older scan). `mola-lidar-odometry-cli` defaults it to false |
 | `MOLA_MIN_TIME_BETWEEN_SCANS` | double | 1e-3 (0 in `extras/lidar3d-kissicp-like.yaml`) | all `pipelines/*.yaml` | Intentional decimation: skip scans closer than this [s] to the last processed one (see "Intentional decimation") |
+| `MOLA_ADAPTIVE_DECIMATION` | bool | false | `pipelines/blocks/inputs.yaml` | Motion and quality driven decimation (see "Adaptive decimation"). Budgets: `_MAX_ROTATION_DEG` (8), `_MAX_DISTANCE` (1.5 m), `_MAX_SKIPPED` (3), `_MAX_TIME_GAP` (0.45 s), `_REQUIRE_GYRO` (true), `_MIN_QUALITY_RATIO` (0.97), `_QUALITY_HOLD_TIME` (2.0 s) |
 | `MOLA_CAMERA_TOPIC_0` / `_1` / `_2` | string | (empty = off) | `apps/mola-lidar-odometry-cli.cpp` | Rosbag camera topics to publish, for a `--module` front-end or simplemap keyframes |
 | `MOLA_CAMERA_LABEL_0` / `_1` / `_2` | string | `image_0` / `image_1` / `image_2` | `apps/mola-lidar-odometry-cli.cpp` | Sensor labels for the topics above |
 | `MOLA_SIMPLEMAP_ATTACH_LABEL` | string | (empty = off) | `pipelines/blocks/simplemap.yaml` | Sensor label regex of observations (e.g. images) stored in simplemap keyframes |

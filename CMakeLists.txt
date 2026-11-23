@@ -35,6 +35,7 @@ find_package(mola_relocalization REQUIRED)
 # -----------------------
 # define lib:
 set(LIB_SRCS
+  module/src/AdaptiveDecimation.cpp
   module/src/GravityLeveler.cpp
   module/src/IcpPrior.cpp
   module/src/KeyframeAttachments.cpp
@@ -59,6 +60,7 @@ set(LIB_SRCS
 )
 
 set(LIB_PUBLIC_HDRS
+  module/include/mola_lidar_odometry/AdaptiveDecimation.h
   module/include/mola_lidar_odometry/GravityLeveler.h
   module/include/mola_lidar_odometry/IcpPrior.h
   module/include/mola_lidar_odometry/KeyframeAttachments.h

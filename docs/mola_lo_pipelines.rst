@@ -605,6 +605,33 @@ Sensor inputs: LiDAR
     Hand-held runs failed already at 1 of 2, and car sequences at 1 of 3. Use it only on smooth
     vehicles, and at most 1 of 2.
 
+- ``MOLA_ADAPTIVE_DECIMATION`` (Default: ``false``): Skip LiDAR scans while the platform moves
+  little, and process every scan when it moves more. A scan is skipped only if, by the next scan,
+  the motion since the last processed one stays within all these budgets:
+
+  - ``MOLA_ADAPTIVE_DECIMATION_MAX_ROTATION_DEG`` (Default: ``8.0`` [deg]): rotation, from the
+    integrated gyroscope.
+  - ``MOLA_ADAPTIVE_DECIMATION_MAX_DISTANCE`` (Default: ``1.5`` [m]): distance, from the state
+    estimator's linear speed.
+  - ``MOLA_ADAPTIVE_DECIMATION_MAX_SKIPPED`` (Default: ``3``): consecutive skipped scans.
+  - ``MOLA_ADAPTIVE_DECIMATION_MAX_TIME_GAP`` (Default: ``0.45`` [s]): time between processed
+    scans. Keep it well below the estimator's ``max_time_to_use_velocity_model``.
+
+  It also processes every scan after a rejected registration, and for
+  ``MOLA_ADAPTIVE_DECIMATION_QUALITY_HOLD_TIME`` (Default: ``2.0`` [s]) after a registration whose
+  quality fell below ``MOLA_ADAPTIVE_DECIMATION_MIN_QUALITY_RATIO`` (Default: ``0.97``) times its
+  recent median: in scenes where registration is marginal, the larger steps of skipped scans are
+  what makes it fail.
+
+  It needs an IMU: without gyroscope readings every scan is processed, unless
+  ``MOLA_ADAPTIVE_DECIMATION_REQUIRE_GYRO`` is ``false``, which takes the rotation from the
+  estimator twist. That twist is one processed scan old and misses the start of fast turns.
+  It acts on top of ``MOLA_MIN_TIME_BETWEEN_SCANS``, and is ignored with several LiDARs.
+
+  Measured with the defaults on the same 22 IMU sequences as above: it processed 26-36% of the
+  scans (fewer on slow, smooth platforms), with no registration failure, including the sequence
+  where a fixed 1 of 3 or 1 of 4 broke. That is fewer scans than the safe fixed setting (1 of 2).
+
 - ``MOLA_ABS_MIN_SENSOR_RANGE`` (Default: ``5.0`` [m]): Absolute minimum for the otherwise
   automatically detected observation radius (see ``ESTIMATED_OBSERVATION_RADIUS``).
 

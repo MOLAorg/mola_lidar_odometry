@@ -257,6 +257,16 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
       params_.gyro_rotation_prior.initialize(cfg["gyro_rotation_prior"]);
     }
 
+    if (cfg.has("adaptive_decimation")) {
+      params_.adaptive_decimation.initialize(cfg["adaptive_decimation"]);
+    }
+    if (params_.adaptive_decimation.enabled && params_.multiple_lidars.lidar_count > 1) {
+      MRPT_LOG_WARN(
+        "adaptive_decimation is ignored with multiple_lidars.lidar_count > 1: per-sensor "
+        "decisions could break the LiDAR groups.");
+      params_.adaptive_decimation.enabled = false;
+    }
+
     if (cfg.has("diagnostics")) {
       params_.diagnostics.initialize(cfg["diagnostics"]);
     }

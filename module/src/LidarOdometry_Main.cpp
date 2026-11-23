@@ -167,6 +167,16 @@ void LidarOdometry::shutdownCleanup()
         params_.min_time_between_scans);
     }
 
+    if (params_.adaptive_decimation.enabled) {
+      std::string reasons;
+      for (const auto & [reason, count] : state_.adaptive_decimation_reasons) {
+        reasons += mrpt::format(" %s=%zu", reason.c_str(), count);
+      }
+      MRPT_LOG_INFO_FMT(
+        "Run totals: %zu LiDAR scans skipped by adaptive_decimation; processed because of:%s",
+        adaptive_skipped_count_.load(), reasons.c_str());
+    }
+
     if (params_.simplemap.generate) {
       saveReconstructedMapToFile();
     }

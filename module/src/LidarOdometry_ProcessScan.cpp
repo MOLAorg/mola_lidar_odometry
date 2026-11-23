@@ -735,6 +735,36 @@ double LidarOdometry::effectiveGravitySigmaRad() const
   return std::sqrt(sigma0 * sigma0 + (*disp) * (*disp));
 }
 
+bool LidarOdometry::adaptiveDecimationSkips(const CObservation & obs)
+{
+  ::mola::AdaptiveDecimation::Scan scan;
+  scan.stamp = mrpt::Clock::toDouble(obs.timestamp);
+  const auto itLast = state_.last_obs_tim_by_label.find(obs.sensorLabel);
+  const auto itStamps = state_.recent_lidar_stamps.find(obs.sensorLabel);
+  if (
+    itLast != state_.last_obs_tim_by_label.end() && itStamps != state_.recent_lidar_stamps.end() &&
+    itStamps->second.size() >= 2) {
+    const auto & stamps = itStamps->second;
+    scan.gap = mrpt::system::timeDifference(itLast->second, obs.timestamp);
+    scan.period = stamps.peek(stamps.size() - 1) - stamps.peek(stamps.size() - 2);
+  }
+  scan.last_registration_good = state_.last_icp_was_good && !state_.last_pose_from_prediction;
+  if (state_.last_motion_model_output) {
+    scan.twist = state_.last_motion_model_output->twist;
+  }
+
+  const char * reason = [&]() {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    return state_.adaptive_decimation.decide(scan, params_.adaptive_decimation);
+  }();
+  if (!reason) {
+    ++adaptive_skipped_count_;
+    return true;
+  }
+  state_.adaptive_decimation_reasons[reason]++;
+  return false;
+}
+
 // here happens the main stuff:
 void LidarOdometry::processLidarScan(  // NOLINT
   const CObservation::ConstPtr & obs, const std::optional<double> imuCoverageEndTime,
@@ -893,6 +923,11 @@ void LidarOdometry::processLidarScan(  // NOLINT
         lidar_delta_time, params_.min_time_between_scans);
       return;
     }
+  }
+
+  // Adaptive decimation, driven by the motion since the last processed scan:
+  if (params_.adaptive_decimation.enabled && adaptiveDecimationSkips(*obs)) {
+    return;
   }
 
   // Use the observation to update the estimated sensor range:
@@ -1604,6 +1639,12 @@ void LidarOdometry::processLidarScan(  // NOLINT
     }
     state_.last_icp_quality = out.goodness;
     state_.last_icp_iterations = out.icp_iterations;
+
+    if (params_.adaptive_decimation.enabled) {
+      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+      state_.adaptive_decimation.addRegistrationQuality(
+        mrpt::Clock::toDouble(this_obs_tim), out.goodness, params_.adaptive_decimation);
+    }
 
     restartFromScratch = !icpQualityGood && state_.estimated_trajectory.size() == 1 &&
                          params_.local_map_updates.enabled && !state_.map_has_been_loaded;

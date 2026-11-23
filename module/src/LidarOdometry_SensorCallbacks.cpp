@@ -761,6 +761,15 @@ void LidarOdometry::consumePendingImu(const double upToTime)
       integrateGyroAttitude(imu);
     }
 
+    // 4b) Rotation since the last processed scan, for adaptive decimation:
+    if (
+      params_.adaptive_decimation.enabled && imu.has(mrpt::obs::IMU_WX) &&
+      imu.has(mrpt::obs::IMU_WY) && imu.has(mrpt::obs::IMU_WZ)) {
+      state_.adaptive_decimation.addGyro(
+        mrpt::Clock::toDouble(imu.timestamp),
+        {imu.get(mrpt::obs::IMU_WX), imu.get(mrpt::obs::IMU_WY), imu.get(mrpt::obs::IMU_WZ)});
+    }
+
     // 5) Gravity estimation for ICP verticality correction:
     if (params_.imu_gravity_correction.enabled) {
       state_.gravity_estimator.add(imu, params_.imu_gravity_correction.averaging_samples);

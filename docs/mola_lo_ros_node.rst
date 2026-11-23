@@ -285,6 +285,11 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       re-broadcast at a fixed rate; in direct ``map -> base_link`` mode without the smoother,
       ``/tf`` is only updated once per processed scan.
 
+    * ``adaptive_decimation`` (default ``False``):
+      Skip LiDAR scans while the platform moves little, and process every scan when it turns,
+      moves fast, or registration gets marginal. Needs an IMU. Sets ``MOLA_ADAPTIVE_DECIMATION``;
+      see that variable in the pipeline documentation for its budgets.
+
     * ``mola_bridge_odometry_frame`` (default ``odom``):
       BridgeROS2's odom ``/tf`` frame name (the REP-105 "odom" child or the parent of
       an externally-published odometry TF).
