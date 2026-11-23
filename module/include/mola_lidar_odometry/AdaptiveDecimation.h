@@ -73,6 +73,9 @@ public:
     double gap = 0;
     /// [s] Sensor period, e.g. from the last two scans (<= 0: unknown).
     double period = 0;
+    /// [s] End of the time span the gyroscope readings given so far should
+    /// cover for this scan (<= 0: unknown, not checked).
+    double sweep_end = 0;
     /// False if the last registration was rejected or was a prediction.
     bool last_registration_good = true;
     /// The state estimator twist, if any.
@@ -105,6 +108,8 @@ private:
   bool gyroSeen_ = false;
   bool sweepCovered_ = false;  ///< readings integrated in the latest sweep
   bool sweepGap_ = false;      ///< a reading gap in the latest sweep
+  /// R_ covers the whole interval since the last processed scan (no gap):
+  bool intervalCovered_ = true;
   uint32_t skipped_ = 0;
   std::deque<double> recentQualities_;
   std::optional<double> lowQualityUntil_;  ///< [s]

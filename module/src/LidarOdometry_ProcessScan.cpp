@@ -735,10 +735,15 @@ double LidarOdometry::effectiveGravitySigmaRad() const
   return std::sqrt(sigma0 * sigma0 + (*disp) * (*disp));
 }
 
-bool LidarOdometry::adaptiveDecimationSkips(const CObservation & obs)
+bool LidarOdometry::adaptiveDecimationSkips(
+  const CObservation & obs, const std::optional<double> & imuCoverageEndTime)
 {
   ::mola::AdaptiveDecimation::Scan scan;
   scan.stamp = mrpt::Clock::toDouble(obs.timestamp);
+  // A finite coverage end bounds where the latest gyroscope reading must be:
+  if (imuCoverageEndTime && std::isfinite(*imuCoverageEndTime)) {
+    scan.sweep_end = *imuCoverageEndTime;
+  }
   const auto itLast = state_.last_obs_tim_by_label.find(obs.sensorLabel);
   const auto itStamps = state_.recent_lidar_stamps.find(obs.sensorLabel);
   if (
@@ -926,7 +931,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
   }
 
   // Adaptive decimation, driven by the motion since the last processed scan:
-  if (params_.adaptive_decimation.enabled && adaptiveDecimationSkips(*obs)) {
+  if (params_.adaptive_decimation.enabled && adaptiveDecimationSkips(*obs, imuCoverageEndTime)) {
     return;
   }
 

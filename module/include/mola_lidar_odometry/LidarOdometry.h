@@ -2631,8 +2631,10 @@ private:
   std::map<std::string, std::size_t> adaptive_process_reasons_;
 
   /// Parameters::adaptive_decimation: whether to skip this scan. Called with
-  /// state_mtx_ held, after the scan's IMU readings were consumed.
-  bool adaptiveDecimationSkips(const mrpt::obs::CObservation & obs);
+  /// state_mtx_ held, after the scan's IMU readings were consumed up to
+  /// `imuCoverageEndTime`.
+  bool adaptiveDecimationSkips(
+    const mrpt::obs::CObservation & obs, const std::optional<double> & imuCoverageEndTime);
 
   // Adaptive threshold method:
   void doUpdateAdaptiveThreshold();

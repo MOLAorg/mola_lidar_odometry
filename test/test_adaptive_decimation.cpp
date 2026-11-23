@@ -277,3 +277,73 @@ TEST(AdaptiveDecimation, SweepWithoutGyroAfterASkipIsProcessed)
   sweep(true);
   EXPECT_EQ(ad.decide(s, b), nullptr);
 }
+
+TEST(AdaptiveDecimation, GyroStoppingInsideTheSweepIsNotCoverage)
+{
+  mola::AdaptiveDecimation ad;
+  auto b = budgets5();
+  b.max_time_gap = 1.0;
+  constexpr double SWEEP = 0.2;  // 5 Hz LiDAR
+  mola::AdaptiveDecimation::Scan s;
+  s.period = SWEEP;
+  s.twist = twist(0, 0);
+  double t = 0;
+  // Gyroscope readings over the first `covered` seconds of a sweep:
+  const auto sweep = [&](double covered) {
+    const double start = t;
+    for (double ti = start + IMU_DT; ti <= start + covered + 1e-9; ti += IMU_DT) {
+      ad.addGyro(ti, {0, 0, 0});
+    }
+    t = start + SWEEP;
+    s.sweep_end = t;
+  };
+  sweep(SWEEP);
+  s.gap = 0;
+  EXPECT_STREQ(ad.decide(s, b), "start");
+  sweep(SWEEP);
+  s.gap = SWEEP;
+  EXPECT_EQ(ad.decide(s, b), nullptr);
+  // The readings stop 0.15 s before the end of the sweep:
+  sweep(0.05);
+  s.gap = 2 * SWEEP;
+  EXPECT_STREQ(ad.decide(s, b), "no_gyro");
+}
+
+TEST(AdaptiveDecimation, RotationAfterAGapDoesNotUseAPartialGyroInterval)
+{
+  // Without require_gyro, a gyroscope gap since the last processed scan
+  // leaves the integrated rotation incomplete, so the estimator twist is used
+  // until the next processed scan.
+  mola::AdaptiveDecimation ad;
+  auto b = budgets5();
+  b.require_gyro = false;
+  b.max_rotation_deg = 3.5;
+  mola::AdaptiveDecimation::Scan s;
+  s.period = PERIOD;
+  const double w = mrpt::DEG2RAD(10.0);
+  s.twist = twist(0, w);
+  double t = 0;
+  const auto sweep = [&](bool gyro) {
+    for (int i = 0; i < 20; i++) {
+      t += IMU_DT;
+      if (gyro) {
+        ad.addGyro(t, {0, 0, w});
+      }
+    }
+    s.sweep_end = t;
+  };
+  sweep(true);
+  s.gap = 0;
+  EXPECT_STREQ(ad.decide(s, b), "start");
+  sweep(false);  // twist: 10 deg/s x 0.2 s = 2 deg
+  s.gap = PERIOD;
+  EXPECT_EQ(ad.decide(s, b), nullptr);
+  sweep(true);  // the gap ends in this sweep; twist: 3 deg
+  s.gap = 2 * PERIOD;
+  EXPECT_EQ(ad.decide(s, b), nullptr);
+  // A covered sweep, but the gyroscope missed part of the interval: it would
+  // give ~3 deg; the twist gives 4 deg, over the budget.
+  sweep(true);
+  s.gap = 3 * PERIOD;
+  EXPECT_STREQ(ad.decide(s, b), "rotation");
+}
