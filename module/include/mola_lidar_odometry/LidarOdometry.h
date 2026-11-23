@@ -287,7 +287,7 @@ public:
      *  1 out of every N scans of a sensor running at F Hz, with a value of
      *  (N - 0.5) / F, which tolerates up to half a period of stamp jitter.
      */
-    double min_time_between_scans = 0.05;
+    double min_time_between_scans = 1e-3;
 
     // Low-pass filter alpha for the EMA of ESTIMATED_OBSERVATION_RADIUS, and
     // the absolute floor for that estimate. Both used to be named *_sensor_*

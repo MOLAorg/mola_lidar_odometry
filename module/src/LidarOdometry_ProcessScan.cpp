@@ -934,6 +934,16 @@ void LidarOdometry::processLidarScan(  // NOLINT
   // Stage 1: points, de-skew and filters:
   std::optional<PreprocessedScan> preprocessed = preprocessScan(*obs, sf);
   if (!preprocessed) {
+    // A scan dropped here was never registered: with a single LiDAR, the last
+    // registered one stays the reference of min_time_between_scans, so a
+    // dropped scan does not stretch the gap between registrations.
+    if (sf.size() == 1) {
+      if (last_obs_tim) {
+        state_.last_obs_tim_by_label[obs->sensorLabel] = *last_obs_tim;
+      } else {
+        state_.last_obs_tim_by_label.erase(obs->sensorLabel);
+      }
+    }
     return;
   }
   // The stages below read and update these:
