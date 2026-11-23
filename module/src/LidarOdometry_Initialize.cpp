@@ -266,6 +266,12 @@ void LidarOdometry::initialize_frontend(const Yaml & c)
         "decisions could break the LiDAR groups.");
       params_.adaptive_decimation.enabled = false;
     }
+    if (params_.adaptive_decimation.enabled && !params_.gyro_rotation_prior.enabled) {
+      MRPT_LOG_WARN(
+        "adaptive_decimation is ignored without gyro_rotation_prior: the rotation of the skipped "
+        "scans would not reach the registration.");
+      params_.adaptive_decimation.enabled = false;
+    }
 
     if (cfg.has("diagnostics")) {
       params_.diagnostics.initialize(cfg["diagnostics"]);

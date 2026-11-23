@@ -28,8 +28,10 @@ params:
   # gyroscope rotation since then (sigma: deg + deg/s * interval), instead of the
   # motion model's absolute pose uncertainty. Constrains the rotations the scene
   # does not (e.g. yaw with few distinctive structures). Inert without an IMU.
+  # Off by default: with an uncorrected gyroscope bias of a few tenths of deg/s
+  # it pulls the heading and can bend the whole trajectory.
   gyro_rotation_prior:
-    enabled: ${MOLA_GYRO_ROTATION_PRIOR|true}
+    enabled: ${MOLA_GYRO_ROTATION_PRIOR|false}
     sigma_deg: ${MOLA_GYRO_ROTATION_PRIOR_SIGMA_DEG|0.05}
     sigma_deg_per_s: ${MOLA_GYRO_ROTATION_PRIOR_SIGMA_DEG_PER_S|0.5}
 

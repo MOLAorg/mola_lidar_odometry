@@ -287,8 +287,14 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
 
     * ``adaptive_decimation`` (default ``False``):
       Skip LiDAR scans while the platform moves little, and process every scan when it turns,
-      moves fast, or registration gets marginal. Needs an IMU. Sets ``MOLA_ADAPTIVE_DECIMATION``;
-      see that variable in the pipeline documentation for its budgets.
+      moves fast, or registration gets marginal. Needs an IMU and ``gyro_rotation_prior:=True``
+      (ignored without it). Sets ``MOLA_ADAPTIVE_DECIMATION``; see that variable in the pipeline
+      documentation for its budgets.
+
+    * ``gyro_rotation_prior`` (default empty):
+      ICP rotation prior from the gyroscope (``True``/``False``). Empty keeps
+      ``MOLA_GYRO_ROTATION_PRIOR`` from the environment, else off. See that variable in the
+      pipeline documentation for when to enable it.
 
     * ``mola_bridge_odometry_frame`` (default ``odom``):
       BridgeROS2's odom ``/tf`` frame name (the REP-105 "odom" child or the parent of

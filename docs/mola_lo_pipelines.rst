@@ -598,9 +598,11 @@ Sensor inputs: LiDAR
   Measured guidance (22 sequences with an IMU: hand-held, legged and wheeled platforms; plus
   LiDAR-only runs):
 
-  - **With an IMU** (IMU de-skew and the gyroscope rotation prior), 1 of 2 kept the accuracy on
-    every sequence and cut the process CPU by 35-45%. 1 of 3 and 1 of 4 save 50-70%, but
-    made registration fail on a hand-held sequence whose scene was already marginal.
+  - **With an IMU** (IMU de-skew and the gyroscope rotation prior, ``MOLA_GYRO_ROTATION_PRIOR``),
+    1 of 2 kept the accuracy on every sequence and cut the process CPU by 35-45%. 1 of 3 and 1 of 4
+    save 50-70%, but made registration fail on a hand-held sequence whose scene was already
+    marginal. Without the gyroscope rotation prior, 1 of 2 still lost accuracy on some hand-held
+    runs with the simple estimator.
   - **Without an IMU**, the prediction over the larger gap is a constant-velocity extrapolation.
     Hand-held runs failed already at 1 of 2, and car sequences at 1 of 3. Use it only on smooth
     vehicles, and at most 1 of 2.
@@ -628,6 +630,10 @@ Sensor inputs: LiDAR
   It needs an IMU: without gyroscope readings every scan is processed, unless
   ``MOLA_ADAPTIVE_DECIMATION_REQUIRE_GYRO`` is ``false``, which takes the rotation from the
   estimator twist. That twist is one processed scan old and misses the start of fast turns.
+  It also needs ``MOLA_GYRO_ROTATION_PRIOR=true``, and is ignored (with a warning) without it:
+  the rotation of the skipped scans only reaches the registration through that prior. Without it,
+  on a hand-held rig, skipping up to 3 scans while the net rotation stayed small broke the
+  registration on several sequences (sensor rocking back and forth while walking).
   It acts on top of ``MOLA_MIN_TIME_BETWEEN_SCANS``, and is ignored with several LiDARs. It is
   available in the 3D pipelines (``lidar3d-*.yaml``), not in ``lidar2d.yaml`` nor in
   ``extras/lidar3d-kissicp-like.yaml``. Skipped scans are reported in the diagnostics as
@@ -636,6 +642,19 @@ Sensor inputs: LiDAR
   Measured with the defaults on the same 22 IMU sequences as above: it processed 26-36% of the
   scans (fewer on slow, smooth platforms), with no registration failure, including the sequence
   where a fixed 1 of 3 or 1 of 4 broke. That is fewer scans than the safe fixed setting (1 of 2).
+
+- ``MOLA_GYRO_ROTATION_PRIOR`` (Default: ``false``): ICP pose prior rotation from the gyroscope:
+  the last registered pose rotated by the gyroscope rotation since then, with sigma
+  ``MOLA_GYRO_ROTATION_PRIOR_SIGMA_DEG`` (Default: ``0.05`` [deg]) plus
+  ``MOLA_GYRO_ROTATION_PRIOR_SIGMA_DEG_PER_S`` (Default: ``0.5`` [deg/s]) times the interval. It
+  constrains rotations the scene does not (e.g. yaw with few distinctive structures in view), and
+  is inert without an IMU. It uses the gyroscope bias of an IMU bias source when one is active
+  (e.g. the smoother with ``MOLA_NAVSTATE_IMU_BIAS_TRACKING=true``); otherwise the raw readings.
+  Measured with an IMU on 37 sequences (hand-held, legged and wheeled): it lowered the error of
+  hand-held runs in a large building by up to 60%, was neutral on most others, and made a few
+  worse (up to x1.8). On a hand-held rig with a MEMS gyroscope biased by ~0.7 deg/s and no bias
+  source, it bent the whole trajectory (meters of error, doubled walls). Enable it for IMUs with a
+  small or estimated bias.
 
 - ``MOLA_ABS_MIN_SENSOR_RANGE`` (Default: ``5.0`` [m]): Absolute minimum for the otherwise
   automatically detected observation radius (see ``ESTIMATED_OBSERVATION_RADIUS``).
