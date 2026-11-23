@@ -283,6 +283,7 @@ void LidarOdometry::onPublishDiagnostics()
   diagValues["average_process_time"] = st->average_process_time;
   diagValues["dropped_frames_ratio"] = getDropStats();
   diagValues["invalid_inputs"] = invalid_input_count_.load();
+  diagValues["min_time_skipped_scans"] = min_time_skipped_count_.load();
   diagValues["parameters"] = getModuleParameters();
 
   DiagnosticsOutput diag;
@@ -375,6 +376,7 @@ void LidarOdometry::getDiagnostics(std::vector<mola::DiagnosticStatusMsg> & stat
     s.values.push_back(kv_d("last_obs_age_sec", lastObsAgeSec));
     s.values.push_back(kv_d("dropped_ratio", droppedRatio));
     s.values.push_back(kv_u("invalid_inputs", invalid_input_count_.load()));
+    s.values.push_back(kv_u("min_time_skipped_scans", min_time_skipped_count_.load()));
     status.push_back(std::move(s));
   }
 

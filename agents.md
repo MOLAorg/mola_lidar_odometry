@@ -617,6 +617,27 @@ setting still wins), like `MOLA_ASYNC_BACKEND`. For `mola-cli` replays set it in
 the environment; note `time_warp_scale` above ~5 outruns the pipeline, and
 without this the excess simply becomes dropped scans.
 
+### Intentional decimation: `min_time_between_scans` (`MOLA_MIN_TIME_BETWEEN_SCANS`)
+
+Opt-in CPU saving: process 1 of N scans with `(N - 0.5) / F` for an F Hz LiDAR
+(launch argument `min_time_between_scans`). Keep these properties:
+
+- In LO, not the inputs: covers the bridge, every dataset reader and the CLI,
+  and other consumers still get every scan.
+- The gate runs after `consumePendingImu()` (a skipped scan's IMU still feeds
+  de-skew and gravity) and before `preprocessScan()` (skipping is ~free).
+- Time-based, in sensor time, against the last processed scan of that label:
+  deterministic, jitter tolerant, self-correcting after a lost frame (a
+  counter would drift out of phase across multiple LiDARs).
+- Counted in `min_time_skipped_count_` (diagnostics, run totals), not in the
+  drop stats.
+- Keep the gap well under the estimators' `max_time_to_use_velocity_model`
+  (0.75 s shipped). With `simple` and direct `map -> base_link`, `/tf` is only
+  as fresh as the last processed scan; REP-105 is re-broadcast by the bridge.
+
+First measurement (3 Oxford Spires sequences, smoother): 1 of 2 / 1 of 3 cut
+process CPU by ~44% / ~57% with APE within -6..+10% of the baseline.
+
 ## `processLidarScan()` stages; read-ahead in the offline CLI
 
 `processLidarScan()` runs, with `state_mtx_` held: `preprocessScan()` (points,
@@ -1474,6 +1495,7 @@ pipeline YAML, not read directly in C++.)
 | `MOLA_LO_REG_GATE_LOG` | string | (empty = off) | `module/src/LidarOdometry_ProcessScan.cpp` | Path to a TSV dump, one row per scan: correction, predicted and ICP sigmas, and the Mahalanobis statistic, for choosing the threshold above from data. Same idiom as `MOLA_LO_MAP_GATE_LOG` |
 | `MOLA_LO_DISABLE_VERSION_CHECK` | bool | false | `module/src/LidarOdometry_Main.cpp` | Skips the daily online check for a newer release. Set in CI, so test coverage does not depend on network timing |
 | `MOLA_DROP_STALE_SCANS` | bool | true | all `pipelines/*.yaml` | false = lossless input queue (producer blocks instead of the queue evicting the older scan). `mola-lidar-odometry-cli` defaults it to false |
+| `MOLA_MIN_TIME_BETWEEN_SCANS` | double | 1e-3 (0 in `extras/lidar3d-kissicp-like.yaml`) | all `pipelines/*.yaml` | Intentional decimation: skip scans closer than this [s] to the last processed one (see "Intentional decimation") |
 | `MOLA_CAMERA_TOPIC_0` / `_1` / `_2` | string | (empty = off) | `apps/mola-lidar-odometry-cli.cpp` | Rosbag camera topics to publish, for a `--module` front-end or simplemap keyframes |
 | `MOLA_CAMERA_LABEL_0` / `_1` / `_2` | string | `image_0` / `image_1` / `image_2` | `apps/mola-lidar-odometry-cli.cpp` | Sensor labels for the topics above |
 | `MOLA_SIMPLEMAP_ATTACH_LABEL` | string | (empty = off) | `pipelines/blocks/simplemap.yaml` | Sensor label regex of observations (e.g. images) stored in simplemap keyframes |

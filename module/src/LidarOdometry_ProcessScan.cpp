@@ -854,8 +854,6 @@ void LidarOdometry::processLidarScan(  // NOLINT
   // for rate stats:
   state_.append_lidar_stamp(obs->sensorLabel, obs->timestamp, *this);
 
-  // Only process pointclouds that are sufficiently apart in time:
-
   // Keep timestamps for logging purposes:
   state_.last_obs_timestamp = this_obs_tim;
   state_.last_obs_reception_time = mrpt::Clock::now();
@@ -877,12 +875,18 @@ void LidarOdometry::processLidarScan(  // NOLINT
     }
   }
 
+  // Only process pointclouds that are sufficiently apart in time, measured in
+  // sensor time from the last processed scan of the same sensor. This is also
+  // the intentional decimation knob (keep 1 out of N scans). It runs after
+  // consumePendingImu() on purpose: the IMU samples of a skipped scan still
+  // reach the IMU-derived state, and only the costly stages are avoided.
   if (state_.last_obs_tim_by_label.count(obs->sensorLabel) != 0) {
     const double lidar_delta_time =
       mrpt::system::timeDifference(state_.last_obs_tim_by_label[obs->sensorLabel], this_obs_tim);
 
     if (lidar_delta_time < params_.min_time_between_scans) {
       // Drop observation.
+      ++min_time_skipped_count_;
       MRPT_LOG_DEBUG_FMT(
         "onLidarImpl: dropping observation, for %f< "
         "`min_time_between_scans`=%f.",

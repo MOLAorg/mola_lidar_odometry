@@ -161,6 +161,12 @@ void LidarOdometry::shutdownCleanup()
       MRPT_LOG_WARN_FMT("Run totals: %zu observations dropped as invalid input", nInvalid);
     }
 
+    if (const auto nSkipped = min_time_skipped_count_.load(); nSkipped > 0) {
+      MRPT_LOG_INFO_FMT(
+        "Run totals: %zu LiDAR scans skipped by min_time_between_scans=%.03f s", nSkipped,
+        params_.min_time_between_scans);
+    }
+
     if (params_.simplemap.generate) {
       saveReconstructedMapToFile();
     }

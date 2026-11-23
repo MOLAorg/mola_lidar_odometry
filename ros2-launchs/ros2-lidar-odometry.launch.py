@@ -628,6 +628,14 @@ def generate_launch_description():
     lidar_scan_validity_enable_env_var = SetEnvironmentVariable(
         name='MOLA_ENABLE_OBS_VALIDITY_FILTER', value='True')
 
+    min_time_between_scans_arg = DeclareLaunchArgument(
+        "min_time_between_scans", default_value="1e-3",
+        description="Skip LiDAR scans closer in time than this [seconds] to the last processed one, "
+                    "to save CPU. To process 1 out of N scans of an F Hz LiDAR, use (N - 0.5) / F, "
+                    "e.g. 0.15 (1 of 2) or 0.25 (1 of 3) for a 10 Hz sensor.")
+    min_time_between_scans_env_var = SetEnvironmentVariable(
+        name='MOLA_MIN_TIME_BETWEEN_SCANS', value=LaunchConfiguration('min_time_between_scans'))
+
     mola_deskew_method_arg = DeclareLaunchArgument(
         "mola_deskew_method", default_value="MotionCompensationMethod::Linear",
         description="Motion-compensation (deskew) method for LiDAR scans. Options: MotionCompensationMethod::None, "
@@ -827,6 +835,8 @@ def generate_launch_description():
         lidar_scan_validity_enable_env_var,
         lidar_scan_validity_minimum_point_count_arg,
         lidar_scan_validity_minimum_point_env_var,
+        min_time_between_scans_arg,
+        min_time_between_scans_env_var,
         lidar_topic_env_var,
         lidar_topic_name_arg,
         lidar_topic_type_arg,

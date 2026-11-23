@@ -281,9 +281,12 @@ public:
      */
     bool use_imu_bias_source = true;
 
-    /** Minimum time (seconds) between scans for being attempted to be
-         * aligned. Scans faster than this rate will be just silently ignored.
-         */
+    /** Minimum time (seconds) between processed scans of the same sensor
+     *  label, in sensor time. Scans closer than this to the last processed
+     *  one are skipped before any costly stage. Also usable to process only
+     *  1 out of every N scans of a sensor running at F Hz, with a value of
+     *  (N - 0.5) / F, which tolerates up to half a period of stamp jitter.
+     */
     double min_time_between_scans = 0.05;
 
     // Low-pass filter alpha for the EMA of ESTIMATED_OBSERVATION_RADIUS, and
@@ -2597,6 +2600,9 @@ private:
   /// Counts and reports (throttled) an observation dropped as invalid input.
   void dropInvalidInput(const CObservation & o, const InvalidInputError & e);
   std::atomic<std::size_t> invalid_input_count_{0};
+
+  /// Scans skipped by Parameters::min_time_between_scans since construction.
+  std::atomic<std::size_t> min_time_skipped_count_{0};
 
   // Adaptive threshold method:
   void doUpdateAdaptiveThreshold();

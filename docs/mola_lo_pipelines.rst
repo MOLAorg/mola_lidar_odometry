@@ -587,6 +587,14 @@ Sensor inputs: LiDAR
 - ``MOLA_LIDAR_MAX_TIME_OFFSET`` (Default: ``0.1`` [s]): Maximum delay between different LiDAR observations to handle them together.
   Note that deskewing takes into account the exact delays between clouds from different LiDARs.
 
+- ``MOLA_MIN_TIME_BETWEEN_SCANS`` (Default: ``1e-3`` [s]): Skip scans closer in time than this
+  to the last processed scan of the same sensor, measured in sensor time. Use it to save CPU by
+  processing only 1 out of N scans of an F Hz LiDAR with a value of (N - 0.5) / F, e.g. ``0.15``
+  (1 of 2) or ``0.25`` (1 of 3) at 10 Hz. Skipped scans cost almost nothing, and their IMU readings
+  are still used. Keep the resulting gap well below the state estimator's
+  ``max_time_to_use_velocity_model`` (``MOLA_MAX_TIME_TO_USE_VELOCITY_MODEL``, 0.75 s in the shipped
+  estimator files), or its velocity model is lost between scans.
+
 - ``MOLA_ABS_MIN_SENSOR_RANGE`` (Default: ``5.0`` [m]): Absolute minimum for the otherwise
   automatically detected observation radius (see ``ESTIMATED_OBSERVATION_RADIUS``).
 

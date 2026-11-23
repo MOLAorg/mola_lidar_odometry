@@ -24,8 +24,9 @@ params:
     enabled: ${MOLA_POINT_TIME_OUTLIERS|true}
     margin_ratio: ${MOLA_POINT_TIME_OUTLIERS_MARGIN_RATIO|0.5}
 
-  # Optionally, drop lidar data too close in time:
-  min_time_between_scans: 0 # 0.2  # [seconds]
+  # Skip scans closer in time than this to the last processed one [seconds]
+  # (see blocks/inputs.yaml):
+  min_time_between_scans: ${MOLA_MIN_TIME_BETWEEN_SCANS|0}
   # Whether a scan arriving while the worker is still busy replaces the one
   # already queued (real-time behavior) or waits for it (lossless). Set to false
   # for offline batch runs, where every scan must be processed.

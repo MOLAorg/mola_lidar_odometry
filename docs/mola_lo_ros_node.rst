@@ -274,6 +274,14 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       With the smoother publishing ``map → odom`` itself (``MOLA_PUBLISH_MAP_TO_ODOM_TF=true``),
       set it to ``state_estimation/map_odom``.
 
+    * ``min_time_between_scans`` (default ``1e-3``):
+      Skip LiDAR scans closer in time than this [seconds] to the last processed one, to save
+      CPU. To process 1 out of N scans of an F Hz LiDAR, use (N - 0.5) / F, e.g. ``0.15``
+      (1 of 2) or ``0.25`` (1 of 3) for a 10 Hz sensor. Sets ``MOLA_MIN_TIME_BETWEEN_SCANS``.
+      With ``publish_localization_following_rep105:=True``, ``map -> odom`` is still
+      re-broadcast at a fixed rate; in direct ``map -> base_link`` mode without the smoother,
+      ``/tf`` is only updated once per processed scan.
+
     * ``mola_bridge_odometry_frame`` (default ``odom``):
       BridgeROS2's odom ``/tf`` frame name (the REP-105 "odom" child or the parent of
       an externally-published odometry TF).
