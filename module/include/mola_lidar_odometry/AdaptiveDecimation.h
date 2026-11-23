@@ -54,9 +54,9 @@ public:
     double max_distance = 1.5;
     /// [s] Time budget between processed scans.
     double max_time_gap = 0.45;
-    /// Without gyroscope readings, process every scan. Otherwise, the
-    /// rotation comes from the estimator twist, which is one processed scan
-    /// old and misses the start of a fast turn.
+    /// Process every scan whose sweep the gyroscope did not cover without a
+    /// gap. Otherwise, the rotation then comes from the estimator twist, which
+    /// is one processed scan old and misses the start of a fast turn.
     bool require_gyro = true;
     /// Process every scan while a registration quality is below this ratio
     /// of the recent median quality, and quality_hold_time after it (0: off).
@@ -103,6 +103,8 @@ private:
   mrpt::math::CMatrixDouble33 R_sweep_ = mrpt::math::CMatrixDouble33::Identity();
   std::optional<double> lastGyroStamp_;
   bool gyroSeen_ = false;
+  bool sweepCovered_ = false;  ///< readings integrated in the latest sweep
+  bool sweepGap_ = false;      ///< a reading gap in the latest sweep
   uint32_t skipped_ = 0;
   std::deque<double> recentQualities_;
   std::optional<double> lowQualityUntil_;  ///< [s]

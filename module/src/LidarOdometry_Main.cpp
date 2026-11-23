@@ -169,7 +169,7 @@ void LidarOdometry::shutdownCleanup()
 
     if (params_.adaptive_decimation.enabled) {
       std::string reasons;
-      for (const auto & [reason, count] : state_.adaptive_decimation_reasons) {
+      for (const auto & [reason, count] : adaptive_process_reasons_) {
         reasons += mrpt::format(" %s=%zu", reason.c_str(), count);
       }
       MRPT_LOG_INFO_FMT(

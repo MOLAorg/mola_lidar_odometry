@@ -1828,8 +1828,6 @@ private:
     /// Parameters::adaptive_decimation: motion since the last processed scan.
     /// Protected by imu_state_mtx_.
     ::mola::AdaptiveDecimation adaptive_decimation;
-    /// Run totals: why each scan was processed, by reason.
-    std::map<std::string, std::size_t> adaptive_decimation_reasons;
 
     /// Run totals, reported once at shutdown. `registration_no_motion_model` is
     /// the one that had no aggregate before: the front end already logs a
@@ -2628,6 +2626,9 @@ private:
 
   /// Scans skipped by Parameters::adaptive_decimation since construction.
   std::atomic<std::size_t> adaptive_skipped_count_{0};
+  /// Why the others were processed, by reason, since construction. Protected
+  /// by state_mtx_.
+  std::map<std::string, std::size_t> adaptive_process_reasons_;
 
   /// Parameters::adaptive_decimation: whether to skip this scan. Called with
   /// state_mtx_ held, after the scan's IMU readings were consumed.

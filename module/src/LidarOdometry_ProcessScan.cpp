@@ -761,7 +761,7 @@ bool LidarOdometry::adaptiveDecimationSkips(const CObservation & obs)
     ++adaptive_skipped_count_;
     return true;
   }
-  state_.adaptive_decimation_reasons[reason]++;
+  adaptive_process_reasons_[reason]++;
   return false;
 }
 

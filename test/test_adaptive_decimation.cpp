@@ -243,3 +243,37 @@ TEST(AdaptiveDecimation, LowQualityHoldsFullRate)
   s.stamp = 4.2;
   EXPECT_EQ(ad.decide(s, b), nullptr);
 }
+
+TEST(AdaptiveDecimation, SweepWithoutGyroAfterASkipIsProcessed)
+{
+  mola::AdaptiveDecimation ad;
+  const auto b = budgets5();
+  mola::AdaptiveDecimation::Scan s;
+  s.period = PERIOD;
+  s.twist = twist(0, 0);
+  double t = 0;
+  const auto sweep = [&](bool gyro) {
+    for (int i = 0; i < 20; i++) {
+      t += IMU_DT;
+      if (gyro) {
+        ad.addGyro(t, {0, 0, 0});
+      }
+    }
+  };
+  sweep(true);
+  s.gap = 0;
+  EXPECT_STREQ(ad.decide(s, b), "start");
+  sweep(true);
+  s.gap = PERIOD;
+  EXPECT_EQ(ad.decide(s, b), nullptr);
+  // The gyroscope stops: the stale motion so far must not allow a skip.
+  sweep(false);
+  s.gap = 2 * PERIOD;
+  EXPECT_STREQ(ad.decide(s, b), "no_gyro");
+  // It comes back after a gap: that sweep is not covered either.
+  sweep(true);
+  s.gap = PERIOD;
+  EXPECT_STREQ(ad.decide(s, b), "no_gyro");
+  sweep(true);
+  EXPECT_EQ(ad.decide(s, b), nullptr);
+}

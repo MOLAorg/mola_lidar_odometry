@@ -44,6 +44,9 @@ void AdaptiveDecimation::addGyro(double t, const mrpt::math::TVector3D & w)
   if (lastGyroStamp_ && t <= *lastGyroStamp_) {
     return;
   }
+  if (lastGyroStamp_ && t - *lastGyroStamp_ > MAX_GYRO_READING_GAP) {
+    sweepGap_ = true;
+  }
   if (lastGyroStamp_ && t - *lastGyroStamp_ <= MAX_GYRO_READING_GAP) {
     const double dt = t - *lastGyroStamp_;
     mrpt::math::CVectorFixedDouble<3> v;
@@ -54,6 +57,7 @@ void AdaptiveDecimation::addGyro(double t, const mrpt::math::TVector3D & w)
     R_ = R_ * dR;
     R_sweep_ = R_sweep_ * dR;
     gyroSeen_ = true;
+    sweepCovered_ = true;
   }
   lastGyroStamp_ = t;
 }
@@ -81,7 +85,11 @@ double AdaptiveDecimation::gyroRotation() const { return mrpt::poses::Lie::SO<3>
 const char * AdaptiveDecimation::decide(const Scan & scan, const Budgets & b)
 {
   const double sweepRotation = mrpt::poses::Lie::SO<3>::log(R_sweep_).norm();
+  // The gyroscope covered the latest sweep, without a gap:
+  const bool sweepOk = sweepCovered_ && !sweepGap_;
   R_sweep_ = mrpt::math::CMatrixDouble33::Identity();
+  sweepCovered_ = false;
+  sweepGap_ = false;
 
   const char * reason = [&]() -> const char * {
     if (scan.gap <= 0 || scan.period <= 0) {
@@ -101,7 +109,7 @@ const char * AdaptiveDecimation::decide(const Scan & scan, const Budgets & b)
     if (nextGap > b.max_time_gap) {
       return "time_gap";
     }
-    if (b.require_gyro && !gyroSeen_) {
+    if (b.require_gyro && !sweepOk) {
       return "no_gyro";
     }
     if (!scan.twist) {
@@ -115,8 +123,8 @@ const char * AdaptiveDecimation::decide(const Scan & scan, const Budgets & b)
     // The gyroscope rotation so far plus that of the latest sweep (so the
     // start of a turn counts at once), or the estimator angular velocity:
     const double nextRotation =
-      gyroSeen_ ? gyroRotation() + sweepRotation
-                : std::sqrt(tw.wx * tw.wx + tw.wy * tw.wy + tw.wz * tw.wz) * nextGap;
+      sweepOk ? gyroRotation() + sweepRotation
+              : std::sqrt(tw.wx * tw.wx + tw.wy * tw.wy + tw.wz * tw.wz) * nextGap;
     if (nextRotation > mrpt::DEG2RAD(b.max_rotation_deg)) {
       return "rotation";
     }
