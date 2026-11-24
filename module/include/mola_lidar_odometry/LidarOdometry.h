@@ -1002,6 +1002,16 @@ public:
         /// After an ambiguous or failed search, wait this long (sensor time) to try again
         double retry_period = 2.0;  // [s]
 
+        /// Odometry source (CObservationRobotPose or CObservationOdometry,
+        /// exact sensor label) whose planar motion between the searched scan
+        /// and the end of the search is added to the found pose, for a vehicle
+        /// that moves while a long search runs. It must be a relative source
+        /// such as wheel odometry: the state estimator pose is no good, since
+        /// before localization it follows the absolute inputs (e.g. GNSS),
+        /// whose noise would be taken as motion. Empty (default): the vehicle
+        /// is assumed still during the search.
+        std::string motion_odometry_sensor_label;
+
         void initialize(const Yaml & c);
       };
       GlobalSearch global_search;
@@ -1681,6 +1691,10 @@ private:
     /// timestamp [s]. Protected by imu_state_mtx_.
     std::map<double, mrpt::poses::CPose3D> deskew_odometry_poses;
 
+    /// Recent poses of the `global_search.motion_odometry_sensor_label` source,
+    /// keyed by timestamp [s]. Protected by imu_state_mtx_.
+    std::map<double, mrpt::poses::CPose3D> global_search_odometry_poses;
+
     /// Timestamp [s] of the previous scan, to estimate the sweep duration used
     /// with `deskew_odometry_sensor_label`. Protected by imu_state_mtx_.
     std::optional<double> deskew_prev_scan_stamp;
@@ -2141,6 +2155,15 @@ private:
   /// the input sequence.
   void onDeskewOdometry(const mrpt::obs::CObservation::ConstPtr & o);
 
+  /// Stores a pose of the `global_search.motion_odometry_sensor_label`
+  /// source. Called inline from onNewObservation(), like onDeskewOdometry().
+  void onGlobalSearchOdometry(const mrpt::obs::CObservation::ConstPtr & o);
+
+  /// Pose of the `global_search.motion_odometry_sensor_label` source at time
+  /// t [s], interpolated, or nullopt if it does not cover t. Caller must hold
+  /// imu_state_mtx_.
+  [[nodiscard]] std::optional<mrpt::poses::CPose3D> globalSearchOdometryAt(double t) const;
+
   /// Mean motion of the de-skew odometry source over an interval.
   struct DeskewOdometryTwist
   {
@@ -2466,7 +2489,9 @@ private:
   /// Runs the pending global search for the initial pose with this
   /// (filtered) observation, whose reference time is scan_ref_time. Once
   /// localized, the found pose is carried to the newest sensor time with the
-  /// vehicle motion the state estimator observed during the search.
+  /// vehicle motion during the search measured by
+  /// `global_search.motion_odometry_sensor_label`, if set (else the vehicle is
+  /// assumed still).
   void doGlobalSearchForInitialPose(
     const mp2p_icp::metric_map_t & observation, const mrpt::Clock::time_point & scan_ref_time);
   MapServer::ReturnStatus map_load_impl(const std::string & path);

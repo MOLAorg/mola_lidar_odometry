@@ -492,6 +492,7 @@ void LidarOdometry::Parameters::InitialLocalizationOptions::GlobalSearch::initia
   YAML_LOAD_OPT(same_mode_max_yaw_deg, double);
   YAML_LOAD_OPT(min_quality_margin, double);
   YAML_LOAD_OPT(retry_period, double);
+  YAML_LOAD_OPT(motion_odometry_sensor_label, std::string);
 
   ASSERT_GT_(resolution_xy, 0);
   ASSERT_GT_(resolution_yaw_deg, 0);

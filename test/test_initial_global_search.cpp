@@ -156,6 +156,9 @@ struct Scenario
   double minHalfWidthXY = 3.0;
   int maxInitialGuesses = 5000;
   double duration = 20.0;  // [s]
+  /// If set, wheel odometry is also fed to LO with this label, as the source
+  /// of the vehicle motion during the global search
+  std::string motionOdometryLabel;
 };
 
 struct Result
@@ -175,6 +178,7 @@ Result localize(const Scenario & sc)
   set_env("MOLA_LO_INIT_GLOBAL_SEARCH", sc.globalSearch ? "true" : "false");
   set_env("MOLA_LO_INIT_GLOBAL_SEARCH_MIN_XY", std::to_string(sc.minHalfWidthXY));
   set_env("MOLA_LO_INIT_GLOBAL_SEARCH_MAX_GUESSES", std::to_string(sc.maxInitialGuesses));
+  set_env("MOLA_LO_INIT_GLOBAL_SEARCH_MOTION_ODOMETRY", sc.motionOdometryLabel);
   // Poses in the geo-referenced map frame, as for GNSS-aided localization:
   set_env("MOLA_LO_PUBLISH_REF_FRAME", "map");
   set_env("MOLA_LO_INIT_SE_MAX_POS_SIGMA", "0.5");
@@ -222,6 +226,11 @@ Result localize(const Scenario & sc)
       smoother->fuse_gnss(*gnss(georef, vehicle, sc.gnssBias, sc.gnssSigma, t));
     }
     smoother->spinOnce();
+    if (!sc.motionOdometryLabel.empty()) {
+      auto odo = odometry(mrpt::poses::CPose2D(sc.speed * dt, 0, 0), t);
+      odo->sensorLabel = sc.motionOdometryLabel;
+      liodom->onNewObservation(odo);
+    }
     if (dt < sc.lidarStart) {
       continue;
     }
@@ -326,6 +335,24 @@ TEST_F(InitialGlobalSearch, BiasedGnssWithoutImu)
   sc.withImu = false;
   sc.truth = mrpt::poses::CPose3D::FromXYZYawPitchRoll(26.0, 12.0, 0, mrpt::DEG2RAD(-120.0), 0, 0);
   expect_localized(localize(sc), sc.truth);
+}
+
+// A vehicle that moves while localizing, with wheel odometry as the source of
+// the motion during the search: LO must track it from the found pose.
+TEST_F(InitialGlobalSearch, MovingVehicleWithOdometryMotion)
+{
+  auto sc = hall_scenario();
+  sc.speed = 0.3;
+  sc.motionOdometryLabel = "odom";
+  sc.duration = 12.0;
+  const auto r = localize(sc);
+  ASSERT_TRUE(r.last.has_value());
+  const auto expectedLast =
+    sc.truth + mrpt::poses::CPose3D::FromTranslation(sc.speed * (sc.duration - 0.1), 0, 0);
+  std::cout << "Last pose: " << r.last->asString() << " expected: " << expectedLast.asString()
+            << "\n";
+  EXPECT_LT(xy_error(*r.last, expectedLast), 0.1);
+  EXPECT_LT(yaw_error_deg(*r.last, expectedLast), 1.0);
 }
 
 // A search with more initial guesses than allowed is not run: LO must keep
