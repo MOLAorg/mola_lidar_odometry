@@ -136,16 +136,13 @@ if(mola_metric_maps_FOUND AND mola_state_estimation_simple_FOUND AND
     ENV LO_STATE_ESTIM_SMOOTHER_YAML=${SMOOTHER_PARAMS_YAML}
     ENV MOLA_PROFILER=false
   )
-  # The smoother is only created by class name: keep it linked.
   target_link_libraries(test_initial_global_search
     mrpt::mrpt_obs
     mola::mola_state_estimation_simple
     mola::mola_lidar_odometry
     mola::mola_relocalization
-    "-Wl,--no-as-needed"
-    mola::mola_state_estimation_smoother
-    "-Wl,--as-needed"
   )
+  mola_lo_link_plugin_library(test_initial_global_search mola::mola_state_estimation_smoother)
 endif()
 
 if((NOT mola_test_datasets_FOUND) OR
