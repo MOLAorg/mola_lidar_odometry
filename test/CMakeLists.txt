@@ -15,6 +15,9 @@ target_link_libraries(test_map_frame_relevel mola::mola_lidar_odometry mrpt::mrp
 ament_add_gtest(test_imu_scan_sync test_imu_scan_sync.cpp)
 target_link_libraries(test_imu_scan_sync mola::mola_lidar_odometry mrpt::mrpt_obs)
 
+ament_add_gtest(test_pose_history test_pose_history.cpp)
+target_link_libraries(test_pose_history mola::mola_lidar_odometry mrpt::mrpt_obs)
+
 ament_add_gtest(test_imu_bias_correction test_imu_bias_correction.cpp)
 target_link_libraries(test_imu_bias_correction mola::mola_lidar_odometry mrpt::mrpt_obs)
 
@@ -29,6 +32,15 @@ ament_add_gtest(test_pipelines_load test_pipelines_load.cpp
   ENV LO_PIPELINES_DIR=${mola_lidar_odometry_SOURCE_DIR}/pipelines
 )
 target_link_libraries(test_pipelines_load mola::mola_lidar_odometry mola::mola_yaml)
+
+# The launch file's choice of the odometry for the global search motion:
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+ament_add_test(test_launch_global_search_motion
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_launch_global_search_motion.py
+    ${mola_lidar_odometry_SOURCE_DIR}/ros2-launchs/ros2-lidar-odometry.launch.py
+  TIMEOUT 60
+  GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+)
 
 # The dataset-profile library's choice of state estimator class:
 ament_add_test(test_dataset_profile_estimator

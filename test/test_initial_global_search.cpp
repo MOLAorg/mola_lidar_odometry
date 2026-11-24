@@ -41,6 +41,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <future>
+#include <string>
 #include <thread>
 
 #include "synthetic_world.h"
@@ -156,12 +157,29 @@ struct Scenario
   double minHalfWidthXY = 3.0;
   int maxInitialGuesses = 5000;
   double duration = 20.0;  // [s]
+  /// If set, wheel odometry is also fed to LO with this label, as the source
+  /// of the vehicle motion during the global search
+  std::string motionOdometryLabel;
+  /// [s] The first LiDAR scan reaches LO this late, and the next ones are
+  /// current, while wheel odometry (fed to LO without delay) advances its
+  /// sensor time: as if the global search on the first scan had lasted this
+  /// long, with the scans meanwhile dropped. Deterministic, unlike a real long
+  /// search.
+  double firstScanLatency = 0;
+  /// [deg] Yaw of the wheel odometry frame: its poses are relative to an
+  /// arbitrary frame, not the map one
+  double odomFrameYawDeg = 0;
+  /// Added to gnssBias from t=1 s on (e.g. a multipath change): the state
+  /// estimator pose moves although the vehicle is still.
+  mrpt::math::TPoint2D gnssBiasJump;
 };
 
 struct Result
 {
   /// LO's first and last poses, if localized
   std::optional<mrpt::poses::CPose3D> first, last;
+  /// Sensor time of `first` [s], relative to the start of the scenario
+  double firstTime = 0;
 };
 
 Result localize(const Scenario & sc)
@@ -175,6 +193,7 @@ Result localize(const Scenario & sc)
   set_env("MOLA_LO_INIT_GLOBAL_SEARCH", sc.globalSearch ? "true" : "false");
   set_env("MOLA_LO_INIT_GLOBAL_SEARCH_MIN_XY", std::to_string(sc.minHalfWidthXY));
   set_env("MOLA_LO_INIT_GLOBAL_SEARCH_MAX_GUESSES", std::to_string(sc.maxInitialGuesses));
+  set_env("MOLA_LO_INIT_GLOBAL_SEARCH_MOTION_ODOMETRY", sc.motionOdometryLabel);
   // Poses in the geo-referenced map frame, as for GNSS-aided localization:
   set_env("MOLA_LO_PUBLISH_REF_FRAME", "map");
   set_env("MOLA_LO_INIT_SE_MAX_POS_SIGMA", "0.5");
@@ -208,22 +227,50 @@ Result localize(const Scenario & sc)
   liodom->params_.lidar_sensor_labels.assign(1, std::regex("lidar"));
 
   const auto georef = make_georef();
+  // The first scan, waiting for its delivery with firstScanLatency:
+  mrpt::obs::CObservation::Ptr firstScan;
+  bool firstScanDelivered = false;
   // 10 Hz lidar, wheel odometry and IMU; 1 Hz GNSS:
   const auto steps = static_cast<int>(sc.duration * 10);
   for (int i = 0; i < steps; i++) {
     const double dt = 0.1 * i;
     const double t = 1000.0 + dt;
     const auto vehicle = sc.truth + mrpt::poses::CPose3D::FromTranslation(sc.speed * dt, 0, 0);
-    smoother->fuse_odometry(*odometry(mrpt::poses::CPose2D(sc.speed * dt, 0, 0), t), "odom_wheels");
+    const auto odomPose = mrpt::poses::CPose2D(0, 0, mrpt::DEG2RAD(sc.odomFrameYawDeg)) +
+                          mrpt::poses::CPose2D(sc.speed * dt, 0, 0);
+    smoother->fuse_odometry(*odometry(odomPose, t), "odom_wheels");
     if (sc.withImu) {
       smoother->fuse_imu(*imu(vehicle, t));
     }
     if (i % 10 == 0) {
-      smoother->fuse_gnss(*gnss(georef, vehicle, sc.gnssBias, sc.gnssSigma, t));
+      auto bias = sc.gnssBias;
+      if (dt >= 1.0) {
+        bias += sc.gnssBiasJump;
+      }
+      smoother->fuse_gnss(*gnss(georef, vehicle, bias, sc.gnssSigma, t));
     }
     smoother->spinOnce();
+    if (!sc.motionOdometryLabel.empty() || sc.firstScanLatency > 0) {
+      auto odo = odometry(odomPose, t);
+      if (!sc.motionOdometryLabel.empty()) {
+        odo->sensorLabel = sc.motionOdometryLabel;
+      }
+      liodom->onNewObservation(odo);
+    }
     if (dt < sc.lidarStart) {
       continue;
+    }
+    if (sc.firstScanLatency > 0 && !firstScanDelivered) {
+      if (!firstScan) {
+        firstScan = scan(sc.world, vehicle, t);
+      }
+      if (dt + 1e-6 < sc.lidarStart + sc.firstScanLatency) {
+        continue;
+      }
+      liodom->onNewObservation(firstScan);
+      wait_idle(*liodom);
+      liodom->spinOnce();
+      firstScanDelivered = true;
     }
     liodom->onNewObservation(scan(sc.world, vehicle, t));
     wait_idle(*liodom);
@@ -242,6 +289,7 @@ Result localize(const Scenario & sc)
   }
   if (!traj.empty()) {
     r.first = mrpt::poses::CPose3D(traj.begin()->second);
+    r.firstTime = mrpt::Clock::toDouble(traj.begin()->first) - 1000.0;
     r.last = mrpt::poses::CPose3D(traj.rbegin()->second);
   }
   return r;
@@ -326,6 +374,71 @@ TEST_F(InitialGlobalSearch, BiasedGnssWithoutImu)
   sc.withImu = false;
   sc.truth = mrpt::poses::CPose3D::FromXYZYawPitchRoll(26.0, 12.0, 0, mrpt::DEG2RAD(-120.0), 0, 0);
   expect_localized(localize(sc), sc.truth);
+}
+
+// Smoke test: a vehicle that moves while localizing, with wheel odometry as
+// the source of the motion during the search, must be tracked from the found
+// pose. Its search ends right after its scan, so no motion is carried (see
+// OdometryMotionDuringSearchIsCarried for that).
+TEST_F(InitialGlobalSearch, MovingVehicleWithOdometryMotion)
+{
+  auto sc = hall_scenario();
+  sc.speed = 0.3;
+  sc.motionOdometryLabel = "odom";
+  sc.duration = 12.0;
+  const auto r = localize(sc);
+  ASSERT_TRUE(r.last.has_value());
+  const auto expectedLast =
+    sc.truth + mrpt::poses::CPose3D::FromTranslation(sc.speed * (sc.duration - 0.1), 0, 0);
+  std::cout << "Last pose: " << r.last->asString() << " expected: " << expectedLast.asString()
+            << "\n";
+  EXPECT_LT(xy_error(*r.last, expectedLast), 0.1);
+  EXPECT_LT(yaw_error_deg(*r.last, expectedLast), 1.0);
+}
+
+// The global search ends long after its scan (here, by its latency) while
+// the GNSS jumps with the vehicle still. Before localization the state
+// estimator pose follows those jumps: they must not be taken as vehicle motion
+// and added to the found pose, neither without a motion odometry source (the
+// vehicle is then assumed still) nor with wheel odometry as that source.
+TEST_F(InitialGlobalSearch, GnssJumpsDuringSearchAreNotMotion)
+{
+  for (const char * label : {"", "odom"}) {
+    auto sc = hall_scenario();
+    sc.firstScanLatency = 3.0;
+    sc.gnssBiasJump = {3.0, 0.0};
+    // The search prior is the estimator pose at the end of the latency: the
+    // searched region must include the scan pose by itself.
+    sc.minHalfWidthXY = 6.0;
+    sc.motionOdometryLabel = label;
+    sc.duration = 12.0;
+    std::cout << "Motion odometry label: '" << label << "'\n";
+    expect_localized(localize(sc), sc.truth);
+  }
+}
+
+// The vehicle drives 3 m while the search runs (more than ICP alone would
+// recover): with wheel odometry as the motion source, LO must start at the
+// pose at the end of the search, not where the searched scan was taken. The
+// odometry frame is rotated 120 deg from the vehicle heading in the map, so
+// adding the motion in the wrong frame leaves meters of error.
+TEST_F(InitialGlobalSearch, OdometryMotionDuringSearchIsCarried)
+{
+  auto sc = hall_scenario();
+  sc.speed = 1.0;
+  sc.firstScanLatency = 3.0;
+  sc.minHalfWidthXY = 6.0;  // see GnssJumpsDuringSearchAreNotMotion
+  sc.motionOdometryLabel = "odom";
+  sc.odomFrameYawDeg = 150.0;  // truth yaw is 30 deg
+  sc.duration = 10.0;
+  const auto r = localize(sc);
+  ASSERT_TRUE(r.first.has_value());
+  const auto expectedFirst =
+    sc.truth + mrpt::poses::CPose3D::FromTranslation(sc.speed * r.firstTime, 0, 0);
+  std::cout << "First pose: " << r.first->asString() << " at t=" << r.firstTime
+            << " expected: " << expectedFirst.asString() << "\n";
+  EXPECT_LT(xy_error(*r.first, expectedFirst), 0.1);
+  EXPECT_LT(yaw_error_deg(*r.first, expectedFirst), 1.0);
 }
 
 // A search with more initial guesses than allowed is not run: LO must keep

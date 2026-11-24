@@ -350,6 +350,10 @@ runs **MOLA-LO** live on point clouds received from a ROS 2 topic, **demonstrati
       motion model (``odom_motion_model_a1..a4``) rather than with the
       ``relative_pose_increment_sigma_*`` shared by every pose source (e.g. LiDAR odometry
       published in its own frame), so wheels and LiDAR odometry can be weighted apart.
+      This odometry (or that of ``forward_ros_tf_odom_to_mola``) is also taken as the vehicle
+      motion during an initial global search, unless ``MOLA_LO_INIT_GLOBAL_SEARCH_MOTION_ODOMETRY``
+      is already set: it must be relative (e.g. wheels), never GNSS-aided (set that variable
+      to ``none`` to opt out). Without any, the vehicle is assumed still during the search.
 
     * ``publish_local_map`` (default ``True``):
       Whether to publish the local map as a point cloud on ``/lidar_odometry/localmap_points``.

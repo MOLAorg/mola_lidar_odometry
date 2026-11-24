@@ -67,6 +67,7 @@ set(LIB_PUBLIC_HDRS
   module/include/mola_lidar_odometry/LidarOdometry.h
   module/include/mola_lidar_odometry/MapFrameRelevel.h
   module/include/mola_lidar_odometry/PointTimeOutlierFilter.h
+  module/include/mola_lidar_odometry/PoseHistory.h
 )
 
 mola_add_library(

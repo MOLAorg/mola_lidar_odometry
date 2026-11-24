@@ -22,6 +22,7 @@
 // This module:
 #include <mola_lidar_odometry/ImuBiasCorrection.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
+#include <mola_lidar_odometry/PoseHistory.h>
 
 // Others:
 #include <mola_kernel/interfaces/ExecutableBase.h>  // mola::ProfilerEntry
@@ -37,6 +38,7 @@
 #include <chrono>
 #include <cmath>
 #include <mutex>
+#include <optional>
 #include <regex>
 #include <thread>
 #include <utility>
@@ -67,6 +69,20 @@ public:
 private:
   std::atomic<int> & counter_;
 };
+
+/// Vehicle pose of an odometry source observation (CObservationRobotPose or
+/// CObservationOdometry), or nullopt for other classes.
+std::optional<mrpt::poses::CPose3D> odometry_source_pose(const mrpt::obs::CObservation & o)
+{
+  if (const auto * rp = dynamic_cast<const mrpt::obs::CObservationRobotPose *>(&o); rp) {
+    // Same sensor-to-vehicle correction as the state estimators apply:
+    return rp->pose.mean + (-rp->sensorPose);
+  }
+  if (const auto * od = dynamic_cast<const mrpt::obs::CObservationOdometry *>(&o); od) {
+    return mrpt::poses::CPose3D(od->odometry);
+  }
+  return std::nullopt;
+}
 }  // namespace
 
 void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
@@ -150,6 +166,15 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
     onDeskewOdometry(o);
   }
 
+  // Is it the odometry source for the vehicle motion during a global search?
+  // Inline, for the same reason as the IMU above.
+  if (
+    params_.initial_localization.global_search.enabled &&
+    !params_.initial_localization.global_search.motion_odometry_sensor_label.empty() &&
+    o->sensorLabel == params_.initial_localization.global_search.motion_odometry_sensor_label) {
+    onGlobalSearchOdometry(o);
+  }
+
   // Is it GNSS? Inline, for the same reason as the IMU above: it only buffers.
   if (
     params_.gnss_sensor_label &&
@@ -181,14 +206,8 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
 
 void LidarOdometry::onDeskewOdometry(const CObservation::ConstPtr & o)
 {
-  mrpt::poses::CPose3D pose;
-  if (const auto rp = std::dynamic_pointer_cast<const mrpt::obs::CObservationRobotPose>(o); rp) {
-    // Same sensor-to-vehicle correction as the state estimators apply:
-    pose = rp->pose.mean + (-rp->sensorPose);
-  } else if (const auto od = std::dynamic_pointer_cast<const mrpt::obs::CObservationOdometry>(o);
-             od) {
-    pose = mrpt::poses::CPose3D(od->odometry);
-  } else {
+  const auto poseOpt = odometry_source_pose(*o);
+  if (!poseOpt) {
     MRPT_LOG_THROTTLE_WARN_FMT(
       5.0,
       "deskew_odometry_sensor_label='%s' matched an observation of class '%s', which is neither "
@@ -204,10 +223,40 @@ void LidarOdometry::onDeskewOdometry(const CObservation::ConstPtr & o)
 
   auto lckImu = mrpt::lockHelper(imu_state_mtx_);
   auto & poses = state_.deskew_odometry_poses;
-  poses[t] = pose;
+  poses[t] = *poseOpt;
   while (!poses.empty() && poses.begin()->first < poses.rbegin()->first - HISTORY_SECONDS) {
     poses.erase(poses.begin());
   }
+}
+
+void LidarOdometry::onGlobalSearchOdometry(const CObservation::ConstPtr & o)
+{
+  const auto poseOpt = odometry_source_pose(*o);
+  if (!poseOpt) {
+    MRPT_LOG_THROTTLE_WARN_FMT(
+      5.0,
+      "global_search.motion_odometry_sensor_label='%s' matched an observation of class '%s', "
+      "which is neither CObservationRobotPose nor CObservationOdometry. Ignoring it.",
+      o->sensorLabel.c_str(), o->GetRuntimeClass()->className);
+    return;
+  }
+
+  // Long enough to span a global search (one ICP per initial guess):
+  constexpr double HISTORY_SECONDS = 120.0;
+
+  const double t = mrpt::Clock::toDouble(o->timestamp);
+
+  auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+  auto & poses = state_.global_search_odometry_poses;
+  poses[t] = *poseOpt;
+  while (!poses.empty() && poses.begin()->first < poses.rbegin()->first - HISTORY_SECONDS) {
+    poses.erase(poses.begin());
+  }
+}
+
+std::optional<mrpt::poses::CPose3D> LidarOdometry::globalSearchOdometryAt(double t) const
+{
+  return pose_history_at(state_.global_search_odometry_poses, t, GLOBAL_SEARCH_ODOMETRY_MAX_GAP);
 }
 
 void LidarOdometry::onOdometryAttitude(const CObservation::ConstPtr & o)

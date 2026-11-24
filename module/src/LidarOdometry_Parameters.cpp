@@ -25,6 +25,9 @@
 // MOLA:
 #include <mola_yaml/yaml_helpers.h>
 
+// MRPT:
+#include <mrpt/system/string_utils.h>
+
 namespace mola
 {
 
@@ -492,6 +495,10 @@ void LidarOdometry::Parameters::InitialLocalizationOptions::GlobalSearch::initia
   YAML_LOAD_OPT(same_mode_max_yaw_deg, double);
   YAML_LOAD_OPT(min_quality_margin, double);
   YAML_LOAD_OPT(retry_period, double);
+  YAML_LOAD_OPT(motion_odometry_sensor_label, std::string);
+  if (mrpt::system::lowerCase(mrpt::system::trim(motion_odometry_sensor_label)) == "none") {
+    motion_odometry_sensor_label.clear();
+  }
 
   ASSERT_GT_(resolution_xy, 0);
   ASSERT_GT_(resolution_yaw_deg, 0);

@@ -21,14 +21,17 @@
 
 // This module:
 #include <mola_lidar_odometry/LidarOdometry.h>
+#include <mola_lidar_odometry/PoseHistory.h>
 #include <mrpt/obs/CObservationIMU.h>
 
 #if __has_include(<mola_relocalization/relocalization.h>)
 #include <mola_relocalization/relocalization.h>
 #endif
 
+#include <mrpt/core/lock_helper.h>
 #include <mrpt/maps/CPointsMap.h>
 #include <mrpt/math/wrap2pi.h>
+#include <mrpt/poses/CPose2D.h>
 #include <mrpt/poses/CPose3D.h>
 
 #include <algorithm>
@@ -555,12 +558,6 @@ void LidarOdometry::doGlobalSearchForInitialPose(
     "Global search around %s (+-%.2f m, +-%.1f deg): starting, %zu initial guesses...",
     prior.mean.asString().c_str(), halfXY, mrpt::RAD2DEG(halfYaw), region.initial_guesses);
 
-  // The estimator pose at the time of the searched cloud, to later carry the
-  // found pose over the vehicle motion during the search (the estimator may
-  // forget this time meanwhile):
-  const auto estimatorAtScan =
-    state_.navstate_fuse->estimated_navstate(scan_ref_time, params_.publish_reference_frame);
-
   mola::RelocalizationICP_SE2::Input in;
   in.reference_map = *state_.local_map;
   in.local_map = observation;
@@ -611,6 +608,14 @@ void LidarOdometry::doGlobalSearchForInitialPose(
   // scans, queued behind this one, and only then sets it.
   in.abort_requested = [this]() { return shutdown_cleanup_done_.load(); };
 #endif
+
+  // The odometry pose at the searched scan, taken now: a long search could
+  // outlast the odometry history.
+  std::optional<mrpt::poses::CPose3D> odoAtScan;
+  if (!gs.motion_odometry_sensor_label.empty()) {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    odoAtScan = globalSearchOdometryAt(mrpt::Clock::toDouble(scan_ref_time));
+  }
 
   const auto out = mola::RelocalizationICP_SE2::run(in);
 
@@ -671,32 +676,72 @@ void LidarOdometry::doGlobalSearchForInitialPose(
   // The scans that arrived during the search were dropped (drop_stale_scans),
   // and the found pose is given at the newest sensor time, so the state
   // estimator does not bridge the search time with a motion model. The
-  // vehicle may have moved meanwhile: add the motion the estimator observed
-  // since the searched scan (its absolute pose is too uncertain, but not its
-  // relative motion), and the next ICP corrects what remains.
+  // vehicle may have moved meanwhile: add the motion measured by a relative
+  // odometry source since the searched scan, if one is configured, and the
+  // next ICP corrects what remains. Not the state estimator's: before
+  // localization its pose follows the absolute inputs (e.g. GNSS), whose noise
+  // would be taken as motion.
   const double newestStamp = std::max(latest_obs_time_.load(), mrpt::Clock::toDouble(now));
   const double searchLag = newestStamp - mrpt::Clock::toDouble(scan_ref_time);
-  const auto estimatorAtNewest = state_.navstate_fuse->estimated_navstate(
-    mrpt::Clock::fromDouble(newestStamp), params_.publish_reference_frame);
-  if (estimatorAtScan && estimatorAtNewest) {
-    // Only its planar part, as in the search (the vertical one is the least
-    // reliable without precise GNSS altitude), composed in SE(2) to keep the
-    // found z, pitch and roll:
-    const auto motion =
-      mrpt::poses::CPose2D(estimatorAtNewest->pose.mean - estimatorAtScan->pose.mean);
-    const auto carried = mrpt::poses::CPose2D(found.mean) + motion;
+  std::optional<mrpt::poses::CPose2D> motion;
+  if (!gs.motion_odometry_sensor_label.empty()) {
+    std::optional<mrpt::poses::CPose3D> odoAtNewest;
+    double odoNewestStamp = 0;
+    {
+      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+      // Readings around the scan may have arrived during the search:
+      odoAtScan = pose_history_refreshed_at(
+        state_.global_search_odometry_poses, mrpt::Clock::toDouble(scan_ref_time), odoAtScan,
+        GLOBAL_SEARCH_ODOMETRY_MAX_GAP);
+      // Up to its newest reading, which may be older than the newest sensor
+      // time (a slower or delayed source): the motion until then is still
+      // better than none.
+      const auto & poses = state_.global_search_odometry_poses;
+      if (!poses.empty()) {
+        odoNewestStamp = std::min(newestStamp, poses.rbegin()->first);
+        odoAtNewest = globalSearchOdometryAt(odoNewestStamp);
+      }
+    }
+    if (odoAtScan && odoAtNewest) {
+      // Only its planar part, as in the search, composed in SE(2) to keep the
+      // found z, pitch and roll:
+      motion = planar_motion(*odoAtScan, *odoAtNewest);
+      if (newestStamp - odoNewestStamp > GLOBAL_SEARCH_ODOMETRY_MAX_GAP) {
+        MRPT_LOG_WARN_FMT(
+          "Global search: odometry '%s' ends %.2f s before the end of the search; its motion "
+          "is carried only until then.",
+          gs.motion_odometry_sensor_label.c_str(), newestStamp - odoNewestStamp);
+      }
+    } else {
+      MRPT_LOG_WARN_FMT(
+        "Global search: odometry '%s' does not cover the searched scan; assuming the vehicle "
+        "was still.",
+        gs.motion_odometry_sensor_label.c_str());
+    }
+  }
+  if (motion) {
+    const auto carried = mrpt::poses::CPose2D(found.mean) + *motion;
     MRPT_LOG_INFO_STREAM(
-      "Global search: localized at " << found.mean << " at its scan time; plus the motion "
-                                     << motion << " in the " << searchLag
+      "Global search: localized at " << found.mean << " at its scan time; plus the odometry "
+                                     << "motion " << *motion << " in the " << searchLag
                                      << " s until the end of the search");
     found.mean.x(carried.x());
     found.mean.y(carried.y());
     found.mean.setYawPitchRoll(carried.phi(), found.mean.pitch(), found.mean.roll());
   } else {
-    MRPT_LOG_WARN_STREAM(
+    MRPT_LOG_INFO_STREAM(
       "Global search: localized at "
       << found.mean << " (taken as the pose " << searchLag
-      << " s after its scan, at the end of the search: no state estimator motion to add)");
+      << " s after its scan, at the end of the search: the vehicle is assumed still)");
+    // A vehicle that moved meanwhile would start off by that motion:
+    constexpr double LONG_SEARCH = 1.0;  // [s]
+    if (searchLag > LONG_SEARCH && gs.motion_odometry_sensor_label.empty()) {
+      MRPT_LOG_WARN_FMT(
+        "Global search: the vehicle is assumed still during the %.1f s search. If it may move "
+        "meanwhile, set global_search.motion_odometry_sensor_label "
+        "(MOLA_LO_INIT_GLOBAL_SEARCH_MOTION_ODOMETRY) to a relative odometry source, e.g. wheels.",
+        searchLag);
+    }
   }
 
   handleInitialLocalizationDoInitFromPose(found, true, mrpt::Clock::fromDouble(newestStamp));
