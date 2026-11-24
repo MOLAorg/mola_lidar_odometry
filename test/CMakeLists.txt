@@ -15,6 +15,9 @@ target_link_libraries(test_map_frame_relevel mola::mola_lidar_odometry mrpt::mrp
 ament_add_gtest(test_imu_scan_sync test_imu_scan_sync.cpp)
 target_link_libraries(test_imu_scan_sync mola::mola_lidar_odometry mrpt::mrpt_obs)
 
+ament_add_gtest(test_pose_history test_pose_history.cpp)
+target_link_libraries(test_pose_history mola::mola_lidar_odometry mrpt::mrpt_obs)
+
 ament_add_gtest(test_imu_bias_correction test_imu_bias_correction.cpp)
 target_link_libraries(test_imu_bias_correction mola::mola_lidar_odometry mrpt::mrpt_obs)
 

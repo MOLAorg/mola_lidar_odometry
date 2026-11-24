@@ -22,6 +22,7 @@
 // This module:
 #include <mola_lidar_odometry/ImuBiasCorrection.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
+#include <mola_lidar_odometry/PoseHistory.h>
 
 // Others:
 #include <mola_kernel/interfaces/ExecutableBase.h>  // mola::ProfilerEntry
@@ -31,13 +32,11 @@
 #include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationRobotPose.h>
-#include <mrpt/poses/CPose2D.h>
 #include <mrpt/poses/Lie/SO.h>
 
 // Std:
 #include <chrono>
 #include <cmath>
-#include <iterator>
 #include <mutex>
 #include <optional>
 #include <regex>
@@ -260,27 +259,7 @@ std::optional<mrpt::poses::CPose3D> LidarOdometry::globalSearchOdometryAt(double
   // (e.g. the newest LiDAR stamp, slightly after the last odometry reading):
   constexpr double MAX_END_GAP = 0.5;  // [s]
 
-  const auto & poses = state_.global_search_odometry_poses;
-  if (poses.empty()) {
-    return std::nullopt;
-  }
-  const auto after = poses.lower_bound(t);
-  if (after == poses.begin()) {
-    return (after->first - t) <= MAX_END_GAP ? std::optional(after->second) : std::nullopt;
-  }
-  if (after == poses.end()) {
-    const auto & last = *poses.rbegin();
-    return (t - last.first) <= MAX_END_GAP ? std::optional(last.second) : std::nullopt;
-  }
-  const auto before = std::prev(after);
-  const double span = after->first - before->first;
-  const double f = span > 0 ? (t - before->first) / span : 0.0;
-  // Planar interpolation, in the frame of the earlier pose, is enough for the
-  // short gap between two odometry readings:
-  const auto inc = mrpt::poses::CPose2D(after->second - before->second);
-  const auto partial =
-    mrpt::poses::CPose3D(mrpt::poses::CPose2D(f * inc.x(), f * inc.y(), f * inc.phi()));
-  return before->second + partial;
+  return pose_history_at(state_.global_search_odometry_poses, t, MAX_END_GAP);
 }
 
 void LidarOdometry::onOdometryAttitude(const CObservation::ConstPtr & o)

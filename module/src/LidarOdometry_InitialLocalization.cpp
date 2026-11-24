@@ -21,6 +21,7 @@
 
 // This module:
 #include <mola_lidar_odometry/LidarOdometry.h>
+#include <mola_lidar_odometry/PoseHistory.h>
 #include <mrpt/obs/CObservationIMU.h>
 
 #if __has_include(<mola_relocalization/relocalization.h>)
@@ -682,7 +683,7 @@ void LidarOdometry::doGlobalSearchForInitialPose(
     if (odoAtScan && odoAtNewest) {
       // Only its planar part, as in the search, composed in SE(2) to keep the
       // found z, pitch and roll:
-      motion = mrpt::poses::CPose2D(*odoAtNewest - *odoAtScan);
+      motion = planar_motion(*odoAtScan, *odoAtNewest);
     } else {
       MRPT_LOG_WARN_FMT(
         "Global search: odometry '%s' does not cover the search interval; assuming the "
