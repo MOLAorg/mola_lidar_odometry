@@ -612,9 +612,12 @@ void LidarOdometry::doGlobalSearchForInitialPose(
   // The odometry pose at the searched scan, taken now: a long search could
   // outlast the odometry history.
   std::optional<mrpt::poses::CPose3D> odoAtScan;
+  bool odoAtScanIsFinal = false;  // false: it may improve with later readings
   if (!gs.motion_odometry_sensor_label.empty()) {
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     odoAtScan = globalSearchOdometryAt(mrpt::Clock::toDouble(scan_ref_time));
+    odoAtScanIsFinal = pose_history_reaches(
+      state_.global_search_odometry_poses, mrpt::Clock::toDouble(scan_ref_time));
   }
 
   const auto out = mola::RelocalizationICP_SE2::run(in);
@@ -689,9 +692,13 @@ void LidarOdometry::doGlobalSearchForInitialPose(
     double odoNewestStamp = 0;
     {
       auto lckImu = mrpt::lockHelper(imu_state_mtx_);
-      if (!odoAtScan) {
-        // Its readings may have arrived late:
-        odoAtScan = globalSearchOdometryAt(mrpt::Clock::toDouble(scan_ref_time));
+      if (!odoAtScanIsFinal) {
+        // Its readings around the scan may have arrived during the search.
+        // Keep the earlier pose if the history no longer covers the scan:
+        if (const auto fresh = globalSearchOdometryAt(mrpt::Clock::toDouble(scan_ref_time));
+            fresh) {
+          odoAtScan = fresh;
+        }
       }
       // Up to its newest reading, which may be older than the newest sensor
       // time (a slower or delayed source): the motion until then is still

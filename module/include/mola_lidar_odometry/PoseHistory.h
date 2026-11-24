@@ -62,6 +62,16 @@ inline std::optional<mrpt::poses::CPose3D> pose_history_at(
   return mrpt::poses::CPose3D(p);
 }
 
+/** Whether the history reaches time t [s], i.e. a pose at t is exact or
+ *  interpolated, not the newest pose taken for a later t.
+ *
+ * \ingroup mola_lidar_odometry_grp
+ */
+inline bool pose_history_reaches(const std::map<double, mrpt::poses::CPose3D> & poses, double t)
+{
+  return !poses.empty() && poses.rbegin()->first >= t;
+}
+
 /** Planar motion from `from` to `to`: that between their projections on the
  *  horizontal plane (x, y, yaw), in the frame of the first one. Unlike the
  *  projection of their 3D relative pose, a tilted vehicle does not stretch it.
