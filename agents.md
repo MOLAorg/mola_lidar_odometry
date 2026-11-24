@@ -404,8 +404,9 @@ an unambiguous best match (`mola::select_relocalization_candidate()`) is
 accepted, and then it resets the state estimator to it, at the newest sensor
 time plus the planar motion since the searched scan measured by
 `global_search.motion_odometry_sensor_label` (a relative source such as wheels:
-the estimator's own pose follows GNSS noise before localization), or assuming
-the vehicle still if unset; otherwise LO reports
+the estimator's own pose follows GNSS noise before localization; the ROS 2
+launch file sets it to its external odometry, if any), or assuming the vehicle
+still if unset; otherwise LO reports
 nothing and retries every `retry_period`, around the latest estimator pose
 only if its search is not larger (`search_region()`: the estimator covariance
 can blow up between measurements), or if its mean left the kept region. Searches over `max_initial_guesses` are not

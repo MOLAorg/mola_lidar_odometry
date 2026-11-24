@@ -261,6 +261,14 @@ find_program(MOLA_CLI_EXECUTABLE mola-cli
   PATHS ${MOLA_LAUNCHER_PREFIX}/bin
   NO_DEFAULT_PATH)
 
+# The launch file's choice of the odometry for the global search motion:
+ament_add_test(test_launch_global_search_motion
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_launch_global_search_motion.py
+    ${mola_lidar_odometry_SOURCE_DIR}/ros2-launchs/ros2-lidar-odometry.launch.py
+  TIMEOUT 60
+  GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+)
+
 # mola_lo_add_cli_test(<name> <launch yaml> <reference tum> [ENV VAR=value ...])
 function(mola_lo_add_cli_test NAME LAUNCH REFERENCE)
   cmake_parse_arguments(ARG "" "" "ENV" ${ARGN})

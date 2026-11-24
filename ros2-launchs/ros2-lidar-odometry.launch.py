@@ -119,6 +119,26 @@ def validate_odometry_sources(context, *args, **kwargs):
     return []
 
 
+def resolve_global_search_motion_odometry(context, *args, **kwargs):
+    """
+    The vehicle motion during an initial global search must come from a
+    relative odometry source, never from the state estimator pose (it follows
+    the GNSS noise until localized). Take the external odometry this launch
+    feeds to MOLA, if any, unless MOLA_LO_INIT_GLOBAL_SEARCH_MOTION_ODOMETRY is
+    already set. Without one, LO assumes the vehicle still during the search.
+    """
+    if os.environ.get('MOLA_LO_INIT_GLOBAL_SEARCH_MOTION_ODOMETRY', '').strip():
+        return []
+    if LaunchConfiguration('odom_topic_name').perform(context).strip():
+        label = LaunchConfiguration('odom_sensor_label').perform(context).strip()
+    elif LaunchConfiguration('forward_ros_tf_odom_to_mola').perform(context).lower() == 'true':
+        label = 'odom'  # the label hardcoded by that pathway
+    else:
+        return []
+    return [SetEnvironmentVariable(
+        name='MOLA_LO_INIT_GLOBAL_SEARCH_MOTION_ODOMETRY', value=label)]
+
+
 def resolve_state_estimator_config(context, *args, **kwargs):
     """
     Runtime logic to resolve the YAML path. This prevents the launch file 
@@ -917,6 +937,8 @@ def generate_launch_description():
         # at once, and (b) /tf pathway + smoother (would break tf2 tree).
         # Must run after use_state_estimator_arg is declared.
         OpaqueFunction(function=validate_odometry_sources),
+        # Global search: vehicle motion from that odometry, if any.
+        OpaqueFunction(function=resolve_global_search_motion_odometry),
         gnss_mode_arg,
 
         # Smoother Specific
