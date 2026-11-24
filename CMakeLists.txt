@@ -91,6 +91,11 @@ mola_add_library(
     mrpt_maps
 )
 
+# libcfgpath (cfgpath.h) uses FSFindFolder()/FSRefMakePath() on macOS:
+if(APPLE)
+  target_link_libraries(${PROJECT_NAME} PRIVATE "-framework CoreServices")
+endif()
+
 # mola_add_library() expects headers under "ROOT/include", so do this manually here:
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/module/include>
@@ -183,9 +188,9 @@ if(mola_state_estimation_smoother_FOUND)
   # whole block exists to fix -- confirmed via ldd, which showed the
   # smoother absent even after the .so linked and built without error.
   target_link_libraries(mola-lidar-odometry-cli
-    "-Wl,--no-as-needed"
+    "$<$<NOT:$<PLATFORM_ID:Darwin>>:-Wl,--no-as-needed>"
     mola::mola_state_estimation_smoother
-    "-Wl,--as-needed"
+    "$<$<NOT:$<PLATFORM_ID:Darwin>>:-Wl,--as-needed>"
   )
 else()
   message(STATUS "mola-lidar-odometry-cli: With mola_state_estimation_smoother = NO")

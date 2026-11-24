@@ -139,9 +139,9 @@ if(mola_metric_maps_FOUND AND mola_state_estimation_simple_FOUND AND
     mola::mola_state_estimation_simple
     mola::mola_lidar_odometry
     mola::mola_relocalization
-    "-Wl,--no-as-needed"
+    "$<$<NOT:$<PLATFORM_ID:Darwin>>:-Wl,--no-as-needed>"
     mola::mola_state_estimation_smoother
-    "-Wl,--as-needed"
+    "$<$<NOT:$<PLATFORM_ID:Darwin>>:-Wl,--as-needed>"
   )
 endif()
 
