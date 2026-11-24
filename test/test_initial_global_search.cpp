@@ -175,6 +175,8 @@ struct Result
 {
   /// LO's first and last poses, if localized
   std::optional<mrpt::poses::CPose3D> first, last;
+  /// Sensor time of `first` [s], relative to the start of the scenario
+  double firstTime = 0;
 };
 
 Result localize(const Scenario & sc)
@@ -282,6 +284,7 @@ Result localize(const Scenario & sc)
   }
   if (!traj.empty()) {
     r.first = mrpt::poses::CPose3D(traj.begin()->second);
+    r.firstTime = mrpt::Clock::toDouble(traj.begin()->first) - 1000.0;
     r.last = mrpt::poses::CPose3D(traj.rbegin()->second);
   }
   return r;
@@ -393,7 +396,7 @@ TEST_F(InitialGlobalSearch, MovingVehicleWithOdometryMotion)
 // vehicle is then assumed still) nor with wheel odometry as that source.
 TEST_F(InitialGlobalSearch, GnssJumpsDuringSearchAreNotMotion)
 {
-  for (const std::string label : {"", "odom"}) {
+  for (const char * label : {"", "odom"}) {
     auto sc = hall_scenario();
     sc.firstScanLatency = 3.0;
     sc.gnssBiasJump = {3.0, 0.0};
@@ -402,6 +405,27 @@ TEST_F(InitialGlobalSearch, GnssJumpsDuringSearchAreNotMotion)
     std::cout << "Motion odometry label: '" << label << "'\n";
     expect_localized(localize(sc), sc.truth);
   }
+}
+
+// The vehicle drives 3 m while the search runs (more than ICP alone would
+// recover): with wheel odometry as the motion source, LO must start at the
+// pose at the end of the search, not where the searched scan was taken. The
+// odometry frame (yaw 0) differs from the map one (truth yaw 30 deg).
+TEST_F(InitialGlobalSearch, OdometryMotionDuringSearchIsCarried)
+{
+  auto sc = hall_scenario();
+  sc.speed = 1.0;
+  sc.firstScanLatency = 3.0;
+  sc.motionOdometryLabel = "odom";
+  sc.duration = 10.0;
+  const auto r = localize(sc);
+  ASSERT_TRUE(r.first.has_value());
+  const auto expectedFirst =
+    sc.truth + mrpt::poses::CPose3D::FromTranslation(sc.speed * r.firstTime, 0, 0);
+  std::cout << "First pose: " << r.first->asString() << " at t=" << r.firstTime
+            << " expected: " << expectedFirst.asString() << "\n";
+  EXPECT_LT(xy_error(*r.first, expectedFirst), 0.1);
+  EXPECT_LT(yaw_error_deg(*r.first, expectedFirst), 1.0);
 }
 
 // A search with more initial guesses than allowed is not run: LO must keep

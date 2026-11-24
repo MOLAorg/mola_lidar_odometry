@@ -62,6 +62,7 @@ initial_localization:
     min_quality: "${MOLA_LO_INIT_GLOBAL_SEARCH_MIN_QUALITY|0.5}"
     min_quality_margin: "${MOLA_LO_INIT_GLOBAL_SEARCH_MIN_MARGIN|0.1}"
     # Relative odometry source (e.g. wheels: never a GNSS-aided pose) whose motion
-    # during the search is added to the found pose. Empty: the vehicle is assumed still.
-    # The ROS 2 launch file sets it to its external odometry (odom_topic_name), if any.
+    # during the search is added to the found pose. Empty or "none": the vehicle is assumed
+    # still. The ROS 2 launch file sets it to its external odometry (odom_topic_name), if
+    # any: set it to "none" to opt out (e.g. a GNSS-fused odometry topic).
     motion_odometry_sensor_label: "${MOLA_LO_INIT_GLOBAL_SEARCH_MOTION_ODOMETRY|}"

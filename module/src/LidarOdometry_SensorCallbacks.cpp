@@ -169,6 +169,7 @@ void LidarOdometry::onNewObservation(const CObservation::ConstPtr & o)
   // Is it the odometry source for the vehicle motion during a global search?
   // Inline, for the same reason as the IMU above.
   if (
+    params_.initial_localization.global_search.enabled &&
     !params_.initial_localization.global_search.motion_odometry_sensor_label.empty() &&
     o->sensorLabel == params_.initial_localization.global_search.motion_odometry_sensor_label) {
     onGlobalSearchOdometry(o);

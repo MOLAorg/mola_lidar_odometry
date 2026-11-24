@@ -1008,8 +1008,8 @@ public:
         /// that moves while a long search runs. It must be a relative source
         /// such as wheel odometry: the state estimator pose is no good, since
         /// before localization it follows the absolute inputs (e.g. GNSS),
-        /// whose noise would be taken as motion. Empty (default): the vehicle
-        /// is assumed still during the search.
+        /// whose noise would be taken as motion. Empty (default) or "none":
+        /// the vehicle is assumed still during the search.
         std::string motion_odometry_sensor_label;
 
         void initialize(const Yaml & c);
@@ -2433,7 +2433,8 @@ private:
   ///
   /// Covers pending_imu_ and, in MethodState: imu_initializer,
   /// gravity_estimator, map_gravity, recent_imu_stamps, attach_sources,
-  /// recent_gnss_stamps, parameter_source (its variable map, the realize()
+  /// recent_gnss_stamps, deskew_odometry_poses, global_search_odometry_poses,
+  /// parameter_source (its variable map, the realize()
   /// "evaluated" flags, and localVelocityBuffer), and any *invocation* of
   /// obs_generators (which writes the velocity buffer and reads those flags).
   ///

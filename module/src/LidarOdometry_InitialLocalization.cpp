@@ -609,6 +609,14 @@ void LidarOdometry::doGlobalSearchForInitialPose(
   in.abort_requested = [this]() { return shutdown_cleanup_done_.load(); };
 #endif
 
+  // The odometry pose at the searched scan, taken now: a long search could
+  // outlast the odometry history.
+  std::optional<mrpt::poses::CPose3D> odoAtScan;
+  if (!gs.motion_odometry_sensor_label.empty()) {
+    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+    odoAtScan = globalSearchOdometryAt(mrpt::Clock::toDouble(scan_ref_time));
+  }
+
   const auto out = mola::RelocalizationICP_SE2::run(in);
 
 #if defined(MOLA_RELOCALIZATION_HAS_ABORT)
@@ -677,17 +685,38 @@ void LidarOdometry::doGlobalSearchForInitialPose(
   const double searchLag = newestStamp - mrpt::Clock::toDouble(scan_ref_time);
   std::optional<mrpt::poses::CPose2D> motion;
   if (!gs.motion_odometry_sensor_label.empty()) {
-    auto lckImu = mrpt::lockHelper(imu_state_mtx_);
-    const auto odoAtScan = globalSearchOdometryAt(mrpt::Clock::toDouble(scan_ref_time));
-    const auto odoAtNewest = globalSearchOdometryAt(newestStamp);
+    std::optional<mrpt::poses::CPose3D> odoAtNewest;
+    double odoNewestStamp = 0;
+    {
+      auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+      if (!odoAtScan) {
+        // Its readings may have arrived late:
+        odoAtScan = globalSearchOdometryAt(mrpt::Clock::toDouble(scan_ref_time));
+      }
+      // Up to its newest reading, which may be older than the newest sensor
+      // time (a slower or delayed source): the motion until then is still
+      // better than none.
+      const auto & poses = state_.global_search_odometry_poses;
+      if (!poses.empty()) {
+        odoNewestStamp = std::min(newestStamp, poses.rbegin()->first);
+        odoAtNewest = globalSearchOdometryAt(odoNewestStamp);
+      }
+    }
     if (odoAtScan && odoAtNewest) {
       // Only its planar part, as in the search, composed in SE(2) to keep the
       // found z, pitch and roll:
       motion = planar_motion(*odoAtScan, *odoAtNewest);
+      constexpr double LARGE_ODOMETRY_GAP = 0.5;  // [s]
+      if (newestStamp - odoNewestStamp > LARGE_ODOMETRY_GAP) {
+        MRPT_LOG_WARN_FMT(
+          "Global search: odometry '%s' ends %.2f s before the end of the search; its motion "
+          "is carried only until then.",
+          gs.motion_odometry_sensor_label.c_str(), newestStamp - odoNewestStamp);
+      }
     } else {
       MRPT_LOG_WARN_FMT(
-        "Global search: odometry '%s' does not cover the search interval; assuming the "
-        "vehicle was still.",
+        "Global search: odometry '%s' does not cover the searched scan; assuming the vehicle "
+        "was still.",
         gs.motion_odometry_sensor_label.c_str());
     }
   }

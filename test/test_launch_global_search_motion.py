@@ -41,6 +41,24 @@ def check(got, expected, what):
     print(f'OK: {what}: {got!r}')
 
 
+# Registered in the launch description, after the arguments it reads:
+ld = lo_launch.generate_launch_description()
+names = []
+for e in ld.entities:
+    if type(e).__name__ == 'DeclareLaunchArgument':
+        names.append(e.name)
+    elif getattr(e, '_OpaqueFunction__function', None) is \
+            lo_launch.resolve_global_search_motion_odometry:
+        names.append('<resolve>')
+if '<resolve>' not in names:
+    print('FAIL: resolve_global_search_motion_odometry is not in the launch description')
+    sys.exit(1)
+for arg in ('odom_topic_name', 'odom_sensor_label', 'forward_ros_tf_odom_to_mola'):
+    if arg not in names or names.index(arg) > names.index('<resolve>'):
+        print(f'FAIL: argument {arg} is not declared before it is resolved')
+        sys.exit(1)
+print('OK: registered after its arguments')
+
 os.environ.pop(ENV, None)
 check(resolve(), None, 'no external odometry: vehicle assumed still')
 check(resolve(odom_topic='/odom'), 'odom_wheels', 'odom_topic_name, default label')
