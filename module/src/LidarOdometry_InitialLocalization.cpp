@@ -612,12 +612,9 @@ void LidarOdometry::doGlobalSearchForInitialPose(
   // The odometry pose at the searched scan, taken now: a long search could
   // outlast the odometry history.
   std::optional<mrpt::poses::CPose3D> odoAtScan;
-  bool odoAtScanIsFinal = false;  // false: it may improve with later readings
   if (!gs.motion_odometry_sensor_label.empty()) {
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     odoAtScan = globalSearchOdometryAt(mrpt::Clock::toDouble(scan_ref_time));
-    odoAtScanIsFinal = pose_history_brackets(
-      state_.global_search_odometry_poses, mrpt::Clock::toDouble(scan_ref_time));
   }
 
   const auto out = mola::RelocalizationICP_SE2::run(in);
@@ -692,14 +689,10 @@ void LidarOdometry::doGlobalSearchForInitialPose(
     double odoNewestStamp = 0;
     {
       auto lckImu = mrpt::lockHelper(imu_state_mtx_);
-      if (!odoAtScanIsFinal) {
-        // Its readings around the scan may have arrived during the search.
-        // Keep the earlier pose if the history no longer covers the scan:
-        if (const auto fresh = globalSearchOdometryAt(mrpt::Clock::toDouble(scan_ref_time));
-            fresh) {
-          odoAtScan = fresh;
-        }
-      }
+      // Readings around the scan may have arrived during the search:
+      odoAtScan = pose_history_refreshed_at(
+        state_.global_search_odometry_poses, mrpt::Clock::toDouble(scan_ref_time), odoAtScan,
+        GLOBAL_SEARCH_ODOMETRY_MAX_GAP);
       // Up to its newest reading, which may be older than the newest sensor
       // time (a slower or delayed source): the motion until then is still
       // better than none.
@@ -713,8 +706,7 @@ void LidarOdometry::doGlobalSearchForInitialPose(
       // Only its planar part, as in the search, composed in SE(2) to keep the
       // found z, pitch and roll:
       motion = planar_motion(*odoAtScan, *odoAtNewest);
-      constexpr double LARGE_ODOMETRY_GAP = 0.5;  // [s]
-      if (newestStamp - odoNewestStamp > LARGE_ODOMETRY_GAP) {
+      if (newestStamp - odoNewestStamp > GLOBAL_SEARCH_ODOMETRY_MAX_GAP) {
         MRPT_LOG_WARN_FMT(
           "Global search: odometry '%s' ends %.2f s before the end of the search; its motion "
           "is carried only until then.",
@@ -741,6 +733,15 @@ void LidarOdometry::doGlobalSearchForInitialPose(
       "Global search: localized at "
       << found.mean << " (taken as the pose " << searchLag
       << " s after its scan, at the end of the search: the vehicle is assumed still)");
+    // A vehicle that moved meanwhile would start off by that motion:
+    constexpr double LONG_SEARCH = 1.0;  // [s]
+    if (searchLag > LONG_SEARCH && gs.motion_odometry_sensor_label.empty()) {
+      MRPT_LOG_WARN_FMT(
+        "Global search: the vehicle is assumed still during the %.1f s search. If it may move "
+        "meanwhile, set global_search.motion_odometry_sensor_label "
+        "(MOLA_LO_INIT_GLOBAL_SEARCH_MOTION_ODOMETRY) to a relative odometry source, e.g. wheels.",
+        searchLag);
+    }
   }
 
   handleInitialLocalizationDoInitFromPose(found, true, mrpt::Clock::fromDouble(newestStamp));

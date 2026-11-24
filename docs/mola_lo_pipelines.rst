@@ -1196,9 +1196,16 @@ Initial localization
   for the pose in the map around it (with ``mola_relocalization``), and only accept an unambiguous match. Yaw is
   searched too if uncertain. While searching, the state estimator pose is accepted up to
   ``MOLA_LO_INIT_GLOBAL_SEARCH_MAX_POS_SIGMA`` (Default: ``5.0`` [m]) of position uncertainty, and its
-  orientation uncertainty is not checked. Intended for starting with the vehicle still: a search may take
-  seconds, the scans arriving meanwhile are dropped, and the found pose is taken as the pose at the end of
-  the search.
+  orientation uncertainty is not checked. A search may take seconds and the scans arriving meanwhile are
+  dropped: the found pose is carried to the end of the search with the motion of
+  ``MOLA_LO_INIT_GLOBAL_SEARCH_MOTION_ODOMETRY``, or taken as is (the vehicle assumed still) without one.
+
+- ``MOLA_LO_INIT_GLOBAL_SEARCH_MOTION_ODOMETRY`` (Default: empty): Sensor label of a relative odometry source
+  (``CObservationOdometry`` or ``CObservationRobotPose``, e.g. wheel odometry) whose planar motion during a
+  global search is added to the found pose. Never a GNSS-aided pose, nor the state estimator: until localized,
+  its pose follows the GNSS noise, which would be taken as motion. Empty or ``none``: the vehicle is assumed
+  still. The ROS 2 launch file sets it to its external odometry (``odom_topic_name`` or
+  ``forward_ros_tf_odom_to_mola``), if any, unless already set.
 
 - ``MOLA_LO_INIT_GLOBAL_SEARCH_Z_FROM_MAP_RADIUS`` (Default: ``5.0`` [m]): The z of the searched poses is the one
   that puts the ground of the scan on the ground of the map below the prior (the lowest points within this

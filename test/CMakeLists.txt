@@ -33,6 +33,15 @@ ament_add_gtest(test_pipelines_load test_pipelines_load.cpp
 )
 target_link_libraries(test_pipelines_load mola::mola_lidar_odometry mola::mola_yaml)
 
+# The launch file's choice of the odometry for the global search motion:
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+ament_add_test(test_launch_global_search_motion
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_launch_global_search_motion.py
+    ${mola_lidar_odometry_SOURCE_DIR}/ros2-launchs/ros2-lidar-odometry.launch.py
+  TIMEOUT 60
+  GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+)
+
 # The dataset-profile library's choice of state estimator class:
 ament_add_test(test_dataset_profile_estimator
   COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/test_dataset_profile_estimator.sh
@@ -257,14 +266,6 @@ ament_index_has_resource(MOLA_LAUNCHER_PREFIX packages mola_launcher)
 find_program(MOLA_CLI_EXECUTABLE mola-cli
   PATHS ${MOLA_LAUNCHER_PREFIX}/bin
   NO_DEFAULT_PATH)
-
-# The launch file's choice of the odometry for the global search motion:
-ament_add_test(test_launch_global_search_motion
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_launch_global_search_motion.py
-    ${mola_lidar_odometry_SOURCE_DIR}/ros2-launchs/ros2-lidar-odometry.launch.py
-  TIMEOUT 60
-  GENERATE_RESULT_FOR_RETURN_CODE_ZERO
-)
 
 # mola_lo_add_cli_test(<name> <launch yaml> <reference tum> [ENV VAR=value ...])
 function(mola_lo_add_cli_test NAME LAUNCH REFERENCE)

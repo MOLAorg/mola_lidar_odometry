@@ -53,6 +53,9 @@ for e in ld.entities:
     elif getattr(e, '_OpaqueFunction__function', None) is \
             lo_launch.resolve_global_search_motion_odometry:
         names.append('<resolve>')
+    elif getattr(getattr(e, '_OpaqueFunction__function', None), '__name__', '') == \
+            'make_node_group':
+        names.append('<nodes>')
 if '<resolve>' not in names:
     print('FAIL: resolve_global_search_motion_odometry is not in the launch description')
     sys.exit(1)
@@ -60,7 +63,10 @@ for arg in ('odom_topic_name', 'odom_sensor_label', 'forward_ros_tf_odom_to_mola
     if arg not in names or names.index(arg) > names.index('<resolve>'):
         print(f'FAIL: argument {arg} is not declared before it is resolved')
         sys.exit(1)
-print('OK: registered after its arguments')
+if '<nodes>' not in names or names.index('<nodes>') < names.index('<resolve>'):
+    print('FAIL: the choice must be made before the nodes are launched')
+    sys.exit(1)
+print('OK: registered after its arguments and before the nodes')
 
 os.environ.pop(ENV, None)
 check(resolve(), None, 'no external odometry: vehicle assumed still')

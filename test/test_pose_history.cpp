@@ -114,3 +114,27 @@ TEST(PoseHistory, Brackets)
   EXPECT_FALSE(mola::pose_history_brackets(h, 9.7));
   EXPECT_FALSE(mola::pose_history_brackets({}, 1.0));
 }
+
+// After a wait: the history's current pose if it brackets t, else the earlier one:
+TEST(PoseHistory, RefreshedAfterAWait)
+{
+  const auto before = tilted(0.5, 0, 0);  // interpolated between 99 and 101 s
+  // An exact reading at 100 s arrived meanwhile, out of order:
+  std::map<double, CPose3D> h = {{99.0, tilted(0, 0, 0)}, {101.0, tilted(1, 0, 0)}};
+  h[100.0] = tilted(0.4, 0, 0);
+  expect_near(*mola::pose_history_refreshed_at(h, 100.0, before, 0.5), tilted(0.4, 0, 0));
+
+  // Taken from the newest reading (99.6 s, within the end gap), then the
+  // readings around 100 s arrived:
+  h = {{99.6, tilted(0, 0, 0)}, {100.0, tilted(0.4, 0, 0)}, {103.0, tilted(3.4, 0, 0)}};
+  expect_near(*mola::pose_history_refreshed_at(h, 100.0, tilted(0, 0, 0), 0.5), tilted(0.4, 0, 0));
+
+  // The history dropped the scan time meanwhile: the earlier pose is kept,
+  // not the oldest remaining one:
+  h = {{100.3, tilted(0.3, 0, 0)}, {101.0, tilted(1, 0, 0)}};
+  expect_near(*mola::pose_history_refreshed_at(h, 100.0, before, 0.5), before);
+
+  // Nothing taken before: whatever the history gives now
+  expect_near(*mola::pose_history_refreshed_at(h, 100.0, std::nullopt, 0.5), tilted(0.3, 0, 0));
+  EXPECT_FALSE(mola::pose_history_refreshed_at(h, 99.0, std::nullopt, 0.5).has_value());
+}

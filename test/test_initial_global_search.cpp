@@ -376,8 +376,10 @@ TEST_F(InitialGlobalSearch, BiasedGnssWithoutImu)
   expect_localized(localize(sc), sc.truth);
 }
 
-// A vehicle that moves while localizing, with wheel odometry as the source of
-// the motion during the search: LO must track it from the found pose.
+// Smoke test: a vehicle that moves while localizing, with wheel odometry as
+// the source of the motion during the search, must be tracked from the found
+// pose. Its search ends right after its scan, so no motion is carried (see
+// OdometryMotionDuringSearchIsCarried for that).
 TEST_F(InitialGlobalSearch, MovingVehicleWithOdometryMotion)
 {
   auto sc = hall_scenario();
@@ -405,6 +407,9 @@ TEST_F(InitialGlobalSearch, GnssJumpsDuringSearchAreNotMotion)
     auto sc = hall_scenario();
     sc.firstScanLatency = 3.0;
     sc.gnssBiasJump = {3.0, 0.0};
+    // The search prior is the estimator pose at the end of the latency: the
+    // searched region must include the scan pose by itself.
+    sc.minHalfWidthXY = 6.0;
     sc.motionOdometryLabel = label;
     sc.duration = 12.0;
     std::cout << "Motion odometry label: '" << label << "'\n";
@@ -422,6 +427,7 @@ TEST_F(InitialGlobalSearch, OdometryMotionDuringSearchIsCarried)
   auto sc = hall_scenario();
   sc.speed = 1.0;
   sc.firstScanLatency = 3.0;
+  sc.minHalfWidthXY = 6.0;  // see GnssJumpsDuringSearchAreNotMotion
   sc.motionOdometryLabel = "odom";
   sc.odomFrameYawDeg = 150.0;  // truth yaw is 30 deg
   sc.duration = 10.0;

@@ -256,11 +256,7 @@ void LidarOdometry::onGlobalSearchOdometry(const CObservation::ConstPtr & o)
 
 std::optional<mrpt::poses::CPose3D> LidarOdometry::globalSearchOdometryAt(double t) const
 {
-  // A query this close past either end of the buffer takes that end's pose
-  // (e.g. the newest LiDAR stamp, slightly after the last odometry reading):
-  constexpr double MAX_END_GAP = 0.5;  // [s]
-
-  return pose_history_at(state_.global_search_odometry_poses, t, MAX_END_GAP);
+  return pose_history_at(state_.global_search_odometry_poses, t, GLOBAL_SEARCH_ODOMETRY_MAX_GAP);
 }
 
 void LidarOdometry::onOdometryAttitude(const CObservation::ConstPtr & o)

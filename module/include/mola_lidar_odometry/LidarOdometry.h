@@ -2159,6 +2159,11 @@ private:
   /// source. Called inline from onNewObservation(), like onDeskewOdometry().
   void onGlobalSearchOdometry(const mrpt::obs::CObservation::ConstPtr & o);
 
+  /// A query of the global search odometry this close past either end of its
+  /// history takes that end's pose; and a history ending this much earlier
+  /// than the end of a search is reported. [s]
+  static constexpr double GLOBAL_SEARCH_ODOMETRY_MAX_GAP = 0.5;
+
   /// Pose of the `global_search.motion_odometry_sensor_label` source at time
   /// t [s], interpolated, or nullopt if it does not cover t. Caller must hold
   /// imu_state_mtx_.

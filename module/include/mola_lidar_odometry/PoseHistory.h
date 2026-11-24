@@ -31,8 +31,8 @@
 namespace mola
 {
 /** Pose at time t [s] from a history of poses keyed by timestamp [s]: the
- *  stored one at an exact sample time, else the SE(3) interpolation (SLERP)
- *  between the samples around t. A query at most maxEndGap past either end
+ *  stored one at an exact sample time, else the interpolation between the
+ *  samples around t (linear for the position, SLERP for the attitude). A query at most maxEndGap past either end
  *  takes that end's pose (e.g. a newest stamp slightly after the last
  *  reading). nullopt if the history is empty or does not cover t.
  *
@@ -71,6 +71,24 @@ inline std::optional<mrpt::poses::CPose3D> pose_history_at(
 inline bool pose_history_brackets(const std::map<double, mrpt::poses::CPose3D> & poses, double t)
 {
   return !poses.empty() && poses.begin()->first <= t && poses.rbegin()->first >= t;
+}
+
+/** The pose at time t [s] after some wait (e.g. a global search), given the
+ *  one taken before it: the history's current one if it brackets t (readings
+ *  around t may have arrived meanwhile, also out of order), else the earlier
+ *  one (the history may have dropped t meanwhile), else whatever the history
+ *  gives now (see pose_history_at()).
+ *
+ * \ingroup mola_lidar_odometry_grp
+ */
+inline std::optional<mrpt::poses::CPose3D> pose_history_refreshed_at(
+  const std::map<double, mrpt::poses::CPose3D> & poses, double t,
+  const std::optional<mrpt::poses::CPose3D> & before, double maxEndGap)
+{
+  if (before && !pose_history_brackets(poses, t)) {
+    return before;
+  }
+  return pose_history_at(poses, t, maxEndGap);
 }
 
 /** Planar motion from `from` to `to`: that between their projections on the
