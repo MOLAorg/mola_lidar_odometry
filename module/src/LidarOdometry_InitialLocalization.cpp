@@ -616,7 +616,7 @@ void LidarOdometry::doGlobalSearchForInitialPose(
   if (!gs.motion_odometry_sensor_label.empty()) {
     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
     odoAtScan = globalSearchOdometryAt(mrpt::Clock::toDouble(scan_ref_time));
-    odoAtScanIsFinal = pose_history_reaches(
+    odoAtScanIsFinal = pose_history_brackets(
       state_.global_search_odometry_poses, mrpt::Clock::toDouble(scan_ref_time));
   }
 

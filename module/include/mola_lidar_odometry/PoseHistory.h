@@ -62,14 +62,15 @@ inline std::optional<mrpt::poses::CPose3D> pose_history_at(
   return mrpt::poses::CPose3D(p);
 }
 
-/** Whether the history reaches time t [s], i.e. a pose at t is exact or
- *  interpolated, not the newest pose taken for a later t.
+/** Whether the history brackets time t [s], i.e. a pose at t is exact or
+ *  interpolated, not an end pose taken for a t just outside it (which later
+ *  readings, even out of order, may still improve).
  *
  * \ingroup mola_lidar_odometry_grp
  */
-inline bool pose_history_reaches(const std::map<double, mrpt::poses::CPose3D> & poses, double t)
+inline bool pose_history_brackets(const std::map<double, mrpt::poses::CPose3D> & poses, double t)
 {
-  return !poses.empty() && poses.rbegin()->first >= t;
+  return !poses.empty() && poses.begin()->first <= t && poses.rbegin()->first >= t;
 }
 
 /** Planar motion from `from` to `to`: that between their projections on the

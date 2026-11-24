@@ -101,14 +101,16 @@ TEST(PoseHistory, PlanarMotionInFirstFrame)
   EXPECT_NEAR(m.y(), 0.0, 1e-9);
 }
 
-// A pose at t is final only once the history reaches t:
-TEST(PoseHistory, Reaches)
+// A pose at t is final only once the history brackets t:
+TEST(PoseHistory, Brackets)
 {
   const std::map<double, CPose3D> h = {{10.0, tilted(0, 0, 0)}, {11.0, tilted(1, 0, 0)}};
-  EXPECT_TRUE(mola::pose_history_reaches(h, 10.5));
-  EXPECT_TRUE(mola::pose_history_reaches(h, 11.0));
-  // Within the end gap, pose_history_at() gives the newest pose, but later
-  // readings may still change it:
-  EXPECT_FALSE(mola::pose_history_reaches(h, 11.3));
-  EXPECT_FALSE(mola::pose_history_reaches({}, 1.0));
+  EXPECT_TRUE(mola::pose_history_brackets(h, 10.5));
+  EXPECT_TRUE(mola::pose_history_brackets(h, 10.0));
+  EXPECT_TRUE(mola::pose_history_brackets(h, 11.0));
+  // Within the end gaps, pose_history_at() gives an end pose, but later
+  // readings (also out of order, older ones) may still change it:
+  EXPECT_FALSE(mola::pose_history_brackets(h, 11.3));
+  EXPECT_FALSE(mola::pose_history_brackets(h, 9.7));
+  EXPECT_FALSE(mola::pose_history_brackets({}, 1.0));
 }
