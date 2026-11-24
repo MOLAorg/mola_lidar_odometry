@@ -41,6 +41,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <future>
+#include <string>
 #include <thread>
 
 #include "synthetic_world.h"
@@ -159,6 +160,15 @@ struct Scenario
   /// If set, wheel odometry is also fed to LO with this label, as the source
   /// of the vehicle motion during the global search
   std::string motionOdometryLabel;
+  /// [s] The first LiDAR scan reaches LO this late, and the next ones are
+  /// current, while wheel odometry (fed to LO without delay) advances its
+  /// sensor time: as if the global search on the first scan had lasted this
+  /// long, with the scans meanwhile dropped. Deterministic, unlike a real long
+  /// search.
+  double firstScanLatency = 0;
+  /// Added to gnssBias from t=1 s on (e.g. a multipath change): the state
+  /// estimator pose moves although the vehicle is still.
+  mrpt::math::TPoint2D gnssBiasJump;
 };
 
 struct Result
@@ -212,6 +222,9 @@ Result localize(const Scenario & sc)
   liodom->params_.lidar_sensor_labels.assign(1, std::regex("lidar"));
 
   const auto georef = make_georef();
+  // The first scan, waiting for its delivery with firstScanLatency:
+  mrpt::obs::CObservation::Ptr firstScan;
+  bool firstScanDelivered = false;
   // 10 Hz lidar, wheel odometry and IMU; 1 Hz GNSS:
   const auto steps = static_cast<int>(sc.duration * 10);
   for (int i = 0; i < steps; i++) {
@@ -223,16 +236,34 @@ Result localize(const Scenario & sc)
       smoother->fuse_imu(*imu(vehicle, t));
     }
     if (i % 10 == 0) {
-      smoother->fuse_gnss(*gnss(georef, vehicle, sc.gnssBias, sc.gnssSigma, t));
+      auto bias = sc.gnssBias;
+      if (dt >= 1.0) {
+        bias += sc.gnssBiasJump;
+      }
+      smoother->fuse_gnss(*gnss(georef, vehicle, bias, sc.gnssSigma, t));
     }
     smoother->spinOnce();
-    if (!sc.motionOdometryLabel.empty()) {
+    if (!sc.motionOdometryLabel.empty() || sc.firstScanLatency > 0) {
       auto odo = odometry(mrpt::poses::CPose2D(sc.speed * dt, 0, 0), t);
-      odo->sensorLabel = sc.motionOdometryLabel;
+      if (!sc.motionOdometryLabel.empty()) {
+        odo->sensorLabel = sc.motionOdometryLabel;
+      }
       liodom->onNewObservation(odo);
     }
     if (dt < sc.lidarStart) {
       continue;
+    }
+    if (sc.firstScanLatency > 0 && !firstScanDelivered) {
+      if (!firstScan) {
+        firstScan = scan(sc.world, vehicle, t);
+      }
+      if (dt + 1e-6 < sc.lidarStart + sc.firstScanLatency) {
+        continue;
+      }
+      liodom->onNewObservation(firstScan);
+      wait_idle(*liodom);
+      liodom->spinOnce();
+      firstScanDelivered = true;
     }
     liodom->onNewObservation(scan(sc.world, vehicle, t));
     wait_idle(*liodom);
@@ -353,6 +384,24 @@ TEST_F(InitialGlobalSearch, MovingVehicleWithOdometryMotion)
             << "\n";
   EXPECT_LT(xy_error(*r.last, expectedLast), 0.1);
   EXPECT_LT(yaw_error_deg(*r.last, expectedLast), 1.0);
+}
+
+// The global search ends long after its scan (here, by its latency) while
+// the GNSS jumps with the vehicle still. Before localization the state
+// estimator pose follows those jumps: they must not be taken as vehicle motion
+// and added to the found pose, neither without a motion odometry source (the
+// vehicle is then assumed still) nor with wheel odometry as that source.
+TEST_F(InitialGlobalSearch, GnssJumpsDuringSearchAreNotMotion)
+{
+  for (const std::string label : {"", "odom"}) {
+    auto sc = hall_scenario();
+    sc.firstScanLatency = 3.0;
+    sc.gnssBiasJump = {3.0, 0.0};
+    sc.motionOdometryLabel = label;
+    sc.duration = 12.0;
+    std::cout << "Motion odometry label: '" << label << "'\n";
+    expect_localized(localize(sc), sc.truth);
+  }
 }
 
 // A search with more initial guesses than allowed is not run: LO must keep
