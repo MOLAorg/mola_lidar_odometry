@@ -41,7 +41,10 @@ def check(got, expected, what):
     print(f'OK: {what}: {got!r}')
 
 
-# Registered in the launch description, after the arguments it reads:
+# Registered in the launch description, after the arguments it reads. Only
+# its entities are inspected, so the package need not be installed (e.g. tests
+# of a Debian package build):
+lo_launch.get_package_share_directory = lambda _pkg: ''
 ld = lo_launch.generate_launch_description()
 names = []
 for e in ld.entities:

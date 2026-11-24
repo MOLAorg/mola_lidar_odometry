@@ -166,6 +166,9 @@ struct Scenario
   /// long, with the scans meanwhile dropped. Deterministic, unlike a real long
   /// search.
   double firstScanLatency = 0;
+  /// [deg] Yaw of the wheel odometry frame: its poses are relative to an
+  /// arbitrary frame, not the map one
+  double odomFrameYawDeg = 0;
   /// Added to gnssBias from t=1 s on (e.g. a multipath change): the state
   /// estimator pose moves although the vehicle is still.
   mrpt::math::TPoint2D gnssBiasJump;
@@ -233,7 +236,9 @@ Result localize(const Scenario & sc)
     const double dt = 0.1 * i;
     const double t = 1000.0 + dt;
     const auto vehicle = sc.truth + mrpt::poses::CPose3D::FromTranslation(sc.speed * dt, 0, 0);
-    smoother->fuse_odometry(*odometry(mrpt::poses::CPose2D(sc.speed * dt, 0, 0), t), "odom_wheels");
+    const auto odomPose = mrpt::poses::CPose2D(0, 0, mrpt::DEG2RAD(sc.odomFrameYawDeg)) +
+                          mrpt::poses::CPose2D(sc.speed * dt, 0, 0);
+    smoother->fuse_odometry(*odometry(odomPose, t), "odom_wheels");
     if (sc.withImu) {
       smoother->fuse_imu(*imu(vehicle, t));
     }
@@ -246,7 +251,7 @@ Result localize(const Scenario & sc)
     }
     smoother->spinOnce();
     if (!sc.motionOdometryLabel.empty() || sc.firstScanLatency > 0) {
-      auto odo = odometry(mrpt::poses::CPose2D(sc.speed * dt, 0, 0), t);
+      auto odo = odometry(odomPose, t);
       if (!sc.motionOdometryLabel.empty()) {
         odo->sensorLabel = sc.motionOdometryLabel;
       }
@@ -410,13 +415,15 @@ TEST_F(InitialGlobalSearch, GnssJumpsDuringSearchAreNotMotion)
 // The vehicle drives 3 m while the search runs (more than ICP alone would
 // recover): with wheel odometry as the motion source, LO must start at the
 // pose at the end of the search, not where the searched scan was taken. The
-// odometry frame (yaw 0) differs from the map one (truth yaw 30 deg).
+// odometry frame is rotated 120 deg from the vehicle heading in the map, so
+// adding the motion in the wrong frame leaves meters of error.
 TEST_F(InitialGlobalSearch, OdometryMotionDuringSearchIsCarried)
 {
   auto sc = hall_scenario();
   sc.speed = 1.0;
   sc.firstScanLatency = 3.0;
   sc.motionOdometryLabel = "odom";
+  sc.odomFrameYawDeg = 150.0;  // truth yaw is 30 deg
   sc.duration = 10.0;
   const auto r = localize(sc);
   ASSERT_TRUE(r.first.has_value());
