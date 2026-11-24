@@ -91,6 +91,11 @@ mola_add_library(
     mrpt_maps
 )
 
+# libcfgpath (cfgpath.h) uses FSFindFolder()/FSRefMakePath() on macOS:
+if(APPLE)
+  target_link_libraries(${PROJECT_NAME} PRIVATE "-framework CoreServices")
+endif()
+
 # mola_add_library() expects headers under "ROOT/include", so do this manually here:
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/module/include>
@@ -149,44 +154,34 @@ else()
   message(STATUS "mola-lidar-odometry-cli: With mola_state_estimation_simple = NO")
 endif()
 
-# Not selected as a default/fallback estimator like mola_state_estimation_simple
-# above (no HAVE_MOLA_SE_SMOOTHER define needed for that): linking it in is
-# what's required so its class is registered with MRPT's RTTI and therefore
-# reachable via the CLI's own --state-estimator <classname> flag
-# (mrpt::rtti::classFactory() finds any class whose translation unit is
-# actually linked into the binary, generic mechanism, no compile-time
-# branching needed on the caller's side). Without this, --state-estimator
-# mola::state_estimation_smoother::StateEstimationSmoother fails at runtime
-# with "Apparently unknown class name ... (missing plugin .so file?)" even
-# though the flag itself is accepted -- found running the first-ever
-# offline+smoother (cfg-02) sweep through this pipeline, 2026-08-11.
+# Links a library whose classes are only created by name, through
+# mrpt::rtti::classFactory(). No symbol of it is referenced, so the linker
+# would drop it unless told to keep it, and its classes would not be
+# registered at runtime ("missing plugin .so file?").
+function(mola_lo_link_plugin_library TARGET LIB)
+  if(APPLE)
+    # ld64 already records every dylib, unless -dead_strip_dylibs is used:
+    target_link_libraries(${TARGET} ${LIB} "-Wl,-needed_library,$<TARGET_LINKER_FILE:${LIB}>")
+  elseif(MSVC)
+    target_link_libraries(${TARGET} ${LIB})
+  else()
+    target_link_libraries(${TARGET}
+      "-Wl,--push-state,--no-as-needed"
+      ${LIB}
+      "-Wl,--pop-state"
+    )
+  endif()
+endfunction()
+
+# The smoother is not a compile-time fallback like the simple estimator above.
+# It is selected by class name with --state-estimator, so just keep it linked.
 if(mola_state_estimation_smoother_FOUND)
   message(STATUS "mola-lidar-odometry-cli: With mola_state_estimation_smoother = YES")
-  # mola_state_estimation_smoother's exported target only records its GTSAM
-  # link dependency by bare name (CMake's legacy
-  # IMPORTED_LINK_DEPENDENT_LIBRARIES mechanism, not a namespaced imported
-  # target), so the gtsam/gtsam_unstable targets it references must already
-  # exist in THIS scope too, or the final link fails with "cannot find
-  # -lgtsam" despite the .so already carrying its own GTSAM dependency
-  # privately. find_package(GTSAM) here is what defines them.
+  # Its exported target names GTSAM by bare name, so the gtsam targets must
+  # exist in this scope too:
   find_package(GTSAM QUIET)
   find_package(GTSAM_UNSTABLE QUIET)
-  # --no-as-needed around this one: nothing in this CLI's own source
-  # references a symbol from mola_state_estimation_smoother directly (its
-  # class is only ever reached indirectly, by name, through
-  # mrpt::rtti::classFactory() at runtime -- unlike
-  # mola_state_estimation_simple above, which IS called directly as a
-  # compile-time fallback and so survives linking as-is). Without this, the
-  # default --as-needed linker behavior sees no referenced symbol and drops
-  # the .so from the binary's DT_NEEDED entries entirely, silently
-  # reproducing the exact "missing plugin .so file?" runtime error this
-  # whole block exists to fix -- confirmed via ldd, which showed the
-  # smoother absent even after the .so linked and built without error.
-  target_link_libraries(mola-lidar-odometry-cli
-    "-Wl,--no-as-needed"
-    mola::mola_state_estimation_smoother
-    "-Wl,--as-needed"
-  )
+  mola_lo_link_plugin_library(mola-lidar-odometry-cli mola::mola_state_estimation_smoother)
 else()
   message(STATUS "mola-lidar-odometry-cli: With mola_state_estimation_smoother = NO")
 endif()
