@@ -134,6 +134,13 @@ TEST(WallUpReader, RequiresAPositivePeriod)
   EXPECT_ANY_THROW(mola::WallUpReader{p});
 }
 
+TEST(WallUpReader, RequiresPositiveCovarianceCells)
+{
+  mola::WallUpReader::Parameters p;
+  p.cluster_size = 0.0;
+  EXPECT_ANY_THROW(mola::WallUpReader{p});
+}
+
 TEST(WallUpReader, OverlappingWindowsInflateTheCovariance)
 {
   // The same scans read with period = window (no overlap) and with a period

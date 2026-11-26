@@ -62,7 +62,11 @@ WallUpReader::WallUpReader(const Parameters & p) : params_(p)
   ASSERT_GT_(params_.max_range, 0.0);
   ASSERT_GT_(params_.normal_radius, 0.0);
   ASSERT_GE_(params_.flats_weight, 0.0);
-  ASSERT_GE_(params_.cluster_size, 0.0);
+  // Without cells the covariance falls back to per-normal independence,
+  // which is not reliable: every reading would be dropped.
+  ASSERTMSG_(
+    params_.cluster_size > 0,
+    "WallUpReader: cluster_size must be > 0 (0 gives no reliable covariance, so no reading)");
 }
 
 void WallUpReader::add_cloud(

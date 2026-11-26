@@ -74,7 +74,7 @@ public:
     double normal_radius = 0.4;
     /** Weight of floors and ceilings against walls (0: walls only) */
     double flats_weight = 1.0;
-    /** Cells grouping the normals for the covariance [m] */
+    /** Cells grouping the normals for the covariance [m], > 0 */
     double cluster_size = 2.0;
     /** A window with fewer points than this gives no reading */
     std::size_t min_points = 2000;
