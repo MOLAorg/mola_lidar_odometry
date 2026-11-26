@@ -1416,6 +1416,12 @@ walk `up_reading_random_walk`; afterwards the deadband ramps back to
 window lags the wander by half its length. On a legged platform the
 accelerometer's dynamics degrade the walls' estimate: `-walls-only` there,
 where the deadband stays at the walls' one so the correction never fades.
+The walls options fail at startup when `localMapScansAreDeskewed()` is false
+(no early de-skew stage that compensates motion, or twist optimization
+without an IMU de-skew): raw rotating scans bend their walls with the motion,
+so no reading could ever be taken. `-walls-period` must be > 0; the hold's
+end splits the random walk of a prediction interval between the walls' and
+the accelerometer's rates.
 `--output-simplemap-gravity-leveled` (explicit; needs the fused path in the
 odometry frame) moves each keyframe of `--output-simplemap` by the path's
 correction at its "metadata" stamp (`mola::level_simplemap_keyframes()`); a

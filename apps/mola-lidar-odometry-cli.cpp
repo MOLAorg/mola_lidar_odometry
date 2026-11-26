@@ -1342,6 +1342,13 @@ int main_odometry(Cli & cli)
     ASSERTMSG_(
       cli.arg_levelFusedWallsPeriod.getValue() > 0,
       "--output-fused-gravity-leveled-walls-period must be > 0 s");
+    // Raw rotating scans bend their walls with the motion: the readings need
+    // the scans de-skewed, and with a pipeline that never does it no reading
+    // could ever be taken.
+    ASSERTMSG_(
+      liodom->localMapScansAreDeskewed(),
+      "--output-fused-gravity-leveled-walls needs a pipeline that de-skews its scans before "
+      "registration (a deskew stage with motion compensation; with optimize_twist, an IMU one)");
     mola::WallUpReader::Parameters wp;
     wp.window = cli.arg_levelFusedWallsWindow.getValue();
     wp.period = cli.arg_levelFusedWallsPeriod.getValue();
@@ -1353,11 +1360,12 @@ int main_odometry(Cli & cli)
         const mrpt::maps::CPointsMap::ConstPtr & cloud, bool deskewed) {
         auto lck = mrpt::lockHelper(wallReaderMtx);
         if (!deskewed) {
-          // A raw rotating scan bends its walls with the motion: no reading.
+          // A scan the pipeline did not de-skew after all (checked at
+          // startup): no reading from it.
           if (!warnedNotDeskewed) {
             warnedNotDeskewed = true;
             std::cerr << "Warning: --output-fused-gravity-leveled-walls ignores scans that are "
-                         "not de-skewed (this pipeline has no early de-skew).\n";
+                         "not de-skewed.\n";
           }
           return;
         }

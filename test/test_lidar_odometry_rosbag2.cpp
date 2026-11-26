@@ -70,6 +70,7 @@ struct RunOutput
 {
   mrpt::poses::CPose3DInterpolator trajectory;
   std::size_t local_map_insertions = 0;
+  bool scans_deskewed = false;
 };
 
 RunOutput run_odometry(
@@ -104,6 +105,8 @@ RunOutput run_odometry(
   if (callback) {
     liodom->setLocalMapScanCallback(callback);
   }
+  RunOutput out;
+  out.scans_deskewed = liodom->localMapScansAreDeskewed();
   // Counts the local-map insertions:
   liodom->profiler_.enable(true);
 
@@ -139,7 +142,6 @@ RunOutput run_odometry(
     }
   }
 
-  RunOutput out;
   out.trajectory = liodom->estimatedTrajectory();
   std::map<std::string, mrpt::system::CTimeLogger::TCallStats> stats;
   liodom->profiler_.getStats(stats);
@@ -211,12 +213,14 @@ TEST(RunDataset, LocalMapScanCallback)
   std::size_t calls = 0;
   std::set<mrpt::Clock::time_point> stamps;
   bool all_have_points = true;
+  std::set<bool> deskew_flags;
   const auto withCb = run_odometry(
     yamlConfigFile, yamlEstimatorFile, rosbag2File, lidarTopic,
     [&](
       const mrpt::Clock::time_point & t, const mrpt::poses::CPose3D &,
-      const mrpt::maps::CPointsMap::ConstPtr & cloud, bool) {
+      const mrpt::maps::CPointsMap::ConstPtr & cloud, bool deskewed) {
       calls++;
+      deskew_flags.insert(deskewed);
       stamps.insert(t);
       all_have_points = all_have_points && cloud && !cloud->empty();
     });
@@ -225,6 +229,8 @@ TEST(RunDataset, LocalMapScanCallback)
   EXPECT_EQ(calls, withCb.local_map_insertions);
   EXPECT_EQ(stamps.size(), calls);
   EXPECT_TRUE(all_have_points);
+  // Every scan flagged as the configuration says:
+  EXPECT_EQ(deskew_flags, std::set<bool>{withCb.scans_deskewed});
 
   ASSERT_EQ(plain.trajectory.size(), withCb.trajectory.size());
   auto a = plain.trajectory.cbegin();

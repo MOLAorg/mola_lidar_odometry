@@ -191,6 +191,27 @@ bool LidarOdometry::isPipelineUsingIMU_locked() const
   return *state_.isPipelinesUsingIMU;
 }
 
+bool LidarOdometry::localMapScansAreDeskewed() const
+{
+  auto lckState = mrpt::lockHelper(state_mtx_);
+  return localMapScansAreDeskewed_locked();
+}
+
+bool LidarOdometry::localMapScansAreDeskewed_locked() const
+{
+  // The early de-skew of preprocessScan() runs, and compensates motion:
+  if (state_.pc_deskew.empty() || (params_.optimize_twist && !isPipelineUsingIMU_locked())) {
+    return false;
+  }
+  for (const auto & stage : state_.pc_deskew) {
+    const auto deskew = std::dynamic_pointer_cast<mp2p_icp_filters::FilterDeskew>(stage);
+    if (deskew && deskew->method != mp2p_icp_filters::MotionCompensationMethod::None) {
+      return true;
+    }
+  }
+  return false;
+}
+
 #if defined(MOLA_LO_HAS_MAP_GRAVITY_ESTIMATOR)
 void LidarOdometry::closeMapGravityInterval(
   double timestamp, const mrpt::poses::CPose3D & pose, const mrpt::math::TTwist3D & twistLocal)
@@ -2055,7 +2076,7 @@ void LidarOdometry::processLidarScan(  // NOLINT
     try {
       local_map_scan_callback_(
         scan_ref_time, state_.last_lidar_pose.mean, fullCloudForVizAndPublish,
-        preprocessed->usedEarlyDeskew);
+        preprocessed->usedEarlyDeskew && localMapScansAreDeskewed_locked());
     } catch (const std::exception & e) {
       MRPT_LOG_WARN_STREAM("LocalMapScanCallback threw, ignored: " << e.what());
     }
@@ -2173,7 +2194,8 @@ std::optional<LidarOdometry::PreprocessedScan> LidarOdometry::preprocessScan(
   }
 
   // Keep reference to the deskewed or raw cloud for viz/publish:
-  // (shallow copy, just the shared_ptr)
+  // (shallow copy, just the shared_ptr). Never modified after this point:
+  // LocalMapScanCallback consumers keep the pointer and read it later.
   mrpt::maps::CPointsMap::Ptr fullCloudForVizAndPublish;
   if (observation->layers.count("deskewed") != 0) {
     auto pts = observation->point_layer("deskewed");

@@ -1417,6 +1417,13 @@ public:
   /** Sets, or clears with an empty function, the LocalMapScanCallback. */
   void setLocalMapScanCallback(LocalMapScanCallback cb);
 
+  /** Whether the scans passed to the LocalMapScanCallback are de-skewed: the
+   *  pipeline has an early de-skew stage that compensates motion, and runs it
+   *  (not with twist optimization unless the de-skew uses the IMU). A
+   *  property of the configuration, known after initialize().
+   */
+  [[nodiscard]] bool localMapScansAreDeskewed() const;
+
   void saveEstimatedTrajectoryToFile() const;
   void saveReconstructedMapToFile() const;
   void saveLocalMapToFile() const;
@@ -2854,6 +2861,7 @@ private:
   bool isPipelineUsingIMU() const;
   /// Same as isPipelineUsingIMU(), but assumes state_mtx_ is already held by the caller.
   bool isPipelineUsingIMU_locked() const;
+  bool localMapScansAreDeskewed_locked() const;
   void sendLidarScanToProcessQueue(const CObservation::ConstPtr & o);
 
   /** Hands a LiDAR scan that is ready for processing (i.e. already has the IMU
