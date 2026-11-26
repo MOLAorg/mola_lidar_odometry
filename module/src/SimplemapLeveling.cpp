@@ -46,8 +46,6 @@ std::size_t mola::level_simplemap_keyframes(
   if (before.empty() || after.empty()) {
     return 0;
   }
-  const auto t_first = std::max(before.begin()->first, after.begin()->first);
-  const auto t_last = std::min(before.rbegin()->first, after.rbegin()->first);
   std::size_t n = 0;
   for (std::size_t i = 0; i < sm.size(); i++) {
     auto & kf = sm.get(i);
@@ -58,13 +56,15 @@ std::size_t mola::level_simplemap_keyframes(
     if (!stamp) {
       continue;
     }
-    const auto t = std::clamp(*stamp, t_first, t_last);
+    // Each path held at its own ends (they need not span the same times):
+    const auto t_before = std::clamp(*stamp, before.begin()->first, before.rbegin()->first);
+    const auto t_after = std::clamp(*stamp, after.begin()->first, after.rbegin()->first);
     mrpt::poses::CPose3D p_before;
     mrpt::poses::CPose3D p_after;
     bool ok_before = false;
     bool ok_after = false;
-    before.interpolate(t, p_before, ok_before);
-    after.interpolate(t, p_after, ok_after);
+    before.interpolate(t_before, p_before, ok_before);
+    after.interpolate(t_after, p_after, ok_after);
     if (!ok_before || !ok_after) {
       continue;
     }

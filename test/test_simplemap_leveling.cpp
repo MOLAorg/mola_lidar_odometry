@@ -101,3 +101,23 @@ TEST(SimplemapLeveling, KeyframesMoveWithTheLeveledPath)
     (shared->getMeanVal().asVectorVal() - (true_pose(10.0) + offset).asVectorVal()).norm(), 0.0,
     1e-12);
 }
+
+TEST(SimplemapLeveling, PathsOverDisjointTimesHoldTheirOwnEnds)
+{
+  // before spans [0, 10] s and after [20, 30] s: a keyframe at 15 s takes
+  // before(10) and after(20), each held at its own end.
+  mrpt::poses::CPose3DInterpolator before;
+  mrpt::poses::CPose3DInterpolator after;
+  const auto corr = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(1.0), 0.0);
+  for (int k = 0; k <= 10; k++) {
+    before.insert(mrpt::Clock::fromDouble(k), true_pose(k).asTPose());
+    after.insert(mrpt::Clock::fromDouble(k + 20.0), (corr + true_pose(k + 20.0)).asTPose());
+  }
+  mrpt::maps::CSimpleMap sm;
+  const auto kf = keyframe(15.0, true_pose(15.0), true);
+  sm.insert(kf.pose, kf.sf);
+  EXPECT_EQ(mola::level_simplemap_keyframes(sm, before, after), 1U);
+  const auto expected = (corr + true_pose(20.0)) + (-true_pose(10.0)) + true_pose(15.0);
+  const auto got = sm.get(0).pose->getMeanVal();
+  EXPECT_NEAR((got.asVectorVal() - expected.asVectorVal()).norm(), 0.0, 1e-6);
+}

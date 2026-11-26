@@ -35,8 +35,8 @@ namespace mola
 std::optional<mrpt::Clock::time_point> keyframe_stamp(const mrpt::obs::CSensoryFrame & sf);
 
 /** Moves every keyframe pose of `sm` by the correction a leveled path had
- *  at the keyframe's stamp: after(t) * before(t)^-1, both interpolated, and
- *  held at the paths' ends. The keyframes and both paths must be in the
+ *  at the keyframe's stamp: after(t) * before(t)^-1, both interpolated, each
+ *  held at its own ends. The keyframes and both paths must be in the
  *  same frame: the correction is a rotation about that frame's axes. Keyframes
  *  without a stamp are left as they are. Pose covariances are rotated with
  *  the poses. Returns how many keyframes moved.
