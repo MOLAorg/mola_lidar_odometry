@@ -709,3 +709,17 @@ TEST(GravityLeveler, OlderPoseGetsTheCurrentCorrection)
   EXPECT_LT(mrpt::RAD2DEG(d.norm()), 1e-6);
   EXPECT_EQ(lev.applied_tilt().norm(), 0.0);
 }
+
+TEST(GravityLeveler, OlderUpReadingDoesNotAgeTheHold)
+{
+  // Up readings accepted at 100 s and then at 50 s (out of order, before any
+  // pose): the hold runs from the newest one, so at 110 s the walls are
+  // 10 s old and their (null) deadband applies to the 1 deg tilt.
+  const auto tilt = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(1.0), 0.0);
+  mola::GravityLeveler lev;
+  lev.add_up_reading(100.0, up_seen(tilt, 0, 0), iso_cov(0.1));
+  lev.add_up_reading(50.0, up_seen(tilt, 0, 0), iso_cov(0.1));
+  EXPECT_EQ(lev.stats().gated_up_readings, 0U);
+  (void)lev.add_pose(110.0, tilt + true_pose(110.0));
+  EXPECT_NEAR(mrpt::RAD2DEG(lev.applied_tilt().norm()), 1.0, 0.1);
+}

@@ -158,9 +158,15 @@ void GravityLeveler::add_up_reading(
   H(0, 0) = 1;
   H(1, 1) = 1;
 
+  // The newest accepted reading sets the hold: one older than it, accepted
+  // late, does not make the walls look older than they are.
+  const auto mark_accepted = [&]() {
+    last_up_accepted_t_ = last_up_accepted_t_ ? std::max(*last_up_accepted_t_, t) : t;
+  };
+
   const bool starting = predict_to(t);
   if (correct(z, H, R, starting, consecutive_up_rejections_, stats_.gated_up_readings)) {
-    last_up_accepted_t_ = t;
+    mark_accepted();
     return;
   }
   // A run of rejected up readings means the state is wrong: they are the
@@ -172,7 +178,7 @@ void GravityLeveler::add_up_reading(
   reset_filter();
   const bool restarting = predict_to(t);
   correct(z, H, R, restarting, consecutive_up_rejections_, stats_.gated_up_readings);
-  last_up_accepted_t_ = t;
+  mark_accepted();
 }
 
 double GravityLeveler::deadband_at(double t) const
