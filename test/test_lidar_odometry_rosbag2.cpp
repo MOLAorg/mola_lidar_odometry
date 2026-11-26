@@ -27,6 +27,11 @@
 #include <mrpt/obs/CRawlog.h>
 #include <mrpt/poses/Lie/SE.h>
 #include <mrpt/rtti/CObject.h>
+#include <mrpt/system/CTimeLogger.h>
+
+#include <map>
+#include <set>
+#include <string>
 
 namespace
 {
@@ -61,9 +66,16 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
   return o;
 }
 
-int main_odometry(
+struct RunOutput
+{
+  mrpt::poses::CPose3DInterpolator trajectory;
+  std::size_t local_map_insertions = 0;
+};
+
+RunOutput run_odometry(
   const std::string & yamlConfigFile, const std::string & stateEstimConfigFile,
-  const std::string & rosbag2File, const std::string & lidarTopic, const std::string & gtTrajectory)
+  const std::string & rosbag2File, const std::string & lidarTopic,
+  const mola::LidarOdometry::LocalMapScanCallback & callback = {})
 {
   auto liodom = mola::LidarOdometry::Create();
   auto stateEstimator = mola::state_estimation_simple::StateEstimationSimple::Create();
@@ -88,6 +100,12 @@ int main_odometry(
   stateEstimator->setMinLoggingLevel(mrpt::system::LVL_ERROR);
   const auto cfgEstimator = mola::load_yaml_file(stateEstimConfigFile);
   stateEstimator->initialize(cfgEstimator);
+
+  if (callback) {
+    liodom->setLocalMapScanCallback(callback);
+  }
+  // Counts the local-map insertions:
+  liodom->profiler_.enable(true);
 
   // dataset input:
   std::shared_ptr<mola::OfflineDatasetSource> dataset;
@@ -121,7 +139,23 @@ int main_odometry(
     }
   }
 
-  const mrpt::poses::CPose3DInterpolator trajectory = liodom->estimatedTrajectory();
+  RunOutput out;
+  out.trajectory = liodom->estimatedTrajectory();
+  std::map<std::string, mrpt::system::CTimeLogger::TCallStats> stats;
+  liodom->profiler_.getStats(stats);
+  if (const auto it = stats.find("onLidar.4.update_local_map"); it != stats.end()) {
+    out.local_map_insertions = it->second.n_calls;
+  }
+  liodom->setLocalMapScanCallback({});
+  return out;
+}
+
+int main_odometry(
+  const std::string & yamlConfigFile, const std::string & stateEstimConfigFile,
+  const std::string & rosbag2File, const std::string & lidarTopic, const std::string & gtTrajectory)
+{
+  const auto trajectory =
+    run_odometry(yamlConfigFile, stateEstimConfigFile, rosbag2File, lidarTopic).trajectory;
 
   trajectory.saveToTextFile_TUM("/tmp/gt.tum");
 
@@ -161,6 +195,44 @@ TEST(RunDataset, FromRosbag2)
   const auto gtTrajectory = mrpt::get_env<std::string>("LO_TEST_GT_TUM");
 
   main_odometry(yamlConfigFile, yamlEstimatorFile, rosbag2File, lidarTopic, gtTrajectory);
+}
+
+TEST(RunDataset, LocalMapScanCallback)
+{
+  // The callback fires once per scan inserted into the local map, with a
+  // cloud, and setting it changes nothing in the odometry.
+  const auto yamlConfigFile = mrpt::get_env<std::string>("LO_PIPELINE_YAML");
+  const auto yamlEstimatorFile = mrpt::get_env<std::string>("LO_STATE_ESTIM_YAML");
+  const auto rosbag2File = mrpt::get_env<std::string>("LO_TEST_ROSBAG2");
+  const auto lidarTopic = mrpt::get_env<std::string>("LO_TEST_LIDAR_TOPIC");
+
+  const auto plain = run_odometry(yamlConfigFile, yamlEstimatorFile, rosbag2File, lidarTopic);
+
+  std::size_t calls = 0;
+  std::set<mrpt::Clock::time_point> stamps;
+  bool all_have_points = true;
+  const auto withCb = run_odometry(
+    yamlConfigFile, yamlEstimatorFile, rosbag2File, lidarTopic,
+    [&](
+      const mrpt::Clock::time_point & t, const mrpt::poses::CPose3D &,
+      const mrpt::maps::CPointsMap::ConstPtr & cloud, bool) {
+      calls++;
+      stamps.insert(t);
+      all_have_points = all_have_points && cloud && !cloud->empty();
+    });
+
+  EXPECT_GT(calls, 0U);
+  EXPECT_EQ(calls, withCb.local_map_insertions);
+  EXPECT_EQ(stamps.size(), calls);
+  EXPECT_TRUE(all_have_points);
+
+  ASSERT_EQ(plain.trajectory.size(), withCb.trajectory.size());
+  auto a = plain.trajectory.cbegin();
+  auto b = withCb.trajectory.cbegin();
+  for (; a != plain.trajectory.cend(); ++a, ++b) {
+    EXPECT_EQ(a->first, b->first);
+    EXPECT_EQ(a->second, b->second);
+  }
 }
 
 // The main function running all the tests

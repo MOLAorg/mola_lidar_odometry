@@ -2048,6 +2048,19 @@ void LidarOdometry::processLidarScan(  // NOLINT
       sf, distance_enough_sm, observation, scan_ref_time, fullCloudForVizAndPublish);
   }
 
+  // The scan inserted into the local map, to whoever observes them. Last, so
+  // a failing observer cannot cost this scan its local map or simplemap
+  // update; and its failure is not the odometry's.
+  if (updateLocalMap && local_map_scan_callback_ && fullCloudForVizAndPublish) {
+    try {
+      local_map_scan_callback_(
+        scan_ref_time, state_.last_lidar_pose.mean, fullCloudForVizAndPublish,
+        preprocessed->usedEarlyDeskew);
+    } catch (const std::exception & e) {
+      MRPT_LOG_WARN_STREAM("LocalMapScanCallback threw, ignored: " << e.what());
+    }
+  }
+
 #if defined(MOLA_HAS_SHARED_KEYFRAME_MAP_SINK)
   // Build the keyframe request while holding state_mtx_; the actual sink call
   // is deferred to after all state accesses so state_mtx_ can be released first:
