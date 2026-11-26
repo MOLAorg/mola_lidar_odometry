@@ -325,7 +325,9 @@ mrpt::poses::CPose3D GravityLeveler::add_pose(double t, const mrpt::poses::CPose
   mrpt::math::TVector2D tau(0, 0);
   if (filter_started_) {
     const double mag = std::hypot(x_[0], x_[1]);
-    const double d = deadband_at(t);
+    // An older pose gets the current correction: the deadband of the
+    // latest output time, not of its own.
+    const double d = deadband_at(is_new || !last_t_ ? t : *last_t_);
     if (mag > d) {
       const double s = (mag - d) / mag;
       tau = mrpt::math::TVector2D(x_[0] * s, x_[1] * s);

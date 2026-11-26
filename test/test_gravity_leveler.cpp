@@ -13,6 +13,7 @@
 #include <gtest/gtest.h>
 #include <mola_lidar_odometry/GravityLeveler.h>
 #include <mrpt/core/bits_math.h>
+#include <mrpt/poses/Lie/SO.h>
 
 #include <algorithm>
 #include <array>
@@ -685,4 +686,26 @@ TEST(GravityLeveler, SigmasMustBePositive)
   EXPECT_EQ(lev.stats().singular_readings, 0U);
   ASSERT_TRUE(lev.tilt().has_value());
   EXPECT_TRUE(std::isfinite(lev.tilt()->x) && std::isfinite(lev.tilt()->y));
+}
+
+TEST(GravityLeveler, OlderPoseGetsTheCurrentCorrection)
+{
+  // A 1 deg frame tilt read once at 60 s; by 130 s the hold (30 s) and the
+  // ramp (30 s) are over and the correction is gone. A pose at 70 s, older
+  // than the last one, must be leveled with that current (null) correction,
+  // not with the one its own time would have had.
+  const auto tilt = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(1.0), 0.0);
+  mola::GravityLeveler lev;
+  lev.add_up_reading(60.0, up_seen(tilt, 0, 0), iso_cov(0.1));
+  for (int k = 600; k <= 1300; k++) {
+    const double t = k / POSE_RATE;
+    (void)lev.add_pose(t, tilt + true_pose(t));
+  }
+  ASSERT_EQ(lev.applied_tilt().norm(), 0.0);
+  const auto in = tilt + true_pose(70.0);
+  const auto out = lev.add_pose(70.0, in);
+  const auto d = mrpt::poses::Lie::SO<3>::log(mrpt::math::CMatrixDouble33(
+    out.getRotationMatrix().asEigen() * in.getRotationMatrix().asEigen().transpose()));
+  EXPECT_LT(mrpt::RAD2DEG(d.norm()), 1e-6);
+  EXPECT_EQ(lev.applied_tilt().norm(), 0.0);
 }
