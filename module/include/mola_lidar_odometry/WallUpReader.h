@@ -64,7 +64,7 @@ public:
     /** Scans older than this are not used [s]. Short: a trailing window
      *  makes the reading lag the frame's wander by about half of it. */
     double window = 5.0;
-    /** Time between readings [s] */
+    /** Time between readings [s], > 0 */
     double period = 1.0;
     /** Voxel size of the decimation of each scan and of the window [m] */
     double voxel = 0.10;
@@ -101,6 +101,7 @@ public:
     std::size_t unobservable = 0;
     std::size_t too_few_points = 0;
     std::size_t unreliable_cov = 0;
+    /** Periods without a scan newer than the previous reading */
     std::size_t no_new_scans = 0;
     /** Wall-clock time spent in read() [s] */
     double cost_total = 0;

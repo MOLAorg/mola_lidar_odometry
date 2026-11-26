@@ -57,7 +57,7 @@ WallUpReader::WallUpReader(const Parameters & p) : params_(p)
     "(MP2P_ICP_HAS_ESTIMATE_UP_COVARIANCE)");
 #endif
   ASSERT_GT_(params_.window, 0.0);
-  ASSERT_GE_(params_.period, 0.0);
+  ASSERT_GT_(params_.period, 0.0);
   ASSERT_GT_(params_.voxel, 0.0);
   ASSERT_GT_(params_.max_range, 0.0);
   ASSERT_GT_(params_.normal_radius, 0.0);
@@ -113,12 +113,13 @@ std::optional<WallUpReader::Reading> WallUpReader::read(double t)
   if (last_read_ && t - *last_read_ < params_.period) {
     return {};
   }
+  last_read_ = t;
   if (!new_since_read_) {
-    // The same scans as the previous reading: nothing new to say.
+    // The same scans as the previous reading: nothing new to say. The period
+    // is spent all the same, so this counts once per period.
     stats_.no_new_scans++;
     return {};
   }
-  last_read_ = t;
   new_since_read_ = false;
 
   while (!batches_.empty() && batches_.front().t < t - params_.window) {
@@ -187,7 +188,7 @@ std::optional<WallUpReader::Reading> WallUpReader::read(double t)
   r.t = t;
   r.up = res.up;
   // Consecutive windows share most of their scans: count them once.
-  const double overlap = std::max(1.0, params_.window / std::max(params_.period, 1e-9));
+  const double overlap = std::max(1.0, params_.window / params_.period);
   r.up_cov = res.up_cov;
   r.up_cov *= overlap;
   r.points = pc.size();

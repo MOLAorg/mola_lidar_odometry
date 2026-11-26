@@ -428,7 +428,7 @@ struct Cli
       cmd
         .add_option(
           "--output-fused-gravity-leveled-walls-period", arg_levelFusedWallsPeriod.value,
-          "Seconds between wall readings.")
+          "Seconds between wall readings (> 0).")
         ->option_text(std::to_string(arg_levelFusedWallsPeriod.value));
 
     arg_levelFusedWallsFlatsWeight.value = mola::WallUpReader::Parameters{}.flats_weight;
@@ -1339,6 +1339,9 @@ int main_odometry(Cli & cli)
       "publish_reference_frame)");
   }
   if (levelWalls) {
+    ASSERTMSG_(
+      cli.arg_levelFusedWallsPeriod.getValue() > 0,
+      "--output-fused-gravity-leveled-walls-period must be > 0 s");
     mola::WallUpReader::Parameters wp;
     wp.window = cli.arg_levelFusedWallsWindow.getValue();
     wp.period = cli.arg_levelFusedWallsPeriod.getValue();

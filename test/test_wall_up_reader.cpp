@@ -103,13 +103,24 @@ TEST(WallUpReader, ReadsTheTiltOfTheTrajectoryFrame)
   // Not again before the period:
   EXPECT_FALSE(reader.read(7.0).has_value());
   EXPECT_EQ(reader.stats().readings, 1U);
-  // Nor after it, with no new scan (e.g. standing still):
-  EXPECT_FALSE(reader.read(12.0).has_value());
-  EXPECT_EQ(reader.stats().no_new_scans, 1U);
+  // Nor after it, with no new scan (e.g. standing still), counted once per
+  // period however often read() is called:
+  for (const double t : {12.0, 12.5, 13.0, 16.9, 17.0}) {
+    EXPECT_FALSE(reader.read(t).has_value());
+  }
+  EXPECT_EQ(reader.stats().no_new_scans, 2U);
   reader.add_cloud(
-    12.5, tilt + mrpt::poses::CPose3D(4, 4, 1, 0, 0, 0),
+    17.5, tilt + mrpt::poses::CPose3D(4, 4, 1, 0, 0, 0),
     scan(world, mrpt::poses::CPose3D(4, 4, 1, 0, 0, 0)));
-  EXPECT_TRUE(reader.read(13.0).has_value());
+  EXPECT_FALSE(reader.read(18.0).has_value());  // the period spent at 17
+  EXPECT_TRUE(reader.read(22.0).has_value());
+}
+
+TEST(WallUpReader, RequiresAPositivePeriod)
+{
+  mola::WallUpReader::Parameters p;
+  p.period = 0.0;
+  EXPECT_ANY_THROW(mola::WallUpReader{p});
 }
 
 TEST(WallUpReader, OverlappingWindowsInflateTheCovariance)
