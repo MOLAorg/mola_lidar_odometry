@@ -1398,6 +1398,30 @@ ignored, not gated: they come from a failing trajectory attitude (seen at
 25-100 deg off gravity), and restarting the filter into them bends the whole
 path.
 
+`--output-fused-gravity-leveled-walls` (or `-walls-only`, without the
+accelerometer) adds readings of up from plumb walls and level floors:
+`mola::WallUpReader` holds the de-skewed scans inserted into the local map over
+the last `-walls-window` s (`LidarOdometry::setLocalMapScanCallback()`, called
+after the simplemap update, exceptions caught; scans that are not de-skewed
+are skipped) and every `-walls-period` s, if a new scan arrived, runs
+mp2p_icp's `estimate_up_from_normals()` (needs
+`MP2P_ICP_HAS_ESTIMATE_UP_COVARIANCE`; readings whose covariance is not
+reliable are dropped, and the covariance is inflated by window/period, the
+overlap of consecutive windows). `GravityLeveler::add_up_reading()` takes them
+with their covariance (non-finite or non-PSD ones count as implausible): they
+observe the tilt directly, no body-frame term. While one is recent
+(`up_reading_hold`) the deadband is `up_reading_deadband` (0) and the random
+walk `up_reading_random_walk`; afterwards the deadband ramps back to
+`deadband` over `up_reading_ramp`. Keep the wall window short: a trailing
+window lags the wander by half its length. On a legged platform the
+accelerometer's dynamics degrade the walls' estimate: `-walls-only` there,
+where the deadband stays at the walls' one so the correction never fades.
+`--output-simplemap-gravity-leveled` (explicit; needs the fused path in the
+odometry frame) moves each keyframe of `--output-simplemap` by the path's
+correction at its "metadata" stamp (`mola::level_simplemap_keyframes()`); a
+simplemap the odometry saves itself and `--output-tum-path` are never
+leveled.
+
 ## Reproducible odometry evaluation
 
 Trajectory-to-trajectory comparisons are only meaningful under all of:

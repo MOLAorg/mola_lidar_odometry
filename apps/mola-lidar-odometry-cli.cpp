@@ -27,12 +27,15 @@
 #include <mola_kernel/pretty_print_exception.h>
 #include <mola_lidar_odometry/GravityLeveler.h>
 #include <mola_lidar_odometry/LidarOdometry.h>
+#include <mola_lidar_odometry/SimplemapLeveling.h>
+#include <mola_lidar_odometry/WallUpReader.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mp2p_icp/metricmap.h>
 #include <mrpt/core/Clock.h>
 #include <mrpt/core/bits_math.h>
 #include <mrpt/core/exceptions.h>
 #include <mrpt/core/get_env.h>
+#include <mrpt/maps/CSimpleMap.h>
 #include <mrpt/obs/CObservation2DRangeScan.h>
 #include <mrpt/obs/CObservation3DRangeScan.h>
 #include <mrpt/obs/CObservationGPS.h>
@@ -44,6 +47,8 @@
 #include <mrpt/obs/CObservationRotatingScan.h>
 #include <mrpt/obs/CObservationVelodyneScan.h>
 #include <mrpt/obs/CRawlog.h>
+#include <mrpt/poses/CPose3DInterpolator.h>
+#include <mrpt/poses/CPose3DPDF.h>
 #include <mrpt/rtti/CObject.h>
 #include <mrpt/system/COutputLogger.h>
 #include <mrpt/system/datetime.h>
@@ -105,6 +110,7 @@
 #include <functional>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -226,6 +232,14 @@ struct Cli
   Opt<bool> arg_levelFused;
   Opt<double> arg_levelFusedDeadband;
   Opt<double> arg_levelFusedRandomWalk;
+  Opt<bool> arg_levelFusedWalls;
+  Opt<bool> arg_levelFusedWallsOnly;
+  Opt<double> arg_levelFusedWallsWindow;
+  Opt<double> arg_levelFusedWallsPeriod;
+  Opt<double> arg_levelFusedWallsFlatsWeight;
+  Opt<double> arg_levelFusedWallsDeadband;
+  Opt<double> arg_levelFusedWallsRandomWalk;
+  Opt<bool> arg_levelSimpleMap;
   Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
   Opt<std::string> arg_outSimpleMap;
@@ -363,7 +377,8 @@ struct Cli
       "--output-fused-gravity-leveled", arg_levelFused.value,
       "Level the trajectory saved by --output-tum-path-fused with the IMU's gravity reading "
       "(mola::GravityLeveler): a causal correction of the frame tilt that only changes what is "
-      "written out, never the odometry or the estimator.");
+      "written out, never the odometry or the estimator. Only that path changes; the "
+      "simplemap too with --output-simplemap-gravity-leveled.");
 
     arg_levelFusedDeadband.value = mola::GravityLeveler::Parameters{}.deadband;
     arg_levelFusedDeadband.opt =
@@ -380,6 +395,67 @@ struct Cli
           "--output-fused-gravity-leveled-random-walk", arg_levelFusedRandomWalk.value,
           "Random walk of the frame tilt [deg/sqrt(s)] assumed by --output-fused-gravity-leveled.")
         ->option_text(std::to_string(arg_levelFusedRandomWalk.value));
+
+    arg_levelFusedWalls.opt = cmd.add_flag(
+      "--output-fused-gravity-leveled-walls", arg_levelFusedWalls.value,
+      "Also level the fused path with the up direction of the walls, floors and ceilings in "
+      "the registered scans (mola::WallUpReader): plumb and level structure read in the "
+      "trajectory frame, without the accelerometer's dynamics. Implies "
+      "--output-fused-gravity-leveled. Needs the fused path in the odometry frame.");
+
+    arg_levelFusedWallsOnly.opt = cmd.add_flag(
+      "--output-fused-gravity-leveled-walls-only", arg_levelFusedWallsOnly.value,
+      "As --output-fused-gravity-leveled-walls, without the accelerometer readings. The "
+      "correction then never fades, as no reading takes over when walls are out of view.");
+
+    arg_levelSimpleMap.opt = cmd.add_flag(
+      "--output-simplemap-gravity-leveled", arg_levelSimpleMap.value,
+      "Move every keyframe of the simplemap saved by --output-simplemap by the correction the "
+      "leveled fused path had at its stamp, so the map is leveled too. Needs a leveling "
+      "option and the fused path in the odometry frame. Only that simplemap: one the odometry "
+      "saves itself (MOLA_SIMPLEMAP_OUTPUT, without --output-simplemap) is not leveled.");
+
+    arg_levelFusedWallsWindow.value = mola::WallUpReader::Parameters{}.window;
+    arg_levelFusedWallsWindow.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-window", arg_levelFusedWallsWindow.value,
+          "Seconds of registered scans behind each wall reading.")
+        ->option_text(std::to_string(arg_levelFusedWallsWindow.value));
+
+    arg_levelFusedWallsPeriod.value = mola::WallUpReader::Parameters{}.period;
+    arg_levelFusedWallsPeriod.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-period", arg_levelFusedWallsPeriod.value,
+          "Seconds between wall readings.")
+        ->option_text(std::to_string(arg_levelFusedWallsPeriod.value));
+
+    arg_levelFusedWallsFlatsWeight.value = mola::WallUpReader::Parameters{}.flats_weight;
+    arg_levelFusedWallsFlatsWeight.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-flats-weight", arg_levelFusedWallsFlatsWeight.value,
+          "Weight of floors and ceilings against walls in the wall readings (0: walls only, "
+          "for scenes whose floors slope).")
+        ->option_text(std::to_string(arg_levelFusedWallsFlatsWeight.value));
+
+    arg_levelFusedWallsDeadband.value = mola::GravityLeveler::Parameters{}.up_reading_deadband;
+    arg_levelFusedWallsDeadband.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-deadband", arg_levelFusedWallsDeadband.value,
+          "Tilt [deg] left uncorrected while wall readings are recent (the narrower deadband "
+          "of precise readings).")
+        ->option_text(std::to_string(arg_levelFusedWallsDeadband.value));
+
+    arg_levelFusedWallsRandomWalk.value = mola::GravityLeveler::Parameters{}.up_reading_random_walk;
+    arg_levelFusedWallsRandomWalk.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-random-walk", arg_levelFusedWallsRandomWalk.value,
+          "Random walk of the frame tilt [deg/sqrt(s)] while wall readings are recent.")
+        ->option_text(std::to_string(arg_levelFusedWallsRandomWalk.value));
 
     arg_outPathSmoothed.opt =
       cmd
@@ -973,6 +1049,13 @@ void mola_install_signal_handler()
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 int main_odometry(Cli & cli)
 {
+  // Wall readings for the leveled output, fed from the odometry worker.
+  // Declared before the odometry, so they outlive it: its destructor may
+  // still process queued scans, which reach them through the callback.
+  std::optional<mola::WallUpReader> wallReader;
+  std::mutex wallReaderMtx;
+  bool warnedNotDeskewed = false;
+
   // Declare main LO module:
   // ------------------------------------------
   auto liodom = mola::LidarOdometry::Create();
@@ -1168,6 +1251,9 @@ int main_odometry(Cli & cli)
   std::optional<mrpt::poses::CPose3DInterpolator> outFusedPath;
   std::optional<mrpt::Clock::time_point> lastFusedSampleStamp;
   std::optional<mola::GravityLeveler> fusedLeveler;
+  // The fused path before leveling, to move the simplemap keyframes with it:
+  std::optional<mrpt::poses::CPose3DInterpolator> fusedPathBeforeLeveling;
+  bool levelFusedImu = true;
 
   bool liodom_emitted_log = false;
   std::mutex liodom_emitted_log_mtx;
@@ -1215,13 +1301,65 @@ int main_odometry(Cli & cli)
       "--output-tum-path-fused needs a state estimator implementing mola::NavStateFilter");
     outFusedPath.emplace();
   }
-  if (cli.arg_levelFused.isSet()) {
+  const bool levelWalls = cli.arg_levelFusedWalls.isSet() || cli.arg_levelFusedWallsOnly.isSet();
+  const bool wallsOnly = cli.arg_levelFusedWallsOnly.isSet();
+  if (cli.arg_levelFused.isSet() || levelWalls) {
     ASSERTMSG_(
-      cli.arg_outPathFused.isSet(), "--output-fused-gravity-leveled needs --output-tum-path-fused");
+      cli.arg_outPathFused.isSet(),
+      levelWalls ? "--output-fused-gravity-leveled-walls(-only) needs --output-tum-path-fused"
+                 : "--output-fused-gravity-leveled needs --output-tum-path-fused");
     mola::GravityLeveler::Parameters lp;
     lp.deadband = cli.arg_levelFusedDeadband.getValue();
     lp.tilt_random_walk = cli.arg_levelFusedRandomWalk.getValue();
+    lp.up_reading_deadband = cli.arg_levelFusedWallsDeadband.getValue();
+    lp.up_reading_random_walk = cli.arg_levelFusedWallsRandomWalk.getValue();
+    if (wallsOnly && !cli.arg_levelFusedDeadband.isSet()) {
+      // No accelerometer: the walls' deadband holds after they leave view
+      // too, so the correction does not fade to nothing.
+      lp.deadband = lp.up_reading_deadband;
+    }
     fusedLeveler.emplace(lp);
+    fusedPathBeforeLeveling.emplace();
+    levelFusedImu = !wallsOnly;
+  }
+  if (cli.arg_levelSimpleMap.isSet()) {
+    ASSERTMSG_(
+      fusedLeveler,
+      "--output-simplemap-gravity-leveled needs --output-fused-gravity-leveled(-walls)(-only)");
+    ASSERTMSG_(
+      cli.arg_outSimpleMap.isSet(), "--output-simplemap-gravity-leveled needs --output-simplemap");
+  }
+  if (levelWalls || cli.arg_levelSimpleMap.isSet()) {
+    // Wall readings are taken, and keyframes live, in the odometry's frame:
+    // the fused path and its correction must be in that frame too.
+    ASSERTMSG_(
+      estimatorOutFrame == liodom->params_.publish_reference_frame,
+      "--output-fused-gravity-leveled-walls and --output-simplemap-gravity-leveled need the "
+      "fused path in the odometry frame (--output-estimator-frame unset or equal to "
+      "publish_reference_frame)");
+  }
+  if (levelWalls) {
+    mola::WallUpReader::Parameters wp;
+    wp.window = cli.arg_levelFusedWallsWindow.getValue();
+    wp.period = cli.arg_levelFusedWallsPeriod.getValue();
+    wp.flats_weight = cli.arg_levelFusedWallsFlatsWeight.getValue();
+    wallReader.emplace(wp);
+    liodom->setLocalMapScanCallback(
+      [&](
+        const mrpt::Clock::time_point & t, const mrpt::poses::CPose3D & pose,
+        const mrpt::maps::CPointsMap::ConstPtr & cloud, bool deskewed) {
+        auto lck = mrpt::lockHelper(wallReaderMtx);
+        if (!deskewed) {
+          // A raw rotating scan bends its walls with the motion: no reading.
+          if (!warnedNotDeskewed) {
+            warnedNotDeskewed = true;
+            std::cerr << "Warning: --output-fused-gravity-leveled-walls ignores scans that are "
+                         "not de-skewed (this pipeline has no early de-skew).\n";
+          }
+          return;
+        }
+        wallReader->add_cloud(mrpt::Clock::toDouble(t), pose, cloud);
+      });
   }
 
   if (cli.arg_outGeoRef.isSet()) {
@@ -1428,7 +1566,7 @@ int main_odometry(Cli & cli)
     }
 
     // Accelerometer readings for the fused-path leveling, in the vehicle frame:
-    if (fusedLeveler) {
+    if (fusedLeveler && levelFusedImu) {
       for (const auto & anyObs : *sf) {
         const auto imu = std::dynamic_pointer_cast<CObservationIMU>(anyObs);
         if (
@@ -1579,6 +1717,18 @@ int main_odometry(Cli & cli)
         if (st.has_value()) {
           auto p = st->pose.mean;
           if (fusedLeveler) {
+            if (wallReader) {
+              // A wall reading from the scans up to this pose comes first:
+              std::optional<mola::WallUpReader::Reading> wr;
+              {
+                auto lck = mrpt::lockHelper(wallReaderMtx);
+                wr = wallReader->read(mrpt::Clock::toDouble(tSample));
+              }
+              if (wr) {
+                fusedLeveler->add_up_reading(wr->t, wr->up, wr->up_cov);
+              }
+            }
+            fusedPathBeforeLeveling->insert(tSample, p.asTPose());
             p = fusedLeveler->add_pose(mrpt::Clock::toDouble(tSample), p);
           }
           outFusedPath->insert(tSample, p.asTPose());
@@ -1655,7 +1805,22 @@ int main_odometry(Cli & cli)
       std::cout << ", final tilt " << mrpt::RAD2DEG(std::hypot(tilt->x, tilt->y)) << " deg";
     }
     std::cout << "\n";
-    if (st.imu_readings == 0) {
+    if (wallReader) {
+      const auto & ws = wallReader->stats();
+      std::cout << "Wall readings: " << ws.readings << " taken (" << ws.unobservable
+                << " windows not observable, " << ws.too_few_points << " with too few points, "
+                << ws.unreliable_cov << " with an unreliable covariance, " << ws.no_new_scans
+                << " without a new scan), " << st.up_readings << " given to the filter, "
+                << st.gated_up_readings << " gated, " << st.implausible_up_readings
+                << " implausible, " << st.up_restarts << " restarts; cost per reading "
+                << mrpt::format(
+                     "%.3f s mean, %.3f s max",
+                     ws.cost_total / static_cast<double>(std::max<std::size_t>(
+                                       1, ws.readings + ws.unobservable + ws.too_few_points)),
+                     ws.cost_max)
+                << "\n";
+    }
+    if (st.imu_readings == 0 && levelFusedImu) {
       std::cerr << "Warning: --output-fused-gravity-leveled received no accelerometer readings "
                    "matching the IMU sensor label: the fused path was not leveled.\n";
     }
@@ -1724,6 +1889,14 @@ int main_odometry(Cli & cli)
     const auto fil = cli.arg_outSimpleMap.getValue();
 
     auto sm = liodom->reconstructedMap();
+
+    // With the fused path leveled, the keyframes move with it: each one by the
+    // correction the path had at its stamp.
+    if (cli.arg_levelSimpleMap.isSet() && fusedPathBeforeLeveling && outFusedPath) {
+      const auto n = mola::level_simplemap_keyframes(sm, *fusedPathBeforeLeveling, *outFusedPath);
+      std::cout << "\nLeveled " << n << " of " << sm.size()
+                << " simplemap keyframes with the fused path's correction.\n";
+    }
 
     std::cout << "\nSaving reconstructed map with " << sm.size() << " keyframes to: " << fil
               << std::endl;  // NOLINT(performance-avoid-endl)
