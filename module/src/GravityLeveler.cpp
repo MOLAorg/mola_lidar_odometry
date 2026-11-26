@@ -80,7 +80,9 @@ GravityLeveler::GravityLeveler(const Parameters & p) : params_(p)
   ASSERT_GE_(params_.up_reading_random_walk, 0.0);
   ASSERT_GE_(params_.up_reading_hold, 0.0);
   ASSERT_GE_(params_.up_reading_ramp, 0.0);
-  ASSERT_GE_(params_.up_reading_sigma_floor, 0.0);
+  // Strictly positive, so no reading can have a singular innovation:
+  ASSERT_GT_(params_.up_reading_sigma_floor, 0.0);
+  ASSERT_GT_(params_.initial_tilt_sigma, 0.0);
 }
 
 void GravityLeveler::add_imu(double t, const mrpt::math::TVector3D & specific_force)
@@ -230,10 +232,16 @@ bool GravityLeveler::correct(
 {
   const Eigen::Vector2d y = z - H * x_;
   const Eigen::Matrix2d S = H * P_ * H.transpose() + R;
+  const auto S_ldlt = S.ldlt();
+  // An innovation covariance that cannot be inverted gives no correction:
+  if (S_ldlt.info() != Eigen::Success || !(S_ldlt.vectorD().minCoeff() > 0)) {
+    stats_.singular_readings++;
+    return false;
+  }
 
   // A reading that does not fit the state must not enter the correction
   // (written so that a NaN is rejected too):
-  if (!starting && !(y.dot(S.ldlt().solve(y)) <= CHI2_2DOF_99)) {
+  if (!starting && !(y.dot(S_ldlt.solve(y)) <= CHI2_2DOF_99)) {
     gated++;
     consecutive_rejections++;
     return false;

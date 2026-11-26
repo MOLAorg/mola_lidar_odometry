@@ -665,3 +665,24 @@ TEST(GravityLeveler, RandomWalkSwitchesWhereTheHoldExpires)
     EXPECT_NEAR(grown, qw * qw * walls + qa * qa * imu, 1e-3 * qw * qw * walls) << t_next;
   }
 }
+
+TEST(GravityLeveler, SigmasMustBePositive)
+{
+  // A zero initial sigma and sigma floor would let a reading with a zero
+  // covariance give a singular innovation covariance:
+  mola::GravityLeveler::Parameters p;
+  p.up_reading_sigma_floor = 0.0;
+  EXPECT_ANY_THROW(mola::GravityLeveler{p});
+  p = {};
+  p.initial_tilt_sigma = 0.0;
+  EXPECT_ANY_THROW(mola::GravityLeveler{p});
+  // With the defaults, a reading of zero covariance is a valid one:
+  mola::GravityLeveler lev;
+  mrpt::math::CMatrixDouble22 zero;
+  zero.setZero();
+  lev.add_up_reading(1.0, {0, 0, 1}, zero);
+  lev.add_up_reading(2.0, {0, 0, 1}, zero);
+  EXPECT_EQ(lev.stats().singular_readings, 0U);
+  ASSERT_TRUE(lev.tilt().has_value());
+  EXPECT_TRUE(std::isfinite(lev.tilt()->x) && std::isfinite(lev.tilt()->y));
+}

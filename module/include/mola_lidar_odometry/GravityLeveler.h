@@ -99,12 +99,12 @@ public:
     double up_reading_hold = 30.0;
     /** After the hold, time for the deadband to grow back to `deadband` [s] */
     double up_reading_ramp = 30.0;
-    /** Added in quadrature to the sigmas of each up reading [deg] */
+    /** Added in quadrature to the sigmas of each up reading [deg], > 0 */
     double up_reading_sigma_floor = 0.1;
     /** Readings beyond this tilt are ignored: they mean a failing attitude
      *  of the trajectory, not a tilt of its frame [deg] */
     double max_tilt = 5.0;
-    /** Prior sigma of the initial tilt [deg] */
+    /** Prior sigma of the initial tilt [deg], > 0 */
     double initial_tilt_sigma = 3.0;
     /** Prior sigma of the body-frame accelerometer error [m/s^2] */
     double initial_acc_error_sigma = 0.3;
@@ -132,6 +132,8 @@ public:
     std::size_t gated_up_readings = 0;
     std::size_t implausible_up_readings = 0;
     std::size_t up_restarts = 0;
+    /** Readings with an innovation covariance that cannot be inverted */
+    std::size_t singular_readings = 0;
   };
 
   GravityLeveler() = default;
