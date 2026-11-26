@@ -6,6 +6,12 @@ target_link_libraries(test_icp_prior mola::mola_lidar_odometry)
 ament_add_gtest(test_gravity_leveler test_gravity_leveler.cpp)
 target_link_libraries(test_gravity_leveler mola::mola_lidar_odometry)
 
+ament_add_gtest(test_wall_up_reader test_wall_up_reader.cpp)
+target_link_libraries(test_wall_up_reader mola::mola_lidar_odometry mrpt::mrpt_maps)
+
+ament_add_gtest(test_simplemap_leveling test_simplemap_leveling.cpp)
+target_link_libraries(test_simplemap_leveling mola::mola_lidar_odometry mrpt::mrpt_obs mrpt::mrpt_maps)
+
 ament_add_gtest(test_keyframe_decider test_keyframe_decider.cpp)
 target_link_libraries(test_keyframe_decider mola::mola_lidar_odometry)
 

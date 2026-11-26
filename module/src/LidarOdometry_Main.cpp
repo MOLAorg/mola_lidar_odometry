@@ -378,6 +378,12 @@ mrpt::maps::CSimpleMap LidarOdometry::reconstructedMap() const
   return state_.reconstructed_simplemap;
 }
 
+void LidarOdometry::setLocalMapScanCallback(LocalMapScanCallback cb)
+{
+  auto lck = mrpt::lockHelper(state_mtx_);
+  local_map_scan_callback_ = std::move(cb);
+}
+
 std::optional<std::tuple<mrpt::poses::CPose3DPDFGaussian, mrpt::math::TTwist3D>>
 LidarOdometry::lastEstimatedState() const
 {

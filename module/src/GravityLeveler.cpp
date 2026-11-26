@@ -76,6 +76,13 @@ GravityLeveler::GravityLeveler(const Parameters & p) : params_(p)
   ASSERT_GT_(params_.max_imu_gap, 0.0);
   ASSERT_GT_(params_.max_tilt, 0.0);
   ASSERT_LT_(params_.max_tilt, 90.0);
+  ASSERT_GE_(params_.up_reading_deadband, 0.0);
+  ASSERT_GE_(params_.up_reading_random_walk, 0.0);
+  ASSERT_GE_(params_.up_reading_hold, 0.0);
+  ASSERT_GE_(params_.up_reading_ramp, 0.0);
+  // Strictly positive, so no reading can have a singular innovation:
+  ASSERT_GT_(params_.up_reading_sigma_floor, 0.0);
+  ASSERT_GT_(params_.initial_tilt_sigma, 0.0);
 }
 
 void GravityLeveler::add_imu(double t, const mrpt::math::TVector3D & specific_force)
@@ -86,6 +93,19 @@ void GravityLeveler::add_imu(double t, const mrpt::math::TVector3D & specific_fo
   while (!pending_imu_.empty() && pending_imu_.front().t < t - params_.window) {
     pending_imu_.pop_front();
   }
+}
+
+std::optional<mrpt::math::CMatrixDouble22> GravityLeveler::tilt_cov() const
+{
+  if (!filter_started_) {
+    return {};
+  }
+  mrpt::math::CMatrixDouble22 c;
+  c(0, 0) = P_(0, 0);
+  c(0, 1) = P_(0, 1);
+  c(1, 0) = P_(1, 0);
+  c(1, 1) = P_(1, 1);
+  return c;
 }
 
 std::optional<mrpt::math::TVector2D> GravityLeveler::tilt() const
@@ -100,7 +120,146 @@ void GravityLeveler::reset_filter()
 {
   filter_started_ = false;
   consecutive_rejections_ = 0;
+  consecutive_up_rejections_ = 0;
   last_epoch_.reset();
+}
+
+void GravityLeveler::add_up_reading(
+  double t, const mrpt::math::TVector3D & up, const mrpt::math::CMatrixDouble22 & up_cov)
+{
+  stats_.up_readings++;
+  // A reading must be finite, with a covariance that is one (symmetric,
+  // positive semidefinite): anything else would poison the state for good.
+  const auto & C = up_cov;
+  const bool cov_ok = std::isfinite(C(0, 0)) && std::isfinite(C(0, 1)) && std::isfinite(C(1, 0)) &&
+                      std::isfinite(C(1, 1)) && C(0, 0) >= 0 && C(1, 1) >= 0 &&
+                      C(0, 0) * C(1, 1) - C(0, 1) * C(1, 0) >= 0 &&
+                      std::abs(C(0, 1) - C(1, 0)) <= 1e-9 * (1.0 + C(0, 0) + C(1, 1));
+  const double n = up.norm();
+  if (!cov_ok || !std::isfinite(up.x) || !std::isfinite(up.y) || !std::isfinite(up.z) || !(n > 0)) {
+    stats_.implausible_up_readings++;
+    return;
+  }
+  const mrpt::math::TVector3D u = up * (1.0 / n);
+  // As for the accelerometer: a frame tilt is small, and up must point up.
+  if (u.z <= 0 || std::hypot(u.x, u.y) > u.z * std::tan(mrpt::DEG2RAD(params_.max_tilt))) {
+    stats_.implausible_up_readings++;
+    return;
+  }
+  Eigen::Vector2d z;
+  z << u.x / u.z, u.y / u.z;
+  // (x/z, y/z) of a near-vertical unit vector: the covariance of (x, y) over z^2
+  const double floor = mrpt::DEG2RAD(params_.up_reading_sigma_floor);
+  const Eigen::Matrix2d R =
+    up_cov.asEigen() / (n * n * u.z * u.z) + floor * floor * Eigen::Matrix2d::Identity();
+
+  // Observes the tilt alone: no body-frame term
+  Eigen::Matrix<double, 2, 5> H = Eigen::Matrix<double, 2, 5>::Zero();
+  H(0, 0) = 1;
+  H(1, 1) = 1;
+
+  // The newest accepted reading sets the hold: one older than it, accepted
+  // late, does not make the walls look older than they are.
+  const auto mark_accepted = [&]() {
+    last_up_accepted_t_ = last_up_accepted_t_ ? std::max(*last_up_accepted_t_, t) : t;
+  };
+
+  const bool starting = predict_to(t);
+  if (correct(z, H, R, starting, consecutive_up_rejections_, stats_.gated_up_readings)) {
+    mark_accepted();
+    return;
+  }
+  // A run of rejected up readings means the state is wrong: they are the
+  // more precise readings, so restart from this one.
+  if (consecutive_up_rejections_ < params_.max_consecutive_rejections) {
+    return;
+  }
+  stats_.up_restarts++;
+  reset_filter();
+  const bool restarting = predict_to(t);
+  correct(z, H, R, restarting, consecutive_up_rejections_, stats_.gated_up_readings);
+  mark_accepted();
+}
+
+double GravityLeveler::deadband_at(double t) const
+{
+  if (!last_up_accepted_t_) {
+    return mrpt::DEG2RAD(params_.deadband);
+  }
+  const double age = t - *last_up_accepted_t_;
+  if (age <= params_.up_reading_hold) {
+    return mrpt::DEG2RAD(params_.up_reading_deadband);
+  }
+  const double s = params_.up_reading_ramp > 0
+                     ? std::min(1.0, (age - params_.up_reading_hold) / params_.up_reading_ramp)
+                     : 1.0;
+  return mrpt::DEG2RAD(
+    params_.up_reading_deadband + s * (params_.deadband - params_.up_reading_deadband));
+}
+
+bool GravityLeveler::predict_to(double t)
+{
+  const bool starting = !filter_started_;
+  if (starting) {
+    P_.setZero();
+    const double s0 = mrpt::DEG2RAD(params_.initial_tilt_sigma);
+    const double b0 = params_.initial_acc_error_sigma;
+    P_(0, 0) = s0 * s0;
+    P_(1, 1) = s0 * s0;
+    for (int i = 2; i < 5; i++) {
+      P_(i, i) = b0 * b0;
+    }
+    x_.setZero();
+  } else if (last_epoch_) {
+    const double dt = std::max(0.0, t - *last_epoch_);
+    const double qa = mrpt::DEG2RAD(params_.tilt_random_walk);
+    double q2dt = qa * qa * dt;
+    if (last_up_accepted_t_) {
+      // The up readings' random walk until their hold expires, the
+      // accelerometer's one after it, wherever that falls in the interval:
+      const double qw = mrpt::DEG2RAD(params_.up_reading_random_walk);
+      const double t_end = *last_up_accepted_t_ + params_.up_reading_hold;
+      const double t0 = *last_epoch_;
+      const double t1 = t0 + dt;
+      const double split = std::clamp(t_end, t0, t1);
+      q2dt = qw * qw * (split - t0) + qa * qa * (t1 - split);
+    }
+    P_(0, 0) += q2dt;
+    P_(1, 1) += q2dt;
+  }
+  // A reading older than the last one does not move the clock back:
+  last_epoch_ = (last_epoch_ && !starting) ? std::max(*last_epoch_, t) : t;
+  return starting;
+}
+
+bool GravityLeveler::correct(
+  const Eigen::Vector2d & z, const Eigen::Matrix<double, 2, 5> & H, const Eigen::Matrix2d & R,
+  bool starting, std::size_t & consecutive_rejections, std::size_t & gated)
+{
+  const Eigen::Vector2d y = z - H * x_;
+  const Eigen::Matrix2d S = H * P_ * H.transpose() + R;
+  const auto S_ldlt = S.ldlt();
+  // An innovation covariance that cannot be inverted gives no correction:
+  if (S_ldlt.info() != Eigen::Success || !(S_ldlt.vectorD().minCoeff() > 0)) {
+    stats_.singular_readings++;
+    return false;
+  }
+
+  // A reading that does not fit the state must not enter the correction
+  // (written so that a NaN is rejected too):
+  if (!starting && !(y.dot(S_ldlt.solve(y)) <= CHI2_2DOF_99)) {
+    gated++;
+    consecutive_rejections++;
+    return false;
+  }
+  consecutive_rejections = 0;
+  filter_started_ = true;
+
+  const Eigen::Matrix<double, 5, 2> K = P_ * H.transpose() * S.inverse();
+  x_ += K * y;
+  P_ = (Eigen::Matrix<double, 5, 5>::Identity() - K * H) * P_;
+  P_ = (0.5 * (P_ + P_.transpose())).eval();
+  return true;
 }
 
 mrpt::poses::CPose3D GravityLeveler::add_pose(double t, const mrpt::poses::CPose3D & pose)
@@ -167,11 +326,14 @@ mrpt::poses::CPose3D GravityLeveler::add_pose(double t, const mrpt::poses::CPose
     }
   }
 
-  // The part of the tilt beyond the deadband:
+  // The part of the tilt beyond the deadband, narrower while up readings are
+  // recent:
   mrpt::math::TVector2D tau(0, 0);
   if (filter_started_) {
     const double mag = std::hypot(x_[0], x_[1]);
-    const double d = mrpt::DEG2RAD(params_.deadband);
+    // An older pose gets the current correction: the deadband of the
+    // latest output time, not of its own.
+    const double d = deadband_at(is_new || !last_t_ ? t : *last_t_);
     if (mag > d) {
       const double s = (mag - d) / mag;
       tau = mrpt::math::TVector2D(x_[0] * s, x_[1] * s);
@@ -266,26 +428,8 @@ void GravityLeveler::update_filter(double t)
   z << g.x / g.z, g.y / g.z;
   stats_.tilt_readings++;
 
-  const double q = mrpt::DEG2RAD(params_.tilt_random_walk);
   const double r = mrpt::DEG2RAD(params_.reading_sigma);
-
-  const bool starting = !filter_started_;
-  if (starting) {
-    P_.setZero();
-    const double s0 = mrpt::DEG2RAD(params_.initial_tilt_sigma);
-    const double b0 = params_.initial_acc_error_sigma;
-    P_(0, 0) = s0 * s0;
-    P_(1, 1) = s0 * s0;
-    for (int i = 2; i < 5; i++) {
-      P_(i, i) = b0 * b0;
-    }
-    x_.setZero();
-  } else if (last_epoch_) {
-    const double dt = t - *last_epoch_;
-    P_(0, 0) += q * q * dt;
-    P_(1, 1) += q * q * dt;
-  }
-  last_epoch_ = t;
+  const bool starting = predict_to(t);
 
   // tau_reading = tau + (mean(R) b)_xy / g
   Eigen::Matrix<double, 2, 5> H = Eigen::Matrix<double, 2, 5>::Zero();
@@ -297,27 +441,17 @@ void GravityLeveler::update_filter(double t)
     }
   }
 
-  const Eigen::Vector2d y = z - H * x_;
-  const Eigen::Matrix2d S = H * P_ * H.transpose() + r * r * Eigen::Matrix2d::Identity();
-
   // A window that does not measure gravity must not enter the correction,
   // but a run of them means the state itself is wrong: restart from here.
-  if (!starting && y.dot(S.ldlt().solve(y)) > CHI2_2DOF_99) {
-    stats_.gated_readings++;
-    consecutive_rejections_++;
-    if (consecutive_rejections_ < params_.max_consecutive_rejections) {
-      return;
-    }
-    stats_.restarts++;
-    reset_filter();
-    update_filter(t);
+  if (correct(
+        z, H, r * r * Eigen::Matrix2d::Identity(), starting, consecutive_rejections_,
+        stats_.gated_readings)) {
     return;
   }
-  consecutive_rejections_ = 0;
-  filter_started_ = true;
-
-  const Eigen::Matrix<double, 5, 2> K = P_ * H.transpose() * S.inverse();
-  x_ += K * y;
-  P_ = (Eigen::Matrix<double, 5, 5>::Identity() - K * H) * P_;
-  P_ = (0.5 * (P_ + P_.transpose())).eval();
+  if (consecutive_rejections_ < params_.max_consecutive_rejections) {
+    return;
+  }
+  stats_.restarts++;
+  reset_filter();
+  update_filter(t);
 }

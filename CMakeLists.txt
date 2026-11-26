@@ -43,6 +43,8 @@ set(LIB_SRCS
   module/src/LidarOdometry_Main.cpp
   module/src/MapFrameRelevel.cpp
   module/src/PointTimeOutlierFilter.cpp
+  module/src/SimplemapLeveling.cpp
+  module/src/WallUpReader.cpp
   module/src/LidarOdometry_Relocalization.cpp
   module/src/LidarOdometry_Parameters.cpp
   module/src/LidarOdometry_Initialize.cpp
@@ -68,6 +70,8 @@ set(LIB_PUBLIC_HDRS
   module/include/mola_lidar_odometry/MapFrameRelevel.h
   module/include/mola_lidar_odometry/PointTimeOutlierFilter.h
   module/include/mola_lidar_odometry/PoseHistory.h
+  module/include/mola_lidar_odometry/SimplemapLeveling.h
+  module/include/mola_lidar_odometry/WallUpReader.h
 )
 
 mola_add_library(

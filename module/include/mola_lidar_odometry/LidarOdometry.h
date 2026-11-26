@@ -128,6 +128,7 @@
 #include <cstdlib>
 #include <deque>
 #include <fstream>
+#include <functional>
 #include <future>
 #include <limits>
 #include <map>
@@ -1398,6 +1399,31 @@ public:
      */
   mrpt::maps::CSimpleMap reconstructedMap() const;
 
+  /** Called by the odometry worker, under its state lock, for every scan
+   *  inserted into the local map, once that scan is done (local map and
+   *  simplemap updated): the scan's reference time, the vehicle pose, the
+   *  scan's whole cloud in the vehicle frame, and whether that cloud is
+   *  de-skewed (false when the pipeline has no early de-skew, e.g. twist
+   *  optimization without an IMU: the raw cloud is passed then).
+   *  For consumers of the registered scans, e.g. WallUpReader. Keep it quick
+   *  (hold the cloud pointer, process it elsewhere) and do not call back into
+   *  this object. Nothing in the odometry depends on it: an exception thrown
+   *  by it is logged and ignored.
+   */
+  using LocalMapScanCallback = std::function<void(
+    const mrpt::Clock::time_point &, const mrpt::poses::CPose3D &,
+    const mrpt::maps::CPointsMap::ConstPtr &, bool)>;
+
+  /** Sets, or clears with an empty function, the LocalMapScanCallback. */
+  void setLocalMapScanCallback(LocalMapScanCallback cb);
+
+  /** Whether the scans passed to the LocalMapScanCallback are de-skewed: the
+   *  pipeline has an early de-skew stage that compensates motion, and runs it
+   *  (not with twist optimization unless the de-skew uses the IMU). A
+   *  property of the configuration, known after initialize().
+   */
+  [[nodiscard]] bool localMapScansAreDeskewed() const;
+
   void saveEstimatedTrajectoryToFile() const;
   void saveReconstructedMapToFile() const;
   void saveLocalMapToFile() const;
@@ -2426,6 +2452,8 @@ private:
   mutable std::mutex drop_stats_mtx_;
   mutable std::mutex state_flags_mtx_;
   mutable std::mutex state_mtx_;
+  /// Guarded by state_mtx_
+  LocalMapScanCallback local_map_scan_callback_;
 
   /// Guards the IMU-derived state, which the sensor-input thread appends to
   /// (pending_imu_, recent_imu_stamps) while the LiDAR worker thread consumes
@@ -2833,6 +2861,7 @@ private:
   bool isPipelineUsingIMU() const;
   /// Same as isPipelineUsingIMU(), but assumes state_mtx_ is already held by the caller.
   bool isPipelineUsingIMU_locked() const;
+  bool localMapScansAreDeskewed_locked() const;
   void sendLidarScanToProcessQueue(const CObservation::ConstPtr & o);
 
   /** Hands a LiDAR scan that is ready for processing (i.e. already has the IMU
@@ -2939,6 +2968,9 @@ constexpr std::array<T, N> create_array(const T & value)
   return detail::create_array(value, std::make_index_sequence<N>());
 }
 }  // namespace mola
+
+/** Feature macro: LidarOdometry::setLocalMapScanCallback() is available */
+#define MOLA_LO_HAS_LOCAL_MAP_SCAN_CALLBACK 1
 
 MRPT_ENUM_TYPE_BEGIN_NAMESPACE(mola, mola::InitLocalization)
 MRPT_FILL_ENUM(InitLocalization::FixedPose);

@@ -53,10 +53,23 @@ namespace mola
  *    beyond a chi-squared gate are ignored; after
  *    `max_consecutive_rejections` of them in a row the filter restarts from
  *    the current reading, so a wrong state cannot lock itself in.
- *  - Output: the part of the estimated tilt beyond `deadband` degrees is
- *    removed by rotating every increment of the trajectory, and its attitude,
- *    by the small rotation that levels the frame. The deadband leaves alone a
- *    frame that is already level within the reading's own error.
+ *  - Optionally, readings of the up direction measured from plumb structure
+ *    (walls, columns, floors) seen in the trajectory frame, add_up_reading().
+ *    They observe the tilt directly, with no body-frame term, and with the
+ *    covariance of their own estimate (plus `up_reading_sigma_floor` for what
+ *    it cannot see, e.g. walls a little out of plumb), behind their own
+ *    chi-squared gate.
+ *  - Output: the part of the estimated tilt beyond a deadband is removed by
+ *    rotating every increment of the trajectory, and its attitude, by the
+ *    small rotation that levels the frame. The deadband leaves alone a frame
+ *    that is already level within the readings' own error: `deadband`
+ *    degrees for the accelerometer alone, `up_reading_deadband` while an up
+ *    reading has been accepted within the last `up_reading_hold` seconds,
+ *    since those readings are an order of magnitude more precise and a
+ *    2-degree deadband would hide the wander they measure. For the same
+ *    reason the tilt's random walk is then `up_reading_random_walk`. After
+ *    the hold, the deadband grows to `deadband` over `up_reading_ramp`
+ *    seconds, so the correction fades instead of dropping at once.
  *
  *  Only past data are used. Positions are corrected incrementally, so the
  *  output is continuous even when the correction changes.
@@ -76,10 +89,22 @@ public:
     double reading_sigma = 0.15;
     /** Tilt left uncorrected [deg] */
     double deadband = 2.0;
+    /** Tilt left uncorrected while up readings are recent [deg]. 0: their
+     *  own covariance already weighs them, a deadband only biases. */
+    double up_reading_deadband = 0.0;
+    /** Random walk of the frame tilt while up readings are recent: precise
+     *  readings let the filter follow a faster wander [deg/sqrt(s)] */
+    double up_reading_random_walk = 0.3;
+    /** An up reading keeps `up_reading_deadband` in force this long [s] */
+    double up_reading_hold = 30.0;
+    /** After the hold, time for the deadband to grow back to `deadband` [s] */
+    double up_reading_ramp = 30.0;
+    /** Added in quadrature to the sigmas of each up reading [deg], > 0 */
+    double up_reading_sigma_floor = 0.1;
     /** Readings beyond this tilt are ignored: they mean a failing attitude
      *  of the trajectory, not a tilt of its frame [deg] */
     double max_tilt = 5.0;
-    /** Prior sigma of the initial tilt [deg] */
+    /** Prior sigma of the initial tilt [deg], > 0 */
     double initial_tilt_sigma = 3.0;
     /** Prior sigma of the body-frame accelerometer error [m/s^2] */
     double initial_acc_error_sigma = 0.3;
@@ -103,6 +128,12 @@ public:
     std::size_t gated_readings = 0;
     std::size_t implausible_readings = 0;
     std::size_t restarts = 0;
+    std::size_t up_readings = 0;
+    std::size_t gated_up_readings = 0;
+    std::size_t implausible_up_readings = 0;
+    std::size_t up_restarts = 0;
+    /** Readings with an innovation covariance that cannot be inverted */
+    std::size_t singular_readings = 0;
   };
 
   GravityLeveler() = default;
@@ -115,6 +146,14 @@ public:
   /** Adds one accelerometer reading (specific force, in the vehicle frame) */
   void add_imu(double t, const mrpt::math::TVector3D & specific_force);
 
+  /** Adds a reading of the up direction of the trajectory frame at time `t`,
+   *  e.g. from the walls and floors seen around the trajectory, with the
+   *  covariance of its x and y components [rad^2]. It updates the filter at
+   *  once, so it should come before the poses newer than `t`.
+   */
+  void add_up_reading(
+    double t, const mrpt::math::TVector3D & up, const mrpt::math::CMatrixDouble22 & up_cov);
+
   /** Adds the next pose of the trajectory and returns it leveled. IMU
    *  readings up to `t` should have been added before. A pose not newer than
    *  the previous one is leveled with the current correction but does not
@@ -125,6 +164,9 @@ public:
   /** The current tilt estimate (x, y components, in radians), before the
    *  deadband. Empty until the first reading has been taken. */
   std::optional<mrpt::math::TVector2D> tilt() const;
+
+  /** Covariance of tilt() [rad^2]. Empty until the first reading. */
+  std::optional<mrpt::math::CMatrixDouble22> tilt_cov() const;
 
   /** The tilt being removed from the output (after the deadband) [rad] */
   mrpt::math::TVector2D applied_tilt() const { return applied_tilt_; }
@@ -157,6 +199,8 @@ private:
   std::optional<double> last_epoch_;
   bool filter_started_ = false;
   std::size_t consecutive_rejections_ = 0;
+  std::size_t consecutive_up_rejections_ = 0;
+  std::optional<double> last_up_accepted_t_;
 
   Eigen::Matrix<double, 5, 1> x_ = Eigen::Matrix<double, 5, 1>::Zero();
   Eigen::Matrix<double, 5, 5> P_ = Eigen::Matrix<double, 5, 5>::Zero();
@@ -169,6 +213,18 @@ private:
 
   void update_filter(double t);
   void reset_filter();
+
+  /** The deadband in force at time `t` [rad] */
+  double deadband_at(double t) const;
+
+  /** Starts the filter if needed, propagates it to `t` and returns whether
+   *  this is its first reading */
+  bool predict_to(double t);
+
+  /** Kalman update with a tilt reading `z = H x + noise(R)`; false if gated */
+  bool correct(
+    const Eigen::Vector2d & z, const Eigen::Matrix<double, 2, 5> & H, const Eigen::Matrix2d & R,
+    bool starting, std::size_t & consecutive_rejections, std::size_t & gated);
 };
 
 }  // namespace mola
