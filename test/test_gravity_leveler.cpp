@@ -636,3 +636,32 @@ TEST(GravityLeveler, NonFiniteUpReadingsAreIgnored)
   const auto out = lev.add_pose(60.0, tilt + true_pose(60.0));
   EXPECT_TRUE(std::isfinite(out.z()));
 }
+
+TEST(GravityLeveler, RandomWalkSwitchesWhereTheHoldExpires)
+{
+  // An up reading accepted at 100 s, hold 30 s: a prediction to 131 s uses
+  // the up readings' random walk over 100-130 s and the accelerometer's over
+  // 130-131 s. A reading with a huge covariance leaves the predicted
+  // covariance as it is, so the prediction can be read back.
+  mola::GravityLeveler::Parameters p;
+  p.up_reading_hold = 30.0;
+  p.up_reading_random_walk = 0.3;
+  p.tilt_random_walk = 0.1;
+  const auto tilt = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(1.0), 0.0);
+  mrpt::math::CMatrixDouble22 huge;
+  huge.setZero();
+  huge(0, 0) = 1e6;
+  huge(1, 1) = 1e6;
+  const double qw = mrpt::DEG2RAD(0.3);
+  const double qa = mrpt::DEG2RAD(0.1);
+  for (const double t_next : {125.0, 131.0, 160.0}) {
+    mola::GravityLeveler lev(p);
+    lev.add_up_reading(100.0, up_seen(tilt, 0, 0), iso_cov(0.1));
+    const double p0 = (*lev.tilt_cov())(0, 0);
+    lev.add_up_reading(t_next, up_seen(tilt, 0, 0), huge);
+    const double grown = (*lev.tilt_cov())(0, 0) - p0;
+    const double walls = std::min(t_next, 130.0) - 100.0;
+    const double imu = std::max(0.0, t_next - 130.0);
+    EXPECT_NEAR(grown, qw * qw * walls + qa * qa * imu, 1e-3 * qw * qw * walls) << t_next;
+  }
+}

@@ -93,6 +93,19 @@ void GravityLeveler::add_imu(double t, const mrpt::math::TVector3D & specific_fo
   }
 }
 
+std::optional<mrpt::math::CMatrixDouble22> GravityLeveler::tilt_cov() const
+{
+  if (!filter_started_) {
+    return {};
+  }
+  mrpt::math::CMatrixDouble22 c;
+  c(0, 0) = P_(0, 0);
+  c(0, 1) = P_(0, 1);
+  c(1, 0) = P_(1, 0);
+  c(1, 1) = P_(1, 1);
+  return c;
+}
+
 std::optional<mrpt::math::TVector2D> GravityLeveler::tilt() const
 {
   if (!filter_started_) {
@@ -178,9 +191,6 @@ double GravityLeveler::deadband_at(double t) const
 
 bool GravityLeveler::predict_to(double t)
 {
-  const bool up_recent = last_up_accepted_t_ && t - *last_up_accepted_t_ <= params_.up_reading_hold;
-  const double q =
-    mrpt::DEG2RAD(up_recent ? params_.up_reading_random_walk : params_.tilt_random_walk);
   const bool starting = !filter_started_;
   if (starting) {
     P_.setZero();
@@ -194,8 +204,20 @@ bool GravityLeveler::predict_to(double t)
     x_.setZero();
   } else if (last_epoch_) {
     const double dt = std::max(0.0, t - *last_epoch_);
-    P_(0, 0) += q * q * dt;
-    P_(1, 1) += q * q * dt;
+    const double qa = mrpt::DEG2RAD(params_.tilt_random_walk);
+    double q2dt = qa * qa * dt;
+    if (last_up_accepted_t_) {
+      // The up readings' random walk until their hold expires, the
+      // accelerometer's one after it, wherever that falls in the interval:
+      const double qw = mrpt::DEG2RAD(params_.up_reading_random_walk);
+      const double t_end = *last_up_accepted_t_ + params_.up_reading_hold;
+      const double t0 = *last_epoch_;
+      const double t1 = t0 + dt;
+      const double split = std::clamp(t_end, t0, t1);
+      q2dt = qw * qw * (split - t0) + qa * qa * (t1 - split);
+    }
+    P_(0, 0) += q2dt;
+    P_(1, 1) += q2dt;
   }
   // A reading older than the last one does not move the clock back:
   last_epoch_ = (last_epoch_ && !starting) ? std::max(*last_epoch_, t) : t;

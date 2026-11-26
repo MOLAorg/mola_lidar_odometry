@@ -163,6 +163,9 @@ public:
    *  deadband. Empty until the first reading has been taken. */
   std::optional<mrpt::math::TVector2D> tilt() const;
 
+  /** Covariance of tilt() [rad^2]. Empty until the first reading. */
+  std::optional<mrpt::math::CMatrixDouble22> tilt_cov() const;
+
   /** The tilt being removed from the output (after the deadband) [rad] */
   mrpt::math::TVector2D applied_tilt() const { return applied_tilt_; }
 
