@@ -116,6 +116,17 @@ TEST(WallUpReader, ReadsTheTiltOfTheTrajectoryFrame)
   EXPECT_TRUE(reader.read(22.0).has_value());
 }
 
+TEST(WallUpReader, DefaultConstructedReads)
+{
+  // The default constructor is the parameterized one with the defaults.
+  mola::WallUpReader reader;
+  EXPECT_EQ(reader.parameters().window, mola::WallUpReader::Parameters{}.window);
+  const auto world = room();
+  const auto vehicle = mrpt::poses::CPose3D(4, 4, 1, 0, 0, 0);
+  reader.add_cloud(0.0, vehicle, scan(world, vehicle));
+  EXPECT_TRUE(reader.read(1.0).has_value());
+}
+
 TEST(WallUpReader, RequiresAPositivePeriod)
 {
   mola::WallUpReader::Parameters p;
@@ -198,5 +209,6 @@ TEST(WallUpReader, ACorridorWithoutFloorsIsNotObservableWallsOnly)
 TEST(WallUpReader, NeedsTheUpCovarianceApi)
 {
   EXPECT_ANY_THROW(mola::WallUpReader(mola::WallUpReader::Parameters{}));
+  EXPECT_ANY_THROW(mola::WallUpReader{});
 }
 #endif

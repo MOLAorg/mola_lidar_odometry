@@ -108,7 +108,9 @@ public:
     double cost_max = 0;
   };
 
-  WallUpReader() = default;
+  /** With the default parameters, checked like any others (and like them,
+   *  \throw std::exception without the up covariance API of mp2p_icp) */
+  WallUpReader() : WallUpReader(Parameters{}) {}
   /** \throw std::exception on invalid parameters */
   explicit WallUpReader(const Parameters & p);
 
