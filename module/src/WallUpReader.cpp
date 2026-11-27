@@ -49,6 +49,15 @@ std::uint64_t voxel_key(float x, float y, float z, double voxel)
 }
 }  // namespace
 
+bool WallUpReader::checks_walls_against_floors()
+{
+#if defined(MP2P_ICP_HAS_UP_REFERENCES_CHECK)
+  return true;
+#else
+  return false;
+#endif
+}
+
 WallUpReader::WallUpReader(const Parameters & p) : params_(p)
 {
 #if !defined(MP2P_ICP_HAS_ESTIMATE_UP_COVARIANCE)
@@ -62,6 +71,7 @@ WallUpReader::WallUpReader(const Parameters & p) : params_(p)
   ASSERT_GT_(params_.max_range, 0.0);
   ASSERT_GT_(params_.normal_radius, 0.0);
   ASSERT_GE_(params_.flats_weight, 0.0);
+  ASSERT_GE_(params_.max_walls_floors_angle, 0.0);
   // Without cells the covariance falls back to per-normal independence,
   // which is not reliable: every reading would be dropped.
   ASSERTMSG_(
@@ -168,6 +178,9 @@ std::optional<WallUpReader::Reading> WallUpReader::read(double t)
   mp2p_icp_filters::EstimateUpParams up;
   up.flats_weight = params_.flats_weight;
   up.cluster_size = params_.cluster_size;
+#if defined(MP2P_ICP_HAS_UP_REFERENCES_CHECK)
+  up.max_walls_flats_angle_deg = params_.max_walls_floors_angle;
+#endif
   mp2p_icp_filters::EstimateUpResult res;
   try {
     res = mp2p_icp_filters::estimate_up_from_normals(normals, up, &pts);
@@ -177,6 +190,20 @@ std::optional<WallUpReader::Reading> WallUpReader::read(double t)
     account();
     return {};
   }
+
+#if defined(MP2P_ICP_HAS_UP_REFERENCES_CHECK)
+  if (res.references_disagree) {
+    // Floors on a slope or walls that lean (contradicted), or walls that
+    // cannot tell (unconfirmed): neither is a vertical reference here.
+    if (res.walls_contradict_flats) {
+      stats_.floors_contradicted++;
+    } else {
+      stats_.floors_unconfirmed++;
+    }
+    account();
+    return {};
+  }
+#endif
 
 #if defined(MP2P_ICP_HAS_ESTIMATE_UP_COVARIANCE)
   if (!res.cov_reliable) {

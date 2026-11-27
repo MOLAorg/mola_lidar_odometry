@@ -240,6 +240,7 @@ struct Cli
   Opt<double> arg_levelFusedWallsDeadband;
   Opt<double> arg_levelFusedWallsRandomWalk;
   Opt<double> arg_levelFusedWallsMaxTilt;
+  Opt<double> arg_levelFusedWallsMaxWallsFloors;
   Opt<bool> arg_levelSimpleMap;
   Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
@@ -469,6 +470,19 @@ struct Cli
             " deg) they are taken only while the accelerometer also sees the frame beyond it; "
             "with -walls-only, only if this option is given.")
         ->option_text(std::to_string(arg_levelFusedWallsMaxTilt.value));
+
+    arg_levelFusedWallsMaxWallsFloors.value =
+      mola::WallUpReader::Parameters{}.max_walls_floors_angle;
+    arg_levelFusedWallsMaxWallsFloors.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-max-walls-floors-deg",
+          arg_levelFusedWallsMaxWallsFloors.value,
+          "No wall reading from a window whose walls and floors, each on its own, are more than "
+          "this apart on up [deg] (sloped ground, leaning walls), nor from one with floors "
+          "whose walls alone cannot confirm them (a single facade direction, open ground). "
+          "0: no check.")
+        ->option_text(std::to_string(arg_levelFusedWallsMaxWallsFloors.value));
 
     arg_outPathSmoothed.opt =
       cmd
@@ -1371,6 +1385,12 @@ int main_odometry(Cli & cli)
     wp.window = cli.arg_levelFusedWallsWindow.getValue();
     wp.period = cli.arg_levelFusedWallsPeriod.getValue();
     wp.flats_weight = cli.arg_levelFusedWallsFlatsWeight.getValue();
+    wp.max_walls_floors_angle = cli.arg_levelFusedWallsMaxWallsFloors.getValue();
+    if (wp.max_walls_floors_angle > 0 && !mola::WallUpReader::checks_walls_against_floors()) {
+      std::cerr << "Warning: this build's mp2p_icp cannot check walls against floors: "
+                   "--output-fused-gravity-leveled-walls-max-walls-floors-deg is ignored, and "
+                   "readings of sloped ground or leaning walls are taken.\n";
+    }
     wallReader.emplace(wp);
     liodom->setLocalMapScanCallback(
       [&](
@@ -1839,14 +1859,18 @@ int main_odometry(Cli & cli)
       const auto & ws = wallReader->stats();
       std::cout << "Wall readings: " << ws.readings << " taken (" << ws.unobservable
                 << " windows not observable, " << ws.too_few_points << " with too few points, "
-                << ws.unreliable_cov << " with an unreliable covariance, " << ws.no_new_scans
+                << ws.unreliable_cov << " with an unreliable covariance, " << ws.floors_contradicted
+                << " where walls contradict floors, " << ws.floors_unconfirmed
+                << " with floors the walls cannot confirm, " << ws.no_new_scans
                 << " without a new scan), " << st.up_readings << " given to the filter, "
                 << st.gated_up_readings << " gated, " << st.implausible_up_readings
-                << " implausible, " << st.up_restarts << " restarts; cost per reading "
+                << " implausible, " << st.up_restarts << " restarts; cost per window "
                 << mrpt::format(
                      "%.3f s mean, %.3f s max",
-                     ws.cost_total / static_cast<double>(std::max<std::size_t>(
-                                       1, ws.readings + ws.unobservable + ws.too_few_points)),
+                     ws.cost_total /
+                       static_cast<double>(std::max<std::size_t>(
+                         1, ws.readings + ws.unobservable + ws.too_few_points + ws.unreliable_cov +
+                              ws.floors_contradicted + ws.floors_unconfirmed)),
                      ws.cost_max)
                 << "\n";
     }

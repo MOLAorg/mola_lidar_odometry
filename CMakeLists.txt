@@ -28,6 +28,34 @@ find_package(mola_kernel REQUIRED)
 find_package(mola_yaml REQUIRED)
 find_package(mp2p_icp REQUIRED)
 find_package(mp2p_icp_filters REQUIRED)
+
+# The wall leveling of the fused path (WallUpReader) needs mp2p_icp's up
+# estimation API: say so at configure time, instead of silently losing it.
+set(_up_api_cov FALSE)
+set(_up_api_check FALSE)
+get_target_property(_mp2p_filters_inc mola::mp2p_icp_filters INTERFACE_INCLUDE_DIRECTORIES)
+foreach(_dir ${_mp2p_filters_inc})
+  set(_hdr "${_dir}/mp2p_icp_filters/estimate_up_from_normals.h")
+  if(EXISTS "${_hdr}")
+    file(STRINGS "${_hdr}" _m REGEX "define MP2P_ICP_HAS_ESTIMATE_UP_COVARIANCE")
+    if(_m)
+      set(_up_api_cov TRUE)
+    endif()
+    file(STRINGS "${_hdr}" _m REGEX "define MP2P_ICP_HAS_UP_REFERENCES_CHECK")
+    if(_m)
+      set(_up_api_check TRUE)
+    endif()
+  endif()
+endforeach()
+if(NOT _up_api_cov)
+  message(WARNING "mp2p_icp ${mp2p_icp_VERSION} has no up covariance API "
+    "(MP2P_ICP_HAS_ESTIMATE_UP_COVARIANCE): --output-fused-gravity-leveled-walls will fail "
+    "at startup in this build.")
+elseif(NOT _up_api_check)
+  message(WARNING "mp2p_icp ${mp2p_icp_VERSION} cannot check walls against floors "
+    "(MP2P_ICP_HAS_UP_REFERENCES_CHECK): --output-fused-gravity-leveled-walls will take "
+    "readings of sloped ground and leaning walls in this build.")
+endif()
 find_package(mola_pose_list REQUIRED)
 find_package(mola_imu_preintegration REQUIRED)
 find_package(mola_relocalization REQUIRED)

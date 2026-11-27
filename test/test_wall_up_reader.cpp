@@ -212,6 +212,71 @@ TEST(WallUpReader, ACorridorWithoutFloorsIsNotObservableWallsOnly)
   EXPECT_EQ(reader.stats().unobservable, 1U);
 }
 
+#if defined(MP2P_ICP_HAS_UP_REFERENCES_CHECK)
+TEST(WallUpReader, NoReadingWhenFloorsAndWallsDisagree)
+{
+  // Plumb walls over a floor and ceiling sloped 4 deg (a ramp, a field): no
+  // reading by default; with the check off, the slope pulls the reading.
+  auto world = room(true);
+  for (const auto & p : room()) {
+    if (std::abs(p.z) < 0.05 || std::abs(p.z - 3.0) < 0.05) {
+      // floor and ceiling points, sloped along X:
+      world.emplace_back(p.x, p.y, p.z + p.x * std::tan(mrpt::DEG2RAD(4.0)));
+    } else if (std::abs(p.y) < 0.05 || std::abs(p.y - 8.0) < 0.05) {
+      world.push_back(p);  // the walls normal to Y
+    }
+  }
+  for (const double limit : {mola::WallUpReader::Parameters{}.max_walls_floors_angle, 0.0}) {
+    mola::WallUpReader::Parameters p;
+    p.max_walls_floors_angle = limit;
+    p.min_points = 500;
+    mola::WallUpReader reader(p);
+    reader.add_cloud(
+      0.0, mrpt::poses::CPose3D(), scan(world, mrpt::poses::CPose3D(6, 4, 1, 0, 0, 0)));
+    const auto r = reader.read(1.0);
+    if (limit > 0) {
+      EXPECT_FALSE(r.has_value());
+      EXPECT_EQ(reader.stats().floors_contradicted, 1U);
+      EXPECT_EQ(reader.stats().floors_unconfirmed, 0U);
+    } else {
+      ASSERT_TRUE(r.has_value());
+      EXPECT_GT(mrpt::RAD2DEG(std::acos(r->up.z)), 1.0);
+    }
+  }
+}
+
+TEST(WallUpReader, NoReadingWhenTheWallsCannotConfirmTheFloors)
+{
+  // One wall direction (a street along a single facade) over a level floor:
+  // the walls alone do not give up, so they cannot tell the floor from a
+  // slope. No reading by default, counted apart from contradicted floors;
+  // with the check off, the floor gives a level reading.
+  auto world = room(true);
+  for (const auto & p : room()) {
+    if (std::abs(p.z) < 0.05 || std::abs(p.z - 3.0) < 0.05) {
+      world.push_back(p);
+    }
+  }
+  for (const double limit : {mola::WallUpReader::Parameters{}.max_walls_floors_angle, 0.0}) {
+    mola::WallUpReader::Parameters p;
+    p.max_walls_floors_angle = limit;
+    p.min_points = 500;
+    mola::WallUpReader reader(p);
+    reader.add_cloud(
+      0.0, mrpt::poses::CPose3D(), scan(world, mrpt::poses::CPose3D(6, 4, 1, 0, 0, 0)));
+    const auto r = reader.read(1.0);
+    if (limit > 0) {
+      EXPECT_FALSE(r.has_value());
+      EXPECT_EQ(reader.stats().floors_unconfirmed, 1U);
+      EXPECT_EQ(reader.stats().floors_contradicted, 0U);
+    } else {
+      ASSERT_TRUE(r.has_value());
+      EXPECT_LT(mrpt::RAD2DEG(std::acos(r->up.z)), 0.1);
+    }
+  }
+}
+#endif
+
 #else
 TEST(WallUpReader, NeedsTheUpCovarianceApi)
 {
@@ -219,3 +284,13 @@ TEST(WallUpReader, NeedsTheUpCovarianceApi)
   EXPECT_ANY_THROW(mola::WallUpReader{});
 }
 #endif
+
+// Runs in every build, also without the up covariance API:
+TEST(WallUpReader, TellsWhetherItChecksWallsAgainstFloors)
+{
+#if defined(MP2P_ICP_HAS_UP_REFERENCES_CHECK)
+  EXPECT_TRUE(mola::WallUpReader::checks_walls_against_floors());
+#else
+  EXPECT_FALSE(mola::WallUpReader::checks_walls_against_floors());
+#endif
+}
