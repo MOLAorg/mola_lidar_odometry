@@ -239,6 +239,7 @@ struct Cli
   Opt<double> arg_levelFusedWallsFlatsWeight;
   Opt<double> arg_levelFusedWallsDeadband;
   Opt<double> arg_levelFusedWallsRandomWalk;
+  Opt<double> arg_levelFusedWallsMaxTilt;
   Opt<bool> arg_levelSimpleMap;
   Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
@@ -456,6 +457,18 @@ struct Cli
           "--output-fused-gravity-leveled-walls-random-walk", arg_levelFusedWallsRandomWalk.value,
           "Random walk of the frame tilt [deg/sqrt(s)] while wall readings are recent.")
         ->option_text(std::to_string(arg_levelFusedWallsRandomWalk.value));
+
+    arg_levelFusedWallsMaxTilt.value = mola::GravityLeveler::Parameters{}.max_up_tilt;
+    arg_levelFusedWallsMaxTilt.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-max-tilt", arg_levelFusedWallsMaxTilt.value,
+          "Wall readings that see the trajectory frame tilted beyond this [deg] are ignored. "
+          "Beyond the accelerometer's own limit (" +
+            std::to_string(mola::GravityLeveler::Parameters{}.max_tilt) +
+            " deg) they are taken only while the accelerometer also sees the frame beyond it; "
+            "with -walls-only, only if this option is given.")
+        ->option_text(std::to_string(arg_levelFusedWallsMaxTilt.value));
 
     arg_outPathSmoothed.opt =
       cmd
@@ -1313,10 +1326,15 @@ int main_odometry(Cli & cli)
     lp.tilt_random_walk = cli.arg_levelFusedRandomWalk.getValue();
     lp.up_reading_deadband = cli.arg_levelFusedWallsDeadband.getValue();
     lp.up_reading_random_walk = cli.arg_levelFusedWallsRandomWalk.getValue();
+    lp.max_up_tilt = cli.arg_levelFusedWallsMaxTilt.getValue();
     if (wallsOnly && !cli.arg_levelFusedDeadband.isSet()) {
       // No accelerometer: the walls' deadband holds after they leave view
       // too, so the correction does not fade to nothing.
       lp.deadband = lp.up_reading_deadband;
+    }
+    if (wallsOnly && cli.arg_levelFusedWallsMaxTilt.isSet()) {
+      // No accelerometer to agree with: an explicit limit is taken as is.
+      lp.max_up_tilt_needs_accelerometer = false;
     }
     fusedLeveler.emplace(lp);
     fusedPathBeforeLeveling.emplace();
@@ -1813,7 +1831,8 @@ int main_odometry(Cli & cli)
               << st.tilt_readings << " tilt readings, " << st.gated_readings << " gated, "
               << st.implausible_readings << " implausible, " << st.restarts << " restarts";
     if (tilt) {
-      std::cout << ", final tilt " << mrpt::RAD2DEG(std::hypot(tilt->x, tilt->y)) << " deg";
+      std::cout << ", final tilt " << mrpt::RAD2DEG(std::atan(std::hypot(tilt->x, tilt->y)))
+                << " deg";
     }
     std::cout << "\n";
     if (wallReader) {

@@ -541,6 +541,189 @@ TEST(GravityLeveler, UpReadingOutliersAreGatedAndImplausibleOnesIgnored)
   EXPECT_EQ(lev.stats().up_restarts, 0U);
 }
 
+TEST(GravityLeveler, UpReadingsHaveTheirOwnTiltLimit)
+{
+  // A frame tilted 9 deg, beyond the accelerometer's 5 deg limit, and no
+  // accelerometer: wall readings still see it and level the output, attitude
+  // and height, if they need no accelerometer to agree. With their limit at
+  // 5 deg, or by default (no accelerometer reading beyond 5 deg), they are
+  // all ignored.
+  const auto tilt = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(9.0), 0.0);
+  struct Case
+  {
+    double limit;
+    bool needs_acc;
+  };
+  const double wide = mola::GravityLeveler::Parameters{}.max_up_tilt;
+  for (const auto c : {Case{wide, false}, Case{5.0, false}, Case{wide, true}}) {
+    mola::GravityLeveler::Parameters p;
+    p.max_up_tilt = c.limit;
+    p.max_up_tilt_needs_accelerometer = c.needs_acc;
+    mola::GravityLeveler lev(p);
+    const double limit = c.needs_acc ? p.max_tilt : c.limit;
+    RunResult r;
+    for (std::size_t k = 0; k <= static_cast<std::size_t>(120.0 * POSE_RATE); k++) {
+      const double t = static_cast<double>(k) / POSE_RATE;
+      if (k % 10 == 0 && k > 0) {
+        lev.add_up_reading(t, up_seen(tilt, 0, 0), iso_cov(0.1));
+      }
+      r.in.push_back(tilt + true_pose(t));
+      r.out.push_back(lev.add_pose(t, r.in.back()));
+    }
+    if (limit > 9.0) {
+      EXPECT_EQ(lev.stats().implausible_up_readings, 0U);
+      ASSERT_TRUE(lev.tilt().has_value());
+      EXPECT_NEAR(std::atan(lev.tilt()->norm()), mrpt::DEG2RAD(9.0), mrpt::DEG2RAD(0.01));
+      // Leveled to within a hundredth of a degree: the correction is the
+      // angle of the tilt, not its tangent.
+      EXPECT_LT(tilt_of(r.out.back() + (-true_pose(120.0))), 0.01);
+      EXPECT_GT(height_range(r.in, 0), 5.0);
+      EXPECT_LT(height_range(r.out, 10), 0.05);
+    } else {
+      EXPECT_EQ(lev.stats().implausible_up_readings, lev.stats().up_readings);
+      EXPECT_FALSE(lev.tilt().has_value());
+      EXPECT_NEAR(height_range(r.out, 0), height_range(r.in, 0), 1e-9);
+    }
+  }
+}
+
+TEST(GravityLeveler, UpReadingsBeyondTheAccelerometerLimitNeedItsAgreement)
+{
+  // A frame tilted 9 deg with the accelerometer: its own readings are beyond
+  // max_tilt, so the up readings (9 deg) are taken. A level frame whose
+  // accelerometer sees it level: up readings of 9 deg come from structure
+  // that is not plumb, and are ignored.
+  const auto tilt9 = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(9.0), 0.0);
+  for (const bool tilted : {true, false}) {
+    mola::GravityLeveler lev;
+    const auto frame = tilted ? tilt9 : mrpt::poses::CPose3D();
+    std::size_t k_imu = 0;
+    for (std::size_t k = 0; k <= static_cast<std::size_t>(120.0 * POSE_RATE); k++) {
+      const double t = static_cast<double>(k) / POSE_RATE;
+      while (static_cast<double>(k_imu) / IMU_RATE <= t) {
+        const double ti = static_cast<double>(k_imu) / IMU_RATE;
+        lev.add_imu(ti, true_specific_force(ti));
+        k_imu++;
+      }
+      if (k % 10 == 0 && t > 20.0) {
+        lev.add_up_reading(t, up_seen(tilt9, 0, 0), iso_cov(0.1));
+      }
+      (void)lev.add_pose(t, frame + true_pose(t));
+    }
+    if (tilted) {
+      EXPECT_GT(lev.stats().implausible_readings, 0U);
+      EXPECT_EQ(lev.stats().implausible_up_readings, 0U);
+      ASSERT_TRUE(lev.tilt().has_value());
+      EXPECT_NEAR(std::atan(lev.tilt()->norm()), mrpt::DEG2RAD(9.0), mrpt::DEG2RAD(0.05));
+    } else {
+      EXPECT_EQ(lev.stats().implausible_readings, 0U);
+      EXPECT_EQ(lev.stats().implausible_up_readings, lev.stats().up_readings);
+      ASSERT_TRUE(lev.tilt().has_value());
+      EXPECT_LT(mrpt::RAD2DEG(lev.tilt()->norm()), 0.5);
+    }
+  }
+}
+
+TEST(GravityLeveler, WeakGravityIsNoAgreementForWiderUpReadings)
+{
+  // A level frame whose accelerometer reads a weak gravity (a failing
+  // attitude, or a sensor fault): that is no sign of a frame tilted beyond
+  // max_tilt, so 9 deg up readings stay ignored.
+  mola::GravityLeveler lev;
+  std::size_t k_imu = 0;
+  for (std::size_t k = 0; k <= static_cast<std::size_t>(60.0 * POSE_RATE); k++) {
+    const double t = static_cast<double>(k) / POSE_RATE;
+    while (static_cast<double>(k_imu) / IMU_RATE <= t) {
+      lev.add_imu(static_cast<double>(k_imu) / IMU_RATE, {0, 0, 4.0});
+      k_imu++;
+    }
+    if (k % 10 == 0 && t > 20.0) {
+      const double d = mrpt::DEG2RAD(9.0);
+      lev.add_up_reading(t, {std::sin(d), 0.0, std::cos(d)}, iso_cov(0.1));
+    }
+    (void)lev.add_pose(t, mrpt::poses::CPose3D(t, 0, 0, 0, 0, 0));
+  }
+  EXPECT_GT(lev.stats().implausible_readings, 0U);
+  EXPECT_GT(lev.stats().up_readings, 0U);
+  EXPECT_EQ(lev.stats().implausible_up_readings, lev.stats().up_readings);
+  EXPECT_FALSE(lev.tilt().has_value());
+}
+
+namespace
+{
+struct LevelFrameResult
+{
+  double max_abs_z = 0;
+  double max_pitch_deg = 0;
+};
+
+// A level frame driven straight along x at 1 m/s for 120 s, optionally with
+// the accelerometer (level, at rest). Up readings every second from t = 5 s:
+// the first `n_bad` read a pitch of `bad_deg` (e.g. rock faces), the rest
+// read level.
+LevelFrameResult run_level_frame(
+  const mola::GravityLeveler::Parameters & p, int n_bad, double bad_deg, bool with_imu)
+{
+  mola::GravityLeveler lev(p);
+  LevelFrameResult r;
+  std::size_t k_imu = 0;
+  int n_up = 0;
+  for (std::size_t k = 0; k <= static_cast<std::size_t>(120.0 * POSE_RATE); k++) {
+    const double t = static_cast<double>(k) / POSE_RATE;
+    while (with_imu && static_cast<double>(k_imu) / IMU_RATE <= t) {
+      lev.add_imu(static_cast<double>(k_imu) / IMU_RATE, {0, 0, G});
+      k_imu++;
+    }
+    if (k % 10 == 0 && t >= 5.0) {
+      const double d = mrpt::DEG2RAD(n_up < n_bad ? bad_deg : 0.0);
+      lev.add_up_reading(t, {std::sin(d), 0.0, std::cos(d)}, iso_cov(0.3));
+      n_up++;
+    }
+    const auto out = lev.add_pose(t, mrpt::poses::CPose3D(t, 0, 0, 0, 0, 0));
+    r.max_abs_z = std::max(r.max_abs_z, std::abs(out.z()));
+    r.max_pitch_deg = std::max(r.max_pitch_deg, mrpt::RAD2DEG(std::abs(out.pitch())));
+  }
+  return r;
+}
+}  // namespace
+
+TEST(GravityLeveler, UpReadingsBeforeTheFirstAccelerometerReadingAreHeldToItsLimit)
+{
+  // The first wall readings come before the first accelerometer reading
+  // (one window, 10 s): with the accelerometer in use, a 9 deg reading of a
+  // level frame (a rock face) must not start the filter at 9 deg.
+  for (const int n_bad : {1, 3}) {
+    const auto r = run_level_frame({}, n_bad, 9.0, true);
+    EXPECT_LT(r.max_abs_z, 0.01) << n_bad;
+    EXPECT_LT(r.max_pitch_deg, 0.1) << n_bad;
+  }
+}
+
+TEST(GravityLeveler, UpReadingsWithoutAccelerometerAreHeldToItsLimit)
+{
+  // Walls only (no accelerometer, the walls' deadband for both): ten 8 deg
+  // readings of a level frame are ignored by default, and taken only if the
+  // wider limit needs no accelerometer.
+  mola::GravityLeveler::Parameters p;
+  p.deadband = p.up_reading_deadband;
+  const auto held = run_level_frame(p, 10, 8.0, false);
+  EXPECT_LT(held.max_abs_z, 0.01);
+  EXPECT_LT(held.max_pitch_deg, 0.1);
+
+  p.max_up_tilt_needs_accelerometer = false;
+  const auto taken = run_level_frame(p, 10, 8.0, false);
+  EXPECT_GT(taken.max_abs_z, 0.5);
+}
+
+TEST(GravityLeveler, UpReadingTiltLimitMustBeValid)
+{
+  for (const double limit : {0.0, -1.0, 90.0}) {
+    mola::GravityLeveler::Parameters p;
+    p.max_up_tilt = limit;
+    EXPECT_ANY_THROW(mola::GravityLeveler{p});
+  }
+}
+
 TEST(GravityLeveler, RepeatedlyRejectedUpReadingsRestartTheFilter)
 {
   // The frame tilt steps by 3 deg (e.g. the state locked onto a wrong value):

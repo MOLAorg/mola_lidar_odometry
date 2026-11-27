@@ -1396,7 +1396,17 @@ it the accelerometer's own error (0.3-1.4 deg) is integrated along the path.
 Readings beyond `max_tilt` (5 deg), or with gravity pointing down, are
 ignored, not gated: they come from a failing trajectory attitude (seen at
 25-100 deg off gravity), and restarting the filter into them bends the whole
-path.
+path. Up readings (below) have their own limit, `max_up_tilt` (15 deg,
+`-walls-max-tilt`): they are measured on the structure, and a ground robot's
+LIO frame can tilt 5-13 deg, which the accelerometer's limit rejected. Beyond
+`max_tilt` they are taken only while the latest accelerometer reading is
+beyond it too (`max_up_tilt_needs_accelerometer`): on a quarry, walls-only
+readings of rock faces said 5-15 deg on a level frame. A weak gravity reading
+(a failing attitude) is no such agreement. So before the first accelerometer
+reading they are held to `max_tilt`, and with `-walls-only` too, unless
+`-walls-max-tilt` is given: only there (no accelerometer) an explicit limit
+needs no agreement. `tilt()` is in tangents; the correction rotates by
+atan(|tilt|).
 
 `--output-fused-gravity-leveled-walls` (or `-walls-only`, without the
 accelerometer) adds readings of up from plumb walls and level floors:

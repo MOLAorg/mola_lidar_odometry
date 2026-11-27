@@ -30,13 +30,16 @@ namespace
 // 99 % quantile of a chi-squared distribution with 2 degrees of freedom
 constexpr double CHI2_2DOF_99 = 9.21;
 
-// Pure rotation whose effect on a horizontal displacement (dx, dy, 0) is a
-// height change tau . (dx, dy): rotation vector (tau_y, -tau_x, 0).
+// Pure rotation that takes the up direction whose tilt is `tau` (its x/z and
+// y/z) to +Z: about the axis (tau_y, -tau_x, 0), by atan(|tau|). Using |tau|
+// itself as the angle would over-rotate large tilts (0.2 deg at 13 deg).
 mrpt::poses::CPose3D leveling_rotation(const mrpt::math::TVector2D & tau)
 {
+  const double mag = std::hypot(tau.x, tau.y);
+  const double s = mag > 0 ? std::atan(mag) / mag : 1.0;
   mrpt::math::CVectorFixedDouble<3> w;
-  w[0] = tau.y;
-  w[1] = -tau.x;
+  w[0] = s * tau.y;
+  w[1] = -s * tau.x;
   w[2] = 0;
   return mrpt::poses::CPose3D(
     mrpt::poses::Lie::SO<3>::exp(w), mrpt::math::CVectorFixedDouble<3>::Zero());
@@ -76,6 +79,8 @@ GravityLeveler::GravityLeveler(const Parameters & p) : params_(p)
   ASSERT_GT_(params_.max_imu_gap, 0.0);
   ASSERT_GT_(params_.max_tilt, 0.0);
   ASSERT_LT_(params_.max_tilt, 90.0);
+  ASSERT_GT_(params_.max_up_tilt, 0.0);
+  ASSERT_LT_(params_.max_up_tilt, 90.0);
   ASSERT_GE_(params_.up_reading_deadband, 0.0);
   ASSERT_GE_(params_.up_reading_random_walk, 0.0);
   ASSERT_GE_(params_.up_reading_hold, 0.0);
@@ -141,8 +146,12 @@ void GravityLeveler::add_up_reading(
     return;
   }
   const mrpt::math::TVector3D u = up * (1.0 / n);
-  // As for the accelerometer: a frame tilt is small, and up must point up.
-  if (u.z <= 0 || std::hypot(u.x, u.y) > u.z * std::tan(mrpt::DEG2RAD(params_.max_tilt))) {
+  // A frame tilt is bounded, and up must point up. Beyond the accelerometer's
+  // bound only where it agrees (these readings do not rely on the
+  // trajectory's attitude, but structure that is not plumb reads a tilt too).
+  const bool wide = acc_beyond_max_tilt_ || !params_.max_up_tilt_needs_accelerometer;
+  const double limit = wide ? params_.max_up_tilt : std::min(params_.max_tilt, params_.max_up_tilt);
+  if (u.z <= 0 || std::hypot(u.x, u.y) > u.z * std::tan(mrpt::DEG2RAD(limit))) {
     stats_.implausible_up_readings++;
     return;
   }
@@ -418,9 +427,12 @@ void GravityLeveler::update_filter(double t)
   const auto g = f_mean - a_mean;
   // Not a small frame tilt (or gravity not pointing up): neither a reading
   // nor a reason to restart.
-  if (
-    g.z < 0.5 * params_.gravity ||
-    std::hypot(g.x, g.y) > g.z * std::tan(mrpt::DEG2RAD(params_.max_tilt))) {
+  // A weak or downward gravity is a failing attitude, not a sign that the
+  // frame tilts beyond max_tilt: no agreement for wider up readings either.
+  const bool weak = g.z < 0.5 * params_.gravity;
+  acc_beyond_max_tilt_ =
+    !weak && std::hypot(g.x, g.y) > g.z * std::tan(mrpt::DEG2RAD(params_.max_tilt));
+  if (weak || acc_beyond_max_tilt_) {
     stats_.implausible_readings++;
     return;
   }

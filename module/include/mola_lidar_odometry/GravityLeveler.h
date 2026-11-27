@@ -58,7 +58,9 @@ namespace mola
  *    They observe the tilt directly, with no body-frame term, and with the
  *    covariance of their own estimate (plus `up_reading_sigma_floor` for what
  *    it cannot see, e.g. walls a little out of plumb), behind their own
- *    chi-squared gate.
+ *    chi-squared gate. Their plausibility limit is `max_tilt`, and up to
+ *    `max_up_tilt` where the accelerometer also sees the frame beyond
+ *    `max_tilt`.
  *  - Output: the part of the estimated tilt beyond a deadband is removed by
  *    rotating every increment of the trajectory, and its attitude, by the
  *    small rotation that levels the frame. The deadband leaves alone a frame
@@ -101,9 +103,22 @@ public:
     double up_reading_ramp = 30.0;
     /** Added in quadrature to the sigmas of each up reading [deg], > 0 */
     double up_reading_sigma_floor = 0.1;
-    /** Readings beyond this tilt are ignored: they mean a failing attitude
-     *  of the trajectory, not a tilt of its frame [deg] */
+    /** Accelerometer readings beyond this tilt are ignored: they mean a
+     *  failing attitude of the trajectory, not a tilt of its frame [deg] */
     double max_tilt = 5.0;
+    /** Up readings beyond this tilt are ignored [deg], in (0, 90). They are
+     *  measured on the structure, so they can read a frame tilted beyond
+     *  `max_tilt`, but see `max_up_tilt_needs_accelerometer`. */
+    double max_up_tilt = 15.0;
+    /** If true, up readings beyond `max_tilt` are taken (up to `max_up_tilt`)
+     *  only while the latest accelerometer reading also sees the frame beyond
+     *  `max_tilt` (with gravity of a plausible magnitude, pointing up). Before
+     *  that, and without an accelerometer, they are held to
+     *  `max_tilt`: a frame the accelerometer sees nearly level is not tilted
+     *  by 10 deg, and such a reading comes from structure that is not plumb
+     *  or level (rock faces, slopes). Set it to false to take them up to
+     *  `max_up_tilt` with no accelerometer. */
+    bool max_up_tilt_needs_accelerometer = true;
     /** Prior sigma of the initial tilt [deg], > 0 */
     double initial_tilt_sigma = 3.0;
     /** Prior sigma of the body-frame accelerometer error [m/s^2] */
@@ -161,14 +176,17 @@ public:
    */
   mrpt::poses::CPose3D add_pose(double t, const mrpt::poses::CPose3D & pose);
 
-  /** The current tilt estimate (x, y components, in radians), before the
-   *  deadband. Empty until the first reading has been taken. */
+  /** The current tilt estimate, before the deadband: the x/z and y/z
+   *  components of the frame's up direction (tangents; the tilt angle is
+   *  atan(|tilt|)). Empty until the first reading has been taken. */
   std::optional<mrpt::math::TVector2D> tilt() const;
 
-  /** Covariance of tilt() [rad^2]. Empty until the first reading. */
+  /** Covariance of tilt() (tangents, approximately [rad^2] for small tilts).
+   *  Empty until the first reading. */
   std::optional<mrpt::math::CMatrixDouble22> tilt_cov() const;
 
-  /** The tilt being removed from the output (after the deadband) [rad] */
+  /** The tilt being removed from the output (after the deadband), as tilt()
+   *  (tangents) */
   mrpt::math::TVector2D applied_tilt() const { return applied_tilt_; }
 
 private:
@@ -201,6 +219,8 @@ private:
   std::size_t consecutive_rejections_ = 0;
   std::size_t consecutive_up_rejections_ = 0;
   std::optional<double> last_up_accepted_t_;
+  /** Whether the latest accelerometer reading saw the frame beyond max_tilt */
+  bool acc_beyond_max_tilt_ = false;
 
   Eigen::Matrix<double, 5, 1> x_ = Eigen::Matrix<double, 5, 1>::Zero();
   Eigen::Matrix<double, 5, 5> P_ = Eigen::Matrix<double, 5, 5>::Zero();
