@@ -30,13 +30,21 @@ namespace
 // 99 % quantile of a chi-squared distribution with 2 degrees of freedom
 constexpr double CHI2_2DOF_99 = 9.21;
 
-// Pure rotation whose effect on a horizontal displacement (dx, dy, 0) is a
-// height change tau . (dx, dy): rotation vector (tau_y, -tau_x, 0).
+// Up readings of a place level a pose fully once the sum of their distance
+// weights reaches this (1: one reading right at the pose); below it, they
+// are blended with the filter's state, so nothing jumps at the radius.
+constexpr double PLACE_FULL_WEIGHT = 0.5;
+
+// Pure rotation that takes the up direction whose tilt is `tau` (its x/z and
+// y/z) to +Z: about the axis (tau_y, -tau_x, 0), by atan(|tau|). Using |tau|
+// itself as the angle would over-rotate large tilts (0.2 deg at 13 deg).
 mrpt::poses::CPose3D leveling_rotation(const mrpt::math::TVector2D & tau)
 {
+  const double mag = std::hypot(tau.x, tau.y);
+  const double s = mag > 0 ? std::atan(mag) / mag : 1.0;
   mrpt::math::CVectorFixedDouble<3> w;
-  w[0] = tau.y;
-  w[1] = -tau.x;
+  w[0] = s * tau.y;
+  w[1] = -s * tau.x;
   w[2] = 0;
   return mrpt::poses::CPose3D(
     mrpt::poses::Lie::SO<3>::exp(w), mrpt::math::CVectorFixedDouble<3>::Zero());
@@ -49,6 +57,22 @@ mrpt::math::CVectorFixedDouble<3> as_vector(const mrpt::math::TVector3D & v)
   r[1] = v.y;
   r[2] = v.z;
   return r;
+}
+
+// Grid cell of a coordinate; cells beyond +-2^20 share keys, which only
+// widens a query there.
+std::int64_t cell_of(double v, double size)
+{
+  return static_cast<std::int64_t>(std::floor(v / size));
+}
+
+std::uint64_t cell_key(std::int64_t ix, std::int64_t iy, std::int64_t iz)
+{
+  constexpr std::int64_t OFFSET = 1 << 20;
+  constexpr std::uint64_t MASK = (1U << 21) - 1;
+  return (static_cast<std::uint64_t>(ix + OFFSET) & MASK) |
+         ((static_cast<std::uint64_t>(iy + OFFSET) & MASK) << 21) |
+         ((static_cast<std::uint64_t>(iz + OFFSET) & MASK) << 42);
 }
 
 // Attitude at fraction `s` in [0,1] between two attitudes (geodesic).
@@ -76,6 +100,8 @@ GravityLeveler::GravityLeveler(const Parameters & p) : params_(p)
   ASSERT_GT_(params_.max_imu_gap, 0.0);
   ASSERT_GT_(params_.max_tilt, 0.0);
   ASSERT_LT_(params_.max_tilt, 90.0);
+  ASSERT_GT_(params_.max_up_tilt, 0.0);
+  ASSERT_LT_(params_.max_up_tilt, 90.0);
   ASSERT_GE_(params_.up_reading_deadband, 0.0);
   ASSERT_GE_(params_.up_reading_random_walk, 0.0);
   ASSERT_GE_(params_.up_reading_hold, 0.0);
@@ -83,6 +109,9 @@ GravityLeveler::GravityLeveler(const Parameters & p) : params_(p)
   // Strictly positive, so no reading can have a singular innovation:
   ASSERT_GT_(params_.up_reading_sigma_floor, 0.0);
   ASSERT_GT_(params_.initial_tilt_sigma, 0.0);
+  ASSERT_GE_(params_.up_reading_place_radius, 0.0);
+  ASSERT_GT_(params_.up_reading_place_max_dz, 0.0);
+  ASSERT_GE_(params_.up_reading_warmup, 0.0);
 }
 
 void GravityLeveler::add_imu(double t, const mrpt::math::TVector3D & specific_force)
@@ -125,9 +154,15 @@ void GravityLeveler::reset_filter()
 }
 
 void GravityLeveler::add_up_reading(
-  double t, const mrpt::math::TVector3D & up, const mrpt::math::CMatrixDouble22 & up_cov)
+  double t, const mrpt::math::TVector3D & up, const mrpt::math::CMatrixDouble22 & up_cov,
+  const std::optional<mrpt::math::TPoint3D> & place)
 {
   stats_.up_readings++;
+  // Not before the warmup is over (and not before the first pose starts it):
+  if (params_.up_reading_warmup > 0 && (!t0_ || t < *t0_ + params_.up_reading_warmup)) {
+    stats_.warmup_up_readings++;
+    return;
+  }
   // A reading must be finite, with a covariance that is one (symmetric,
   // positive semidefinite): anything else would poison the state for good.
   const auto & C = up_cov;
@@ -141,8 +176,12 @@ void GravityLeveler::add_up_reading(
     return;
   }
   const mrpt::math::TVector3D u = up * (1.0 / n);
-  // As for the accelerometer: a frame tilt is small, and up must point up.
-  if (u.z <= 0 || std::hypot(u.x, u.y) > u.z * std::tan(mrpt::DEG2RAD(params_.max_tilt))) {
+  // A frame tilt is bounded, and up must point up. Beyond the accelerometer's
+  // bound only where it agrees (these readings do not rely on the
+  // trajectory's attitude, but structure that is not plumb reads a tilt too).
+  const bool wide = acc_beyond_max_tilt_ || !params_.max_up_tilt_needs_accelerometer;
+  const double limit = wide ? params_.max_up_tilt : std::min(params_.max_tilt, params_.max_up_tilt);
+  if (u.z <= 0 || std::hypot(u.x, u.y) > u.z * std::tan(mrpt::DEG2RAD(limit))) {
     stats_.implausible_up_readings++;
     return;
   }
@@ -167,6 +206,7 @@ void GravityLeveler::add_up_reading(
   const bool starting = predict_to(t);
   if (correct(z, H, R, starting, consecutive_up_rejections_, stats_.gated_up_readings)) {
     mark_accepted();
+    keep_by_place(place, z, R);
     return;
   }
   // A run of rejected up readings means the state is wrong: they are the
@@ -177,8 +217,85 @@ void GravityLeveler::add_up_reading(
   stats_.up_restarts++;
   reset_filter();
   const bool restarting = predict_to(t);
-  correct(z, H, R, restarting, consecutive_up_rejections_, stats_.gated_up_readings);
+  const bool restarted =
+    correct(z, H, R, restarting, consecutive_up_rejections_, stats_.gated_up_readings);
   mark_accepted();
+  if (restarted) {
+    keep_by_place(place, z, R);
+  }
+}
+
+void GravityLeveler::keep_by_place(
+  const std::optional<mrpt::math::TPoint3D> & place, const Eigen::Vector2d & tau,
+  const Eigen::Matrix2d & R)
+{
+  const double radius = params_.up_reading_place_radius;
+  if (
+    !place || !(radius > 0) || !std::isfinite(place->x) || !std::isfinite(place->y) ||
+    !std::isfinite(place->z)) {
+    return;
+  }
+  PlacedReading pr;
+  pr.p = *place;
+  pr.tau = tau;
+  pr.weight = 1.0 / R.trace();
+  placed_.push_back(pr);
+  place_grid_[cell_key(
+                cell_of(place->x, radius), cell_of(place->y, radius),
+                cell_of(place->z, params_.up_reading_place_max_dz))]
+    .push_back(placed_.size() - 1);
+}
+
+std::optional<GravityLeveler::PlaceTilt> GravityLeveler::tilt_at_place(
+  const mrpt::math::TPoint3D & p) const
+{
+  const double radius = params_.up_reading_place_radius;
+  if (!(radius > 0) || placed_.empty()) {
+    return {};
+  }
+  // Cells of the radius horizontally and of max_dz vertically: the 27 around
+  // the query cover every reading that can count.
+  const double max_dz = params_.up_reading_place_max_dz;
+  const auto cx = cell_of(p.x, radius);
+  const auto cy = cell_of(p.y, radius);
+  const auto cz = cell_of(p.z, max_dz);
+  const double inv_two_sigma2 = 1.0 / (2.0 * mrpt::square(0.5 * radius));
+  // A Gaussian lowered to zero at the radius, so that nothing jumps there:
+  const double at_radius = std::exp(-radius * radius * inv_two_sigma2);
+  Eigen::Vector2d sum = Eigen::Vector2d::Zero();
+  double sum_w = 0;
+  double sum_k = 0;
+  for (std::int64_t dx = -1; dx <= 1; dx++) {
+    for (std::int64_t dy = -1; dy <= 1; dy++) {
+      for (std::int64_t dz = -1; dz <= 1; dz++) {
+        const auto it = place_grid_.find(cell_key(cx + dx, cy + dy, cz + dz));
+        if (it == place_grid_.end()) {
+          continue;
+        }
+        for (const auto i : it->second) {
+          const auto & r = placed_[i];
+          // By horizontal distance, on the same floor: another floor of the
+          // map, a few meters above or below, carries its own tilt error.
+          const double d2 = mrpt::square(r.p.x - p.x) + mrpt::square(r.p.y - p.y);
+          if (d2 > radius * radius || std::abs(r.p.z - p.z) > max_dz) {
+            continue;
+          }
+          const double k = (std::exp(-d2 * inv_two_sigma2) - at_radius) / (1.0 - at_radius);
+          const double w = r.weight * k;
+          sum += w * r.tau;
+          sum_w += w;
+          sum_k += k;
+        }
+      }
+    }
+  }
+  if (!(sum_w > 0) || !(sum_k > 0)) {
+    return {};
+  }
+  PlaceTilt pt;
+  pt.tau = sum / sum_w;
+  pt.kernel = sum_k;
+  return pt;
 }
 
 double GravityLeveler::deadband_at(double t) const
@@ -186,7 +303,9 @@ double GravityLeveler::deadband_at(double t) const
   if (!last_up_accepted_t_) {
     return mrpt::DEG2RAD(params_.deadband);
   }
-  const double age = t - *last_up_accepted_t_;
+  const double last = last_place_leveled_t_ ? std::max(*last_up_accepted_t_, *last_place_leveled_t_)
+                                            : *last_up_accepted_t_;
+  const double age = t - last;
   if (age <= params_.up_reading_hold) {
     return mrpt::DEG2RAD(params_.up_reading_deadband);
   }
@@ -327,16 +446,33 @@ mrpt::poses::CPose3D GravityLeveler::add_pose(double t, const mrpt::poses::CPose
   }
 
   // The part of the tilt beyond the deadband, narrower while up readings are
-  // recent:
+  // recent. Up readings of this place, if any, take precedence over the
+  // filter's state, with the walls' deadband, and both fade into the state
+  // and its deadband toward the edge of the place's readings.
   mrpt::math::TVector2D tau(0, 0);
-  if (filter_started_) {
-    const double mag = std::hypot(x_[0], x_[1]);
+  const auto here = tilt_at_place(pose.translation());
+  const double beta = here ? std::min(1.0, here->kernel / PLACE_FULL_WEIGHT) : 0.0;
+  if (here && is_new) {
+    stats_.place_leveled_poses++;
+    if (beta >= 1.0) {
+      // Leveled by its place's readings alone: as if one had just been
+      // accepted, so the deadband does not grow back during a long revisit.
+      last_place_leveled_t_ = t;
+    }
+  }
+  if (here || filter_started_) {
+    Eigen::Vector2d x = filter_started_ ? Eigen::Vector2d(x_[0], x_[1]) : here->tau;
+    if (here && filter_started_) {
+      x = beta * here->tau + (1.0 - beta) * x;
+    }
+    const double mag = x.norm();
     // An older pose gets the current correction: the deadband of the
     // latest output time, not of its own.
-    const double d = deadband_at(is_new || !last_t_ ? t : *last_t_);
+    const double d = beta * mrpt::DEG2RAD(params_.up_reading_deadband) +
+                     (1.0 - beta) * deadband_at(is_new || !last_t_ ? t : *last_t_);
     if (mag > d) {
       const double s = (mag - d) / mag;
-      tau = mrpt::math::TVector2D(x_[0] * s, x_[1] * s);
+      tau = mrpt::math::TVector2D(x[0] * s, x[1] * s);
     }
   }
 
@@ -418,9 +554,12 @@ void GravityLeveler::update_filter(double t)
   const auto g = f_mean - a_mean;
   // Not a small frame tilt (or gravity not pointing up): neither a reading
   // nor a reason to restart.
-  if (
-    g.z < 0.5 * params_.gravity ||
-    std::hypot(g.x, g.y) > g.z * std::tan(mrpt::DEG2RAD(params_.max_tilt))) {
+  // A weak or downward gravity is a failing attitude, not a sign that the
+  // frame tilts beyond max_tilt: no agreement for wider up readings either.
+  const bool weak = g.z < 0.5 * params_.gravity;
+  acc_beyond_max_tilt_ =
+    !weak && std::hypot(g.x, g.y) > g.z * std::tan(mrpt::DEG2RAD(params_.max_tilt));
+  if (weak || acc_beyond_max_tilt_) {
     stats_.implausible_readings++;
     return;
   }

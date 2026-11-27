@@ -239,6 +239,10 @@ struct Cli
   Opt<double> arg_levelFusedWallsFlatsWeight;
   Opt<double> arg_levelFusedWallsDeadband;
   Opt<double> arg_levelFusedWallsRandomWalk;
+  Opt<double> arg_levelFusedWallsMaxTilt;
+  Opt<double> arg_levelFusedWallsMaxWallsFloors;
+  Opt<double> arg_levelFusedWallsPlaceRadius;
+  Opt<double> arg_levelFusedWallsWarmup;
   Opt<bool> arg_levelSimpleMap;
   Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
@@ -456,6 +460,52 @@ struct Cli
           "--output-fused-gravity-leveled-walls-random-walk", arg_levelFusedWallsRandomWalk.value,
           "Random walk of the frame tilt [deg/sqrt(s)] while wall readings are recent.")
         ->option_text(std::to_string(arg_levelFusedWallsRandomWalk.value));
+
+    arg_levelFusedWallsMaxTilt.value = mola::GravityLeveler::Parameters{}.max_up_tilt;
+    arg_levelFusedWallsMaxTilt.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-max-tilt", arg_levelFusedWallsMaxTilt.value,
+          "Wall readings that see the trajectory frame tilted beyond this [deg] are ignored. "
+          "Beyond the accelerometer's own limit (" +
+            std::to_string(mola::GravityLeveler::Parameters{}.max_tilt) +
+            " deg) they are taken only while the accelerometer also sees the frame beyond it; "
+            "with -walls-only, only if this option is given.")
+        ->option_text(std::to_string(arg_levelFusedWallsMaxTilt.value));
+
+    arg_levelFusedWallsMaxWallsFloors.value =
+      mola::WallUpReader::Parameters{}.max_walls_floors_angle;
+    arg_levelFusedWallsMaxWallsFloors.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-max-walls-floors-deg",
+          arg_levelFusedWallsMaxWallsFloors.value,
+          "No wall reading from a window whose walls and floors, each on its own, are more than "
+          "this apart on up [deg] (sloped ground, leaning walls), nor from one with floors "
+          "whose walls alone cannot confirm them (a single facade direction, open ground). "
+          "0: no check.")
+        ->option_text(std::to_string(arg_levelFusedWallsMaxWallsFloors.value));
+
+    arg_levelFusedWallsPlaceRadius.value =
+      mola::GravityLeveler::Parameters{}.up_reading_place_radius;
+    arg_levelFusedWallsPlaceRadius.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-place-radius", arg_levelFusedWallsPlaceRadius.value,
+          "Level each pose with the accepted wall readings taken within this horizontal distance "
+          "[m] of it on the same floor (1.5 m in height), fading into the latest ones toward "
+          "their edge: on a revisit the place's own readings come back (0: by time only).")
+        ->option_text(std::to_string(arg_levelFusedWallsPlaceRadius.value));
+
+    arg_levelFusedWallsWarmup.value = mola::GravityLeveler::Parameters{}.up_reading_warmup;
+    arg_levelFusedWallsWarmup.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-warmup", arg_levelFusedWallsWarmup.value,
+          "Ignore the wall readings of the first seconds [s]: for runs that start level, whose "
+          "first places would only add their own error. A run that starts tilted keeps that "
+          "tilt for as long.")
+        ->option_text(std::to_string(arg_levelFusedWallsWarmup.value));
 
     arg_outPathSmoothed.opt =
       cmd
@@ -1313,10 +1363,17 @@ int main_odometry(Cli & cli)
     lp.tilt_random_walk = cli.arg_levelFusedRandomWalk.getValue();
     lp.up_reading_deadband = cli.arg_levelFusedWallsDeadband.getValue();
     lp.up_reading_random_walk = cli.arg_levelFusedWallsRandomWalk.getValue();
+    lp.max_up_tilt = cli.arg_levelFusedWallsMaxTilt.getValue();
+    lp.up_reading_place_radius = cli.arg_levelFusedWallsPlaceRadius.getValue();
+    lp.up_reading_warmup = cli.arg_levelFusedWallsWarmup.getValue();
     if (wallsOnly && !cli.arg_levelFusedDeadband.isSet()) {
       // No accelerometer: the walls' deadband holds after they leave view
       // too, so the correction does not fade to nothing.
       lp.deadband = lp.up_reading_deadband;
+    }
+    if (wallsOnly && cli.arg_levelFusedWallsMaxTilt.isSet()) {
+      // No accelerometer to agree with: an explicit limit is taken as is.
+      lp.max_up_tilt_needs_accelerometer = false;
     }
     fusedLeveler.emplace(lp);
     fusedPathBeforeLeveling.emplace();
@@ -1353,6 +1410,12 @@ int main_odometry(Cli & cli)
     wp.window = cli.arg_levelFusedWallsWindow.getValue();
     wp.period = cli.arg_levelFusedWallsPeriod.getValue();
     wp.flats_weight = cli.arg_levelFusedWallsFlatsWeight.getValue();
+    wp.max_walls_floors_angle = cli.arg_levelFusedWallsMaxWallsFloors.getValue();
+    if (wp.max_walls_floors_angle > 0 && !mola::WallUpReader::checks_walls_against_floors()) {
+      std::cerr << "Warning: this build's mp2p_icp cannot check walls against floors: "
+                   "--output-fused-gravity-leveled-walls-max-walls-floors-deg is ignored, and "
+                   "readings of sloped ground or leaning walls are taken.\n";
+    }
     wallReader.emplace(wp);
     liodom->setLocalMapScanCallback(
       [&](
@@ -1736,7 +1799,7 @@ int main_odometry(Cli & cli)
                 wr = wallReader->read(mrpt::Clock::toDouble(tSample));
               }
               if (wr) {
-                fusedLeveler->add_up_reading(wr->t, wr->up, wr->up_cov);
+                fusedLeveler->add_up_reading(wr->t, wr->up, wr->up_cov, wr->place);
               }
             }
             fusedPathBeforeLeveling->insert(tSample, p.asTPose());
@@ -1813,21 +1876,28 @@ int main_odometry(Cli & cli)
               << st.tilt_readings << " tilt readings, " << st.gated_readings << " gated, "
               << st.implausible_readings << " implausible, " << st.restarts << " restarts";
     if (tilt) {
-      std::cout << ", final tilt " << mrpt::RAD2DEG(std::hypot(tilt->x, tilt->y)) << " deg";
+      std::cout << ", final tilt " << mrpt::RAD2DEG(std::atan(std::hypot(tilt->x, tilt->y)))
+                << " deg";
     }
     std::cout << "\n";
     if (wallReader) {
       const auto & ws = wallReader->stats();
       std::cout << "Wall readings: " << ws.readings << " taken (" << ws.unobservable
                 << " windows not observable, " << ws.too_few_points << " with too few points, "
-                << ws.unreliable_cov << " with an unreliable covariance, " << ws.no_new_scans
+                << ws.unreliable_cov << " with an unreliable covariance, " << ws.floors_contradicted
+                << " where walls contradict floors, " << ws.floors_unconfirmed
+                << " with floors the walls cannot confirm, " << ws.no_new_scans
                 << " without a new scan), " << st.up_readings << " given to the filter, "
                 << st.gated_up_readings << " gated, " << st.implausible_up_readings
-                << " implausible, " << st.up_restarts << " restarts; cost per reading "
+                << " implausible, " << st.warmup_up_readings << " in the warmup, " << st.up_restarts
+                << " restarts, " << st.place_leveled_poses
+                << " poses leveled by place; cost per window "
                 << mrpt::format(
                      "%.3f s mean, %.3f s max",
-                     ws.cost_total / static_cast<double>(std::max<std::size_t>(
-                                       1, ws.readings + ws.unobservable + ws.too_few_points)),
+                     ws.cost_total /
+                       static_cast<double>(std::max<std::size_t>(
+                         1, ws.readings + ws.unobservable + ws.too_few_points + ws.unreliable_cov +
+                              ws.floors_contradicted + ws.floors_unconfirmed)),
                      ws.cost_max)
                 << "\n";
     }

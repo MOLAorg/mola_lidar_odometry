@@ -45,8 +45,10 @@ namespace mola
  *
  *  No reading comes from a window from which up is not observable (too few
  *  planar points, a single wall direction and no floor), whose covariance
- *  rests on too few groups of normals to be trusted, or that holds no scan
- *  newer than the previous reading (e.g. standing still). Consecutive windows
+ *  rests on too few groups of normals to be trusted, whose walls do not
+ *  confirm its floors (`max_walls_floors_angle`: sloped ground, leaning walls,
+ *  or floors along a single facade), or that holds no scan newer than the
+ *  previous reading (e.g. standing still). Consecutive windows
  *  overlap by about window/period scans, so each reading's covariance is
  *  inflated by that factor: a filter fed with all of them does not count
  *  the shared scans several times.
@@ -78,6 +80,15 @@ public:
     double cluster_size = 2.0;
     /** A window with fewer points than this gives no reading */
     std::size_t min_points = 2000;
+    /** No reading from a window whose walls do not confirm its floors [deg]:
+     *  - the walls alone and the floors alone are more than this apart on up,
+     *    so they contradict each other (floors on a slope, walls that lean);
+     *  - or the walls alone do not give up (one wall direction, e.g. along a
+     *    single facade, or open ground with few walls), so its floors cannot
+     *    be told from a slope.
+     *  0: no check. Ignored, with a warning from the CLI, where
+     *  checks_walls_against_floors() is false. */
+    double max_walls_floors_angle = 2.0;
   };
 
   struct Reading
@@ -87,6 +98,9 @@ public:
     mrpt::math::TVector3D up{0, 0, 1};
     /** Covariance of up.x and up.y [rad^2] */
     mrpt::math::CMatrixDouble22 up_cov;
+    /** Where it was measured: the mean vehicle position of the window's
+     *  scans, in the trajectory frame */
+    mrpt::math::TPoint3D place;
     std::size_t points = 0;
     std::size_t walls = 0;
     std::size_t flats = 0;
@@ -101,6 +115,10 @@ public:
     std::size_t unobservable = 0;
     std::size_t too_few_points = 0;
     std::size_t unreliable_cov = 0;
+    /** Windows whose walls contradict their floors (max_walls_floors_angle) */
+    std::size_t floors_contradicted = 0;
+    /** Windows with floors whose walls alone do not give up */
+    std::size_t floors_unconfirmed = 0;
     /** Periods without a scan newer than the previous reading */
     std::size_t no_new_scans = 0;
     /** Wall-clock time spent in read() [s] */
@@ -116,6 +134,11 @@ public:
 
   const Parameters & parameters() const { return params_; }
   const Stats & stats() const { return stats_; }
+
+  /** Whether this build checks walls against floors (max_walls_floors_angle):
+   *  false if built against an mp2p_icp without that API
+   *  (MP2P_ICP_HAS_UP_REFERENCES_CHECK), where no window is dropped for it. */
+  static bool checks_walls_against_floors();
 
   /** Adds a scan at time `t`: its points in the vehicle frame, and the
    *  vehicle pose in the trajectory frame. Only the pointer is kept: the

@@ -1396,7 +1396,17 @@ it the accelerometer's own error (0.3-1.4 deg) is integrated along the path.
 Readings beyond `max_tilt` (5 deg), or with gravity pointing down, are
 ignored, not gated: they come from a failing trajectory attitude (seen at
 25-100 deg off gravity), and restarting the filter into them bends the whole
-path.
+path. Up readings (below) have their own limit, `max_up_tilt` (15 deg,
+`-walls-max-tilt`): they are measured on the structure, and a ground robot's
+LIO frame can tilt 5-13 deg, which the accelerometer's limit rejected. Beyond
+`max_tilt` they are taken only while the latest accelerometer reading is
+beyond it too (`max_up_tilt_needs_accelerometer`): on a quarry, walls-only
+readings of rock faces said 5-15 deg on a level frame. A weak gravity reading
+(a failing attitude) is no such agreement. So before the first accelerometer
+reading they are held to `max_tilt`, and with `-walls-only` too, unless
+`-walls-max-tilt` is given: only there (no accelerometer) an explicit limit
+needs no agreement. `tilt()` is in tangents; the correction rotates by
+atan(|tilt|).
 
 `--output-fused-gravity-leveled-walls` (or `-walls-only`, without the
 accelerometer) adds readings of up from plumb walls and level floors:
@@ -1422,6 +1432,29 @@ without an IMU de-skew): raw rotating scans bend their walls with the motion,
 so no reading could ever be taken. `-walls-period` must be > 0; the hold's
 end splits the random walk of a prediction interval between the walls' and
 the accelerometer's rates.
+WallUpReader takes no reading from a window whose walls do not confirm its
+floors: walls alone and floors alone more than `max_walls_floors_angle` apart
+(2 deg, `-walls-max-walls-floors-deg`; counted as `floors_contradicted`), or
+walls alone that do not give up (a single facade, open ground;
+`floors_unconfirmed`). Sloped lawns and the rock faces of a quarry pass the
+covariance checks and are wrong. It needs `MP2P_ICP_HAS_UP_REFERENCES_CHECK`
+(mp2p_icp >= 3.3.0): without it CMake and the CLI warn and nothing is
+dropped (`WallUpReader::checks_walls_against_floors()`).
+Wall readings carry their place (the mean position of the window's scans) and
+GravityLeveler keeps those the filter accepted by place: a pose within
+`up_reading_place_radius` (5 m horizontally, `-walls-place-radius`, 0: by
+time only) and `up_reading_place_max_dz` (1.5 m vertically: another floor is
+another place, it carries its own tilt error) of some is leveled with those
+(Gaussian-weighted) instead of with the filter's state, fading into it toward
+their edge, and the walls' deadband holds while it is. The frame's tilt depends on where the odometry is in its map; a
+correction by time is applied a trailing window late and, on revisits (no new
+local-map scans), held from elsewhere, and on a college walk that made the
+path climb 8 m. Rejected readings are not kept: at vehicle speed a place has
+one or two readings, and an outlier among them bent the revisit by 0.26 m.
+`up_reading_warmup` (0 s, `-walls-warmup`, opt-in) ignores the first wall
+readings: for runs that start level, where the first places can only add their
+own error (a 1 deg start lean cost 0.6 m on a level walk); a run that starts
+tilted keeps that tilt for as long, so it is off by default.
 `--output-simplemap-gravity-leveled` (explicit; needs the fused path in the
 odometry frame) moves each keyframe of `--output-simplemap` by the path's
 correction at its "metadata" stamp (`mola::level_simplemap_keyframes()`); a
