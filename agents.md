@@ -1440,6 +1440,17 @@ walls alone that do not give up (a single facade, open ground;
 covariance checks and are wrong. It needs `MP2P_ICP_HAS_UP_REFERENCES_CHECK`
 (mp2p_icp >= 3.3.0): without it CMake and the CLI warn and nothing is
 dropped (`WallUpReader::checks_walls_against_floors()`).
+Wall readings carry their place (the mean position of the window's scans) and
+GravityLeveler keeps those the filter accepted by place: a pose within
+`up_reading_place_radius` (5 m horizontally, `-walls-place-radius`, 0: by
+time only) and `up_reading_place_max_dz` (1.5 m vertically: another floor is
+another place, it carries its own tilt error) of some is leveled with those
+(Gaussian-weighted) instead of with the filter's state, fading into it toward
+their edge, and the walls' deadband holds while it is. The frame's tilt depends on where the odometry is in its map; a
+correction by time is applied a trailing window late and, on revisits (no new
+local-map scans), held from elsewhere, and on a college walk that made the
+path climb 8 m. Rejected readings are not kept: at vehicle speed a place has
+one or two readings, and an outlier among them bent the revisit by 0.26 m.
 `--output-simplemap-gravity-leveled` (explicit; needs the fused path in the
 odometry frame) moves each keyframe of `--output-simplemap` by the path's
 correction at its "metadata" stamp (`mola::level_simplemap_keyframes()`); a

@@ -183,6 +183,24 @@ TEST(WallUpReader, NonFinitePointsAreDropped)
   EXPECT_NEAR(r->up.z, 1.0, 1e-4);
 }
 
+TEST(WallUpReader, ReadingsCarryTheirPlace)
+{
+  // The place of a reading is the mean vehicle position of its window's scans.
+  mola::WallUpReader::Parameters p;
+  p.min_points = 500;
+  mola::WallUpReader reader(p);
+  const auto world = room();
+  const mrpt::poses::CPose3D a(4, 3, 1, 0, 0, 0);
+  const mrpt::poses::CPose3D b(6, 5, 1, 0, 0, 0);
+  reader.add_cloud(0.0, a, scan(world, a));
+  reader.add_cloud(0.5, b, scan(world, b));
+  const auto r = reader.read(1.0);
+  ASSERT_TRUE(r.has_value());
+  EXPECT_NEAR(r->place.x, 5.0, 1e-9);
+  EXPECT_NEAR(r->place.y, 4.0, 1e-9);
+  EXPECT_NEAR(r->place.z, 1.0, 1e-9);
+}
+
 TEST(WallUpReader, OldScansLeaveTheWindow)
 {
   mola::WallUpReader::Parameters p;

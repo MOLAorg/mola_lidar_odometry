@@ -23,8 +23,11 @@
 
 #include <Eigen/Dense>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <optional>
+#include <unordered_map>
+#include <vector>
 
 namespace mola
 {
@@ -72,6 +75,14 @@ namespace mola
  *    reason the tilt's random walk is then `up_reading_random_walk`. After
  *    the hold, the deadband grows to `deadband` over `up_reading_ramp`
  *    seconds, so the correction fades instead of dropping at once.
+ *  - Up readings that come with their place, and that the filter accepted,
+ *    are also kept by place: a pose within `up_reading_place_radius`
+ *    (horizontally, and `up_reading_place_max_dz` vertically) of some
+ *    of them is leveled with those readings instead of with the filter's
+ *    state, fading into the state toward their edge. The frame's tilt
+ *    depends on where the odometry is in its map, so a revisited place gets
+ *    its own readings back, not the last one taken elsewhere, and a trailing
+ *    window is applied where it was measured instead of a few meters later.
  *
  *  Only past data are used. Positions are corrected incrementally, so the
  *  output is continuous even when the correction changes.
@@ -103,6 +114,24 @@ public:
     double up_reading_ramp = 30.0;
     /** Added in quadrature to the sigmas of each up reading [deg], > 0 */
     double up_reading_sigma_floor = 0.1;
+    /** A pose within this horizontal distance [m] of accepted up readings
+     *  that came with their place, and on the same floor (see
+     *  `up_reading_place_max_dz`), is leveled with them, 0: by time only.
+     *  Their mean is weighted by their covariance and by a Gaussian of the
+     *  horizontal distance (sigma = radius/2, lowered to zero at the radius),
+     *  with `up_reading_deadband`.
+     *  Where those Gaussians sum to less than 0.5 (1 is a reading right at
+     *  the pose), the mean and that deadband are blended in proportion with
+     *  the filter's state and its deadband, so the correction fades into the
+     *  state toward the edge of the readings instead of jumping at the
+     *  radius. While poses are leveled by place alone, `up_reading_deadband`
+     *  stays in force as if a reading had just been accepted (see
+     *  `up_reading_hold`). */
+    double up_reading_place_radius = 5.0;
+    /** Readings more than this above or below a pose [m] are another place:
+     *  another floor of the map carries its own tilt error. A ramp of 10 %
+     *  rises 0.5 m within the radius. > 0 */
+    double up_reading_place_max_dz = 1.5;
     /** Accelerometer readings beyond this tilt are ignored: they mean a
      *  failing attitude of the trajectory, not a tilt of its frame [deg] */
     double max_tilt = 5.0;
@@ -149,6 +178,8 @@ public:
     std::size_t up_restarts = 0;
     /** Readings with an innovation covariance that cannot be inverted */
     std::size_t singular_readings = 0;
+    /** Poses leveled with the up readings of their place */
+    std::size_t place_leveled_poses = 0;
   };
 
   GravityLeveler() = default;
@@ -164,10 +195,13 @@ public:
   /** Adds a reading of the up direction of the trajectory frame at time `t`,
    *  e.g. from the walls and floors seen around the trajectory, with the
    *  covariance of its x and y components [rad^2]. It updates the filter at
-   *  once, so it should come before the poses newer than `t`.
+   *  once, so it should come before the poses newer than `t`. `place`, if
+   *  given, is where in the trajectory frame the reading was measured (e.g.
+   *  the mean position of the scans behind it), see `up_reading_place_radius`.
    */
   void add_up_reading(
-    double t, const mrpt::math::TVector3D & up, const mrpt::math::CMatrixDouble22 & up_cov);
+    double t, const mrpt::math::TVector3D & up, const mrpt::math::CMatrixDouble22 & up_cov,
+    const std::optional<mrpt::math::TPoint3D> & place = std::nullopt);
 
   /** Adds the next pose of the trajectory and returns it leveled. IMU
    *  readings up to `t` should have been added before. A pose not newer than
@@ -226,6 +260,33 @@ private:
   Eigen::Matrix<double, 5, 5> P_ = Eigen::Matrix<double, 5, 5>::Zero();
 
   mrpt::math::TVector2D applied_tilt_{0, 0};
+
+  /** Up readings kept by place, in a grid of cells of the place radius */
+  struct PlacedReading
+  {
+    mrpt::math::TPoint3D p;
+    Eigen::Vector2d tau = Eigen::Vector2d::Zero();
+    double weight = 0;
+  };
+  std::vector<PlacedReading> placed_;
+  std::unordered_map<std::uint64_t, std::vector<std::size_t>> place_grid_;
+
+  /** The latest pose leveled by place: it holds the deadband too */
+  std::optional<double> last_place_leveled_t_;
+
+  struct PlaceTilt
+  {
+    Eigen::Vector2d tau = Eigen::Vector2d::Zero();
+    /** Sum of the Gaussian weights of the readings, by distance only */
+    double kernel = 0;
+  };
+  /** The tilt read near `p`, if there are readings within the radius */
+  std::optional<PlaceTilt> tilt_at_place(const mrpt::math::TPoint3D & p) const;
+
+  /** Keeps an accepted up reading (tilt `tau`, covariance `R`) by place */
+  void keep_by_place(
+    const std::optional<mrpt::math::TPoint3D> & place, const Eigen::Vector2d & tau,
+    const Eigen::Matrix2d & R);
 
   std::optional<double> last_t_;
   std::optional<mrpt::poses::CPose3D> last_in_;

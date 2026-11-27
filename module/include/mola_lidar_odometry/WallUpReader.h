@@ -98,6 +98,9 @@ public:
     mrpt::math::TVector3D up{0, 0, 1};
     /** Covariance of up.x and up.y [rad^2] */
     mrpt::math::CMatrixDouble22 up_cov;
+    /** Where it was measured: the mean vehicle position of the window's
+     *  scans, in the trajectory frame */
+    mrpt::math::TPoint3D place;
     std::size_t points = 0;
     std::size_t walls = 0;
     std::size_t flats = 0;

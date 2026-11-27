@@ -241,6 +241,7 @@ struct Cli
   Opt<double> arg_levelFusedWallsRandomWalk;
   Opt<double> arg_levelFusedWallsMaxTilt;
   Opt<double> arg_levelFusedWallsMaxWallsFloors;
+  Opt<double> arg_levelFusedWallsPlaceRadius;
   Opt<bool> arg_levelSimpleMap;
   Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
@@ -483,6 +484,17 @@ struct Cli
           "whose walls alone cannot confirm them (a single facade direction, open ground). "
           "0: no check.")
         ->option_text(std::to_string(arg_levelFusedWallsMaxWallsFloors.value));
+
+    arg_levelFusedWallsPlaceRadius.value =
+      mola::GravityLeveler::Parameters{}.up_reading_place_radius;
+    arg_levelFusedWallsPlaceRadius.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-place-radius", arg_levelFusedWallsPlaceRadius.value,
+          "Level each pose with the accepted wall readings taken within this horizontal distance "
+          "[m] of it on the same floor (1.5 m in height), fading into the latest ones toward "
+          "their edge: on a revisit the place's own readings come back (0: by time only).")
+        ->option_text(std::to_string(arg_levelFusedWallsPlaceRadius.value));
 
     arg_outPathSmoothed.opt =
       cmd
@@ -1341,6 +1353,7 @@ int main_odometry(Cli & cli)
     lp.up_reading_deadband = cli.arg_levelFusedWallsDeadband.getValue();
     lp.up_reading_random_walk = cli.arg_levelFusedWallsRandomWalk.getValue();
     lp.max_up_tilt = cli.arg_levelFusedWallsMaxTilt.getValue();
+    lp.up_reading_place_radius = cli.arg_levelFusedWallsPlaceRadius.getValue();
     if (wallsOnly && !cli.arg_levelFusedDeadband.isSet()) {
       // No accelerometer: the walls' deadband holds after they leave view
       // too, so the correction does not fade to nothing.
@@ -1774,7 +1787,7 @@ int main_odometry(Cli & cli)
                 wr = wallReader->read(mrpt::Clock::toDouble(tSample));
               }
               if (wr) {
-                fusedLeveler->add_up_reading(wr->t, wr->up, wr->up_cov);
+                fusedLeveler->add_up_reading(wr->t, wr->up, wr->up_cov, wr->place);
               }
             }
             fusedPathBeforeLeveling->insert(tSample, p.asTPose());
@@ -1864,7 +1877,8 @@ int main_odometry(Cli & cli)
                 << " with floors the walls cannot confirm, " << ws.no_new_scans
                 << " without a new scan), " << st.up_readings << " given to the filter, "
                 << st.gated_up_readings << " gated, " << st.implausible_up_readings
-                << " implausible, " << st.up_restarts << " restarts; cost per window "
+                << " implausible, " << st.up_restarts << " restarts, " << st.place_leveled_poses
+                << " poses leveled by place; cost per window "
                 << mrpt::format(
                      "%.3f s mean, %.3f s max",
                      ws.cost_total /
