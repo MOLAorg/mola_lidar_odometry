@@ -1422,6 +1422,13 @@ without an IMU de-skew): raw rotating scans bend their walls with the motion,
 so no reading could ever be taken. `-walls-period` must be > 0; the hold's
 end splits the random walk of a prediction interval between the walls' and
 the accelerometer's rates.
+Wall readings carry their place (the mean position of the window's scans) and
+GravityLeveler keeps them by place: a pose within `up_reading_place_radius`
+(5 m, `-walls-place-radius`, 0: by time only) of some is leveled with those
+(Gaussian-weighted) instead of with the filter's state. The frame's tilt
+depends on where the odometry is in its map; a correction by time is applied
+a trailing window late and, on revisits (no new local-map scans), held from
+elsewhere, and on a college walk that made the path climb 8 m.
 `--output-simplemap-gravity-leveled` (explicit; needs the fused path in the
 odometry frame) moves each keyframe of `--output-simplemap` by the path's
 correction at its "metadata" stamp (`mola::level_simplemap_keyframes()`); a

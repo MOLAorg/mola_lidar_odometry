@@ -51,6 +51,22 @@ mrpt::math::CVectorFixedDouble<3> as_vector(const mrpt::math::TVector3D & v)
   return r;
 }
 
+// Grid cell of a coordinate; cells beyond +-2^20 share keys, which only
+// widens a query there.
+std::int64_t cell_of(double v, double size)
+{
+  return static_cast<std::int64_t>(std::floor(v / size));
+}
+
+std::uint64_t cell_key(std::int64_t ix, std::int64_t iy, std::int64_t iz)
+{
+  constexpr std::int64_t OFFSET = 1 << 20;
+  constexpr std::uint64_t MASK = (1U << 21) - 1;
+  return (static_cast<std::uint64_t>(ix + OFFSET) & MASK) |
+         ((static_cast<std::uint64_t>(iy + OFFSET) & MASK) << 21) |
+         ((static_cast<std::uint64_t>(iz + OFFSET) & MASK) << 42);
+}
+
 // Attitude at fraction `s` in [0,1] between two attitudes (geodesic).
 mrpt::math::CMatrixDouble33 interpolate_rotation(
   const mrpt::math::CMatrixDouble33 & R0, const mrpt::math::CMatrixDouble33 & R1, double s)
@@ -83,6 +99,7 @@ GravityLeveler::GravityLeveler(const Parameters & p) : params_(p)
   // Strictly positive, so no reading can have a singular innovation:
   ASSERT_GT_(params_.up_reading_sigma_floor, 0.0);
   ASSERT_GT_(params_.initial_tilt_sigma, 0.0);
+  ASSERT_GE_(params_.up_reading_place_radius, 0.0);
 }
 
 void GravityLeveler::add_imu(double t, const mrpt::math::TVector3D & specific_force)
@@ -125,7 +142,8 @@ void GravityLeveler::reset_filter()
 }
 
 void GravityLeveler::add_up_reading(
-  double t, const mrpt::math::TVector3D & up, const mrpt::math::CMatrixDouble22 & up_cov)
+  double t, const mrpt::math::TVector3D & up, const mrpt::math::CMatrixDouble22 & up_cov,
+  const std::optional<mrpt::math::TPoint3D> & place)
 {
   stats_.up_readings++;
   // A reading must be finite, with a covariance that is one (symmetric,
@@ -153,6 +171,21 @@ void GravityLeveler::add_up_reading(
   const Eigen::Matrix2d R =
     up_cov.asEigen() / (n * n * u.z * u.z) + floor * floor * Eigen::Matrix2d::Identity();
 
+  // Kept by place too, whatever the filter makes of it:
+  const double radius = params_.up_reading_place_radius;
+  if (
+    place && radius > 0 && std::isfinite(place->x) && std::isfinite(place->y) &&
+    std::isfinite(place->z)) {
+    PlacedReading pr;
+    pr.p = *place;
+    pr.tau = z;
+    pr.weight = 1.0 / R.trace();
+    placed_.push_back(pr);
+    place_grid_[cell_key(
+                  cell_of(place->x, radius), cell_of(place->y, radius), cell_of(place->z, radius))]
+      .push_back(placed_.size() - 1);
+  }
+
   // Observes the tilt alone: no body-frame term
   Eigen::Matrix<double, 2, 5> H = Eigen::Matrix<double, 2, 5>::Zero();
   H(0, 0) = 1;
@@ -179,6 +212,45 @@ void GravityLeveler::add_up_reading(
   const bool restarting = predict_to(t);
   correct(z, H, R, restarting, consecutive_up_rejections_, stats_.gated_up_readings);
   mark_accepted();
+}
+
+std::optional<Eigen::Vector2d> GravityLeveler::tilt_at_place(const mrpt::math::TPoint3D & p) const
+{
+  const double radius = params_.up_reading_place_radius;
+  if (!(radius > 0) || placed_.empty()) {
+    return {};
+  }
+  const auto cx = cell_of(p.x, radius);
+  const auto cy = cell_of(p.y, radius);
+  const auto cz = cell_of(p.z, radius);
+  const double inv_two_sigma2 = 1.0 / (2.0 * mrpt::square(0.5 * radius));
+  Eigen::Vector2d sum = Eigen::Vector2d::Zero();
+  double sum_w = 0;
+  for (std::int64_t dx = -1; dx <= 1; dx++) {
+    for (std::int64_t dy = -1; dy <= 1; dy++) {
+      for (std::int64_t dz = -1; dz <= 1; dz++) {
+        const auto it = place_grid_.find(cell_key(cx + dx, cy + dy, cz + dz));
+        if (it == place_grid_.end()) {
+          continue;
+        }
+        for (const auto i : it->second) {
+          const auto & r = placed_[i];
+          const double d2 =
+            mrpt::square(r.p.x - p.x) + mrpt::square(r.p.y - p.y) + mrpt::square(r.p.z - p.z);
+          if (d2 > radius * radius) {
+            continue;
+          }
+          const double w = r.weight * std::exp(-d2 * inv_two_sigma2);
+          sum += w * r.tau;
+          sum_w += w;
+        }
+      }
+    }
+  }
+  if (!(sum_w > 0)) {
+    return {};
+  }
+  return Eigen::Vector2d(sum / sum_w);
 }
 
 double GravityLeveler::deadband_at(double t) const
@@ -327,16 +399,23 @@ mrpt::poses::CPose3D GravityLeveler::add_pose(double t, const mrpt::poses::CPose
   }
 
   // The part of the tilt beyond the deadband, narrower while up readings are
-  // recent:
+  // recent. Up readings of this place, if any, take precedence over the
+  // filter's state, with their own deadband however old they are:
   mrpt::math::TVector2D tau(0, 0);
-  if (filter_started_) {
-    const double mag = std::hypot(x_[0], x_[1]);
+  const auto here = tilt_at_place(pose.translation());
+  if (here || filter_started_) {
+    const Eigen::Vector2d x = here ? *here : Eigen::Vector2d(x_[0], x_[1]);
+    const double mag = x.norm();
     // An older pose gets the current correction: the deadband of the
     // latest output time, not of its own.
-    const double d = deadband_at(is_new || !last_t_ ? t : *last_t_);
+    const double d = here ? mrpt::DEG2RAD(params_.up_reading_deadband)
+                          : deadband_at(is_new || !last_t_ ? t : *last_t_);
     if (mag > d) {
       const double s = (mag - d) / mag;
-      tau = mrpt::math::TVector2D(x_[0] * s, x_[1] * s);
+      tau = mrpt::math::TVector2D(x[0] * s, x[1] * s);
+    }
+    if (here && is_new) {
+      stats_.place_leveled_poses++;
     }
   }
 

@@ -196,6 +196,10 @@ std::optional<WallUpReader::Reading> WallUpReader::read(double t)
   r.up_cov = res.up_cov;
   r.up_cov *= overlap;
   r.points = pc.size();
+  for (const auto & b : batches_) {
+    r.place = r.place + mrpt::math::TVector3D(b.pose.translation()) *
+                          (1.0 / static_cast<double>(batches_.size()));
+  }
   r.walls = res.wall_count;
   r.flats = res.flat_count;
   r.cost = account();
