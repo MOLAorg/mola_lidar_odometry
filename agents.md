@@ -1422,6 +1422,10 @@ without an IMU de-skew): raw rotating scans bend their walls with the motion,
 so no reading could ever be taken. `-walls-period` must be > 0; the hold's
 end splits the random walk of a prediction interval between the walls' and
 the accelerometer's rates.
+`up_reading_warmup` (0 s, `-walls-warmup`, opt-in) ignores the first wall
+readings: for runs that start level, where the first places can only add their
+own error (a 1 deg start lean cost 0.6 m on a level walk); a run that starts
+tilted keeps that tilt for as long, so it is off by default.
 `--output-simplemap-gravity-leveled` (explicit; needs the fused path in the
 odometry frame) moves each keyframe of `--output-simplemap` by the path's
 correction at its "metadata" stamp (`mola::level_simplemap_keyframes()`); a

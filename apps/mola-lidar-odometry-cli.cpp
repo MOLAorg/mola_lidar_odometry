@@ -239,6 +239,7 @@ struct Cli
   Opt<double> arg_levelFusedWallsFlatsWeight;
   Opt<double> arg_levelFusedWallsDeadband;
   Opt<double> arg_levelFusedWallsRandomWalk;
+  Opt<double> arg_levelFusedWallsWarmup;
   Opt<bool> arg_levelSimpleMap;
   Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
@@ -456,6 +457,16 @@ struct Cli
           "--output-fused-gravity-leveled-walls-random-walk", arg_levelFusedWallsRandomWalk.value,
           "Random walk of the frame tilt [deg/sqrt(s)] while wall readings are recent.")
         ->option_text(std::to_string(arg_levelFusedWallsRandomWalk.value));
+
+    arg_levelFusedWallsWarmup.value = mola::GravityLeveler::Parameters{}.up_reading_warmup;
+    arg_levelFusedWallsWarmup.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-warmup", arg_levelFusedWallsWarmup.value,
+          "Ignore the wall readings of the first seconds [s]: for runs that start level, whose "
+          "first places would only add their own error. A run that starts tilted keeps that "
+          "tilt for as long.")
+        ->option_text(std::to_string(arg_levelFusedWallsWarmup.value));
 
     arg_outPathSmoothed.opt =
       cmd
@@ -1313,6 +1324,7 @@ int main_odometry(Cli & cli)
     lp.tilt_random_walk = cli.arg_levelFusedRandomWalk.getValue();
     lp.up_reading_deadband = cli.arg_levelFusedWallsDeadband.getValue();
     lp.up_reading_random_walk = cli.arg_levelFusedWallsRandomWalk.getValue();
+    lp.up_reading_warmup = cli.arg_levelFusedWallsWarmup.getValue();
     if (wallsOnly && !cli.arg_levelFusedDeadband.isSet()) {
       // No accelerometer: the walls' deadband holds after they leave view
       // too, so the correction does not fade to nothing.
@@ -1823,7 +1835,8 @@ int main_odometry(Cli & cli)
                 << ws.unreliable_cov << " with an unreliable covariance, " << ws.no_new_scans
                 << " without a new scan), " << st.up_readings << " given to the filter, "
                 << st.gated_up_readings << " gated, " << st.implausible_up_readings
-                << " implausible, " << st.up_restarts << " restarts; cost per reading "
+                << " implausible, " << st.warmup_up_readings << " in the warmup, " << st.up_restarts
+                << " restarts; cost per reading "
                 << mrpt::format(
                      "%.3f s mean, %.3f s max",
                      ws.cost_total / static_cast<double>(std::max<std::size_t>(

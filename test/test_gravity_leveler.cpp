@@ -541,6 +541,38 @@ TEST(GravityLeveler, UpReadingOutliersAreGatedAndImplausibleOnesIgnored)
   EXPECT_EQ(lev.stats().up_restarts, 0U);
 }
 
+TEST(GravityLeveler, UpReadingWarmupIgnoresTheFirstReadings)
+{
+  // A level frame whose first 30 s of readings lean 1 deg (the structure of
+  // the first places, not the frame), then correct ones. Without a warmup the
+  // output follows them and leaves the level circle by decimeters.
+  const auto lean = mrpt::poses::CPose3D::FromYawPitchRoll(0.0, mrpt::DEG2RAD(1.0), 0.0);
+  for (const double warmup : {0.0, 30.0}) {
+    mola::GravityLeveler::Parameters p;
+    p.up_reading_warmup = warmup;
+    mola::GravityLeveler lev(p);
+    double max_dz = 0;
+    for (std::size_t k = 0; k <= static_cast<std::size_t>(120.0 * POSE_RATE); k++) {
+      const double t = static_cast<double>(k) / POSE_RATE;
+      if (k % 10 == 0 && k > 0) {
+        const auto u = (t < 30.0 ? lean : mrpt::poses::CPose3D()).rotateVector({0, 0, 1});
+        lev.add_up_reading(t, u, iso_cov(0.1));
+      }
+      max_dz = std::max(max_dz, std::abs(lev.add_pose(t, true_pose(t)).z()));
+    }
+    if (warmup > 0) {
+      EXPECT_EQ(lev.stats().warmup_up_readings, 29U);
+      EXPECT_LT(max_dz, 0.02);
+    } else {
+      EXPECT_EQ(lev.stats().warmup_up_readings, 0U);
+      EXPECT_GT(max_dz, 0.2);
+    }
+  }
+  mola::GravityLeveler::Parameters p;
+  p.up_reading_warmup = -1.0;
+  EXPECT_ANY_THROW(mola::GravityLeveler{p});
+}
+
 TEST(GravityLeveler, RepeatedlyRejectedUpReadingsRestartTheFilter)
 {
   // The frame tilt steps by 3 deg (e.g. the state locked onto a wrong value):

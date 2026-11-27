@@ -101,6 +101,13 @@ public:
     double up_reading_ramp = 30.0;
     /** Added in quadrature to the sigmas of each up reading [deg], > 0 */
     double up_reading_sigma_floor = 0.1;
+    /** Up readings in the first seconds after the first pose are ignored.
+     *  Where the trajectory starts level (initialized from the
+     *  accelerometer), the readings of its first places can only add their
+     *  own error, and a height step taken early is never recovered. Where it
+     *  starts tilted, ignoring them leaves that tilt in for this long, so
+     *  0 by default [s] */
+    double up_reading_warmup = 0.0;
     /** Readings beyond this tilt are ignored: they mean a failing attitude
      *  of the trajectory, not a tilt of its frame [deg] */
     double max_tilt = 5.0;
@@ -132,6 +139,8 @@ public:
     std::size_t gated_up_readings = 0;
     std::size_t implausible_up_readings = 0;
     std::size_t up_restarts = 0;
+    /** Up readings ignored within up_reading_warmup */
+    std::size_t warmup_up_readings = 0;
     /** Readings with an innovation covariance that cannot be inverted */
     std::size_t singular_readings = 0;
   };
