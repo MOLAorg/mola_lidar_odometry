@@ -111,6 +111,7 @@ GravityLeveler::GravityLeveler(const Parameters & p) : params_(p)
   ASSERT_GT_(params_.initial_tilt_sigma, 0.0);
   ASSERT_GE_(params_.up_reading_place_radius, 0.0);
   ASSERT_GT_(params_.up_reading_place_max_dz, 0.0);
+  ASSERT_GE_(params_.up_reading_warmup, 0.0);
 }
 
 void GravityLeveler::add_imu(double t, const mrpt::math::TVector3D & specific_force)
@@ -157,6 +158,11 @@ void GravityLeveler::add_up_reading(
   const std::optional<mrpt::math::TPoint3D> & place)
 {
   stats_.up_readings++;
+  // Not before the warmup is over (and not before the first pose starts it):
+  if (params_.up_reading_warmup > 0 && (!t0_ || t < *t0_ + params_.up_reading_warmup)) {
+    stats_.warmup_up_readings++;
+    return;
+  }
   // A reading must be finite, with a covariance that is one (symmetric,
   // positive semidefinite): anything else would poison the state for good.
   const auto & C = up_cov;

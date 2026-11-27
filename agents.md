@@ -1451,6 +1451,10 @@ correction by time is applied a trailing window late and, on revisits (no new
 local-map scans), held from elsewhere, and on a college walk that made the
 path climb 8 m. Rejected readings are not kept: at vehicle speed a place has
 one or two readings, and an outlier among them bent the revisit by 0.26 m.
+`up_reading_warmup` (0 s, `-walls-warmup`, opt-in) ignores the first wall
+readings: for runs that start level, where the first places can only add their
+own error (a 1 deg start lean cost 0.6 m on a level walk); a run that starts
+tilted keeps that tilt for as long, so it is off by default.
 `--output-simplemap-gravity-leveled` (explicit; needs the fused path in the
 odometry frame) moves each keyframe of `--output-simplemap` by the path's
 correction at its "metadata" stamp (`mola::level_simplemap_keyframes()`); a

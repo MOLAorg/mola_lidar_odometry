@@ -242,6 +242,7 @@ struct Cli
   Opt<double> arg_levelFusedWallsMaxTilt;
   Opt<double> arg_levelFusedWallsMaxWallsFloors;
   Opt<double> arg_levelFusedWallsPlaceRadius;
+  Opt<double> arg_levelFusedWallsWarmup;
   Opt<bool> arg_levelSimpleMap;
   Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
@@ -495,6 +496,16 @@ struct Cli
           "[m] of it on the same floor (1.5 m in height), fading into the latest ones toward "
           "their edge: on a revisit the place's own readings come back (0: by time only).")
         ->option_text(std::to_string(arg_levelFusedWallsPlaceRadius.value));
+
+    arg_levelFusedWallsWarmup.value = mola::GravityLeveler::Parameters{}.up_reading_warmup;
+    arg_levelFusedWallsWarmup.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-warmup", arg_levelFusedWallsWarmup.value,
+          "Ignore the wall readings of the first seconds [s]: for runs that start level, whose "
+          "first places would only add their own error. A run that starts tilted keeps that "
+          "tilt for as long.")
+        ->option_text(std::to_string(arg_levelFusedWallsWarmup.value));
 
     arg_outPathSmoothed.opt =
       cmd
@@ -1354,6 +1365,7 @@ int main_odometry(Cli & cli)
     lp.up_reading_random_walk = cli.arg_levelFusedWallsRandomWalk.getValue();
     lp.max_up_tilt = cli.arg_levelFusedWallsMaxTilt.getValue();
     lp.up_reading_place_radius = cli.arg_levelFusedWallsPlaceRadius.getValue();
+    lp.up_reading_warmup = cli.arg_levelFusedWallsWarmup.getValue();
     if (wallsOnly && !cli.arg_levelFusedDeadband.isSet()) {
       // No accelerometer: the walls' deadband holds after they leave view
       // too, so the correction does not fade to nothing.
@@ -1877,7 +1889,8 @@ int main_odometry(Cli & cli)
                 << " with floors the walls cannot confirm, " << ws.no_new_scans
                 << " without a new scan), " << st.up_readings << " given to the filter, "
                 << st.gated_up_readings << " gated, " << st.implausible_up_readings
-                << " implausible, " << st.up_restarts << " restarts, " << st.place_leveled_poses
+                << " implausible, " << st.warmup_up_readings << " in the warmup, " << st.up_restarts
+                << " restarts, " << st.place_leveled_poses
                 << " poses leveled by place; cost per window "
                 << mrpt::format(
                      "%.3f s mean, %.3f s max",

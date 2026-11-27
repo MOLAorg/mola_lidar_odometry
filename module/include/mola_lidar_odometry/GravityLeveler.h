@@ -132,6 +132,13 @@ public:
      *  another floor of the map carries its own tilt error. A ramp of 10 %
      *  rises 0.5 m within the radius. > 0 */
     double up_reading_place_max_dz = 1.5;
+    /** Up readings in the first seconds after the first pose are ignored.
+     *  Where the trajectory starts level (initialized from the
+     *  accelerometer), the readings of its first places can only add their
+     *  own error, and a height step taken early is never recovered. Where it
+     *  starts tilted, ignoring them leaves that tilt in for this long, so
+     *  0 by default [s] */
+    double up_reading_warmup = 0.0;
     /** Accelerometer readings beyond this tilt are ignored: they mean a
      *  failing attitude of the trajectory, not a tilt of its frame [deg] */
     double max_tilt = 5.0;
@@ -176,6 +183,8 @@ public:
     std::size_t gated_up_readings = 0;
     std::size_t implausible_up_readings = 0;
     std::size_t up_restarts = 0;
+    /** Up readings ignored within up_reading_warmup */
+    std::size_t warmup_up_readings = 0;
     /** Readings with an innovation covariance that cannot be inverted */
     std::size_t singular_readings = 0;
     /** Poses leveled with the up readings of their place */
