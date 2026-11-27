@@ -1422,6 +1422,11 @@ without an IMU de-skew): raw rotating scans bend their walls with the motion,
 so no reading could ever be taken. `-walls-period` must be > 0; the hold's
 end splits the random walk of a prediction interval between the walls' and
 the accelerometer's rates.
+WallUpReader takes no reading from a window whose walls do not confirm its
+floors: walls alone and floors alone more than `max_walls_floors_angle` apart
+(2 deg, `-walls-max-walls-floors-deg`), or walls alone that do not give up
+(needs `MP2P_ICP_HAS_UP_REFERENCES_CHECK`). Sloped lawns and the rock faces of a
+quarry pass the covariance checks and are wrong.
 `--output-simplemap-gravity-leveled` (explicit; needs the fused path in the
 odometry frame) moves each keyframe of `--output-simplemap` by the path's
 correction at its "metadata" stamp (`mola::level_simplemap_keyframes()`); a

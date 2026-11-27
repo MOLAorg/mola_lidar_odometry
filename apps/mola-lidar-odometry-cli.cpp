@@ -239,6 +239,7 @@ struct Cli
   Opt<double> arg_levelFusedWallsFlatsWeight;
   Opt<double> arg_levelFusedWallsDeadband;
   Opt<double> arg_levelFusedWallsRandomWalk;
+  Opt<double> arg_levelFusedWallsMaxWallsFloors;
   Opt<bool> arg_levelSimpleMap;
   Opt<std::string> arg_moduleAttitudeLabel;
   Opt<std::string> arg_outTwist;
@@ -456,6 +457,17 @@ struct Cli
           "--output-fused-gravity-leveled-walls-random-walk", arg_levelFusedWallsRandomWalk.value,
           "Random walk of the frame tilt [deg/sqrt(s)] while wall readings are recent.")
         ->option_text(std::to_string(arg_levelFusedWallsRandomWalk.value));
+
+    arg_levelFusedWallsMaxWallsFloors.value =
+      mola::WallUpReader::Parameters{}.max_walls_floors_angle;
+    arg_levelFusedWallsMaxWallsFloors.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-max-walls-floors-deg",
+          arg_levelFusedWallsMaxWallsFloors.value,
+          "No wall reading from a window whose walls and floors, each on its own, disagree on "
+          "up by more than this [deg]: sloped ground or leaning walls (0: no check).")
+        ->option_text(std::to_string(arg_levelFusedWallsMaxWallsFloors.value));
 
     arg_outPathSmoothed.opt =
       cmd
@@ -1353,6 +1365,7 @@ int main_odometry(Cli & cli)
     wp.window = cli.arg_levelFusedWallsWindow.getValue();
     wp.period = cli.arg_levelFusedWallsPeriod.getValue();
     wp.flats_weight = cli.arg_levelFusedWallsFlatsWeight.getValue();
+    wp.max_walls_floors_angle = cli.arg_levelFusedWallsMaxWallsFloors.getValue();
     wallReader.emplace(wp);
     liodom->setLocalMapScanCallback(
       [&](
@@ -1820,7 +1833,8 @@ int main_odometry(Cli & cli)
       const auto & ws = wallReader->stats();
       std::cout << "Wall readings: " << ws.readings << " taken (" << ws.unobservable
                 << " windows not observable, " << ws.too_few_points << " with too few points, "
-                << ws.unreliable_cov << " with an unreliable covariance, " << ws.no_new_scans
+                << ws.unreliable_cov << " with an unreliable covariance, " << ws.references_disagree
+                << " where walls and floors disagree, " << ws.no_new_scans
                 << " without a new scan), " << st.up_readings << " given to the filter, "
                 << st.gated_up_readings << " gated, " << st.implausible_up_readings
                 << " implausible, " << st.up_restarts << " restarts; cost per reading "

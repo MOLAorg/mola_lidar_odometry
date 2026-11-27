@@ -45,8 +45,9 @@ namespace mola
  *
  *  No reading comes from a window from which up is not observable (too few
  *  planar points, a single wall direction and no floor), whose covariance
- *  rests on too few groups of normals to be trusted, or that holds no scan
- *  newer than the previous reading (e.g. standing still). Consecutive windows
+ *  rests on too few groups of normals to be trusted, whose walls and floors
+ *  disagree (`max_walls_floors_angle`: sloped ground, leaning walls), or that
+ *  holds no scan newer than the previous reading (e.g. standing still). Consecutive windows
  *  overlap by about window/period scans, so each reading's covariance is
  *  inflated by that factor: a filter fed with all of them does not count
  *  the shared scans several times.
@@ -78,6 +79,12 @@ public:
     double cluster_size = 2.0;
     /** A window with fewer points than this gives no reading */
     std::size_t min_points = 2000;
+    /** No reading from a window whose walls do not confirm its floors: the
+     *  walls alone and the floors alone disagree on up by more than this
+     *  [deg] (floors on a slope, walls that lean), or the walls alone do not
+     *  give up (0: no check). Needs MP2P_ICP_HAS_UP_REFERENCES_CHECK;
+     *  ignored otherwise. */
+    double max_walls_floors_angle = 2.0;
   };
 
   struct Reading
@@ -101,6 +108,8 @@ public:
     std::size_t unobservable = 0;
     std::size_t too_few_points = 0;
     std::size_t unreliable_cov = 0;
+    /** Windows whose walls and floors disagree (max_walls_floors_angle) */
+    std::size_t references_disagree = 0;
     /** Periods without a scan newer than the previous reading */
     std::size_t no_new_scans = 0;
     /** Wall-clock time spent in read() [s] */

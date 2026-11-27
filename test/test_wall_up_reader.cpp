@@ -212,6 +212,39 @@ TEST(WallUpReader, ACorridorWithoutFloorsIsNotObservableWallsOnly)
   EXPECT_EQ(reader.stats().unobservable, 1U);
 }
 
+#if defined(MP2P_ICP_HAS_UP_REFERENCES_CHECK)
+TEST(WallUpReader, NoReadingWhenFloorsAndWallsDisagree)
+{
+  // Plumb walls over a floor and ceiling sloped 4 deg (a ramp, a field): no
+  // reading by default; with the check off, the slope pulls the reading.
+  auto world = room(true);
+  for (const auto & p : room()) {
+    if (std::abs(p.z) < 0.05 || std::abs(p.z - 3.0) < 0.05) {
+      // floor and ceiling points, sloped along X:
+      world.emplace_back(p.x, p.y, p.z + p.x * std::tan(mrpt::DEG2RAD(4.0)));
+    } else if (std::abs(p.y) < 0.05 || std::abs(p.y - 8.0) < 0.05) {
+      world.push_back(p);  // the walls normal to Y
+    }
+  }
+  for (const double limit : {mola::WallUpReader::Parameters{}.max_walls_floors_angle, 0.0}) {
+    mola::WallUpReader::Parameters p;
+    p.max_walls_floors_angle = limit;
+    p.min_points = 500;
+    mola::WallUpReader reader(p);
+    reader.add_cloud(
+      0.0, mrpt::poses::CPose3D(), scan(world, mrpt::poses::CPose3D(6, 4, 1, 0, 0, 0)));
+    const auto r = reader.read(1.0);
+    if (limit > 0) {
+      EXPECT_FALSE(r.has_value());
+      EXPECT_EQ(reader.stats().references_disagree, 1U);
+    } else {
+      ASSERT_TRUE(r.has_value());
+      EXPECT_GT(mrpt::RAD2DEG(std::acos(r->up.z)), 1.0);
+    }
+  }
+}
+#endif
+
 #else
 TEST(WallUpReader, NeedsTheUpCovarianceApi)
 {
