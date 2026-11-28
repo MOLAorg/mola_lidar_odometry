@@ -84,8 +84,12 @@ namespace mola
  *    its own readings back, not the last one taken elsewhere, and a trailing
  *    window is applied where it was measured instead of a few meters later.
  *
- *  Only past data are used. Positions are corrected incrementally, so the
- *  output is continuous even when the correction changes.
+ *  - Optionally (`revisit_radius`), a revisited place takes the correction
+ *    of its first visit, attitude and position, so both visits agree.
+ *
+ *  Only past data are used. Positions are corrected incrementally (and,
+ *  on revisits, moved gradually toward the first visit's), so the output is
+ *  continuous even when the correction changes.
  */
 class GravityLeveler
 {
@@ -132,6 +136,22 @@ public:
      *  another floor of the map carries its own tilt error. A ramp of 10 %
      *  rises 0.5 m within the radius. > 0 */
     double up_reading_place_max_dz = 1.5;
+    /** Corrections consistent by place: a pose within this horizontal
+     *  distance [m] of the first visit of a place (on the same floor, and
+     *  more than 2 `revisit_fade` of path ago) takes that visit's output
+     *  offset (output minus input position) and applied tilt, a Gaussian
+     *  mean with sigma = this, instead of the offset integrated along the
+     *  path and the current tilt. Integrated, the two visits of a place are
+     *  split by the integral of the correction in between (a floor drawn
+     *  twice). The weight of the first visit falls linearly to zero at
+     *  `revisit_fade`, in height from `up_reading_place_max_dz`/2 to
+     *  `up_reading_place_max_dz`, and with the path since it (from 2 to 4
+     *  `revisit_fade`), and the output moves toward it in proportion: a
+     *  revisit is taken up gradually over the approach. 0 (default): off,
+     *  positions are integrated along the path only. */
+    double revisit_radius = 0.0;
+    /** See `revisit_radius` [m], > revisit_radius */
+    double revisit_fade = 5.0;
     /** Up readings in the first seconds after the first pose are ignored.
      *  Where the trajectory starts level (initialized from the
      *  accelerometer), the readings of its first places can only add their
@@ -189,6 +209,8 @@ public:
     std::size_t singular_readings = 0;
     /** Poses leveled with the up readings of their place */
     std::size_t place_leveled_poses = 0;
+    /** Poses whose position took the offset of earlier visits */
+    std::size_t revisit_poses = 0;
   };
 
   GravityLeveler() = default;
@@ -279,6 +301,44 @@ private:
   };
   std::vector<PlacedReading> placed_;
   std::unordered_map<std::uint64_t, std::vector<std::size_t>> place_grid_;
+
+  /** A place's first visit, kept for its revisits (see revisit_radius) */
+  struct RevisitAnchor
+  {
+    /** Path length of the input trajectory at the pose [m] */
+    double s = 0;
+    mrpt::math::TPoint3D p;
+    /** Output minus input position */
+    mrpt::math::TVector3D offset;
+    /** Applied tilt (tangents) */
+    Eigen::Vector2d tau = Eigen::Vector2d::Zero();
+  };
+  /** One anchor per cell of revisit_radius/2 horizontally and
+   *  up_reading_place_max_dz/2 vertically: the first pose through it, never
+   *  replaced, so revisits do not chain from visit to visit. Bounded by the
+   *  area covered, whatever the duration. */
+  std::unordered_map<std::uint64_t, RevisitAnchor> anchors_;
+  /** The keys of anchors_ by coarse cell: a whole number of anchor cells,
+   *  at least revisit_fade wide (and up_reading_place_max_dz high) */
+  std::unordered_map<std::uint64_t, std::vector<std::uint64_t>> anchor_grid_;
+  /** Path length of the input trajectory so far [m] */
+  double path_length_ = 0;
+  /** Weight of the revisit correction at the last pose */
+  double last_revisit_weight_ = 0;
+
+  /** The correction of the earlier visits of a place */
+  struct RevisitCorrection
+  {
+    mrpt::math::TVector3D offset;
+    Eigen::Vector2d tau = Eigen::Vector2d::Zero();
+    /** In [0, 1] */
+    double weight = 0;
+  };
+  /** At position `p`, with the path length `s` [m] there */
+  std::optional<RevisitCorrection> revisit_correction(
+    const mrpt::math::TPoint3D & p, double s) const;
+  /** The anchor cell of a position, and its coarse cell */
+  std::pair<std::uint64_t, std::uint64_t> anchor_cells(const mrpt::math::TPoint3D & p) const;
 
   /** The latest pose leveled by place: it holds the deadband too */
   std::optional<double> last_place_leveled_t_;

@@ -242,6 +242,7 @@ struct Cli
   Opt<double> arg_levelFusedWallsMaxTilt;
   Opt<double> arg_levelFusedWallsMaxWallsFloors;
   Opt<double> arg_levelFusedWallsPlaceRadius;
+  Opt<double> arg_levelFusedWallsRevisitRadius;
   Opt<double> arg_levelFusedWallsWarmup;
   Opt<bool> arg_levelSimpleMap;
   Opt<std::string> arg_moduleAttitudeLabel;
@@ -496,6 +497,18 @@ struct Cli
           "[m] of it on the same floor (1.5 m in height), fading into the latest ones toward "
           "their edge: on a revisit the place's own readings come back (0: by time only).")
         ->option_text(std::to_string(arg_levelFusedWallsPlaceRadius.value));
+
+    arg_levelFusedWallsRevisitRadius.value = 1.0;
+    arg_levelFusedWallsRevisitRadius.opt =
+      cmd
+        .add_option(
+          "--output-fused-gravity-leveled-walls-revisit-radius",
+          arg_levelFusedWallsRevisitRadius.value,
+          "On a revisit (the first visit of a place within this distance [m], on the same floor), "
+          "take the first visit's correction instead of integrating the current one along the "
+          "path, which splits the two visits in height. It is taken up gradually from 5 times "
+          "this distance away (0: off).")
+        ->option_text(std::to_string(arg_levelFusedWallsRevisitRadius.value));
 
     arg_levelFusedWallsWarmup.value = mola::GravityLeveler::Parameters{}.up_reading_warmup;
     arg_levelFusedWallsWarmup.opt =
@@ -1365,6 +1378,12 @@ int main_odometry(Cli & cli)
     lp.up_reading_random_walk = cli.arg_levelFusedWallsRandomWalk.getValue();
     lp.max_up_tilt = cli.arg_levelFusedWallsMaxTilt.getValue();
     lp.up_reading_place_radius = cli.arg_levelFusedWallsPlaceRadius.getValue();
+    if (levelWalls) {
+      // Wall readings level by place: so do the positions, or the two visits
+      // of a place are split by what the correction did in between.
+      lp.revisit_radius = cli.arg_levelFusedWallsRevisitRadius.getValue();
+      lp.revisit_fade = 5.0 * lp.revisit_radius;
+    }
     lp.up_reading_warmup = cli.arg_levelFusedWallsWarmup.getValue();
     if (wallsOnly && !cli.arg_levelFusedDeadband.isSet()) {
       // No accelerometer: the walls' deadband holds after they leave view
@@ -1890,8 +1909,8 @@ int main_odometry(Cli & cli)
                 << " without a new scan), " << st.up_readings << " given to the filter, "
                 << st.gated_up_readings << " gated, " << st.implausible_up_readings
                 << " implausible, " << st.warmup_up_readings << " in the warmup, " << st.up_restarts
-                << " restarts, " << st.place_leveled_poses
-                << " poses leveled by place; cost per window "
+                << " restarts, " << st.place_leveled_poses << " poses leveled by place, "
+                << st.revisit_poses << " revisiting a place; cost per window "
                 << mrpt::format(
                      "%.3f s mean, %.3f s max",
                      ws.cost_total /
