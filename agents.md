@@ -1456,8 +1456,8 @@ split in height by the line integral of the correction in between (60-130 cm
 on college walks, floors doubled on stairs). With the walls modes
 `revisit_radius` (1 m, `-walls-revisit-radius`, 0: off; `revisit_fade` = 5x)
 keeps the first visit of every cell (radius/2 wide, max_dz/2 high) with its
-output offset; a pose within the radius, on the same floor
-and more than 2 fades of path later takes it, weighted linearly down to
+output offset and applied tilt; a pose within the radius, on the same floor
+and more than 2 fades of path later takes them, weighted linearly down to
 zero at the fade, and moves toward them linearly in that weight. Never
 replacing the first visit keeps laps from chaining; gating by path, not time,
 keeps slow passes and stops from revisiting themselves. Accelerometer-only

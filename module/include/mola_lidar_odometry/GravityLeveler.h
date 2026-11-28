@@ -85,7 +85,7 @@ namespace mola
  *    window is applied where it was measured instead of a few meters later.
  *
  *  - Optionally (`revisit_radius`), a revisited place takes the correction
- *    of its first visit in position, so both visits agree.
+ *    of its first visit, attitude and position, so both visits agree.
  *
  *  Only past data are used. Positions are corrected incrementally (and,
  *  on revisits, moved gradually toward the first visit's), so the output is
@@ -139,9 +139,9 @@ public:
     /** Corrections consistent by place: a pose within this horizontal
      *  distance [m] of the first visit of a place (on the same floor, and
      *  more than 2 `revisit_fade` of path ago) takes that visit's output
-     *  offset (output minus input position), a Gaussian mean with sigma =
-     *  this, instead of the offset integrated along the path. Integrated,
-     *  the two visits of a place are
+     *  offset (output minus input position) and applied tilt, a Gaussian
+     *  mean with sigma = this, instead of the offset integrated along the
+     *  path and the current tilt. Integrated, the two visits of a place are
      *  split by the integral of the correction in between (a floor drawn
      *  twice). The weight of the first visit falls linearly to zero at
      *  `revisit_fade`, in height from `up_reading_place_max_dz`/2 to
@@ -310,6 +310,8 @@ private:
     mrpt::math::TPoint3D p;
     /** Output minus input position */
     mrpt::math::TVector3D offset;
+    /** Applied tilt (tangents) */
+    Eigen::Vector2d tau = Eigen::Vector2d::Zero();
   };
   /** One anchor per cell of revisit_radius/2 horizontally and
    *  up_reading_place_max_dz/2 vertically: the first pose through it, never
@@ -328,6 +330,7 @@ private:
   struct RevisitCorrection
   {
     mrpt::math::TVector3D offset;
+    Eigen::Vector2d tau = Eigen::Vector2d::Zero();
     /** In [0, 1] */
     double weight = 0;
   };

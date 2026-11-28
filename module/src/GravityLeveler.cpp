@@ -388,12 +388,14 @@ std::optional<GravityLeveler::RevisitCorrection> GravityLeveler::revisit_correct
   for (const auto & c : cands) {
     const double k = c.w * std::exp(-(c.d2 - d2_min) * inv_two_sigma2);
     rc.offset = rc.offset + c.a->offset * k;
+    rc.tau += k * c.a->tau;
     sum_k += k;
   }
   if (!(sum_k > 0)) {
     return {};
   }
   rc.offset = rc.offset * (1.0 / sum_k);
+  rc.tau /= sum_k;
   rc.weight = w;
   return rc;
 }
@@ -576,16 +578,21 @@ mrpt::poses::CPose3D GravityLeveler::add_pose(double t, const mrpt::poses::CPose
     }
   }
 
-  // A revisited place keeps the position offset of its first visit:
-  // integrated along the path, the two visits would be split by what the
-  // correction did in between (a floor drawn twice).
+  // A revisited place keeps the correction of its first visit, attitude and
+  // position: corrected on their own, the two visits would disagree by what
+  // the correction did in between (a floor drawn twice).
   double s_now = path_length_;
   if (is_new && last_in_) {
     s_now += (pose.translation() - last_in_->translation()).norm();
   }
   const auto rev = revisit_correction(pose.translation(), s_now);
-  if (rev && is_new) {
-    stats_.revisit_poses++;
+  if (rev) {
+    const double w = rev->weight;
+    tau = mrpt::math::TVector2D(
+      w * rev->tau[0] + (1.0 - w) * tau.x, w * rev->tau[1] + (1.0 - w) * tau.y);
+    if (is_new) {
+      stats_.revisit_poses++;
+    }
   }
 
   // Each increment is rotated by the correction held at its start, and the
@@ -617,13 +624,15 @@ mrpt::poses::CPose3D GravityLeveler::add_pose(double t, const mrpt::poses::CPose
     const mrpt::math::TVector3D offset = p - mrpt::math::TVector3D(pin);
     if (
       std::isfinite(pin.x) && std::isfinite(pin.y) && std::isfinite(pin.z) &&
-      std::isfinite(offset.x) && std::isfinite(offset.y) && std::isfinite(offset.z)) {
+      std::isfinite(offset.x) && std::isfinite(offset.y) && std::isfinite(offset.z) &&
+      std::isfinite(tau.x) && std::isfinite(tau.y)) {
       const auto [key, coarse_key] = anchor_cells(pin);
       if (anchors_.find(key) == anchors_.end()) {
         RevisitAnchor a;
         a.s = s_now;
         a.p = pin;
         a.offset = offset;
+        a.tau = Eigen::Vector2d(tau.x, tau.y);
         anchors_.emplace(key, a);
         anchor_grid_[coarse_key].push_back(key);
       }

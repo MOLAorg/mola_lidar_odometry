@@ -1249,8 +1249,9 @@ namespace
 {
 struct RevisitResult
 {
-  double split = 0;     // output height difference at x = 10 m, back minus out
-  double max_step = 0;  // largest per-step change of the output offset [m]
+  double split = 0;        // output height difference at x = 10 m, back minus out
+  double max_step = 0;     // largest per-step change of the output offset [m]
+  double pitch_split = 0;  // output pitch difference there [deg]
 };
 
 // Out to x = 50 m and back at 1 m/s on level ground, no accelerometer. Up
@@ -1266,6 +1267,7 @@ RevisitResult out_and_back_by_time(double revisit_radius)
   mola::GravityLeveler lev(p);
   RevisitResult r;
   double z_out = 0;
+  double pitch_out = 0;
   std::optional<double> prev_offset;
   for (std::size_t k = 0; k <= static_cast<std::size_t>(100.0 * POSE_RATE); k++) {
     const double t = static_cast<double>(k) / POSE_RATE;
@@ -1282,9 +1284,11 @@ RevisitResult out_and_back_by_time(double revisit_radius)
     prev_offset = out.z();
     if (k == 100) {
       z_out = out.z();
+      pitch_out = out.pitch();
     }
     if (k == 900) {
       r.split = out.z() - z_out;
+      r.pitch_split = mrpt::RAD2DEG(out.pitch() - pitch_out);
     }
   }
   return r;
@@ -1304,6 +1308,9 @@ TEST(GravityLeveler, RevisitsKeepTheOffsetOfTheirPlace)
   EXPECT_GT(std::abs(integrated.split), 0.1);
   EXPECT_LT(std::abs(by_place.split), 0.005);
   EXPECT_LT(by_place.max_step, 0.02);
+  // The attitude too: both visits get the same correction
+  EXPECT_GT(std::abs(integrated.pitch_split), 0.5);
+  EXPECT_LT(std::abs(by_place.pitch_split), 0.01);
 
   mola::GravityLeveler::Parameters p;
   p.revisit_radius = 1.0;
@@ -1400,6 +1407,48 @@ TEST(GravityLeveler, RevisitLapsAllTakeTheFirstVisit)
   EXPECT_EQ(off.stats.revisit_poses, 0U);
 }
 
+TEST(GravityLeveler, RevisitKeepsTheFirstVisitThroughLaterOnes)
+{
+  // A place visited at t = 0, 31 and 61 s (two loops of 31 m and 30 m), then
+  // a stop there, while the readings go from 0 to 1 deg (t = 15 s) and to
+  // 2 deg (t = 45 s). Every visit and the whole stop keep the first visit's
+  // correction, and nothing steps at the third visit (t = 61 to 61.1 s).
+  const auto at = [](double t) -> mrpt::math::TPoint3D {
+    const double r1 = 31.0 / (2 * M_PI);
+    const double r2 = 30.0 / (2 * M_PI);
+    if (t < 31.0) {
+      return {r1 - r1 * std::cos(t / r1), r1 * std::sin(t / r1), 0.0};
+    }
+    if (t < 61.0) {
+      const double u = t - 31.0;
+      return {r2 * std::cos(u / r2) - r2, r2 * std::sin(u / r2), 0.0};
+    }
+    return {0.0, 0.0, 0.0};
+  };
+  const auto pitch = [](double t) { return t < 15 ? 0.0 : t < 45 ? 1.0 : 2.0; };
+  const auto r = run_path(1.0, at, 90, pitch);
+  const auto off = run_path(0.0, at, 90, pitch);
+  double worst = 0;
+  double worst_off = 0;
+  for (const std::size_t k : {310U, 610U, 611U, 900U}) {
+    worst = std::max(worst, std::abs(split(r, 0, k)));
+    worst_off = std::max(worst_off, std::abs(split(off, 0, k)));
+  }
+  const auto offset = [&r](std::size_t k) {
+    return (r.out[k].translation() - r.in[k].translation()).norm();
+  };
+  std::cout << "split from the first visit: integrated " << worst_off << " m, by first visit "
+            << worst << " m; step at the third visit " << std::abs(offset(611) - offset(610))
+            << " m; pitch at the end " << mrpt::RAD2DEG(r.out[900].pitch()) << " deg (integrated "
+            << mrpt::RAD2DEG(off.out[900].pitch()) << " deg)\n";
+  EXPECT_GT(worst_off, 0.05);
+  EXPECT_LT(worst, 0.005);
+  EXPECT_LT(std::abs(offset(611) - offset(610)), 0.001);
+  EXPECT_LT(max_offset_step(r), 0.01);
+  EXPECT_NEAR(r.out[900].pitch(), r.out[0].pitch(), mrpt::DEG2RAD(0.05));
+  EXPECT_GT(std::abs(off.out[900].pitch() - r.out[0].pitch()), mrpt::DEG2RAD(1.0));
+}
+
 TEST(GravityLeveler, RevisitIsTakenUpOverTheApproach)
 {
   // Out along y = 0, then back along y = 8 m, closing in on the way out
@@ -1444,7 +1493,7 @@ TEST(GravityLeveler, RevisitOfAParallelPathIsPartly)
     std::cout << "parallel at " << gap << " m keeps " << kept << " of its split\n";
     if (gap < 5) {
       EXPECT_GT(kept, 0.2);
-      EXPECT_LT(kept, 0.99);
+      EXPECT_LT(kept, 0.8);
     } else {
       EXPECT_NEAR(kept, 1.0, 1e-9);
     }
