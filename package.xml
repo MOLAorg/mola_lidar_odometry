@@ -18,7 +18,7 @@
   <depend>mola_common</depend>
   <depend>mola_kernel</depend>
   <depend version_gte="3.3.3">mola_yaml</depend>
-  <depend version_gte="3.3.0">mp2p_icp</depend>
+  <depend version_gte="3.2.1">mp2p_icp</depend> <!-- newer API detected at configure time (MP2P_ICP_HAS_*) -->
   <depend>mola_pose_list</depend>
   <depend>mola_relocalization</depend>
 
