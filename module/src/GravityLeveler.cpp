@@ -59,8 +59,9 @@ mrpt::math::CVectorFixedDouble<3> as_vector(const mrpt::math::TVector3D & v)
   return r;
 }
 
-// Grid cell of a coordinate; cells beyond +-2^20 share keys, which only
-// widens a query there.
+// Grid cell of a coordinate. Cells beyond +-2^20 share keys: for queries that
+// only widens them, and anchor cells that far apart (over 1000 km at the
+// smallest size) would share one anchor.
 std::int64_t cell_of(double v, double size)
 {
   return static_cast<std::int64_t>(std::floor(v / size));
@@ -111,6 +112,8 @@ GravityLeveler::GravityLeveler(const Parameters & p) : params_(p)
   ASSERT_GT_(params_.initial_tilt_sigma, 0.0);
   ASSERT_GE_(params_.up_reading_place_radius, 0.0);
   ASSERT_GT_(params_.up_reading_place_max_dz, 0.0);
+  ASSERT_GE_(params_.revisit_radius, 0.0);
+  ASSERT_(params_.revisit_radius == 0 || params_.revisit_fade > params_.revisit_radius);
   ASSERT_GE_(params_.up_reading_warmup, 0.0);
 }
 
@@ -298,6 +301,103 @@ std::optional<GravityLeveler::PlaceTilt> GravityLeveler::tilt_at_place(
   return pt;
 }
 
+std::pair<std::uint64_t, std::uint64_t> GravityLeveler::anchor_cells(
+  const mrpt::math::TPoint3D & p) const
+{
+  const double fine = 0.5 * params_.revisit_radius;
+  const double fine_z = 0.5 * params_.up_reading_place_max_dz;
+  const auto n = static_cast<std::int64_t>(std::ceil(params_.revisit_fade / fine));
+  const auto fx = cell_of(p.x, fine);
+  const auto fy = cell_of(p.y, fine);
+  const auto fz = cell_of(p.z, fine_z);
+  // Coarse cells are whole anchor cells, so an anchor and the positions in
+  // its cell always fall in the same coarse cell:
+  const auto coarse = [](std::int64_t f, std::int64_t m) {
+    return static_cast<std::int64_t>(std::floor(static_cast<double>(f) / static_cast<double>(m)));
+  };
+  return {cell_key(fx, fy, fz), cell_key(coarse(fx, n), coarse(fy, n), coarse(fz, 2))};
+}
+
+std::optional<GravityLeveler::RevisitCorrection> GravityLeveler::revisit_correction(
+  const mrpt::math::TPoint3D & p, double s) const
+{
+  const double radius = params_.revisit_radius;
+  if (!(radius > 0) || anchors_.empty()) {
+    return {};
+  }
+  const double fade = params_.revisit_fade;
+  const double max_dz = params_.up_reading_place_max_dz;
+  const double fine = 0.5 * radius;
+  const double fine_z = 0.5 * max_dz;
+  const auto n = static_cast<std::int64_t>(std::ceil(fade / fine));
+  const auto coarse = [](std::int64_t f, std::int64_t m) {
+    return static_cast<std::int64_t>(std::floor(static_cast<double>(f) / static_cast<double>(m)));
+  };
+  const auto cx = coarse(cell_of(p.x, fine), n);
+  const auto cy = coarse(cell_of(p.y, fine), n);
+  const auto cz = coarse(cell_of(p.z, fine_z), 2);
+  // Each anchor weighs in continuously: by horizontal distance (full within
+  // `radius`, none at `fade`), by height (full within max_dz/2, none at
+  // max_dz: another floor), and by the path traveled since it (none within
+  // 2 fade, full at 4 fade: the pose's own trail is not a revisit, however
+  // slowly it moves or long it stops).
+  struct Candidate
+  {
+    const RevisitAnchor * a;
+    double d2;
+    double w;
+  };
+  std::vector<Candidate> cands;
+  double w = 0;
+  for (std::int64_t dx = -1; dx <= 1; dx++) {
+    for (std::int64_t dy = -1; dy <= 1; dy++) {
+      for (std::int64_t dz = -1; dz <= 1; dz++) {
+        const auto it = anchor_grid_.find(cell_key(cx + dx, cy + dy, cz + dz));
+        if (it == anchor_grid_.end()) {
+          continue;
+        }
+        for (const auto key : it->second) {
+          const auto & a = anchors_.at(key);
+          const double d2 = mrpt::square(a.p.x - p.x) + mrpt::square(a.p.y - p.y);
+          const double w_path = std::clamp((s - a.s - 2 * fade) / (2 * fade), 0.0, 1.0);
+          const double w_z =
+            std::clamp((max_dz - std::abs(a.p.z - p.z)) / (0.5 * max_dz), 0.0, 1.0);
+          const double w_xy = std::clamp((fade - std::sqrt(d2)) / (fade - radius), 0.0, 1.0);
+          const double wa = w_xy * w_z * w_path;
+          if (wa > 0) {
+            cands.push_back({&a, d2, wa});
+            w = std::max(w, wa);
+          }
+        }
+      }
+    }
+  }
+  if (cands.empty()) {
+    return {};
+  }
+  // A Gaussian mean (sigma = radius), relative to the nearest candidate, so
+  // that it stays defined however small the radius:
+  double d2_min = cands.front().d2;
+  for (const auto & c : cands) {
+    d2_min = std::min(d2_min, c.d2);
+  }
+  const double inv_two_sigma2 = 1.0 / (2.0 * mrpt::square(radius));
+  RevisitCorrection rc;
+  rc.offset = mrpt::math::TVector3D(0, 0, 0);
+  double sum_k = 0;
+  for (const auto & c : cands) {
+    const double k = c.w * std::exp(-(c.d2 - d2_min) * inv_two_sigma2);
+    rc.offset = rc.offset + c.a->offset * k;
+    sum_k += k;
+  }
+  if (!(sum_k > 0)) {
+    return {};
+  }
+  rc.offset = rc.offset * (1.0 / sum_k);
+  rc.weight = w;
+  return rc;
+}
+
 double GravityLeveler::deadband_at(double t) const
 {
   if (!last_up_accepted_t_) {
@@ -476,6 +576,18 @@ mrpt::poses::CPose3D GravityLeveler::add_pose(double t, const mrpt::poses::CPose
     }
   }
 
+  // A revisited place keeps the position offset of its first visit:
+  // integrated along the path, the two visits would be split by what the
+  // correction did in between (a floor drawn twice).
+  double s_now = path_length_;
+  if (is_new && last_in_) {
+    s_now += (pose.translation() - last_in_->translation()).norm();
+  }
+  const auto rev = revisit_correction(pose.translation(), s_now);
+  if (rev && is_new) {
+    stats_.revisit_poses++;
+  }
+
   // Each increment is rotated by the correction held at its start, and the
   // attitude by the current one:
   const auto R_prev = leveling_rotation(applied_tilt_);
@@ -487,7 +599,36 @@ mrpt::poses::CPose3D GravityLeveler::add_pose(double t, const mrpt::poses::CPose
     p =
       last_out_->translation() + R_prev.rotateVector(pose.translation() - last_in_->translation());
   }
+  const double w_now = rev ? rev->weight : 0.0;
+  if (rev) {
+    const mrpt::math::TVector3D integrated = p - mrpt::math::TVector3D(pose.translation());
+    // The share of the remaining difference that brings the blend to w: the
+    // output moves to the first visit's offset linearly in w (in distance
+    // over the approach), and nothing is taken back while w falls.
+    const double w_last = last_revisit_weight_;
+    const double g = w_now >= 1.0    ? 1.0
+                     : w_last >= 1.0 ? 0.0
+                                     : std::max(0.0, w_now - w_last) / (1.0 - w_last);
+    p = mrpt::math::TVector3D(pose.translation()) + integrated + (rev->offset - integrated) * g;
+  }
   const mrpt::poses::CPose3D out(R_att, as_vector(p));
+  if (is_new && params_.revisit_radius > 0) {
+    const mrpt::math::TPoint3D pin = pose.translation();
+    const mrpt::math::TVector3D offset = p - mrpt::math::TVector3D(pin);
+    if (
+      std::isfinite(pin.x) && std::isfinite(pin.y) && std::isfinite(pin.z) &&
+      std::isfinite(offset.x) && std::isfinite(offset.y) && std::isfinite(offset.z)) {
+      const auto [key, coarse_key] = anchor_cells(pin);
+      if (anchors_.find(key) == anchors_.end()) {
+        RevisitAnchor a;
+        a.s = s_now;
+        a.p = pin;
+        a.offset = offset;
+        anchors_.emplace(key, a);
+        anchor_grid_[coarse_key].push_back(key);
+      }
+    }
+  }
 
   // A pose older than the last one is leveled, but does not move the state
   // the next increments and interpolations start from:
@@ -496,6 +637,8 @@ mrpt::poses::CPose3D GravityLeveler::add_pose(double t, const mrpt::poses::CPose
     last_in_ = pose;
     last_out_ = out;
     last_t_ = t;
+    path_length_ = s_now;
+    last_revisit_weight_ = w_now;
   }
   return out;
 }

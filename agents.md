@@ -1451,6 +1451,17 @@ correction by time is applied a trailing window late and, on revisits (no new
 local-map scans), held from elsewhere, and on a college walk that made the
 path climb 8 m. Rejected readings are not kept: at vehicle speed a place has
 one or two readings, and an outlier among them bent the revisit by 0.26 m.
+Positions are corrected by re-integrating the path, so two visits of a place
+split in height by the line integral of the correction in between (60-130 cm
+on college walks, floors doubled on stairs). With the walls modes
+`revisit_radius` (1 m, `-walls-revisit-radius`, 0: off; `revisit_fade` = 5x)
+keeps the first visit of every cell (radius/2 wide, max_dz/2 high) with its
+output offset; a pose within the radius, on the same floor
+and more than 2 fades of path later takes it, weighted linearly down to
+zero at the fade, and moves toward them linearly in that weight. Never
+replacing the first visit keeps laps from chaining; gating by path, not time,
+keeps slow passes and stops from revisiting themselves. Accelerometer-only
+leveling does not use it.
 `up_reading_warmup` (0 s, `-walls-warmup`, opt-in) ignores the first wall
 readings: for runs that start level, where the first places can only add their
 own error (a 1 deg start lean cost 0.6 m on a level walk); a run that starts

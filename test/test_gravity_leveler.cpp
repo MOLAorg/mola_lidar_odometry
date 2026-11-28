@@ -19,6 +19,7 @@
 #include <array>
 #include <cmath>
 #include <deque>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <optional>
@@ -1242,4 +1243,290 @@ TEST(GravityLeveler, OlderUpReadingDoesNotAgeTheHold)
   EXPECT_EQ(lev.stats().gated_up_readings, 0U);
   (void)lev.add_pose(110.0, tilt + true_pose(110.0));
   EXPECT_NEAR(mrpt::RAD2DEG(lev.applied_tilt().norm()), 1.0, 0.1);
+}
+
+namespace
+{
+struct RevisitResult
+{
+  double split = 0;     // output height difference at x = 10 m, back minus out
+  double max_step = 0;  // largest per-step change of the output offset [m]
+};
+
+// Out to x = 50 m and back at 1 m/s on level ground, no accelerometer. Up
+// readings by time only, of their place: level until t = 20 s, then 1 deg of
+// pitch. The way back gets 1 deg where the way out had 0, so the path
+// integral of the correction splits the two visits of x = 10 m.
+RevisitResult out_and_back_by_time(double revisit_radius)
+{
+  mola::GravityLeveler::Parameters p;
+  p.up_reading_place_radius = 0;
+  p.deadband = p.up_reading_deadband;
+  p.revisit_radius = revisit_radius;
+  mola::GravityLeveler lev(p);
+  RevisitResult r;
+  double z_out = 0;
+  std::optional<double> prev_offset;
+  for (std::size_t k = 0; k <= static_cast<std::size_t>(100.0 * POSE_RATE); k++) {
+    const double t = static_cast<double>(k) / POSE_RATE;
+    const double x = t <= 50.0 ? t : 100.0 - t;
+    if (k % 10 == 0) {
+      const double d = mrpt::DEG2RAD(t < 20.0 ? 0.0 : 1.0);
+      lev.add_up_reading(
+        t, {std::sin(d), 0.0, std::cos(d)}, iso_cov(0.1), mrpt::math::TPoint3D(x, 0, 0));
+    }
+    const auto out = lev.add_pose(t, mrpt::poses::CPose3D(x, 0, 0, 0, 0, 0));
+    if (prev_offset) {
+      r.max_step = std::max(r.max_step, std::abs(out.z() - *prev_offset));
+    }
+    prev_offset = out.z();
+    if (k == 100) {
+      z_out = out.z();
+    }
+    if (k == 900) {
+      r.split = out.z() - z_out;
+    }
+  }
+  return r;
+}
+}  // namespace
+
+TEST(GravityLeveler, RevisitsKeepTheOffsetOfTheirPlace)
+{
+  // Integrated along the path, the two visits of a place are split by what
+  // the correction did in between: the floor would be drawn twice. With
+  // revisit_radius, the way back takes the offset of the way out there,
+  // faded in over revisit_fade so the output does not jump.
+  const auto integrated = out_and_back_by_time(0.0);
+  const auto by_place = out_and_back_by_time(1.0);
+  std::cout << "split at x = 10 m: integrated " << integrated.split << " m, by place "
+            << by_place.split << " m; largest step " << by_place.max_step << " m\n";
+  EXPECT_GT(std::abs(integrated.split), 0.1);
+  EXPECT_LT(std::abs(by_place.split), 0.005);
+  EXPECT_LT(by_place.max_step, 0.02);
+
+  mola::GravityLeveler::Parameters p;
+  p.revisit_radius = 1.0;
+  p.revisit_fade = 1.0;
+  EXPECT_ANY_THROW(mola::GravityLeveler{p});
+}
+
+namespace
+{
+struct PathRun
+{
+  std::vector<double> t;
+  std::vector<mrpt::poses::CPose3D> in;
+  std::vector<mrpt::poses::CPose3D> out;
+  mola::GravityLeveler::Stats stats;
+};
+
+// Poses at 10 Hz along `at(t)` (input heights as given) for `duration` s,
+// without an accelerometer, and up readings every second of the pitch
+// `pitch_deg(t)`, by time only (no place), so that the correction changes
+// along the path.
+PathRun run_path(
+  double revisit_radius, const std::function<mrpt::math::TPoint3D(double)> & at, double duration,
+  const std::function<double(double)> & pitch_deg)
+{
+  mola::GravityLeveler::Parameters p;
+  p.up_reading_place_radius = 0;
+  p.deadband = p.up_reading_deadband;
+  p.revisit_radius = revisit_radius;
+  p.revisit_fade = 5.0 * std::max(1.0, revisit_radius);
+  mola::GravityLeveler lev(p);
+  PathRun r;
+  for (std::size_t k = 0; k <= static_cast<std::size_t>(duration * POSE_RATE); k++) {
+    const double t = static_cast<double>(k) / POSE_RATE;
+    if (k % 10 == 0) {
+      const double d = mrpt::DEG2RAD(pitch_deg(t));
+      lev.add_up_reading(t, {std::sin(d), 0.0, std::cos(d)}, iso_cov(0.1));
+    }
+    const auto x = at(t);
+    r.t.push_back(t);
+    r.in.emplace_back(x.x, x.y, x.z, 0, 0, 0);
+    r.out.push_back(lev.add_pose(t, r.in.back()));
+  }
+  r.stats = lev.stats();
+  return r;
+}
+
+// Largest per-step change of the output offset (output minus input) [m]
+double max_offset_step(const PathRun & r)
+{
+  double m = 0;
+  for (std::size_t i = 1; i < r.t.size(); i++) {
+    const auto a = r.out[i].translation() - r.in[i].translation();
+    const auto b = r.out[i - 1].translation() - r.in[i - 1].translation();
+    m = std::max(m, (a - b).norm());
+  }
+  return m;
+}
+
+// Change of the height difference of poses i and j from leveling [m]
+double split(const PathRun & r, std::size_t i, std::size_t j)
+{
+  return (r.out[j].z() - r.out[i].z()) - (r.in[j].z() - r.in[i].z());
+}
+
+mrpt::math::TPoint3D on_circle(double t)
+{
+  constexpr double R = 5.0;  // a lap of 31.4 m at 1 m/s
+  return {R * std::cos(t / R), R * std::sin(t / R), 0.0};
+}
+}  // namespace
+
+TEST(GravityLeveler, RevisitLapsAllTakeTheFirstVisit)
+{
+  // Twelve laps of a circle while the correction wanders: every lap takes the
+  // first lap's correction (it does not chain from lap to lap), and nothing
+  // jumps when a lap passes a place visited 31 s, 63 s... before.
+  const auto wander = [](double t) { return 1.0 + 0.8 * std::sin(t / 37.0); };
+  const auto r = run_path(1.0, on_circle, 12 * 31.4, wander);
+  const auto off = run_path(0.0, on_circle, 12 * 31.4, wander);
+  const std::size_t lap = 314;
+  double worst = 0;
+  double worst_off = 0;
+  for (std::size_t k = 2; k < 12; k++) {
+    worst = std::max(worst, std::abs(split(r, lap + 50, k * lap + 50)));
+    worst_off = std::max(worst_off, std::abs(split(off, lap + 50, k * lap + 50)));
+  }
+  std::cout << "lap-to-lap split: integrated " << worst_off << " m, by first visit " << worst
+            << " m; largest step " << max_offset_step(r) << " m\n";
+  EXPECT_GT(worst_off, 0.05);
+  EXPECT_LT(worst, 0.005);
+  EXPECT_LT(max_offset_step(r), 0.01);
+  EXPECT_GT(r.stats.revisit_poses, 3000U);
+  EXPECT_EQ(off.stats.revisit_poses, 0U);
+}
+
+TEST(GravityLeveler, RevisitIsTakenUpOverTheApproach)
+{
+  // Out along y = 0, then back along y = 8 m, closing in on the way out
+  // between x = 20 and 10 m: the first visit's offset is taken up gradually
+  // as the distance falls from the fade (5 m) to the radius (1 m), and in
+  // full where the paths meet. Parallel at 3 m it is half taken (the weight
+  // there), at 8 m not at all.
+  const auto at = [](double t) -> mrpt::math::TPoint3D {
+    if (t <= 50) {
+      return {t, 0, 0};
+    }
+    const double x = 100 - t;
+    const double y = x >= 20 ? 8.0 : x <= 10 ? 0.0 : 8.0 * (x - 10) / 10;
+    return {x, y, 0};
+  };
+  const auto pitch = [](double t) { return t < 30 ? 0.0 : 1.0; };
+  const auto r = run_path(1.0, at, 100, pitch);
+  const auto off = run_path(0.0, at, 100, pitch);
+  // x = 5 m: out at t = 5 s, back at t = 95 s
+  const double s_on = split(r, 50, 950);
+  const double s_off = split(off, 50, 950);
+  std::cout << "split at x = 5 m: integrated " << s_off << " m, by first visit " << s_on
+            << " m; largest step " << max_offset_step(r) << " m\n";
+  EXPECT_GT(std::abs(s_off), 0.1);
+  EXPECT_LT(std::abs(s_on), 0.005);
+  EXPECT_LT(max_offset_step(r), 0.01);
+}
+
+TEST(GravityLeveler, RevisitOfAParallelPathIsPartly)
+{
+  // A way back parallel to the way out, 3 m apart: within the fade, so part
+  // of the first visit's offset is taken (the effective reach is the fade,
+  // 5 m); 8 m apart, none.
+  const auto pitch = [](double t) { return t < 30 ? 0.0 : 1.0; };
+  for (const double gap : {3.0, 8.0}) {
+    const auto at = [gap](double t) -> mrpt::math::TPoint3D {
+      return t <= 50 ? mrpt::math::TPoint3D(t, 0, 0) : mrpt::math::TPoint3D(100 - t, gap, 0);
+    };
+    const auto r = run_path(1.0, at, 100, pitch);
+    const auto off = run_path(0.0, at, 100, pitch);
+    const double kept = split(r, 50, 950) / split(off, 50, 950);
+    std::cout << "parallel at " << gap << " m keeps " << kept << " of its split\n";
+    if (gap < 5) {
+      EXPECT_GT(kept, 0.2);
+      EXPECT_LT(kept, 0.99);
+    } else {
+      EXPECT_NEAR(kept, 1.0, 1e-9);
+    }
+  }
+}
+
+TEST(GravityLeveler, RevisitIsNotASlowPassOrAStop)
+{
+  // A straight 30 m line, level, seen in a frame tilted 1 deg (the input
+  // climbs), at 0.05 m/s: the pose's own trail is close by for minutes, but
+  // it is not a revisit, so the climb is leveled as without revisits. Then
+  // a 300 s stop while the readings move to 2 deg: the correction follows.
+  const double tan1 = std::tan(mrpt::DEG2RAD(1.0));
+  const auto at = [tan1](double t) -> mrpt::math::TPoint3D {
+    const double x = 0.05 * std::min(t, 600.0);
+    return {x, 0, x * tan1};
+  };
+  const auto pitch = [](double t) { return t < 600 ? -1.0 : -2.0; };
+  const auto r = run_path(1.0, at, 900, pitch);
+  const auto off = run_path(0.0, at, 900, pitch);
+  EXPECT_EQ(r.stats.revisit_poses, 0U);
+  const std::size_t end_line = 6000;
+  EXPECT_NEAR(r.out[end_line].z(), off.out[end_line].z(), 1e-9);
+  EXPECT_LT(std::abs(r.out[end_line].z()), 0.05 * r.in[end_line].z());
+  // After the stop, both apply 2 deg:
+  EXPECT_NEAR(mrpt::RAD2DEG(r.out.back().pitch()), mrpt::RAD2DEG(off.out.back().pitch()), 1e-6);
+}
+
+TEST(GravityLeveler, RevisitStaysOnItsFloor)
+{
+  // Way out on the floor at z = 0, way back 3.2 m above (the floor above):
+  // another place. 1 m above (within the floor cut) it is partly the same.
+  const auto pitch = [](double t) { return t < 30 ? 0.0 : 1.0; };
+  for (const double dz : {3.2, 1.0}) {
+    const auto at = [dz](double t) -> mrpt::math::TPoint3D {
+      return t <= 50 ? mrpt::math::TPoint3D(t, 0, 0) : mrpt::math::TPoint3D(100 - t, 0, dz);
+    };
+    const auto r = run_path(1.0, at, 100, pitch);
+    if (dz > 1.5) {
+      EXPECT_EQ(r.stats.revisit_poses, 0U);
+    } else {
+      EXPECT_GT(r.stats.revisit_poses, 0U);
+    }
+  }
+}
+
+TEST(GravityLeveler, RevisitIgnoresOlderPosesAndScalesWithTheRadius)
+{
+  // An older pose is leveled with the current correction, and neither moves
+  // the path nor adds a place; a radius of 6 m with a 30 m fade works.
+  const auto pitch = [](double t) { return t < 30 ? 0.0 : 1.0; };
+  const auto at = [](double t) -> mrpt::math::TPoint3D { return {t <= 50 ? t : 100 - t, 0, 0}; };
+  mola::GravityLeveler::Parameters p;
+  p.up_reading_place_radius = 0;
+  p.deadband = p.up_reading_deadband;
+  p.revisit_radius = 1.0;
+  mola::GravityLeveler a(p);
+  mola::GravityLeveler b(p);
+  double max_diff = 0;
+  for (std::size_t k = 0; k <= 1000; k++) {
+    const double t = static_cast<double>(k) / POSE_RATE;
+    for (auto * lev : {&a, &b}) {
+      if (k % 10 == 0) {
+        const double d = mrpt::DEG2RAD(pitch(t));
+        lev->add_up_reading(t, {std::sin(d), 0.0, std::cos(d)}, iso_cov(0.1));
+      }
+    }
+    const auto x = at(t);
+    const auto oa = a.add_pose(t, mrpt::poses::CPose3D(x.x, x.y, x.z, 0, 0, 0));
+    if (k == 600) {
+      // An old pose, far away, out of order:
+      (void)b.add_pose(t - 30, mrpt::poses::CPose3D(500, 500, 0, 0, 0, 0));
+    }
+    const auto ob = b.add_pose(t, mrpt::poses::CPose3D(x.x, x.y, x.z, 0, 0, 0));
+    max_diff = std::max(max_diff, (oa.translation() - ob.translation()).norm());
+  }
+  EXPECT_LT(max_diff, 1e-9);
+  EXPECT_EQ(a.stats().revisit_poses, b.stats().revisit_poses);
+
+  p.revisit_radius = 6.0;
+  p.revisit_fade = 30.0;
+  EXPECT_NO_THROW(mola::GravityLeveler{p});
+  p.revisit_fade = 6.0;
+  EXPECT_ANY_THROW(mola::GravityLeveler{p});
 }
